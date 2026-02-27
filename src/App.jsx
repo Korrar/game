@@ -848,9 +848,9 @@ export default function App() {
             const f = wd[fid];
             if (!f || !f.alive || !f.friendly) continue;
             const dx = f.x - w.x;
-            const dy = ((f.y || 65) - (w.y || 65)) * 0.5;
+            const dy = ((f.y || 50) - (w.y || 50)) * 0.5;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < friendDist) { friendDist = dist; friendX = f.x; friendY = f.y || 65; friendId = fid; }
+            if (dist < friendDist) { friendDist = dist; friendX = f.x; friendY = f.y || 50; friendId = fid; }
           }
 
           // NPC ability usage
@@ -1038,12 +1038,18 @@ export default function App() {
               }
             }
           } else if (defenseModeRef.current?.phase === "wave_active") {
-            // No friendly target – attack the caravan
+            // No friendly target – march toward caravan (center-bottom)
             w.combatState = null;
-            w.dir = -1; // move toward caravan (left side)
-            w.x += w.speed * w.dir;
-            if (w.x < 12) {
-              w.x = 12;
+            const caravanX = 50, caravanY = 92;
+            const dxC = caravanX - w.x;
+            const dyC = caravanY - (w.y || 50);
+            // Move toward caravan
+            if (Math.abs(dxC) > 2) w.x += Math.sign(dxC) * w.speed * 0.6;
+            if (w.y != null && Math.abs(dyC) > 2) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * 2.5;
+            w.dir = dxC > 0 ? 1 : -1;
+            // Attack when close enough to caravan
+            const distToCaravan = Math.sqrt(dxC * dxC + dyC * dyC);
+            if (distToCaravan < 15) {
               const now = Date.now();
               const cdKey = "ec" + id;
               if (!atkCds[cdKey] || now - atkCds[cdKey] > 3000) {
@@ -1727,7 +1733,7 @@ export default function App() {
         x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
         yDir: 1, // start moving downward
         speed: boss.speed, ySpeed: 0.008,
-        minX: 5, maxX: 98, minY: 25, maxY: 80, // cannot enter caravan zone
+        minX: 5, maxX: 98, minY: 25, maxY: 92,
         bouncePhase: 0, alive: true, friendly: false,
         damage: boss.damage,
         lungeFrames: 0, lungeOffset: 0,
@@ -1774,7 +1780,7 @@ export default function App() {
           yDir: 1, // always start moving downward
           speed: 0.01 + Math.random() * 0.02,
           ySpeed: 0.015 + Math.random() * 0.015, // faster downward movement
-          minX: 5, maxX: 98, minY: 25, maxY: 80, // cannot enter caravan zone (80-100%)
+          minX: 5, maxX: 98, minY: 25, maxY: 92,
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true, friendly: false,
           damage: Math.ceil(npcData.hp / 8 * dmgMult),
@@ -1822,7 +1828,7 @@ export default function App() {
           yDir: 1, // start moving downward
           speed: m.speed || 0.04,
           ySpeed: 0.015 + Math.random() * 0.015,
-          minX: 5, maxX: 98, minY: 25, maxY: 80, // cannot enter caravan zone
+          minX: 5, maxX: 98, minY: 25, maxY: 92,
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true, friendly: false,
           damage: minionDmg,
@@ -3384,7 +3390,7 @@ export default function App() {
       {/* ─── FRUIT TREE (biome variant) ─── */}
       {fruitTree && (
         <div style={{
-          position: "absolute", left: `${fruitTree.x}%`, bottom: "5%", zIndex: 14,
+          position: "absolute", left: `${fruitTree.x}%`, bottom: "12%", zIndex: 14,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           {/* Trunk */}
@@ -3428,7 +3434,7 @@ export default function App() {
       {/* ─── MINE (biome variant rock formation) ─── */}
       {mineNugget && (
         <div style={{
-          position: "absolute", left: `${mineNugget.x}%`, bottom: "5%", zIndex: 14,
+          position: "absolute", left: `${mineNugget.x}%`, bottom: "12%", zIndex: 14,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           {/* Rock body */}
@@ -3484,7 +3490,7 @@ export default function App() {
         const [wr,wg,wb] = waterfall.rgb;
         return (
         <div style={{
-          position: "absolute", left: `${waterfall.x}%`, bottom: "5%", zIndex: 13,
+          position: "absolute", left: `${waterfall.x}%`, bottom: "12%", zIndex: 13,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           <div style={{
@@ -3559,7 +3565,7 @@ export default function App() {
       {/* ─── MERCENARY CAMP ─── */}
       {mercCamp && (
         <div style={{
-          position: "absolute", left: `${mercCamp.x}%`, bottom: "5%", zIndex: 14,
+          position: "absolute", left: `${mercCamp.x}%`, bottom: "12%", zIndex: 14,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           {/* Tent */}
@@ -3637,7 +3643,7 @@ export default function App() {
         const canAfford = totalCopper(money) >= wizardPoi.cost;
         return (
           <div style={{
-            position: "absolute", left: `${wizardPoi.x}%`, bottom: "3%", zIndex: 14,
+            position: "absolute", left: `${wizardPoi.x}%`, bottom: "12%", zIndex: 14,
             transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
           }}>
             {/* Wizard tent */}
@@ -3717,7 +3723,7 @@ export default function App() {
           const spikeH = spikesUp ? 18 : 3;
           return (
             <div key={trap.id} style={{
-              position: "absolute", left: `${trap.x}%`, bottom: "3%", zIndex: 13,
+              position: "absolute", left: `${trap.x}%`, bottom: "12%", zIndex: 13,
               transform: "translateX(-50%)", pointerEvents: "none",
             }}>
               {/* Base plate */}
@@ -3751,7 +3757,7 @@ export default function App() {
             // Explosion visual
             return (
               <div key={trap.id} style={{
-                position: "absolute", left: `${trap.x}%`, bottom: "3%", zIndex: 13,
+                position: "absolute", left: `${trap.x}%`, bottom: "12%", zIndex: 13,
                 transform: "translateX(-50%)", pointerEvents: "none",
                 fontSize: 28, animation: "dmgFloat 1.5s ease-out forwards",
               }}>💥</div>
@@ -3784,7 +3790,7 @@ export default function App() {
           const hpPct = trap.hp / trap.maxHp;
           return (
             <div key={trap.id} style={{
-              position: "absolute", left: `${trap.x}%`, bottom: "3%", zIndex: 15,
+              position: "absolute", left: `${trap.x}%`, bottom: "12%", zIndex: 15,
               transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
               cursor: selectedSpell ? "crosshair" : "pointer",
             }}
@@ -3858,7 +3864,7 @@ export default function App() {
         if (trap.type === "tower" && !trap.active) {
           return (
             <div key={trap.id} style={{
-              position: "absolute", left: `${trap.x}%`, bottom: "3%", zIndex: 10,
+              position: "absolute", left: `${trap.x}%`, bottom: "12%", zIndex: 10,
               transform: "translateX(-50%)", pointerEvents: "none", opacity: 0.4,
             }}>
               <div style={{ position: "relative", width: 30, height: 25 }}>
