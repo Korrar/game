@@ -356,6 +356,13 @@ export class PhysicsWorld {
   }
 
   init(canvas) {
+    // Clean up any existing bodies/world before reinitializing
+    if (this.world) {
+      this.clear();
+      try { this.world.free(); } catch { /* already freed */ }
+      this.world = null;
+    }
+
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.W = canvas.width;
@@ -371,6 +378,15 @@ export class PhysicsWorld {
     const gravity = { x: 0.0, y: 300.0 }; // Rapier uses real units; tune to look good
     this.world = new this.rapier.World(gravity);
     this._createBoundaries();
+  }
+
+  // Update canvas reference and resize without recreating the Rapier world
+  updateCanvas(canvas, w, h) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext("2d");
+    if (w !== this.W || h !== this.H) {
+      this.resize(w, h);
+    }
   }
 
   _createBoundaries() {
@@ -754,6 +770,10 @@ export class PhysicsWorld {
             if (proj.gravity) {
               const desiredVx = Math.sign(dx) * Math.abs(proj.vx);
               proj.vx += (desiredVx - proj.vx) * proj.homing;
+              // Also adjust vy to track target's Y position
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              const desiredVy = (dy / dist) * Math.abs(proj.vx);
+              proj.vy += (desiredVy - proj.vy) * proj.homing * 0.5;
             } else {
               const dist = Math.sqrt(dx * dx + dy * dy) || 1;
               const desiredVx = (dx / dist) * proj.speed;
@@ -801,7 +821,7 @@ export class PhysicsWorld {
         const ePos = entry.limbBodies.torso ? entry.limbBodies.torso.translation() : null;
         if (!ePos) continue;
         const ddx = proj.x - ePos.x, ddy = proj.y - ePos.y;
-        const hitR = proj.type === "mageSpell" ? 400 : 256;
+        const hitR = 400;
         if (ddx * ddx + ddy * ddy < hitR) {
           hit = true;
           this.combatEffects.spawnBlood(ePos.x, ePos.y, Math.sign(proj.vx) || 1, 0.4);
