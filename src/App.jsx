@@ -3036,7 +3036,7 @@ export default function App() {
       <div ref={gameContainerRef} style={{
         width: GAME_W, height: GAME_H,
         transform: `scale(${gameScale})`,
-        transformOrigin: "center center",
+        transformOrigin: isMobile ? "top center" : "center center",
         position: "relative",
         overflow: "hidden",
         animation: screenShake ? "screenShake 0.08s infinite alternate" : "none",
