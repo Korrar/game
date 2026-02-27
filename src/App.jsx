@@ -14,7 +14,8 @@ import { rollWeather, applyWeatherDamage } from "./data/weather";
 import { renderBiome } from "./renderers/biomeRenderers";
 import { renderVault } from "./renderers/vaultRenderer";
 import { BiomeAnimator } from "./renderers/biomeAnimator";
-import { PhysicsWorld } from "./physics/PhysicsWorld";
+import { PhysicsWorld } from "./physics/RapierPhysicsWorld";
+import { initRapier } from "./physics/rapierInit";
 import {
   startMusic, toggleMusic, changeBiomeMusic, sfxDoor, sfxChest, sfxSell,
   sfxStore, sfxRetrieve, sfxUpgrade, sfxGather, sfxBuy,
@@ -1635,13 +1636,18 @@ export default function App() {
     return () => { if (animatorRef.current) animatorRef.current.stop(); };
   }, [biome, isNight, weather, GAME_W, GAME_H]);
 
-  // Physics canvas
+  // Physics canvas — async init for Rapier WASM
   useEffect(() => {
     if (!biome || !physicsCanvasRef.current) return;
+    let cancelled = false;
     const c = physicsCanvasRef.current;
     c.width = GAME_W; c.height = GAME_H;
-    if (!physicsRef.current) physicsRef.current = new PhysicsWorld();
-    physicsRef.current.init(c);
+    initRapier().then(() => {
+      if (cancelled) return;
+      if (!physicsRef.current) physicsRef.current = new PhysicsWorld();
+      physicsRef.current.init(c);
+    });
+    return () => { cancelled = true; };
   }, [biome, GAME_W, GAME_H]);
 
   // Weather → physics
