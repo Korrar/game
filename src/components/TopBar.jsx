@@ -10,7 +10,7 @@ const styles = {
   topBtn: { background: "none", border: "2px solid #8a6018", color: "#d4a030", fontSize: 13, fontWeight: "bold", padding: "4px 10px", cursor: "pointer", transition: "all 0.15s" },
 };
 
-export default function TopBar({ doors, initiative, treasures, money, mana, onInv, onShop, onHideout, onBestiary, knowledge, musicOn, onToggleMusic }) {
+export default function TopBar({ doors, initiative, treasures, money, mana, maxMana, onInv, onShop, onHideout, onBestiary, knowledge, musicOn, onToggleMusic, onSave }) {
   const hoverOn = (e) => { e.target.style.background = "#d4a030"; e.target.style.color = "#000"; };
   const hoverOff = (e) => { e.target.style.background = "none"; e.target.style.color = "#d4a030"; };
 
@@ -26,7 +26,7 @@ export default function TopBar({ doors, initiative, treasures, money, mana, onIn
         <div style={styles.coin("#b87333")}>🟤<b>{money.copper}</b></div>
         <div style={styles.coin("#a8a8b0")}>⚪<b>{money.silver}</b></div>
         <div style={styles.coin("#d4a030")}>🟡<b>{money.gold}</b></div>
-        {mana !== undefined && <div style={styles.coin("#60a0ff")}>🔮<b>{mana}/100</b></div>}
+        {mana !== undefined && <div style={styles.coin("#60a0ff")}>🔮<b>{Math.floor(mana)}/{maxMana || 100}</b></div>}
         {knowledge > 0 && <div style={styles.coin("#60a0ff")}>📖<b>{knowledge}</b></div>}
       </div>
       <div style={styles.btns}>
@@ -34,6 +34,11 @@ export default function TopBar({ doors, initiative, treasures, money, mana, onIn
           <button style={{ ...styles.topBtn, fontSize: 16, padding: "4px 8px", opacity: musicOn ? 1 : 0.5 }} onClick={onToggleMusic}
             title={musicOn ? "Wycisz" : "Włącz dźwięk"}>
             {musicOn ? "🔊" : "🔇"}
+          </button>
+        )}
+        {onSave && (
+          <button style={{ ...styles.topBtn, fontSize: 16, padding: "4px 8px" }} onClick={onSave} title="Zapisz grę">
+            💾
           </button>
         )}
         {onBestiary && <button style={styles.topBtn} onClick={onBestiary} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>📖 Bestiariusz</button>}

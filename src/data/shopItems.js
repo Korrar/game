@@ -16,6 +16,13 @@ export const SHOP_TOOLS = [
     cost: { silver: 3 },
     terrain: "mine",
   },
+  {
+    id: "spyglass",
+    icon: "🔭",
+    name: "Luneta zwiadowcy",
+    desc: "Pokaże podgląd następnej komnaty przed wejściem",
+    cost: { silver: 5 },
+  },
 ];
 
 // Resources that can be gathered with tools

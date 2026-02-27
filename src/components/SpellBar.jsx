@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SPELLS } from "../data/npcs";
 
-const SPELLS_PER_PAGE = 5;
+const SPELLS_PER_PAGE = 6;
 
 const barStyle = {
   position: "fixed",
@@ -32,7 +32,7 @@ const slotStyle = (spell, selected, canCast) => ({
   background: selected ? `${spell.color}18` : "rgba(255,255,255,0.02)",
   cursor: canCast ? "grab" : "not-allowed",
   transition: "border-color 0.15s, background 0.15s",
-  minWidth: 60,
+  minWidth: 56,
   userSelect: "none",
   overflow: "hidden",
 });
@@ -60,6 +60,7 @@ const pageDotsStyle = {
 export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart }) {
   const [, tick] = useState(0);
   const [page, setPage] = useState(0);
+  const [hoveredSpell, setHoveredSpell] = useState(null);
 
   // Re-render periodically while any cooldown is active
   useEffect(() => {
@@ -68,6 +69,24 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
     const id = setInterval(() => tick(n => n + 1), 100);
     return () => clearInterval(id);
   }, [cooldowns]);
+
+  // Keyboard shortcuts: 1-6 for spell slots on current page
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= SPELLS_PER_PAGE) {
+        const known = learnedSpells || SPELLS.filter(s => s.learned).map(s => s.id);
+        const knownSpells = SPELLS.filter(s => known.includes(s.id));
+        const idx = (page * SPELLS_PER_PAGE) + num - 1;
+        if (idx < knownSpells.length) {
+          onSelect(knownSpells[idx].id);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [page, learnedSpells, onSelect]);
 
   const now = Date.now();
   const known = learnedSpells || SPELLS.filter(s => s.learned).map(s => s.id);
@@ -87,7 +106,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
       {/* Mana display */}
       <div style={manaBoxStyle}>
         <div style={{ fontSize: 24 }}>🔮</div>
-        <div style={{ fontWeight: "bold", fontSize: 14, color: "#60a0ff", textShadow: "0 0 8px rgba(60,120,255,0.4)" }}>{mana}/100</div>
+        <div style={{ fontWeight: "bold", fontSize: 14, color: "#60a0ff", textShadow: "0 0 8px rgba(60,120,255,0.4)" }}>{Math.floor(mana)}/100</div>
         <div style={{ fontSize: 9, color: "#4466aa", letterSpacing: 1 }}>MANA</div>
       </div>
 
@@ -101,7 +120,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
 
       {/* Spell slots – current page */}
       <div style={{ display: "flex", gap: 6, position: "relative" }}>
-        {pageSpells.map(spell => {
+        {pageSpells.map((spell, idx) => {
           const cdEnd = cooldowns[spell.id] || 0;
           const onCooldown = cdEnd > now;
           const cdPct = onCooldown ? (cdEnd - now) / spell.cooldown : 0;
@@ -111,6 +130,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
           const canCast = isSummon
             ? !onCooldown
             : mana >= spell.manaCost && !onCooldown;
+          const keyNum = idx + 1;
 
           return (
             <div
@@ -125,12 +145,14 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
               }}
               onClick={() => onSelect(spell.id)}
               onMouseEnter={e => {
+                setHoveredSpell(spell);
                 if (canCast) {
                   e.currentTarget.style.borderColor = spell.color;
                   e.currentTarget.style.background = `${spell.color}20`;
                 }
               }}
               onMouseLeave={e => {
+                setHoveredSpell(null);
                 e.currentTarget.style.borderColor = isSelected ? spell.color : `${spell.color}40`;
                 e.currentTarget.style.background = isSelected ? `${spell.color}18` : "rgba(255,255,255,0.02)";
               }}
@@ -146,6 +168,12 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
                 }} />
               )}
 
+              {/* Keyboard shortcut number */}
+              <div style={{
+                position: "absolute", top: 1, left: 3, fontSize: 8, color: "#666",
+                fontWeight: "bold", zIndex: 3,
+              }}>{keyNum}</div>
+
               <span style={{ fontSize: 26, position: "relative", zIndex: 3, opacity: canCast ? 1 : 0.35 }}>
                 {spell.icon}
               </span>
@@ -160,7 +188,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
                 position: "relative", zIndex: 3,
               }}>
                 {isSummon ? <>💰 Wybierz</> : `🔮${spell.manaCost}`}
-                {isAoe && <span style={{ color: "#e0a040", marginLeft: 3 }}>⚡</span>}
+                {isAoe && <span style={{ color: "#e0a040", marginLeft: 3 }} title="Czar obszarowy">⚡AoE</span>}
               </div>
 
               {/* Cooldown remaining seconds */}
@@ -175,6 +203,35 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
             </div>
           );
         })}
+
+        {/* Spell tooltip on hover */}
+        {hoveredSpell && (
+          <div style={{
+            position: "absolute", bottom: "100%", left: "50%", transform: "translateX(-50%)",
+            background: "rgba(14,8,10,0.95)", border: "2px solid #5a4030",
+            padding: "8px 12px", borderRadius: 6, marginBottom: 8,
+            minWidth: 200, zIndex: 110, pointerEvents: "none",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.6)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span style={{ fontSize: 24 }}>{hoveredSpell.icon}</span>
+              <div>
+                <div style={{ fontWeight: "bold", fontSize: 13, color: hoveredSpell.color }}>{hoveredSpell.name}</div>
+                <div style={{ fontSize: 10, color: "#888" }}>{hoveredSpell.element || "Neutralny"} {hoveredSpell.aoe ? "• Obszarowy" : "• Cel"}</div>
+              </div>
+            </div>
+            {hoveredSpell.id !== "summon" && (
+              <div style={{ fontSize: 11, color: "#aaa" }}>
+                <span style={{ color: "#e05040" }}>Obrażenia: {hoveredSpell.damage}</span> | <span style={{ color: "#60a0ff" }}>Mana: {hoveredSpell.manaCost}</span> | <span style={{ color: "#cc9040" }}>CD: {(hoveredSpell.cooldown / 1000).toFixed(1)}s</span>
+              </div>
+            )}
+            {hoveredSpell.element && (
+              <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>
+                Łącz żywioły dla bonusu COMBO!
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Right arrow */}
