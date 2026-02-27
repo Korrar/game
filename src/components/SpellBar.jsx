@@ -44,28 +44,30 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
   const hasPrev = safePage > 0;
   const hasNext = safePage < totalPages - 1;
 
-  // Mobile portrait: absolute inside game container
+  // Mobile layout — fixed to viewport bottom, outside any transform
   if (m) {
     return (
       <div style={{
-        position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 100,
+        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9000,
         display: "flex", alignItems: "center", justifyContent: "center",
-        gap: 0, padding: "3px 2px calc(4px + env(safe-area-inset-bottom, 0px))",
-        background: "linear-gradient(0deg, rgba(14,6,8,0.95), rgba(26,14,18,0.88))",
+        gap: 0,
+        padding: "4px 2px",
+        paddingBottom: "calc(4px + env(safe-area-inset-bottom, 0px))",
+        background: "linear-gradient(0deg, rgba(14,6,8,0.97), rgba(26,14,18,0.92))",
         borderTop: "2px solid #5a4030",
       }}>
         {/* Mana */}
         <div style={{
           display: "flex", flexDirection: "column", alignItems: "center",
-          padding: "0 4px", borderRight: "1px solid #2a1e14",
+          padding: "0 5px", borderRight: "1px solid #2a1e14",
         }}>
-          <div style={{ fontSize: 14 }}>🔮</div>
-          <div style={{ fontWeight: "bold", fontSize: 10, color: "#60a0ff" }}>{Math.floor(mana)}</div>
+          <div style={{ fontSize: 15 }}>🔮</div>
+          <div style={{ fontWeight: "bold", fontSize: 11, color: "#60a0ff" }}>{Math.floor(mana)}</div>
         </div>
 
         {/* Prev arrow */}
         <div onClick={() => hasPrev && setPage(p => p - 1)}
-          style={{ padding: "0 3px", fontSize: 14, color: "#d4a030", opacity: hasPrev ? 0.8 : 0.2 }}>◀</div>
+          style={{ padding: "0 4px", fontSize: 16, color: "#d4a030", opacity: hasPrev ? 0.8 : 0.2, WebkitTapHighlightColor: "transparent" }}>◀</div>
 
         {/* Spell slots */}
         {pageSpells.map((spell) => {
@@ -74,7 +76,6 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
           const cdPct = onCooldown ? (cdEnd - now) / spell.cooldown : 0;
           const isSelected = selectedSpell === spell.id;
           const isSummon = spell.id === "summon";
-          const isAoe = !!spell.aoe;
           const canCast = isSummon ? !onCooldown : mana >= spell.manaCost && !onCooldown;
 
           return (
@@ -83,10 +84,10 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
               style={{
                 position: "relative",
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                padding: "2px 4px",
+                padding: "3px 5px",
                 border: `2px solid ${isSelected ? spell.color : spell.color + "30"}`,
                 background: isSelected ? `${spell.color}20` : "transparent",
-                minWidth: 44, minHeight: 44,
+                minWidth: 48, minHeight: 48,
                 overflow: "hidden",
                 WebkitTapHighlightColor: "transparent",
                 touchAction: "manipulation",
@@ -100,9 +101,9 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
                   background: "rgba(0,0,0,0.65)", pointerEvents: "none", zIndex: 2,
                 }} />
               )}
-              <span style={{ fontSize: 18, zIndex: 3, opacity: canCast ? 1 : 0.3 }}>{spell.icon}</span>
+              <span style={{ fontSize: 20, zIndex: 3, opacity: canCast ? 1 : 0.3 }}>{spell.icon}</span>
               <div style={{
-                fontSize: 7, fontWeight: "bold", zIndex: 3,
+                fontSize: 8, fontWeight: "bold", zIndex: 3,
                 color: isSelected ? spell.color : spell.color + "99",
                 whiteSpace: "nowrap",
               }}>{spell.name}</div>
@@ -117,16 +118,16 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
 
         {/* Next arrow */}
         <div onClick={() => hasNext && setPage(p => p + 1)}
-          style={{ padding: "0 3px", fontSize: 14, color: "#d4a030", opacity: hasNext ? 0.8 : 0.2 }}>▶</div>
+          style={{ padding: "0 4px", fontSize: 16, color: "#d4a030", opacity: hasNext ? 0.8 : 0.2, WebkitTapHighlightColor: "transparent" }}>▶</div>
       </div>
     );
   }
 
-  // Desktop layout
+  // Desktop layout — fixed to viewport bottom, outside any transform
   return (
     <div style={{
-      position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)",
-      zIndex: 100, display: "flex", alignItems: "stretch", gap: 0,
+      position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+      zIndex: 9000, display: "flex", alignItems: "stretch", gap: 0,
       padding: "8px 6px",
       background: "linear-gradient(180deg, #1a0e12ee, #0e0608f0)",
       border: "3px solid #5a4030", borderBottom: "none",
