@@ -1644,8 +1644,26 @@ export default function App() {
     c.width = GAME_W; c.height = GAME_H;
     initRapier().then(() => {
       if (cancelled) return;
-      if (!physicsRef.current) physicsRef.current = new PhysicsWorld();
-      physicsRef.current.init(c);
+      if (!physicsRef.current) {
+        // First time: create PhysicsWorld and initialize Rapier world
+        physicsRef.current = new PhysicsWorld();
+        physicsRef.current.init(c);
+      } else {
+        // Subsequent biome/size changes: update canvas without recreating world
+        physicsRef.current.updateCanvas(c, GAME_W, GAME_H);
+      }
+      // Sync: create physics bodies for any walkers spawned before physics was ready
+      const wd = walkDataRef.current;
+      const ws = walkersRef.current;
+      for (const w of ws) {
+        if (!w.alive || w.dying) continue;
+        if (!physicsRef.current.bodies[w.id]) {
+          const walkData = wd[w.id];
+          if (walkData) {
+            physicsRef.current.spawnNpc(w.id, walkData.x, w.npcData, !!w.friendly);
+          }
+        }
+      }
     });
     return () => { cancelled = true; };
   }, [biome, GAME_W, GAME_H]);
