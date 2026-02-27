@@ -70,12 +70,13 @@ let dmgPopupIdCounter = 0;
 const isTouchDevice = () => "ontouchstart" in window || navigator.maxTouchPoints > 0;
 const isMobileScreen = () => isTouchDevice() && window.innerWidth < 900;
 
-// Compute mobile portrait game dimensions to fill screen
+// Height reserved for the spell bar on mobile (fixed at viewport bottom)
+const MOBILE_SPELLBAR_H = 60;
+
+// Compute mobile portrait game dimensions to fill screen (minus spell bar)
 function getMobileDimensions() {
-  const sw = window.innerWidth;
-  const sh = window.innerHeight;
-  // Use full screen width, fit height to aspect ratio
-  // Internal resolution scaled up for quality but matching screen aspect
+  const sw = window.visualViewport?.width || window.innerWidth;
+  const sh = (window.visualViewport?.height || window.innerHeight) - MOBILE_SPELLBAR_H;
   const baseW = 480;
   const baseH = Math.round(baseW * (sh / sw));
   return { w: baseW, h: baseH };
@@ -257,11 +258,21 @@ export default function App() {
       setIsMobile(mobile);
       const dims = getGameDimensions();
       setGameDims(prev => (prev.w === dims.w && prev.h === dims.h) ? prev : dims);
-      setGameScale(Math.min(window.innerWidth / dims.w, window.innerHeight / dims.h));
+      const vw = window.visualViewport?.width || window.innerWidth;
+      const vh = (window.visualViewport?.height || window.innerHeight) - (mobile ? MOBILE_SPELLBAR_H : 0);
+      setGameScale(Math.min(vw / dims.w, vh / dims.h));
     };
     calc();
     window.addEventListener("resize", calc);
-    return () => window.removeEventListener("resize", calc);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", calc);
+    }
+    return () => {
+      window.removeEventListener("resize", calc);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", calc);
+      }
+    };
   }, []);
 
   // Prevent pinch-zoom and pull-to-refresh on mobile
@@ -3010,7 +3021,7 @@ export default function App() {
 
   // GAME
   return (
-    <div style={appStyle} className="game-no-select">
+    <div style={{ ...appStyle, alignItems: isMobile ? "flex-start" : "center" }} className="game-no-select">
       <div style={scanlinesStyle} /><div style={vignetteStyle} />
 
       {/* Desktop: TopBar fixed at top, outside game container */}
@@ -3886,7 +3897,7 @@ export default function App() {
 
       {/* Active Relics HUD – bottom-left, above spell bar on mobile */}
       {activeRelics.length > 0 && (
-        <div style={{ position: "absolute", bottom: isMobile ? 68 : 10, left: isMobile ? 4 : 10, zIndex: 50, display: "flex", gap: isMobile ? 3 : 6 }}>
+        <div style={{ position: "absolute", bottom: isMobile ? 8 : 10, left: isMobile ? 4 : 10, zIndex: 50, display: "flex", gap: isMobile ? 3 : 6 }}>
           {activeRelics.map(r => (
             <div key={r.id} title={`${r.name}: ${r.desc}`} style={{ fontSize: isMobile ? 14 : 22, filter: "drop-shadow(0 0 6px rgba(160,80,220,0.5))" }}>
               {r.emoji}
@@ -3898,7 +3909,7 @@ export default function App() {
       {/* NPC Info Card – bottom-left on click */}
       {inspectedNpc && (
         <div style={{
-          position: "absolute", bottom: isMobile ? 80 : 100, left: isMobile ? 4 : 12, zIndex: 25,
+          position: "absolute", bottom: isMobile ? 20 : 100, left: isMobile ? 4 : 12, zIndex: 25,
           background: "rgba(20,10,8,0.92)", border: "2px solid #5a4030",
           padding: "10px 14px", minWidth: 180,
           boxShadow: "inset 0 0 10px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.6)",
@@ -3938,7 +3949,7 @@ export default function App() {
       {summonPicker && (
         <div style={{
           position: "absolute",
-          bottom: isMobile ? 68 : 80, left: "50%", transform: "translateX(-50%)",
+          bottom: isMobile ? 8 : 80, left: "50%", transform: "translateX(-50%)",
           zIndex: 102, display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: "center",
           gap: isMobile ? 4 : 8, padding: isMobile ? "6px 8px" : "10px 14px",
           background: "rgba(14,8,10,0.95)", border: "2px solid #3a6a3a",
@@ -3984,7 +3995,22 @@ export default function App() {
         </div>
       )}
 
-      {/* Spell Bar – always visible at bottom */}
+      {/* Selected spell indicator — inside game container */}
+      {selectedSpell && (
+        <div style={{
+          position: "absolute",
+          bottom: isMobile ? 8 : 90, left: "50%", transform: "translateX(-50%)",
+          fontSize: isMobile ? 11 : 12, color: "#cc9040", fontWeight: "bold", zIndex: 101,
+          background: "rgba(0,0,0,0.85)", padding: isMobile ? "4px 10px" : "3px 12px", border: "1px solid #5a4030",
+          whiteSpace: "nowrap", borderRadius: 6,
+        }}>
+          {isMobile ? "Dotknij wroga" : "Kliknij na cel, by rzucić czar (lub przeciągnij)"}
+        </div>
+      )}
+
+      </div>{/* end game container */}
+
+      {/* Spell Bar – fixed to viewport bottom, OUTSIDE game container */}
       <SpellBar
         mana={mana}
         selectedSpell={selectedSpell}
@@ -3996,21 +4022,6 @@ export default function App() {
         gameW={GAME_W}
         gameH={GAME_H}
       />
-
-      {/* Selected spell indicator */}
-      {selectedSpell && (
-        <div style={{
-          position: "absolute",
-          bottom: isMobile ? 68 : 90, left: "50%", transform: "translateX(-50%)",
-          fontSize: isMobile ? 11 : 12, color: "#cc9040", fontWeight: "bold", zIndex: 101,
-          background: "rgba(0,0,0,0.85)", padding: isMobile ? "4px 10px" : "3px 12px", border: "1px solid #5a4030",
-          whiteSpace: "nowrap", borderRadius: 6,
-        }}>
-          {isMobile ? "Dotknij wroga" : "Kliknij na cel, by rzucić czar (lub przeciągnij)"}
-        </div>
-      )}
-
-      </div>{/* end game container */}
 
       {/* Tutorial overlay – shows on first few rooms */}
       {showTutorial && room <= 1 && tutorialStep >= 0 && tutorialStep < 5 && (
