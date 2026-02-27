@@ -100,6 +100,8 @@ export default function App() {
   const [hideoutItems, setHideoutItems] = useState([]);
   const [money, setMoney] = useState({ copper: 0, silver: 0, gold: 100 });
   const [totalGoldEarned, setTotalGoldEarned] = useState(0);
+  const [bossesDefeated, setBossesDefeated] = useState(0);
+  const [gameOverStats, setGameOverStats] = useState(null);
   const [hideoutLevel, setHideoutLevel] = useState(0);
   const [chestPos, setChestPos] = useState(null);
   const [showChest, setShowChest] = useState(false);
@@ -164,6 +166,20 @@ export default function App() {
   caravanHpRef.current = caravanHp;
   const caravanLevelRef = useRef(0);
   caravanLevelRef.current = caravanLevel;
+
+  // Refs for game-over stats capture (needed inside interval callbacks)
+  const roomRef = useRef(0);
+  roomRef.current = room;
+  const killsRef = useRef(0);
+  killsRef.current = kills;
+  const bossesDefeatedRef = useRef(0);
+  bossesDefeatedRef.current = bossesDefeated;
+  const moneyRef = useRef(money);
+  moneyRef.current = money;
+  const totalGoldEarnedRef = useRef(0);
+  totalGoldEarnedRef.current = totalGoldEarned;
+  const doorsRef = useRef(0);
+  doorsRef.current = doors;
 
   // Knight upgrade level (index into KNIGHT_LEVELS, 0 = Giermek)
   const [knightLevel, setKnightLevel] = useState(0);
@@ -1838,6 +1854,7 @@ export default function App() {
         if (!bossAlive && dm.enemiesSpawned > 0) {
           clearInterval(iv);
           setActiveBoss(null);
+          setBossesDefeated(b => b + 1);
           sfxVictoryFanfare();
           setDefenseMode(prev => prev ? { ...prev, phase: "complete" } : null);
           return;
@@ -1865,13 +1882,25 @@ export default function App() {
         }
       }
 
-      // Caravan destroyed (failure)
+      // Caravan destroyed → Game Over
       if (caravanHpRef.current <= 0) {
         clearInterval(iv);
         sfxEventFail();
         if (activeBossRef.current) setActiveBoss(null);
-        setDefenseMode(prev => prev ? { ...prev, phase: "failed" } : null);
-        showMessage("Karawana zniszczona! Obrona przegrana...", "#cc4040");
+        setDefenseMode(null);
+        // Collect stats and transition to game over screen
+        setGameOverStats({
+          room: roomRef.current,
+          kills: killsRef.current,
+          bossesDefeated: bossesDefeatedRef.current,
+          money: moneyRef.current,
+          totalGoldEarned: totalGoldEarnedRef.current,
+          relics: activeRelicsRef.current.length,
+          doors: doorsRef.current,
+          caravanLevel: caravanLevelRef.current,
+          bestiary: Object.keys(bestiaryRef.current).length,
+        });
+        setScreen("gameover");
       }
     }, 500);
     return () => clearInterval(iv);
@@ -1916,10 +1945,7 @@ export default function App() {
         setRelicChoices(shuffled.slice(0, 3));
       }
     }
-    if (defenseMode.phase === "failed" && defenseMode.roomNumber > 0) {
-      const partial = { copper: 10 + Math.floor(defenseMode.roomNumber * 2) };
-      addMoneyFn(partial);
-    }
+    // Note: "failed" defense no longer exists — caravan destruction triggers game over
   }, [defenseMode?.phase]);
 
   const dismissDefense = useCallback(() => {
@@ -1945,13 +1971,38 @@ export default function App() {
   const handleToggleMusic = () => { setMusicOn(toggleMusic()); };
   const startGame = () => { setScreen("game"); enterRoom(1, []); startMusic(); };
 
+  const restartGame = () => {
+    // Reset all game state
+    setRoom(0); setBiome(null); setDoors(0); setInitiative(MAX_INITIATIVE);
+    setInventory([]); setHideoutItems([]); setMoney({ copper: 0, silver: 0, gold: 100 });
+    setTotalGoldEarned(0); setBossesDefeated(0); setHideoutLevel(0);
+    setKills(0); setPanel(null); setLoot(null);
+    setOwnedTools([]); setCaravanLevel(0); setCaravanHp(CARAVAN_LEVELS[0].hp);
+    setKnightLevel(0); setMana(20); setBestiary({}); setKnowledge(0);
+    setLearnedSpells(SPELLS.filter(s => s.learned).map(s => s.id));
+    setActiveRelics([]); setRelicChoices(null); setKnowledgeUpgrades({ manaPool: 0, spellPower: 0, manaRegen: 0 });
+    setDefenseMode(null); setActiveBoss(null); setWalkers([]);
+    walkDataRef.current = {};
+    setGameOverStats(null);
+    localStorage.removeItem("wrota_save");
+    setScreen("game"); enterRoom(1, []); startMusic();
+  };
+
+  const goToIntro = () => {
+    setDefenseMode(null); setActiveBoss(null); setWalkers([]);
+    walkDataRef.current = {};
+    setGameOverStats(null);
+    localStorage.removeItem("wrota_save");
+    setScreen("intro");
+  };
+
   // Save/Load system
   const saveGame = () => {
     const saveData = {
       room, money, mana, kills, doors, initiative, inventory, hideoutItems,
       ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp,
       bestiary, knowledge, learnedSpells, activeRelics: activeRelics.map(r => r.id),
-      knowledgeUpgrades,
+      knowledgeUpgrades, bossesDefeated,
       savedAt: Date.now(),
     };
     try {
@@ -1986,6 +2037,7 @@ export default function App() {
         setActiveRelics(relicObjs);
       }
       setKnowledgeUpgrades(s.knowledgeUpgrades || { manaPool: 0, spellPower: 0, manaRegen: 0 });
+      setBossesDefeated(s.bossesDefeated || 0);
       setMana(s.mana || 20);
       setScreen("game");
       enterRoom(s.room || 1, s.ownedTools || []);
@@ -2010,7 +2062,7 @@ export default function App() {
         room, money, mana, kills, doors, initiative, inventory, hideoutItems,
         ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp,
         bestiary, knowledge, learnedSpells, activeRelics: activeRelics.map(r => r.id),
-        knowledgeUpgrades,
+        knowledgeUpgrades, bossesDefeated,
         savedAt: Date.now(),
       };
       try { localStorage.setItem("wrota_save", JSON.stringify(saveData)); } catch {}
@@ -2019,7 +2071,7 @@ export default function App() {
   }, [screen, room, money, mana, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades]);
 
   const travelCaravan = () => {
-    if (defenseMode && defenseMode.phase !== "complete" && defenseMode.phase !== "failed") {
+    if (defenseMode && defenseMode.phase !== "complete") {
       showMessage("Nie możesz podróżować podczas obrony!", "#cc4040"); return;
     }
     if (initiative < CARAVAN_COST) {
@@ -3019,6 +3071,97 @@ export default function App() {
     );
   }
 
+  // GAME OVER
+  if (screen === "gameover" && gameOverStats) {
+    const s = gameOverStats;
+    const totalGold = s.totalGoldEarned;
+    const tc = totalCopper(s.money);
+    return (
+      <div style={{ ...appStyle, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <div style={scanlinesStyle} /><div style={vignetteStyle} />
+
+        <div style={{
+          background: "linear-gradient(180deg, #1a0808, #0a0406)", border: "3px solid #8c2020",
+          padding: isMobile ? "20px 18px" : "30px 50px", maxWidth: isMobile ? "92vw" : 460, width: "100%",
+          textAlign: "center",
+          boxShadow: "inset 0 0 30px rgba(140,20,20,0.3), 0 0 40px rgba(140,20,20,0.2)",
+          animation: "fadeIn 0.6s ease-out",
+        }}>
+          <div style={{ fontSize: isMobile ? 36 : 48, marginBottom: 8, filter: "drop-shadow(0 0 12px rgba(200,40,40,0.4))" }}>
+            💀
+          </div>
+          <div style={{ fontSize: isMobile ? 11 : 13, color: "#8c4040", letterSpacing: 3, marginBottom: 4, fontWeight: "bold" }}>
+            KARAWANA ZNISZCZONA
+          </div>
+          <h2 style={{
+            fontSize: isMobile ? 22 : 28, fontWeight: "bold", color: "#cc3030",
+            textShadow: "2px 2px 0 #000, 0 0 20px rgba(200,40,40,0.3)",
+            marginBottom: 20,
+          }}>Koniec Podróży</h2>
+
+          <div style={{
+            background: "rgba(0,0,0,0.4)", border: "1px solid #3a2020", padding: isMobile ? "12px 10px" : "16px 20px",
+            marginBottom: 20, textAlign: "left",
+          }}>
+            <div style={{ fontSize: isMobile ? 11 : 13, color: "#666", letterSpacing: 2, marginBottom: 10, textAlign: "center", fontWeight: "bold" }}>
+              PODSUMOWANIE
+            </div>
+            {[
+              ["🚪", "Komnaty", s.room],
+              ["💀", "Pokonani wrogowie", s.kills],
+              ["🐉", "Pokonani bossowie", s.bossesDefeated],
+              ["🔑", "Otwarte wrota", s.doors],
+              ["📖", "Bestiariusz", `${s.bestiary} stworzeń`],
+              ["🏅", "Relikty", s.relics],
+              ["🐴", "Poziom karawany", CARAVAN_LEVELS[s.caravanLevel]?.name || `Lv.${s.caravanLevel}`],
+            ].map(([emoji, label, val], i) => (
+              <div key={i} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "5px 0", borderBottom: i < 6 ? "1px solid #1a1010" : "none",
+                fontSize: isMobile ? 12 : 14,
+              }}>
+                <span style={{ color: "#998877" }}>{emoji} {label}</span>
+                <span style={{ color: "#d4a030", fontWeight: "bold" }}>{val}</span>
+              </div>
+            ))}
+            <div style={{
+              marginTop: 10, padding: "8px 0", borderTop: "1px solid #3a2020",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              fontSize: isMobile ? 13 : 15,
+            }}>
+              <span style={{ color: "#d4a030", fontWeight: "bold" }}>Bogactwo końcowe</span>
+              <span style={{ color: "#ffd700", fontWeight: "bold" }}>
+                {s.money.gold > 0 && `${s.money.gold}g `}{s.money.silver > 0 && `${s.money.silver}s `}{s.money.copper}c
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
+            <button onClick={restartGame} style={{
+              fontWeight: "bold", fontSize: isMobile ? 16 : 18, background: "none",
+              border: "3px solid #d4a030", color: "#d4a030",
+              padding: isMobile ? "10px 28px" : "12px 36px", cursor: "pointer",
+              textShadow: "1px 1px 0 #000", animation: "pulse 2s infinite",
+              fontFamily: "'Segoe UI', monospace",
+            }}>Nowa Gra</button>
+            <button onClick={goToIntro} style={{
+              fontWeight: "bold", fontSize: isMobile ? 13 : 14, background: "none",
+              border: "2px solid #4a3a2a", color: "#8a7a6a",
+              padding: isMobile ? "6px 20px" : "8px 24px", cursor: "pointer",
+              textShadow: "1px 1px 0 #000",
+              fontFamily: "'Segoe UI', monospace",
+            }}>Ekran Główny</button>
+          </div>
+        </div>
+
+        <style>{`
+          @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+          @keyframes pulse{0%,100%{box-shadow:0 0 8px rgba(212,160,48,0.2)}50%{box-shadow:0 0 22px rgba(212,160,48,0.45)}}
+        `}</style>
+      </div>
+    );
+  }
+
   // GAME
   return (
     <div style={{ ...appStyle, alignItems: isMobile ? "flex-start" : "center" }} className="game-no-select">
@@ -3088,11 +3231,11 @@ export default function App() {
         initiative={initiative}
         maxInitiative={MAX_INITIATIVE}
         cost={CARAVAN_COST}
-        canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete" || defenseMode.phase === "failed")}
+        canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete")}
         onClick={travelCaravan}
         hp={caravanHp}
         maxHp={CARAVAN_LEVELS[caravanLevel].hp}
-        showHp={caravanHp < CARAVAN_LEVELS[caravanLevel].hp || (!!defenseMode && defenseMode.phase !== "complete" && defenseMode.phase !== "failed")}
+        showHp={caravanHp < CARAVAN_LEVELS[caravanLevel].hp || (!!defenseMode && defenseMode.phase !== "complete")}
       />
 
       {showChest && <Chest pos={chestPos} onClick={openChest} />}
