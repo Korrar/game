@@ -3919,6 +3919,82 @@ export default function App() {
         }}>{msg.text}</div>
       )}
 
+      {/* Mercenary picker popup */}
+      {summonPicker && (
+        <div style={{
+          position: "absolute",
+          bottom: isMobile ? 68 : 80, left: "50%", transform: "translateX(-50%)",
+          zIndex: 102, display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: "center",
+          gap: isMobile ? 4 : 8, padding: isMobile ? "6px 8px" : "10px 14px",
+          background: "rgba(14,8,10,0.95)", border: "2px solid #3a6a3a",
+          borderRadius: 8, boxShadow: "0 -4px 20px rgba(0,0,0,0.6), 0 0 20px rgba(60,180,80,0.15)",
+          maxWidth: isMobile ? "95%" : "none",
+        }}>
+          {MERCENARY_TYPES.map(merc => {
+            const lvl = KNIGHT_LEVELS[knightLevel];
+            const mult = lvl.mult || 1;
+            const finalHp = Math.round(merc.hp * mult);
+            const finalDmg = Math.round(merc.damage * mult);
+            const canAfford = totalCopper(money) >= totalCopper(merc.cost);
+            const cdEnd = cooldowns["summon"] || 0;
+            const onCooldown = Date.now() < cdEnd;
+            const canSummon = canAfford && !onCooldown;
+            return (
+              <div key={merc.id}
+                onClick={() => canSummon && castSummon(merc)}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center",
+                  padding: isMobile ? "6px 6px" : "8px 10px", minWidth: isMobile ? 60 : 80,
+                  border: `2px solid ${canSummon ? merc.color + "80" : "#333"}`,
+                  background: canSummon ? `${merc.color}10` : "rgba(0,0,0,0.3)",
+                  cursor: canSummon ? "pointer" : "not-allowed",
+                  borderRadius: 6, transition: "border-color 0.15s, background 0.15s",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+                onMouseEnter={!isMobile ? (e => { if (canSummon) { e.currentTarget.style.borderColor = merc.color; e.currentTarget.style.background = `${merc.color}20`; } }) : undefined}
+                onMouseLeave={!isMobile ? (e => { e.currentTarget.style.borderColor = canSummon ? merc.color + "80" : "#333"; e.currentTarget.style.background = canSummon ? `${merc.color}10` : "rgba(0,0,0,0.3)"; }) : undefined}
+              >
+                <span style={{ fontSize: isMobile ? 22 : 28, opacity: canSummon ? 1 : 0.35 }}>{merc.emoji}</span>
+                <div style={{ fontSize: isMobile ? 9 : 11, fontWeight: "bold", color: canSummon ? merc.color : "#555", whiteSpace: "nowrap" }}>{merc.name}</div>
+                <div style={{ fontSize: isMobile ? 8 : 9, color: "#888", whiteSpace: "nowrap" }}>HP:{finalHp} ATK:{finalDmg}</div>
+                <div style={{ fontSize: isMobile ? 8 : 9, color: canAfford ? "#6a9a6a" : "#804040" }}>
+                  💰{merc.cost.silver ? `${merc.cost.silver}Ag` : `${merc.cost.copper}Cu`}
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ position: "absolute", top: -18, left: "50%", transform: "translateX(-50%)", fontSize: isMobile ? 8 : 10, color: "#6a9a6a", whiteSpace: "nowrap", fontWeight: "bold" }}>
+            {KNIGHT_LEVELS[knightLevel].emoji} {KNIGHT_LEVELS[knightLevel].name} — {KNIGHT_LEVELS[knightLevel].desc}
+          </div>
+        </div>
+      )}
+
+      {/* Spell Bar – always visible at bottom */}
+      <SpellBar
+        mana={mana}
+        selectedSpell={selectedSpell}
+        cooldowns={cooldowns}
+        learnedSpells={learnedSpells}
+        onSelect={handleSelectSpell}
+        onDragStart={() => {}}
+        isMobile={isMobile}
+        gameW={GAME_W}
+        gameH={GAME_H}
+      />
+
+      {/* Selected spell indicator */}
+      {selectedSpell && (
+        <div style={{
+          position: "absolute",
+          bottom: isMobile ? 68 : 90, left: "50%", transform: "translateX(-50%)",
+          fontSize: isMobile ? 11 : 12, color: "#cc9040", fontWeight: "bold", zIndex: 101,
+          background: "rgba(0,0,0,0.85)", padding: isMobile ? "4px 10px" : "3px 12px", border: "1px solid #5a4030",
+          whiteSpace: "nowrap", borderRadius: 6,
+        }}>
+          {isMobile ? "Dotknij wroga" : "Kliknij na cel, by rzucić czar (lub przeciągnij)"}
+        </div>
+      )}
+
       </div>{/* end game container */}
 
       {/* Tutorial overlay – shows on first few rooms */}
@@ -3994,83 +4070,6 @@ export default function App() {
           <div style={{ fontSize: 13, color: "#60a0ff", marginTop: 6 }}>
             📖 +{cardDrop.knowledge} Wiedza
           </div>
-        </div>
-      )}
-
-      {/* Mercenary picker popup */}
-      {summonPicker && (
-        <div style={{
-          position: isMobile ? "absolute" : "fixed",
-          bottom: isMobile ? 68 : 80, left: "50%", transform: "translateX(-50%)",
-          zIndex: 102, display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: "center",
-          gap: isMobile ? 4 : 8, padding: isMobile ? "6px 8px" : "10px 14px",
-          background: "rgba(14,8,10,0.95)", border: "2px solid #3a6a3a",
-          borderRadius: 8, boxShadow: "0 -4px 20px rgba(0,0,0,0.6), 0 0 20px rgba(60,180,80,0.15)",
-          maxWidth: isMobile ? "95vw" : "none",
-        }}>
-          {MERCENARY_TYPES.map(merc => {
-            const lvl = KNIGHT_LEVELS[knightLevel];
-            const mult = lvl.mult || 1;
-            const finalHp = Math.round(merc.hp * mult);
-            const finalDmg = Math.round(merc.damage * mult);
-            const canAfford = totalCopper(money) >= totalCopper(merc.cost);
-            const cdEnd = cooldowns["summon"] || 0;
-            const onCooldown = Date.now() < cdEnd;
-            const canSummon = canAfford && !onCooldown;
-            return (
-              <div key={merc.id}
-                onClick={() => canSummon && castSummon(merc)}
-                style={{
-                  display: "flex", flexDirection: "column", alignItems: "center",
-                  padding: isMobile ? "8px 8px" : "8px 10px", minWidth: isMobile ? 68 : 80,
-                  minHeight: isMobile ? 72 : "auto",
-                  border: `2px solid ${canSummon ? merc.color + "80" : "#333"}`,
-                  background: canSummon ? `${merc.color}10` : "rgba(0,0,0,0.3)",
-                  cursor: canSummon ? "pointer" : "not-allowed",
-                  borderRadius: 6, transition: "border-color 0.15s, background 0.15s",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-                onMouseEnter={!isMobile ? (e => { if (canSummon) { e.currentTarget.style.borderColor = merc.color; e.currentTarget.style.background = `${merc.color}20`; } }) : undefined}
-                onMouseLeave={!isMobile ? (e => { e.currentTarget.style.borderColor = canSummon ? merc.color + "80" : "#333"; e.currentTarget.style.background = canSummon ? `${merc.color}10` : "rgba(0,0,0,0.3)"; }) : undefined}
-              >
-                <span style={{ fontSize: 28, opacity: canSummon ? 1 : 0.35 }}>{merc.emoji}</span>
-                <div style={{ fontSize: 11, fontWeight: "bold", color: canSummon ? merc.color : "#555", whiteSpace: "nowrap" }}>{merc.name}</div>
-                <div style={{ fontSize: 9, color: "#888", whiteSpace: "nowrap" }}>HP:{finalHp} ATK:{finalDmg}</div>
-                <div style={{ fontSize: 9, color: canAfford ? "#6a9a6a" : "#804040" }}>
-                  💰{merc.cost.silver ? `${merc.cost.silver}Ag` : `${merc.cost.copper}Cu`}
-                </div>
-              </div>
-            );
-          })}
-          <div style={{ position: "absolute", top: -18, left: "50%", transform: "translateX(-50%)", fontSize: 10, color: "#6a9a6a", whiteSpace: "nowrap", fontWeight: "bold" }}>
-            {KNIGHT_LEVELS[knightLevel].emoji} {KNIGHT_LEVELS[knightLevel].name} — {KNIGHT_LEVELS[knightLevel].desc}
-          </div>
-        </div>
-      )}
-
-      {/* Spell Bar – always visible at bottom */}
-      <SpellBar
-        mana={mana}
-        selectedSpell={selectedSpell}
-        cooldowns={cooldowns}
-        learnedSpells={learnedSpells}
-        onSelect={handleSelectSpell}
-        onDragStart={() => {}}
-        isMobile={isMobile}
-        gameW={GAME_W}
-        gameH={GAME_H}
-      />
-
-      {/* Selected spell indicator */}
-      {selectedSpell && (
-        <div style={{
-          position: isMobile ? "absolute" : "fixed",
-          bottom: isMobile ? 80 : 90, left: "50%", transform: "translateX(-50%)",
-          fontSize: isMobile ? 11 : 12, color: "#cc9040", fontWeight: "bold", zIndex: 101,
-          background: "rgba(0,0,0,0.85)", padding: isMobile ? "4px 10px" : "3px 12px", border: "1px solid #5a4030",
-          whiteSpace: "nowrap", borderRadius: 6,
-        }}>
-          {isMobile ? "Dotknij wroga" : "Kliknij na cel, by rzucić czar (lub przeciągnij)"}
         </div>
       )}
 
