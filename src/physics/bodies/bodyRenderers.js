@@ -18,6 +18,34 @@ function drawLimb(ctx, from, to, width, color, flash) {
   ctx.stroke();
 }
 
+// Metallic highlight on armor pieces
+function drawMetallicHighlight(ctx, x, y, w, h, color) {
+  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, "rgba(255,255,255,0.12)");
+  grad.addColorStop(0.3, "rgba(255,255,255,0.03)");
+  grad.addColorStop(0.7, "transparent");
+  grad.addColorStop(1, "rgba(0,0,0,0.15)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+}
+
+// Ground aura ring for living characters
+function drawGroundAura(ctx, x, y, radius, friendly, entry) {
+  if (entry.ragdoll) return;
+  const color = friendly ? [60, 220, 80] : [200, 60, 60];
+  const pulse = 0.6 + Math.sin(Date.now() * 0.003) * 0.2;
+  ctx.save();
+  ctx.globalAlpha *= pulse * 0.4;
+  const auraGrad = ctx.createRadialGradient(x, y + 2, radius * 0.3, x, y + 2, radius * 1.5);
+  auraGrad.addColorStop(0, `rgba(${color.join(",")},0.15)`);
+  auraGrad.addColorStop(1, "transparent");
+  ctx.fillStyle = auraGrad;
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, radius * 1.5, radius * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -65,15 +93,16 @@ function drawHead(ctx, entry, hx, hy, headR, colors) {
   ctx.fillText(npcData.emoji, hx, hy + 1);
   ctx.textAlign = "start";
 
-  // Glow ring
+  // Glow ring — enhanced with pulsing
   if (!ragdoll) {
+    const pulse = 0.7 + Math.sin(Date.now() * 0.004) * 0.3;
     const glowColor = friendly ? "rgba(60,220,80," : "rgba(200,60,60,";
-    ctx.shadowColor = glowColor + (friendly ? "0.5)" : "0.3)");
-    ctx.shadowBlur = friendly ? 12 : 8;
-    ctx.strokeStyle = glowColor + (friendly ? "0.3)" : "0.2)");
-    ctx.lineWidth = 1;
+    ctx.shadowColor = glowColor + (friendly ? `${0.5 * pulse})` : `${0.3 * pulse})`);
+    ctx.shadowBlur = (friendly ? 14 : 10) * pulse;
+    ctx.strokeStyle = glowColor + (friendly ? `${0.35 * pulse})` : `${0.25 * pulse})`);
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(hx, hy, headR + (friendly ? 4 : 3), 0, Math.PI * 2);
+    ctx.arc(hx, hy, headR + (friendly ? 5 : 4), 0, Math.PI * 2);
     ctx.stroke();
     ctx.shadowBlur = 0;
   }
@@ -118,10 +147,13 @@ export function drawHumanoid(ctx, limbs, colors, dir, entry) {
   const tx = torso.x, ty = torso.y;
 
   // Shadow on ground
-  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  ctx.fillStyle = "rgba(0,0,0,0.22)";
   ctx.beginPath();
-  ctx.ellipse(tx, ty + 38, 10, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(tx, ty + 38, 12, 4, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  // Ground aura
+  drawGroundAura(ctx, tx, ty + 38, 14, entry.friendly, entry);
 
   // Legs — armored greaves
   const lUL = limbs.lUpperLeg, lLL = limbs.lLowerLeg;
@@ -153,6 +185,8 @@ export function drawHumanoid(ctx, limbs, colors, dir, entry) {
   ctx.lineTo(tx + 9, ty + 11); ctx.lineTo(tx - 9, ty + 11);
   ctx.closePath();
   ctx.fill();
+  // Metallic sheen on breastplate
+  if (!c.flash) drawMetallicHighlight(ctx, tx - 7, ty - 11, 14, 22, c.armor);
   // Armor plate detail lines
   ctx.strokeStyle = c.flash || c.body;
   ctx.lineWidth = 1;
@@ -164,19 +198,33 @@ export function drawHumanoid(ctx, limbs, colors, dir, entry) {
   // Belt
   ctx.fillStyle = c.flash || "#3a2a10";
   ctx.fillRect(tx - 8, ty + 8, 16, 3);
-  // Belt buckle
-  ctx.fillStyle = c.flash || "#c0a040";
+  // Belt buckle — gold gleam
+  ctx.fillStyle = c.flash || "#d4a030";
   ctx.fillRect(tx - 2, ty + 8, 4, 3);
+  if (!c.flash) {
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    ctx.fillRect(tx - 1, ty + 8, 2, 1);
+  }
 
-  // Shoulder pauldrons
+  // Shoulder pauldrons — metallic
   const lUA = limbs.lUpperArm, rUA = limbs.rUpperArm;
   for (const shoulder of [lUA, rUA]) {
     ctx.fillStyle = c.flash || c.armor;
     ctx.beginPath();
-    ctx.ellipse(shoulder.x, shoulder.y - 2, 5, 4, 0, 0, Math.PI * 2);
+    ctx.ellipse(shoulder.x, shoulder.y - 2, 6, 4.5, 0, 0, Math.PI * 2);
     ctx.fill();
+    // Metallic highlight on pauldron
+    if (!c.flash) {
+      const pg = ctx.createRadialGradient(shoulder.x - 1, shoulder.y - 4, 0, shoulder.x, shoulder.y - 2, 6);
+      pg.addColorStop(0, "rgba(255,255,255,0.18)");
+      pg.addColorStop(1, "transparent");
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      ctx.ellipse(shoulder.x, shoulder.y - 2, 6, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.strokeStyle = c.flash || c.body;
-    ctx.lineWidth = 0.8;
+    ctx.lineWidth = 1;
     ctx.stroke();
   }
 
@@ -224,10 +272,15 @@ export function drawQuadruped(ctx, limbs, colors, dir, entry) {
     ctx.fill();
   }
 
+  // Ground aura for quadruped
+  drawGroundAura(ctx, tx, ty + 18, 16, entry.friendly, entry);
+
   // Armored torso — TAB-style plated beast
   ctx.fillStyle = c.flash || c.armor;
   roundRect(ctx, tx - 13, ty - 6, 26, 12, 3);
   ctx.fill();
+  // Metallic sheen
+  if (!c.flash) drawMetallicHighlight(ctx, tx - 13, ty - 6, 26, 12, c.armor);
   // Armor plate segments
   ctx.strokeStyle = c.flash || c.body;
   ctx.lineWidth = 1;
@@ -235,8 +288,8 @@ export function drawQuadruped(ctx, limbs, colors, dir, entry) {
   ctx.moveTo(tx - 4, ty - 6); ctx.lineTo(tx - 4, ty + 6);
   ctx.moveTo(tx + 4, ty - 6); ctx.lineTo(tx + 4, ty + 6);
   ctx.stroke();
-  // Spinal ridge
-  ctx.strokeStyle = c.flash || "#444";
+  // Spinal ridge — gold accent
+  ctx.strokeStyle = c.flash || "#8a7040";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(tx - 10, ty - 6);
@@ -740,25 +793,32 @@ export function drawWeapon(ctx, limbs, entry, GY) {
       const len = 18;
       const endX = rHand.x + Math.cos(angle) * len;
       const endY = rHand.y + 5 + Math.sin(angle) * len;
-      // Blade
-      ctx.strokeStyle = "#c0c8d0";
-      ctx.lineWidth = 2.5;
+      // Blade — metallic shine
+      ctx.strokeStyle = "#d0d8e0";
+      ctx.lineWidth = 3;
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(rHand.x, rHand.y + 5);
       ctx.lineTo(endX, endY);
       ctx.stroke();
-      // Guard
-      ctx.strokeStyle = "#8a7040";
-      ctx.lineWidth = 3;
+      // Blade highlight edge
+      ctx.strokeStyle = "rgba(255,255,255,0.25)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(rHand.x + Math.cos(angle + 0.1), rHand.y + 5 + Math.sin(angle + 0.1));
+      ctx.lineTo(endX + Math.cos(angle + 0.1), endY + Math.sin(angle + 0.1));
+      ctx.stroke();
+      // Guard — gold
+      ctx.strokeStyle = "#d4a030";
+      ctx.lineWidth = 3.5;
       ctx.beginPath();
       ctx.moveTo(rHand.x - 3, rHand.y + 4);
       ctx.lineTo(rHand.x + 3, rHand.y + 6);
       ctx.stroke();
       // Swing flash
       if (animT > 0) {
-        ctx.strokeStyle = `rgba(255,255,255,${animT * 0.6})`;
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = `rgba(255,255,255,${animT * 0.7})`;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(rHand.x, rHand.y + 5);
         ctx.lineTo(endX, endY);
@@ -792,16 +852,30 @@ export function drawWeapon(ctx, limbs, entry, GY) {
       ctx.moveTo(shoulder.x - dir * 1, GY - 2);
       ctx.lineTo(staffTopX, staffTopY);
       ctx.stroke();
-      const orbGlow = animT > 0 ? 0.8 : 0.3;
+      const orbPulse = 0.6 + Math.sin(Date.now() * 0.004) * 0.3;
+      const orbGlow = animT > 0 ? 0.9 : 0.4 * orbPulse;
+      // Outer ambient glow
+      const cg2 = ctx.createRadialGradient(staffTopX, staffTopY - 4, 0, staffTopX, staffTopY - 4, 16);
+      cg2.addColorStop(0, `rgba(140,80,220,${orbGlow * 0.3})`);
+      cg2.addColorStop(1, "transparent");
+      ctx.fillStyle = cg2;
+      ctx.fillRect(staffTopX - 16, staffTopY - 20, 32, 32);
+      // Orb
       ctx.fillStyle = `rgba(120,60,200,${orbGlow})`;
       ctx.beginPath();
-      ctx.arc(staffTopX, staffTopY - 4, 4, 0, Math.PI * 2);
+      ctx.arc(staffTopX, staffTopY - 4, 4.5, 0, Math.PI * 2);
       ctx.fill();
+      // Inner glow
       const cg = ctx.createRadialGradient(staffTopX, staffTopY - 4, 0, staffTopX, staffTopY - 4, 10);
-      cg.addColorStop(0, `rgba(140,80,220,${orbGlow * 0.5})`);
+      cg.addColorStop(0, `rgba(160,100,255,${orbGlow * 0.6})`);
       cg.addColorStop(1, "transparent");
       ctx.fillStyle = cg;
       ctx.fillRect(staffTopX - 10, staffTopY - 14, 20, 20);
+      // White hot center
+      ctx.fillStyle = `rgba(255,255,255,${orbGlow * 0.3})`;
+      ctx.beginPath();
+      ctx.arc(staffTopX, staffTopY - 4, 2, 0, Math.PI * 2);
+      ctx.fill();
       break;
     }
     case "bow": {
@@ -861,10 +935,18 @@ export function drawProjectile(ctx, proj) {
     }
     case "fireball_npc": {
       const r = 5 + Math.sin(proj.age * 0.5) * 1.5;
+      // Outer heat distortion
+      const outerGlow = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, r * 3.5);
+      outerGlow.addColorStop(0, "rgba(255,100,20,0.15)"); outerGlow.addColorStop(1, "transparent");
+      ctx.fillStyle = outerGlow; ctx.fillRect(proj.x - r * 3.5, proj.y - r * 3.5, r * 7, r * 7);
+      // Inner glow
       const glow = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, r * 2);
-      glow.addColorStop(0, "rgba(255,140,40,0.7)"); glow.addColorStop(1, "transparent");
+      glow.addColorStop(0, "rgba(255,160,40,0.8)"); glow.addColorStop(0.5, "rgba(255,100,20,0.4)"); glow.addColorStop(1, "transparent");
       ctx.fillStyle = glow; ctx.fillRect(proj.x - r * 2, proj.y - r * 2, r * 4, r * 4);
-      ctx.fillStyle = "rgba(255,180,60,0.9)"; ctx.beginPath(); ctx.arc(proj.x, proj.y, r, 0, Math.PI * 2); ctx.fill();
+      // Core
+      ctx.fillStyle = "rgba(255,200,80,0.95)"; ctx.beginPath(); ctx.arc(proj.x, proj.y, r, 0, Math.PI * 2); ctx.fill();
+      // White hot center
+      ctx.fillStyle = "rgba(255,255,200,0.4)"; ctx.beginPath(); ctx.arc(proj.x, proj.y, r * 0.35, 0, Math.PI * 2); ctx.fill();
       break;
     }
     case "iceShard_npc": {
@@ -888,10 +970,18 @@ export function drawProjectile(ctx, proj) {
     }
     case "mageSpell": {
       const r = 5 + Math.sin(proj.age * 0.4) * 1.5;
+      // Outer glow
+      const mg2 = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, r * 4);
+      mg2.addColorStop(0, "rgba(140,80,220,0.2)"); mg2.addColorStop(1, "transparent");
+      ctx.fillStyle = mg2; ctx.fillRect(proj.x - r * 4, proj.y - r * 4, r * 8, r * 8);
+      // Inner glow
       const mg = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, r * 2.5);
-      mg.addColorStop(0, "rgba(140,80,220,0.7)"); mg.addColorStop(1, "transparent");
+      mg.addColorStop(0, "rgba(160,100,240,0.8)"); mg.addColorStop(0.5, "rgba(140,80,220,0.4)"); mg.addColorStop(1, "transparent");
       ctx.fillStyle = mg; ctx.fillRect(proj.x - r * 2.5, proj.y - r * 2.5, r * 5, r * 5);
-      ctx.fillStyle = "rgba(160,100,240,0.9)"; ctx.beginPath(); ctx.arc(proj.x, proj.y, r, 0, Math.PI * 2); ctx.fill();
+      // Core
+      ctx.fillStyle = "rgba(180,130,255,0.95)"; ctx.beginPath(); ctx.arc(proj.x, proj.y, r, 0, Math.PI * 2); ctx.fill();
+      // White hot center
+      ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.beginPath(); ctx.arc(proj.x, proj.y, r * 0.4, 0, Math.PI * 2); ctx.fill();
       break;
     }
   }

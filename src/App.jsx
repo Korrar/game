@@ -40,7 +40,7 @@ import { RELICS } from "./data/relics";
 import { getBossForRoom } from "./data/bosses";
 import BossHpBar from "./components/BossHpBar";
 
-const appStyle = { background: "#12080a", color: "#d8c8a8", fontFamily: "'Segoe UI', monospace", width: "100vw", height: "100vh", overflow: "hidden", position: "relative", display: "flex", justifyContent: "center", alignItems: "center" };
+const appStyle = { background: "#08050a", color: "#d8c8a8", fontFamily: "'Segoe UI', monospace", width: "100vw", height: "100vh", overflow: "hidden", position: "relative", display: "flex", justifyContent: "center", alignItems: "center" };
 const scanlinesStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.04) 3px,rgba(0,0,0,0.04) 6px)", pointerEvents: "none", zIndex: 9999 };
 const vignetteStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,0.6) 100%)", pointerEvents: "none", zIndex: 9998 };
 

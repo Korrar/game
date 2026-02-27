@@ -7,7 +7,7 @@
 html, body {
   margin: 0;
   overflow: hidden;
-  background: #12080a;
+  background: #08050a;
   touch-action: manipulation;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: none;
@@ -32,4 +32,68 @@ body {
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* ─── LEGENDA-STYLE SHIMMER & GLOW ANIMATIONS ─── */
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes gemPulse {
+  0%, 100% { box-shadow: inset 0 0 4px rgba(212,160,48,0.3), 0 0 6px rgba(212,160,48,0.15); }
+  50% { box-shadow: inset 0 0 8px rgba(212,160,48,0.5), 0 0 14px rgba(212,160,48,0.3); }
+}
+
+@keyframes rarityGlow-common {
+  0%, 100% { box-shadow: 0 0 4px rgba(136,136,136,0.2), inset 0 0 3px rgba(136,136,136,0.1); }
+  50% { box-shadow: 0 0 8px rgba(136,136,136,0.35), inset 0 0 6px rgba(136,136,136,0.2); }
+}
+
+@keyframes rarityGlow-uncommon {
+  0%, 100% { box-shadow: 0 0 6px rgba(80,168,80,0.25), inset 0 0 4px rgba(80,168,80,0.1); }
+  50% { box-shadow: 0 0 14px rgba(80,168,80,0.45), inset 0 0 8px rgba(80,168,80,0.2); }
+}
+
+@keyframes rarityGlow-rare {
+  0%, 100% { box-shadow: 0 0 8px rgba(64,168,184,0.3), inset 0 0 5px rgba(64,168,184,0.15); }
+  50% { box-shadow: 0 0 18px rgba(64,168,184,0.5), inset 0 0 10px rgba(64,168,184,0.25); }
+}
+
+@keyframes rarityGlow-epic {
+  0%, 100% { box-shadow: 0 0 10px rgba(160,80,224,0.35), inset 0 0 6px rgba(160,80,224,0.15); }
+  50% { box-shadow: 0 0 22px rgba(160,80,224,0.55), inset 0 0 12px rgba(160,80,224,0.3); }
+}
+
+@keyframes rarityGlow-legendary {
+  0%, 100% { box-shadow: 0 0 12px rgba(212,160,48,0.4), inset 0 0 8px rgba(212,160,48,0.2); }
+  50% { box-shadow: 0 0 28px rgba(212,160,48,0.65), inset 0 0 14px rgba(212,160,48,0.35); }
+}
+
+@keyframes borderShine {
+  0% { border-image-source: linear-gradient(135deg, #3a2810, #d4a030, #3a2810); }
+  50% { border-image-source: linear-gradient(135deg, #d4a030, #ffe080, #d4a030); }
+  100% { border-image-source: linear-gradient(135deg, #3a2810, #d4a030, #3a2810); }
+}
+
+@keyframes floatGem {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+/* Scrollbar styling for panels */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0608;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #5a4020, #3a2810);
+  border-radius: 3px;
+  border: 1px solid #2a1a08;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #7a5a30, #5a4020);
 }
