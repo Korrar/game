@@ -279,6 +279,21 @@ export default function App() {
     };
   }, [isMobile]);
 
+  // Request fullscreen on mobile on first touch
+  useEffect(() => {
+    if (!isMobile) return;
+    const requestFullscreen = () => {
+      const el = document.documentElement;
+      const rfs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+      if (rfs && !document.fullscreenElement && !document.webkitFullscreenElement) {
+        rfs.call(el).catch(() => {});
+      }
+      document.removeEventListener("touchstart", requestFullscreen);
+    };
+    document.addEventListener("touchstart", requestFullscreen, { once: true });
+    return () => document.removeEventListener("touchstart", requestFullscreen);
+  }, [isMobile]);
+
   useEffect(() => { activeBossRef.current = activeBoss; }, [activeBoss]);
 
   const showMessage = useCallback((text, color) => {
