@@ -51,7 +51,7 @@ const SPELL_SFX = {
 };
 
 const RESIST_MULT = 0.3; // 70% damage reduction on resist
-const MAX_MANA = 100;
+const BASE_MAX_MANA = 100;
 const MAX_INITIATIVE = 100;
 const INITIATIVE_REGEN = 30; // per second
 const CARAVAN_COST = 60;
@@ -93,6 +93,9 @@ export default function App() {
   const [weather, setWeather] = useState(null);
   const weatherRef = useRef(null);
   weatherRef.current = weather;
+  // Element combo system: track last element hit on each NPC
+  // Combos: fire+ice = "Steam Burst" (+50%), lightning+fire = "Overcharge" (+40%), ice+lightning = "Shatter" (+60%)
+  const elementDebuffs = useRef({}); // { npcId: { element, timestamp } }
   const [miningProgress, setMiningProgress] = useState(0);
   const miningRef = useRef({ active: false, intervalId: null });
 
@@ -142,6 +145,8 @@ export default function App() {
 
   // Mana & spell system
   const [mana, setMana] = useState(20);
+  // MAX_MANA computed from base + knowledge upgrades
+  const MAX_MANA = BASE_MAX_MANA + (knowledgeUpgrades.manaPool || 0) * 10;
   const [cooldowns, setCooldowns] = useState({});
   const [selectedSpell, setSelectedSpell] = useState(null);
   const [dragHighlight, setDragHighlight] = useState(null);
@@ -155,13 +160,28 @@ export default function App() {
   // Bestiary & knowledge
   const [bestiary, setBestiary] = useState({});
   const [knowledge, setKnowledge] = useState(0);
+  const bestiaryRef = useRef({});
+  const knowledgeRef = useRef(0);
+  bestiaryRef.current = bestiary;
+  knowledgeRef.current = knowledge;
   const [cardDrop, setCardDrop] = useState(null);
+  // Knowledge shop: permanent upgrades bought with knowledge
+  const [knowledgeUpgrades, setKnowledgeUpgrades] = useState({
+    manaPool: 0,     // +10 max mana per level (max 3)
+    spellPower: 0,   // +5% spell damage per level (max 5)
+    manaRegen: 0,    // +0.5 mana/sec per level (max 3)
+  });
 
   // Meteorite event: phases: pending → falling → landed → opened
   const [meteorite, setMeteorite] = useState(null);
   const [screenShake, setScreenShake] = useState(false);
   const [summonPicker, setSummonPicker] = useState(false);
   const [randomEvent, setRandomEvent] = useState(null);
+  // Scout preview: next room info (visible with spyglass tool)
+  const [nextRoomPreview, setNextRoomPreview] = useState(null);
+  // Tutorial system
+  const [tutorialStep, setTutorialStep] = useState(0); // 0 = not started, 1-5 = steps, -1 = done
+  const [showTutorial, setShowTutorial] = useState(true);
   const [defenseMode, setDefenseMode] = useState(null);
   const defenseModeRef = useRef(null);
   defenseModeRef.current = defenseMode;
@@ -170,6 +190,23 @@ export default function App() {
   activeRelicsRef.current = activeRelics;
   const [relicChoices, setRelicChoices] = useState(null);
   const hasRelic = (id) => activeRelicsRef.current.some(r => r.id === id);
+  // Knowledge bonus: +5% damage per discovered NPC type (max +50%)
+  const getKnowledgeBonus = (npcId) => {
+    const entry = bestiaryRef.current[npcId];
+    if (entry?.discovered) return 1.05; // 5% bonus for discovered NPCs
+    return 1.0;
+  };
+  // Knowledge milestones: bonus based on total knowledge + spell power upgrade
+  const getKnowledgeMilestoneBonus = () => {
+    const k = knowledgeRef.current || 0;
+    let bonus = 1.0;
+    if (k >= 200) bonus = 1.15;
+    else if (k >= 100) bonus = 1.10;
+    else if (k >= 50) bonus = 1.05;
+    // Knowledge shop spell power: +5% per level
+    bonus += (knowledgeUpgrades.spellPower || 0) * 0.05;
+    return bonus;
+  };
   const [activeBoss, setActiveBoss] = useState(null);
   const activeBossRef = useRef(null);
   const [gameScale, setGameScale] = useState(1);
@@ -362,6 +399,9 @@ export default function App() {
     const actualDmg = Math.max(1, damage - armor);
     sfxCaravanHit();
     setCaravanHp(prev => Math.max(0, prev - actualDmg));
+    // Screen shake on caravan hit
+    setScreenShake(true);
+    setTimeout(() => setScreenShake(false), 150);
     // Lunge anim on the enemy
     const ew = walkDataRef.current[enemyId];
     if (ew) { ew.lungeFrames = 8; ew.lungeOffset = 12; }
@@ -415,8 +455,12 @@ export default function App() {
   // ─── WALKING NPC RAF LOOP ───
   useEffect(() => {
     const atkCds = {};
+    let lastTime = performance.now();
     const loop = () => {
       walkRafRef.current = requestAnimationFrame(loop);
+      const now = performance.now();
+      const dt = Math.min((now - lastTime) / 1000, 0.1); // delta seconds, capped at 100ms
+      lastTime = now;
       const wd = walkDataRef.current;
       for (const id of Object.keys(wd)) {
         const w = wd[id];
@@ -434,9 +478,9 @@ export default function App() {
             if (dist < nearDist) { nearDist = dist; nearX = e.x; nearY = e.y || 65; nearId = eid; }
           }
 
-          // Mage mana regen
+          // Mage mana regen (uses dt for frame-rate independence)
           if (w.mercType === "mage" && w.maxMana) {
-            w.currentMana = Math.min(w.maxMana, (w.currentMana || 0) + (w.manaRegen || 2) / 60);
+            w.currentMana = Math.min(w.maxMana, (w.currentMana || 0) + (w.manaRegen || 2) * dt);
           }
 
           // Stationary walkers: no movement, but ranged can still shoot
@@ -588,6 +632,11 @@ export default function App() {
                 if (!atkCds[id] || now - atkCds[id] > atkCdMs) {
                   atkCds[id] = now;
                   let knightDmg = w.damage || 5;
+                  // Rogue crit: chance for double damage
+                  if (w.mercType === "rogue" && Math.random() < (w.critChance || 0.25)) {
+                    knightDmg = Math.round(knightDmg * (w.critMult || 2.0));
+                    spawnDmgPopup(parseInt(nearId), `KRYT! ${knightDmg}`, "#ff8020");
+                  }
                   // berserker: merc <30% HP → 2x damage
                   if (hasRelic("berserker")) {
                     const wState = walkersRef.current.find(ww => ww.id === parseInt(id));
@@ -956,14 +1005,14 @@ export default function App() {
         }
       }
       // ─── TRAP COLLISION CHECK ───
-      const now = Date.now();
+      const trapNow = Date.now();
       const curTraps = trapsRef.current;
       for (const trap of curTraps) {
         if (!trap.active) continue;
 
         if (trap.type === "spikes") {
           // Spikes activate periodically (every 3s, active for 1s)
-          const cycle = (now % 4000);
+          const cycle = (trapNow % 4000);
           const spikesUp = cycle < 1200;
           trap._spikesUp = spikesUp; // for rendering
           if (!spikesUp) continue;
@@ -973,8 +1022,8 @@ export default function App() {
             if (!w || !w.alive || !w.friendly) continue;
             if (Math.abs(w.x - trap.x) < 4) {
               const cdKey = `spike_${trap.id}_${id}`;
-              if (!atkCds[cdKey] || now - atkCds[cdKey] > 1500) {
-                atkCds[cdKey] = now;
+              if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > 1500) {
+                atkCds[cdKey] = trapNow;
                 const dmg = 8 + Math.floor(Math.random() * 6);
                 if (enemyAttackFriendlyRef.current) {
                   // Use a fake enemy ID (negative) for trap damage
@@ -986,7 +1035,7 @@ export default function App() {
                       if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
                       if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "melee", 1);
                       showMessage(`💀 ${ww.npcData.name} zginął na kolcach!`, "#cc4040");
-                      return { ...ww, hp: 0, dying: true, dyingAt: now };
+                      return { ...ww, hp: 0, dying: true, dyingAt: trapNow };
                     }
                     if (physicsRef.current) physicsRef.current.applyHit(parseInt(id), "melee", Math.sign(w.x - trap.x) || 1);
                     return { ...ww, hp: newHp };
@@ -1003,7 +1052,7 @@ export default function App() {
             if (!w || !w.alive || !w.friendly) continue;
             if (Math.abs(w.x - trap.x) < 3.5) {
               trap.triggered = true;
-              trap._explodeAt = now;
+              trap._explodeAt = trapNow;
               const dmg = 15 + Math.floor(Math.random() * 10);
               sfxMeteorImpact();
               spawnDmgPopup(parseInt(id), `${dmg} 💥`, "#ff6020");
@@ -1030,7 +1079,7 @@ export default function App() {
                   if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
                   if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "fire", Math.sign(wwd.x - trap.x) || 1);
                   showMessage(`💀 ${ww.npcData.name} zginął od wybuchu!`, "#cc4040");
-                  return { ...ww, hp: 0, dying: true, dyingAt: now };
+                  return { ...ww, hp: 0, dying: true, dyingAt: trapNow };
                 }
                 if (physicsRef.current) physicsRef.current.applyHit(ww.id, "fire", Math.sign(wwd.x - trap.x) || 1);
                 spawnDmgPopup(ww.id, `${actualDmg}`, "#ff6020");
@@ -1045,7 +1094,7 @@ export default function App() {
 
         if (trap.type === "tower") {
           // Tower shoots nearest friendly every 2.5s
-          if (now - (trap.lastShot || 0) < 2500) continue;
+          if (trapNow - (trap.lastShot || 0) < 2500) continue;
           let nearId = null, nearDist = Infinity;
           for (const id of Object.keys(wd)) {
             const w = wd[id];
@@ -1054,7 +1103,7 @@ export default function App() {
             if (dist < nearDist && dist < 35) { nearDist = dist; nearId = id; }
           }
           if (nearId !== null) {
-            trap.lastShot = now;
+            trap.lastShot = trapNow;
             const dmg = 6 + Math.floor(Math.random() * 5);
             if (physicsRef.current) {
               physicsRef.current.spawnProjectileFrom(
@@ -1080,6 +1129,11 @@ export default function App() {
   const enterRoom = useCallback((newRoom, tools) => {
     const b = BIOMES[Math.floor(Math.random() * BIOMES.length)];
     setBiome(b);
+    // Generate next room preview for spyglass
+    const nextB = BIOMES[Math.floor(Math.random() * BIOMES.length)];
+    const nextIsDefense = (newRoom + 1) > 0 && (newRoom + 1) % 5 === 0;
+    const nextIsBoss = (newRoom + 1) > 0 && (newRoom + 1) % 10 === 0;
+    setNextRoomPreview({ biome: nextB, isDefense: nextIsDefense, isBoss: nextIsBoss, room: newRoom + 1 });
     setRoom(newRoom);
     const isDefenseRoom = newRoom > 0 && newRoom % 5 === 0;
 
@@ -1281,6 +1335,7 @@ export default function App() {
           maxHp: npcData.hp,
         });
         const spawnY = 65 + Math.random() * 18; // 65-83% (on ground)
+        const dmgScale = 1 + Math.min(newRoom / 20, 2.0); // damage scales 1x→3x over 40 rooms
         newWalkData[wid] = {
           x: spawnX,
           y: spawnY,
@@ -1294,7 +1349,7 @@ export default function App() {
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true,
           friendly: false,
-          damage: Math.ceil(npcData.hp / 8),
+          damage: Math.ceil((npcData.hp / 8) * dmgScale),
           lungeFrames: 0,
           lungeOffset: 0,
           ability: npcData.ability || null,
@@ -1514,15 +1569,18 @@ export default function App() {
     return () => clearInterval(iv);
   }, []);
 
-  // mana_spring relic: +3 mana/sec passively
+  // Passive mana regen: mana_spring relic + knowledge upgrade
   useEffect(() => {
     const iv = setInterval(() => {
-      if (hasRelic("mana_spring")) {
-        setMana(prev => Math.min(MAX_MANA, prev + 3));
+      const knowledgeManaRegen = (knowledgeUpgrades.manaRegen || 0) * 0.5;
+      const springRegen = hasRelic("mana_spring") ? 1.5 : 0;
+      const totalRegen = knowledgeManaRegen + springRegen;
+      if (totalRegen > 0) {
+        setMana(prev => Math.min(MAX_MANA, prev + totalRegen));
       }
     }, 1000);
     return () => clearInterval(iv);
-  }, []);
+  }, [knowledgeUpgrades.manaRegen, MAX_MANA]);
 
   // ─── DEFENSE WAVE SYSTEM ───
   // Phase timer: countdown during setup and inter_wave
@@ -1596,8 +1654,8 @@ export default function App() {
     const waveBonus = Math.floor(waveDiff * 3);
     const enemyCount = baseCount + waveBonus;
     let hpMult = 1 + roomDiff * 1.2 + waveDiff * 0.8;
-    // greedy_merchant: enemies +20% HP
-    if (hasRelic("greedy_merchant")) hpMult *= 1.20;
+    // greedy_merchant: enemies +30% HP (nerfed from +20%)
+    if (hasRelic("greedy_merchant")) hpMult *= 1.30;
     const dmgMult = 1 + roomDiff * 0.7 + waveDiff * 0.5;
     const biomeId = biome?.id || "summer";
 
@@ -1761,9 +1819,9 @@ export default function App() {
         t.biome = biome?.name || "Obrona"; t.room = rn;
         if (hasRelic("greedy_merchant")) {
           if (t.value) {
-            if (t.value.copper) t.value.copper *= 2;
-            if (t.value.silver) t.value.silver *= 2;
-            if (t.value.gold) t.value.gold *= 2;
+            if (t.value.copper) t.value.copper = Math.round(t.value.copper * 1.5);
+            if (t.value.silver) t.value.silver = Math.round(t.value.silver * 1.5);
+            if (t.value.gold) t.value.gold = Math.round(t.value.gold * 1.5);
           }
         }
         treasures.push(t);
@@ -1807,6 +1865,79 @@ export default function App() {
 
   const handleToggleMusic = () => { setMusicOn(toggleMusic()); };
   const startGame = () => { setScreen("game"); enterRoom(1, []); startMusic(); };
+
+  // Save/Load system
+  const saveGame = () => {
+    const saveData = {
+      room, money, mana, kills, doors, initiative, inventory, hideoutItems,
+      ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp,
+      bestiary, knowledge, learnedSpells, activeRelics: activeRelics.map(r => r.id),
+      knowledgeUpgrades,
+      savedAt: Date.now(),
+    };
+    try {
+      localStorage.setItem("wrota_save", JSON.stringify(saveData));
+      showMessage("💾 Gra zapisana!", "#40c040");
+    } catch (e) {
+      showMessage("Błąd zapisu!", "#e04040");
+    }
+  };
+
+  const loadGame = () => {
+    try {
+      const raw = localStorage.getItem("wrota_save");
+      if (!raw) { showMessage("Brak zapisu!", "#cc8040"); return false; }
+      const s = JSON.parse(raw);
+      setMoney(s.money || { copper: 0, silver: 0, gold: 0 });
+      setKills(s.kills || 0);
+      setDoors(s.doors || 0);
+      setInitiative(s.initiative || 50);
+      setInventory(s.inventory || []);
+      setHideoutItems(s.hideoutItems || []);
+      setOwnedTools(s.ownedTools || []);
+      setHideoutLevel(s.hideoutLevel || 0);
+      setKnightLevel(s.knightLevel || 0);
+      setCaravanLevel(s.caravanLevel || 0);
+      setCaravanHp(s.caravanHp || 100);
+      setBestiary(s.bestiary || {});
+      setKnowledge(s.knowledge || 0);
+      setLearnedSpells(s.learnedSpells || SPELLS.filter(sp => sp.learned).map(sp => sp.id));
+      if (s.activeRelics) {
+        const relicObjs = s.activeRelics.map(id => RELICS.find(r => r.id === id)).filter(Boolean);
+        setActiveRelics(relicObjs);
+      }
+      setKnowledgeUpgrades(s.knowledgeUpgrades || { manaPool: 0, spellPower: 0, manaRegen: 0 });
+      setMana(s.mana || 20);
+      setScreen("game");
+      enterRoom(s.room || 1, s.ownedTools || []);
+      startMusic();
+      showMessage("💾 Gra wczytana!", "#40c040");
+      return true;
+    } catch (e) {
+      showMessage("Błąd wczytywania!", "#e04040");
+      return false;
+    }
+  };
+
+  const hasSaveGame = () => {
+    try { return !!localStorage.getItem("wrota_save"); } catch { return false; }
+  };
+
+  // Auto-save every 60 seconds during gameplay
+  useEffect(() => {
+    if (screen !== "game") return;
+    const iv = setInterval(() => {
+      const saveData = {
+        room, money, mana, kills, doors, initiative, inventory, hideoutItems,
+        ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp,
+        bestiary, knowledge, learnedSpells, activeRelics: activeRelics.map(r => r.id),
+        knowledgeUpgrades,
+        savedAt: Date.now(),
+      };
+      try { localStorage.setItem("wrota_save", JSON.stringify(saveData)); } catch {}
+    }, 60000);
+    return () => clearInterval(iv);
+  }, [screen, room, money, mana, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades]);
 
   const travelCaravan = () => {
     if (defenseMode && defenseMode.phase !== "complete" && defenseMode.phase !== "failed") {
@@ -1960,11 +2091,11 @@ export default function App() {
   const openChest = () => {
     setShowChest(false); sfxChest();
     const t = pickTreasure(room); t.biome = biome.name; t.room = room;
-    // greedy_merchant: double treasure value
+    // greedy_merchant: x1.5 treasure value (nerfed from x2)
     if (hasRelic("greedy_merchant") && t.value) {
-      if (t.value.copper) t.value.copper *= 2;
-      if (t.value.silver) t.value.silver *= 2;
-      if (t.value.gold) t.value.gold *= 2;
+      if (t.value.copper) t.value.copper = Math.round(t.value.copper * 1.5);
+      if (t.value.silver) t.value.silver = Math.round(t.value.silver * 1.5);
+      if (t.value.gold) t.value.gold = Math.round(t.value.gold * 1.5);
     }
     setInventory(prev => [...prev, t]); setLoot(t);
   };
@@ -2151,6 +2282,8 @@ export default function App() {
       meleeDamage: Math.round((mercType.meleeDamage || mercType.damage) * mult),
       projectileDamage: Math.round((mercType.projectileDamage || 0) * mult),
       projectileCd: mercType.projectileCd || 1800,
+      critChance: mercType.critChance || 0,
+      critMult: mercType.critMult || 1,
     };
     if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, true);
     showMessage(`${mercType.emoji} ${mercType.name} zrekrutowany! (${lvl.name})`, "#40e060");
@@ -2241,6 +2374,9 @@ export default function App() {
         // Archer fields
         projectileDamage: Math.round((mercType.projectileDamage || 0) * mult),
         projectileCd: mercType.projectileCd || 1800,
+        // Rogue crit fields
+        critChance: mercType.critChance || 0,
+        critMult: mercType.critMult || 1,
       };
       if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, true);
       showMessage(`${mercType.emoji} ${mercType.name} przyzwany! (${lvl.name})`, "#40e060");
@@ -2285,6 +2421,21 @@ export default function App() {
       damage = applyWeatherDamage(damage, spell.element, weatherRef.current);
       // chaos_blade: +40% spell damage
       if (hasRelic("chaos_blade")) damage = Math.round(damage * 1.40);
+      // Knowledge bonus: extra damage for discovered NPCs + milestone bonus
+      damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
+      // Element combo system
+      let comboText = null;
+      const prevDebuff = elementDebuffs.current[wid];
+      if (prevDebuff && spell.element && prevDebuff.element !== spell.element && Date.now() - prevDebuff.timestamp < 5000) {
+        const comboKey = [prevDebuff.element, spell.element].sort().join("+");
+        const COMBOS = { "fire+ice": { name: "Parowy Wybuch", mult: 1.5, color: "#e0e0e0" }, "fire+lightning": { name: "Przeładowanie", mult: 1.4, color: "#ffaa20" }, "ice+lightning": { name: "Roztrzaskanie", mult: 1.6, color: "#80d0ff" }, "fire+shadow": { name: "Mroczny Płomień", mult: 1.35, color: "#a040a0" }, "ice+shadow": { name: "Lodowe Przekleństwo", mult: 1.45, color: "#6040a0" } };
+        const combo = COMBOS[comboKey];
+        if (combo) {
+          damage = Math.round(damage * combo.mult);
+          comboText = combo;
+        }
+      }
+      if (spell.element) elementDebuffs.current[wid] = { element: spell.element, timestamp: Date.now() };
       const wd = walkDataRef.current[wid];
       const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
 
@@ -2295,9 +2446,12 @@ export default function App() {
         const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
         showMessage(`🛡️ ${npcData.name} odporny na ${resistLabel}! (-70% obrażeń)`, "#6688aa");
       }
+      if (comboText) {
+        showMessage(`✨ COMBO: ${comboText.name}! (x${(comboText.mult).toFixed(1)})`, comboText.color);
+      }
 
       // Show damage popup
-      const dmgLabel = weatherBoosted ? `${damage} ⛈️` : weatherNerfed ? `${damage} 🌧️` : resistant ? `${damage} 🛡️` : `${damage}`;
+      const dmgLabel = comboText ? `${damage} ✨` : weatherBoosted ? `${damage} ⛈️` : weatherNerfed ? `${damage} 🌧️` : resistant ? `${damage} 🛡️` : `${damage}`;
       spawnDmgPopup(wid, dmgLabel, resistant ? "#6688aa" : spell.color);
 
       // blood_weapon: heal random friendly for 15% of damage dealt
@@ -2448,6 +2602,18 @@ export default function App() {
         damage = applyWeatherDamage(damage, spell.element, weatherRef.current);
         // chaos_blade: +40% spell damage
         if (hasRelic("chaos_blade")) damage = Math.round(damage * 1.40);
+        // Knowledge bonus
+        damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
+        // Element combo for AoE
+        const prevDebuff = elementDebuffs.current[w.id];
+        let comboText = null;
+        if (prevDebuff && spell.element && prevDebuff.element !== spell.element && Date.now() - prevDebuff.timestamp < 5000) {
+          const comboKey = [prevDebuff.element, spell.element].sort().join("+");
+          const COMBOS = { "fire+ice": { name: "Parowy Wybuch", mult: 1.5 }, "fire+lightning": { name: "Przeładowanie", mult: 1.4 }, "ice+lightning": { name: "Roztrzaskanie", mult: 1.6 }, "fire+shadow": { name: "Mroczny Płomień", mult: 1.35 }, "ice+shadow": { name: "Lodowe Przekleństwo", mult: 1.45 } };
+          const combo = COMBOS[comboKey];
+          if (combo) { damage = Math.round(damage * combo.mult); comboText = combo; }
+        }
+        if (spell.element) elementDebuffs.current[w.id] = { element: spell.element, timestamp: Date.now() };
         const wd = walkDataRef.current[w.id];
         const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
 
@@ -2459,7 +2625,7 @@ export default function App() {
           showMessage(`🛡️ ${npcData.name} odporny na ${resistLabel}!`, "#6688aa");
         }
 
-        const dmgLabel = weatherBoosted ? `${damage} ⛈️` : weatherNerfed ? `${damage} 🌧️` : resistant ? `${damage} 🛡️` : `${damage}`;
+        const dmgLabel = comboText ? `${damage} ✨` : weatherBoosted ? `${damage} ⛈️` : weatherNerfed ? `${damage} 🌧️` : resistant ? `${damage} 🛡️` : `${damage}`;
         spawnDmgPopup(w.id, dmgLabel, resistant ? "#6688aa" : spell.color);
 
         // blood_weapon: heal random friendly for 15% of damage
@@ -2635,6 +2801,29 @@ export default function App() {
     showMessage(`Sprzedano ${it.name}!`, "#b87333");
   };
 
+  const sellAll = () => {
+    if (inventory.length === 0) return;
+    let totalVal = 0;
+    inventory.forEach(it => { totalVal += totalCopper(it.value); });
+    setMoney(prev => copperToMoney(totalCopper(prev) + totalVal));
+    sfxSell();
+    showMessage(`Sprzedano ${inventory.length} przedmiotów! +${totalVal} Cu`, "#d4a030");
+    setInventory([]);
+    setSelectedInv(-1);
+  };
+
+  const storeAll = () => {
+    const hlvl = HIDEOUT_LEVELS[hideoutLevel];
+    const available = hlvl.slots - hideoutItems.length;
+    if (available <= 0 || inventory.length === 0) return;
+    const toStore = inventory.slice(0, available);
+    sfxStore();
+    setHideoutItems(prev => [...prev, ...toStore]);
+    setInventory(prev => prev.slice(available));
+    setSelectedInv(-1);
+    showMessage(`Przeniesiono ${toStore.length} przedmiotów do kryjówki!`, "#40a8b8");
+  };
+
   const buyTool = (toolId) => {
     if (ownedTools.includes(toolId)) return;
     const tool = SHOP_TOOLS.find(t => t.id === toolId); if (!tool) return;
@@ -2705,6 +2894,20 @@ export default function App() {
     showMessage(`🐴 Karawana → ${next.name}! (HP:${next.hp}, Armor:${next.armor})`, "#d4a030");
   };
 
+  const buyKnowledgeUpgrade = (upgradeId) => {
+    const COSTS = { manaPool: [30, 60, 100], spellPower: [20, 40, 60, 80, 100], manaRegen: [25, 50, 80] };
+    const currentLevel = knowledgeUpgrades[upgradeId] || 0;
+    const costs = COSTS[upgradeId];
+    if (!costs || currentLevel >= costs.length) return;
+    const cost = costs[currentLevel];
+    if (knowledge < cost) { showMessage("Za mało wiedzy!", "#b83030"); return; }
+    setKnowledge(k => k - cost);
+    setKnowledgeUpgrades(prev => ({ ...prev, [upgradeId]: currentLevel + 1 }));
+    sfxUpgrade();
+    const names = { manaPool: "Pula Many", spellPower: "Moc Czarów", manaRegen: "Regeneracja Many" };
+    showMessage(`📖 Ulepszono ${names[upgradeId]}!`, "#60a0ff");
+  };
+
   const togglePanel = (p) => setPanel(prev => prev === p ? null : p);
   const hlvl = HIDEOUT_LEVELS[hideoutLevel];
   const canStoreMore = hideoutItems.length < hlvl.slots;
@@ -2720,10 +2923,18 @@ export default function App() {
         <div style={{ fontSize: 60, marginBottom: 16, filter: "drop-shadow(0 0 16px rgba(212,160,48,0.25))" }}>⚔️🚪⚔️</div>
         <h1 style={{ fontSize: 32, fontWeight: "bold", color: "#d4a030", textShadow: "3px 3px 0 #000, 0 0 25px rgba(212,160,48,0.25)", marginBottom: 8, textAlign: "center" }}>Wrota Przeznaczenia</h1>
         <p style={{ fontSize: 18, color: "#6a5a4a", marginBottom: 36 }}>Znajdź klucz • Otwórz wrota • Zdobądź skarby</p>
-        <button onClick={startGame} style={{
-          fontWeight: "bold", fontSize: 20, background: "none", border: "3px solid #d4a030", color: "#d4a030",
-          padding: "12px 36px", cursor: "pointer", textShadow: "1px 1px 0 #000", animation: "pulse 2s infinite",
-        }}>❖ Wyrusz w Podróż ❖</button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
+          <button onClick={startGame} style={{
+            fontWeight: "bold", fontSize: 20, background: "none", border: "3px solid #d4a030", color: "#d4a030",
+            padding: "12px 36px", cursor: "pointer", textShadow: "1px 1px 0 #000", animation: "pulse 2s infinite",
+          }}>❖ Nowa Gra ❖</button>
+          {hasSaveGame() && (
+            <button onClick={loadGame} style={{
+              fontWeight: "bold", fontSize: 16, background: "none", border: "2px solid #4080cc", color: "#60a0ff",
+              padding: "8px 28px", cursor: "pointer", textShadow: "1px 1px 0 #000",
+            }}>💾 Kontynuuj</button>
+          )}
+        </div>
         <style>{`@keyframes pulse{0%,100%{box-shadow:0 0 8px rgba(212,160,48,0.2)}50%{box-shadow:0 0 22px rgba(212,160,48,0.45)}}`}</style>
       </div>
     );
@@ -2734,10 +2945,10 @@ export default function App() {
     <div style={appStyle}>
       <div style={scanlinesStyle} /><div style={vignetteStyle} />
 
-      <TopBar doors={doors} initiative={initiative} treasures={inventory.length} money={money} mana={mana}
+      <TopBar doors={doors} initiative={initiative} treasures={inventory.length} money={money} mana={mana} maxMana={MAX_MANA}
         onInv={() => togglePanel("inv")} onShop={() => togglePanel("shop")} onHideout={() => togglePanel("hideout")}
         onBestiary={() => togglePanel("bestiary")} knowledge={knowledge}
-        musicOn={musicOn} onToggleMusic={handleToggleMusic} />
+        musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} />
 
       {/* Scaled game container – fixed resolution */}
       <div ref={gameContainerRef} style={{
@@ -2789,7 +3000,7 @@ export default function App() {
         onClick={travelCaravan}
         hp={caravanHp}
         maxHp={CARAVAN_LEVELS[caravanLevel].hp}
-        showHp={!!defenseMode && defenseMode.phase !== "complete" && defenseMode.phase !== "failed"}
+        showHp={caravanHp < CARAVAN_LEVELS[caravanLevel].hp || (!!defenseMode && defenseMode.phase !== "complete" && defenseMode.phase !== "failed")}
       />
 
       {showChest && <Chest pos={chestPos} onClick={openChest} />}
@@ -3467,6 +3678,13 @@ export default function App() {
             onDrop={isFriendly ? undefined : e => handleSpellDrop(e, w)}
             onClick={isFriendly ? undefined : () => handleNpcClick(w)}
           >
+            {/* Attack telegraph – shows when enemy is lunging */}
+            {w.alive && !w.dying && !isFriendly && walkDataRef.current[w.id]?.lungeFrames > 0 && (
+              <div style={{
+                fontSize: 14, animation: "dmgFloat 0.5s ease-out",
+                color: "#ff4040", fontWeight: "bold", pointerEvents: "none",
+              }}>⚠️</div>
+            )}
             {/* HP Bar — skip for boss (uses BossHpBar at top) */}
             {w.alive && !w.dying && !isBossWalker && (
               <div style={{
@@ -3551,6 +3769,23 @@ export default function App() {
         </div>
       ))}
 
+      {/* Scout Preview – next room info (requires spyglass tool) */}
+      {nextRoomPreview && ownedTools.includes("spyglass") && (
+        <div style={{
+          position: "absolute", top: 80, right: 10, zIndex: 20,
+          background: "rgba(20,14,10,0.9)", border: "2px solid #5a4030",
+          padding: "6px 10px", fontSize: 11, color: "#aaa",
+          boxShadow: "inset 0 0 8px rgba(0,0,0,0.4)",
+          opacity: transitioning ? 0 : 0.85,
+          transition: "opacity 0.5s",
+        }}>
+          <div style={{ fontWeight: "bold", color: "#d4a030", marginBottom: 2, fontSize: 12 }}>🔭 Zwiad</div>
+          <div>Komnata #{nextRoomPreview.room}: {nextRoomPreview.biome.emoji} {nextRoomPreview.biome.name}</div>
+          {nextRoomPreview.isDefense && <div style={{ color: "#e05040", fontWeight: "bold" }}>⚔️ Obrona karawany!</div>}
+          {nextRoomPreview.isBoss && <div style={{ color: "#ff4040", fontWeight: "bold" }}>💀 Boss!</div>}
+        </div>
+      )}
+
       {/* Kill counter */}
       {kills > 0 && (
         <div style={{ position: "absolute", top: 58, left: 12, fontSize: 13, color: "#e05040", fontWeight: "bold", zIndex: 20, textShadow: "1px 1px 0 #000" }}>
@@ -3619,6 +3854,49 @@ export default function App() {
       )}
 
       </div>{/* end game container */}
+
+      {/* Tutorial overlay – shows on first few rooms */}
+      {showTutorial && room <= 1 && tutorialStep >= 0 && tutorialStep < 5 && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 400,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+        }} onClick={() => { if (tutorialStep < 4) setTutorialStep(s => s + 1); else { setTutorialStep(-1); setShowTutorial(false); } }}>
+          <div style={{
+            background: "linear-gradient(180deg,#1a1210,#140a08)", border: "3px solid #5a4030",
+            padding: "24px 32px", maxWidth: 500, textAlign: "center",
+            boxShadow: "0 0 30px rgba(0,0,0,0.8), inset 0 0 15px rgba(0,0,0,0.5)",
+            animation: "fadeIn 0.3s ease-out",
+          }}>
+            <div style={{ fontSize: 13, color: "#888", marginBottom: 8, letterSpacing: 2 }}>PRZEWODNIK ({tutorialStep + 1}/5)</div>
+            {tutorialStep === 0 && <>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🐴</div>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "#d4a030", marginBottom: 8 }}>Karawana</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Kliknij karawanę aby podróżować do następnej komnaty. Potrzebujesz ⏳ inicjatywy (regeneruje się z czasem). Chroń karawanę przed wrogami!</div>
+            </>}
+            {tutorialStep === 1 && <>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🔮</div>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "#60a0ff", marginBottom: 8 }}>Czary i Walka</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Wybierz czar z paska na dole, a potem kliknij na wroga. Możesz też przeciągnąć czar na cel. Czary kosztują manę 🔮 i mają czas odnowienia. Łącz żywioły (ogień+lód, lód+piorun) dla bonusów COMBO!</div>
+            </>}
+            {tutorialStep === 2 && <>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>⚔️</div>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "#40e060", marginBottom: 8 }}>Najemnicy</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Przyzywaj najemników czarem ⚔️ Przywołanie. Rycerz jest wytrzymały, Łotrzyk szybki z ciosami krytycznymi, Mag rzuca zaklęcia, Łucznik strzela z dystansu. Ulepszaj ich w Kryjówce 🏰!</div>
+            </>}
+            {tutorialStep === 3 && <>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>📖</div>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "#60a0ff", marginBottom: 8 }}>Bestiariusz i Wiedza</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Pokonani wrogowie mogą upuścić karty do Bestiariusza. Odkryte stworzenia dają +5% obrażeń przeciwko nim. Zbieraj Wiedzę 📖 na bonusy kamieni milowych!</div>
+            </>}
+            {tutorialStep === 4 && <>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🏪🏰</div>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "#d4a030", marginBottom: 8 }}>Targ i Kryjówka</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Na Targu 🏪 kupuj narzędzia i mikstury. W Kryjówce 🏰 ulepszaj karawanę, najemników i przechowuj skarby. Co 5 pokoi czeka obrona karawany, co 10 - boss!</div>
+            </>}
+            <div style={{ marginTop: 12, fontSize: 11, color: "#666" }}>Kliknij aby kontynuować →</div>
+          </div>
+        </div>
+      )}
 
       <div style={{
         position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#000", zIndex: 500,
@@ -3775,6 +4053,16 @@ export default function App() {
           );
         })}
         <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#d4a030", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}>💰 Sprzedaż skarbów</h3>
+        {inventory.length > 0 && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <button onClick={sellAll} style={{ flex: 1, background: "none", border: "2px solid #8a6018", color: "#d4a030", fontSize: 13, fontWeight: "bold", padding: "6px 12px", cursor: "pointer" }}>
+              💰 Sprzedaj wszystko ({inventory.length})
+            </button>
+            <button onClick={storeAll} disabled={hideoutItems.length >= HIDEOUT_LEVELS[hideoutLevel].slots} style={{ flex: 1, background: "none", border: "2px solid #2a6a6a", color: "#40a8b8", fontSize: 13, fontWeight: "bold", padding: "6px 12px", cursor: hideoutItems.length >= HIDEOUT_LEVELS[hideoutLevel].slots ? "not-allowed" : "pointer", opacity: hideoutItems.length >= HIDEOUT_LEVELS[hideoutLevel].slots ? 0.4 : 1 }}>
+              📦 Schowaj wszystko
+            </button>
+          </div>
+        )}
         {inventory.length === 0 ? (
           <div style={{ color: "#444", fontSize: 16, textAlign: "center", marginTop: 30 }}>Brak przedmiotów do sprzedaży.<br/>Otwieraj skrzynie!</div>
         ) : inventory.map((it, idx) => (
@@ -3897,8 +4185,47 @@ export default function App() {
 
       {/* BESTIARY PANEL */}
       <SidePanel open={panel === "bestiary"} side="left" width={460} onClose={() => setPanel(null)} title="📖 Bestiariusz">
-        <div style={{ fontSize: 14, color: "#60a0ff", marginBottom: 12, fontWeight: "bold" }}>
+        <div style={{ fontSize: 14, color: "#60a0ff", marginBottom: 8, fontWeight: "bold" }}>
           📖 Wiedza: {knowledge} | Odkryto: {Object.keys(bestiary).length}/{ALL_NPCS.length}
+        </div>
+        <div style={{ fontSize: 12, color: "#aaa", marginBottom: 12, padding: "6px 8px", background: "rgba(60,100,200,0.08)", border: "1px solid #1a2a3a" }}>
+          <div style={{ color: "#60a0ff", fontWeight: "bold", marginBottom: 4 }}>Bonusy Wiedzy:</div>
+          <div>📖 Odkryty NPC: <span style={{ color: "#40c040" }}>+5% obrażeń</span> przeciwko niemu</div>
+          <div style={{ opacity: knowledge >= 50 ? 1 : 0.4 }}>📚 50 Wiedzy: <span style={{ color: knowledge >= 50 ? "#40c040" : "#666" }}>+5% do wszystkich obrażeń</span> {knowledge >= 50 ? "✓" : `(${knowledge}/50)`}</div>
+          <div style={{ opacity: knowledge >= 100 ? 1 : 0.4 }}>📚 100 Wiedzy: <span style={{ color: knowledge >= 100 ? "#40c040" : "#666" }}>+10% do wszystkich obrażeń</span> {knowledge >= 100 ? "✓" : `(${knowledge}/100)`}</div>
+          <div style={{ opacity: knowledge >= 200 ? 1 : 0.4 }}>📚 200 Wiedzy: <span style={{ color: knowledge >= 200 ? "#40c040" : "#666" }}>+15% do wszystkich obrażeń</span> {knowledge >= 200 ? "✓" : `(${knowledge}/200)`}</div>
+        </div>
+
+        {/* Knowledge Shop */}
+        <div style={{ marginBottom: 12, padding: "8px", background: "rgba(60,100,200,0.05)", border: "1px solid #1a2a3a" }}>
+          <div style={{ color: "#d4a030", fontWeight: "bold", marginBottom: 6, fontSize: 13 }}>🏛️ Sklep Wiedzy <span style={{ color: "#60a0ff", fontSize: 11 }}>(📖 {knowledge})</span></div>
+          {[
+            { id: "manaPool", name: "Pula Many", desc: "+10 max many", icon: "🔮", maxLvl: 3, costs: [30, 60, 100] },
+            { id: "spellPower", name: "Moc Czarów", desc: "+5% obrażeń czarów", icon: "⚡", maxLvl: 5, costs: [20, 40, 60, 80, 100] },
+            { id: "manaRegen", name: "Regeneracja Many", desc: "+0.5 many/sek", icon: "💧", maxLvl: 3, costs: [25, 50, 80] },
+          ].map(upg => {
+            const lvl = knowledgeUpgrades[upg.id] || 0;
+            const maxed = lvl >= upg.maxLvl;
+            const cost = maxed ? 0 : upg.costs[lvl];
+            const canAfford = knowledge >= cost;
+            return (
+              <div key={upg.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px", marginBottom: 4, border: `1px solid ${maxed ? "#2a6a2a" : "#1a1a2a"}` }}>
+                <span style={{ fontSize: 20 }}>{upg.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: "bold", fontSize: 12, color: maxed ? "#40c040" : "#aaa" }}>{upg.name} (Poz. {lvl}/{upg.maxLvl})</div>
+                  <div style={{ fontSize: 10, color: "#666" }}>{upg.desc}</div>
+                </div>
+                {maxed ? (
+                  <span style={{ color: "#40c040", fontSize: 11, fontWeight: "bold" }}>MAX</span>
+                ) : (
+                  <button onClick={() => buyKnowledgeUpgrade(upg.id)} disabled={!canAfford}
+                    style={{ background: "none", border: `1px solid ${canAfford ? "#4060cc" : "#333"}`, color: canAfford ? "#60a0ff" : "#555", fontSize: 11, padding: "2px 8px", cursor: canAfford ? "pointer" : "not-allowed", fontWeight: "bold" }}>
+                    📖 {cost}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
         {Object.entries(
           ALL_NPCS.reduce((acc, npc) => {

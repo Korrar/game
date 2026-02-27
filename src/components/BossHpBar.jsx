@@ -1,7 +1,25 @@
+const ABILITY_NAMES = {
+  charge: { name: "Szarża", icon: "🐗", desc: "Szarżuje na karawanę" },
+  fireBreath: { name: "Ognisty Oddech", icon: "🔥", desc: "Zadaje obrażenia ognia" },
+  iceShot: { name: "Lodowy Strzał", icon: "🧊", desc: "Zamraża i zadaje obrażenia lodu" },
+  shadowBolt: { name: "Mroczna Kula", icon: "🌑", desc: "Atak ciemnością" },
+  drain: { name: "Wyssanie", icon: "🩸", desc: "Leczy się zadanymi obrażeniami" },
+  poisonSpit: { name: "Trujący Plwocina", icon: "🐍", desc: "Zadaje obrażenia trucizną" },
+};
+
+const RESIST_NAMES = {
+  fire: { name: "Ogień", icon: "🔥" },
+  ice: { name: "Lód", icon: "🧊" },
+  shadow: { name: "Cień", icon: "🌑" },
+};
+
 export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp, manaShieldMaxHp }) {
   if (!boss) return null;
   const hpPct = maxHp > 0 ? Math.max(0, (currentHp / maxHp) * 100) : 0;
   const shieldPct = manaShieldMaxHp > 0 ? Math.max(0, (manaShieldHp / manaShieldMaxHp) * 100) : 0;
+
+  const ability = ABILITY_NAMES[boss.ability] || null;
+  const resist = boss.resist ? RESIST_NAMES[boss.resist] : null;
 
   return (
     <div style={{
@@ -27,6 +45,25 @@ export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp,
             background: phase >= 3 ? "rgba(200,40,200,0.15)" : "rgba(200,80,20,0.15)",
           }}>
             Faza {phase}
+          </span>
+        )}
+      </div>
+
+      {/* Boss info: ability + resist */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 12, marginBottom: 4, fontSize: 10 }}>
+        {ability && (
+          <span style={{ color: "#e0a040", background: "rgba(200,120,20,0.15)", padding: "1px 6px", border: "1px solid #5a4020", borderRadius: 3 }}>
+            {ability.icon} {ability.name}
+          </span>
+        )}
+        {resist && (
+          <span style={{ color: "#6688aa", background: "rgba(60,100,160,0.15)", padding: "1px 6px", border: "1px solid #2a4060", borderRadius: 3 }}>
+            🛡️ Odporność: {resist.icon} {resist.name}
+          </span>
+        )}
+        {boss.phase2 && (
+          <span style={{ color: "#cc8040", background: "rgba(200,80,40,0.1)", padding: "1px 6px", border: "1px solid #4a2818", borderRadius: 3 }}>
+            ⚠️ Faza 2 przy {Math.round((boss.phase2.hpThreshold || 0.5) * 100)}% HP
           </span>
         )}
       </div>
