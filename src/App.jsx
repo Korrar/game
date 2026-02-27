@@ -1527,13 +1527,13 @@ export default function App() {
         const bNpc = { emoji: "🪵", name: "Barykada", hp: bHp, resist: null, loot: {}, bodyColor: "#6a4a20", armorColor: "#4a3010", bodyType: "barricade" };
         setWalkers(prev => [...prev, { id: bId, npcData: bNpc, alive: true, dying: false, hp: bHp, maxHp: bHp, friendly: true, isBarricade: true }]);
         walkDataRef.current[bId] = {
-          x: 18, y: 82, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
-          minX: 18, maxX: 18, minY: 25, maxY: 90,
+          x: 50, y: 75, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
+          minX: 50, maxX: 50, minY: 25, maxY: 90,
           bouncePhase: 0, alive: true, friendly: true,
           damage: 0, lungeFrames: 0, lungeOffset: 0,
           stationary: true, combatStyle: "none", attackCd: 99999,
         };
-        if (physicsRef.current) physicsRef.current.spawnNpc(bId, 18, bNpc, true);
+        if (physicsRef.current) physicsRef.current.spawnNpc(bId, 50, bNpc, true);
       }
       if (cl.tower) {
         const tId = ++walkerIdCounter;
@@ -1541,8 +1541,8 @@ export default function App() {
         const tNpc = { emoji: "🗼", name: "Wieża karawany", hp: towerHp, resist: null, loot: {}, bodyColor: "#5a5a5a", armorColor: "#3a3a3a", bodyType: "tower" };
         setWalkers(prev => [...prev, { id: tId, npcData: tNpc, alive: true, dying: false, hp: towerHp, maxHp: towerHp, friendly: true, isTower: true }]);
         walkDataRef.current[tId] = {
-          x: 10, y: 80, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
-          minX: 10, maxX: 10, minY: 25, maxY: 90,
+          x: 40, y: 73, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
+          minX: 40, maxX: 40, minY: 25, maxY: 90,
           bouncePhase: 0, alive: true, friendly: true,
           damage: cl.tower.damage, projectileDamage: cl.tower.damage,
           lungeFrames: 0, lungeOffset: 0,
@@ -1550,7 +1550,7 @@ export default function App() {
           attackCd: cl.tower.attackCd, projectileCd: cl.tower.attackCd,
           range: cl.tower.range,
         };
-        if (physicsRef.current) physicsRef.current.spawnNpc(tId, 10, tNpc, true);
+        if (physicsRef.current) physicsRef.current.spawnNpc(tId, 40, tNpc, true);
       }
       if (cl.dog) {
         // Check if dog already exists among preserved friendlies
@@ -1560,9 +1560,9 @@ export default function App() {
           const dNpc = { emoji: "🐕", name: "Ogar bojowy", hp: 80, resist: null, loot: {}, bodyColor: "#8a6030", armorColor: "#5a4020", bodyType: "quadruped" };
           setWalkers(prev => [...prev, { id: dId, npcData: dNpc, alive: true, dying: false, hp: 80, maxHp: 80, friendly: true, isDog: true }]);
           walkDataRef.current[dId] = {
-            x: 12, y: 80, dir: 1, yDir: Math.random() < 0.5 ? 1 : -1,
+            x: 45, y: 85, dir: 1, yDir: Math.random() < 0.5 ? 1 : -1,
             speed: 0.06, ySpeed: 0.01,
-            minX: 5, maxX: 28, minY: 25, maxY: 90,
+            minX: 30, maxX: 70, minY: 75, maxY: 92,
             bouncePhase: 0, alive: true, friendly: true,
             damage: 10, lungeFrames: 0, lungeOffset: 0,
             combatStyle: "melee", attackCd: 1800,
@@ -1717,17 +1717,17 @@ export default function App() {
         bodyType: boss.bodyType, ability: bossAbilityObj,
       };
       const wid = ++walkerIdCounter;
-      const spawnX = 95;
-      const spawnY = 55;
+      const spawnX = 50; // boss spawns center-top
+      const spawnY = 5;  // behind horizon
       setWalkers(prev => [...prev, {
         id: wid, npcData: bossNpc, alive: true, dying: false,
         hp: boss.maxHp, maxHp: boss.maxHp, isBoss: true, friendly: false,
       }]);
       walkDataRef.current[wid] = {
-        x: spawnX, y: spawnY, dir: -1,
-        yDir: Math.random() < 0.5 ? 1 : -1,
-        speed: boss.speed, ySpeed: 0.005,
-        minX: 5, maxX: 98, minY: 25, maxY: 90,
+        x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
+        yDir: 1, // start moving downward
+        speed: boss.speed, ySpeed: 0.008,
+        minX: 5, maxX: 98, minY: 25, maxY: 80, // cannot enter caravan zone
         bouncePhase: 0, alive: true, friendly: false,
         damage: boss.damage,
         lungeFrames: 0, lungeOffset: 0,
@@ -1764,17 +1764,17 @@ export default function App() {
         if (!npcData) return;
         npcData.hp = Math.round(npcData.hp * hpMult);
         const wid = ++walkerIdCounter;
-        const spawnX = 92 + Math.random() * 6;
-        const spawnY = 25 + Math.random() * 65;
+        const spawnX = 10 + Math.random() * 80; // spread across width
+        const spawnY = 8 + Math.random() * 10;  // spawn behind horizon (8-18%)
         setWalkers(prev => [...prev, {
           id: wid, npcData, alive: true, dying: false, hp: npcData.hp, maxHp: npcData.hp,
         }]);
         walkDataRef.current[wid] = {
-          x: spawnX, y: spawnY, dir: -1,
-          yDir: Math.random() < 0.5 ? 1 : -1,
-          speed: 0.02 + Math.random() * 0.03,
-          ySpeed: 0.005 + Math.random() * 0.015,
-          minX: 5, maxX: 98, minY: 25, maxY: 90,
+          x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
+          yDir: 1, // always start moving downward
+          speed: 0.01 + Math.random() * 0.02,
+          ySpeed: 0.015 + Math.random() * 0.015, // faster downward movement
+          minX: 5, maxX: 98, minY: 25, maxY: 80, // cannot enter caravan zone (80-100%)
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true, friendly: false,
           damage: Math.ceil(npcData.hp / 8 * dmgMult),
@@ -1811,18 +1811,18 @@ export default function App() {
           bodyColor: "#6a3030", armorColor: "#3a1818", bodyType: m.bodyType || "humanoid",
         };
         const wid = ++walkerIdCounter;
-        const spawnX = 90 + i * 3;
-        const spawnY = 25 + Math.random() * 65;
+        const spawnX = 15 + Math.random() * 70; // spread across width
+        const spawnY = 8 + Math.random() * 10;   // behind horizon
         setWalkers(prev => [...prev, {
           id: wid, npcData: minionNpc, alive: true, dying: false,
           hp: minionHp, maxHp: minionHp, isMinion: true,
         }]);
         walkDataRef.current[wid] = {
-          x: spawnX, y: spawnY, dir: -1,
-          yDir: Math.random() < 0.5 ? 1 : -1,
+          x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
+          yDir: 1, // start moving downward
           speed: m.speed || 0.04,
-          ySpeed: 0.005 + Math.random() * 0.015,
-          minX: 5, maxX: 98, minY: 25, maxY: 90,
+          ySpeed: 0.015 + Math.random() * 0.015,
+          minX: 5, maxX: 98, minY: 25, maxY: 80, // cannot enter caravan zone
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true, friendly: false,
           damage: minionDmg,
@@ -2094,7 +2094,8 @@ export default function App() {
 
   const spawnFreeMerc = useCallback((mercType, hpFraction = 1) => {
     const wid = ++walkerIdCounter;
-    const spawnX = 5 + Math.random() * 8;
+    const inDefense = !!defenseModeRef.current;
+    const spawnX = inDefense ? 35 + Math.random() * 30 : 5 + Math.random() * 8;
     const lvl = KNIGHT_LEVELS[knightLevel];
     const mult = lvl.mult || 1;
     const stoneBonus = hasRelic("stone_skin") ? 30 : 0;
@@ -2111,9 +2112,9 @@ export default function App() {
       id: wid, npcData, alive: true, dying: false, hp: finalHp, maxHp, friendly: true,
     }]);
     walkDataRef.current[wid] = {
-      x: spawnX, y: 25 + Math.random() * 65, dir: 1,
+      x: spawnX, y: inDefense ? 75 + Math.random() * 15 : 25 + Math.random() * 65, dir: inDefense ? -1 : 1,
       yDir: Math.random() < 0.5 ? 1 : -1, speed: mercType.speed, ySpeed: 0.008 + Math.random() * 0.012,
-      minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true,
+      minX: 5, maxX: 90, minY: 25, maxY: 92, bouncePhase: 0, alive: true, friendly: true,
       damage: finalDmg, attackCd: mercType.attackCd || 2500,
       lungeFrames: 0, lungeOffset: 0,
       combatStyle: mercType.combatStyle || "melee",
@@ -2469,7 +2470,8 @@ export default function App() {
     }
     setTimeout(() => {
       const wid = ++walkerIdCounter;
-      const spawnX = 5 + Math.random() * 8; // spawn near caravan (left side)
+      const inDef = !!defenseModeRef.current;
+      const spawnX = inDef ? 35 + Math.random() * 30 : 5 + Math.random() * 8;
       const lvl = KNIGHT_LEVELS[knightLevel];
       const mult = lvl.mult || 1;
       const stoneBonus = hasRelic("stone_skin") ? 30 : 0;
@@ -2485,9 +2487,9 @@ export default function App() {
         id: wid, npcData, alive: true, dying: false, hp: finalHp, maxHp: finalHp, friendly: true,
       }]);
       walkDataRef.current[wid] = {
-        x: spawnX, y: 25 + Math.random() * 65, dir: Math.random() < 0.5 ? 1 : -1,
+        x: spawnX, y: inDef ? 75 + Math.random() * 15 : 25 + Math.random() * 65, dir: inDef ? -1 : Math.random() < 0.5 ? 1 : -1,
         yDir: Math.random() < 0.5 ? 1 : -1, speed: mercType.speed, ySpeed: 0.008 + Math.random() * 0.012,
-        minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true,
+        minX: 5, maxX: 90, minY: 25, maxY: 92, bouncePhase: 0, alive: true, friendly: true,
         damage: finalDmg, attackCd: mercType.attackCd || 2500,
         lungeFrames: 0, lungeOffset: 0,
         combatStyle: mercType.combatStyle || "melee",
