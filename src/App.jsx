@@ -57,8 +57,9 @@ const INITIATIVE_REGEN = 30; // per second
 const CARAVAN_COST = 60;
 
 // Fixed game resolution – CSS scales to fit viewport
-const GAME_W = 1280;
-const GAME_H = 720;
+// Desktop: landscape 1280×720. Mobile portrait: computed from screen.
+const DESKTOP_W = 1280;
+const DESKTOP_H = 720;
 
 const animatorRef = { current: null };
 const physicsRef = { current: null };
@@ -67,6 +68,26 @@ let dmgPopupIdCounter = 0;
 
 // Mobile detection helper
 const isTouchDevice = () => "ontouchstart" in window || navigator.maxTouchPoints > 0;
+const isMobileScreen = () => isTouchDevice() && window.innerWidth < 900;
+
+// Compute mobile portrait game dimensions to fill screen
+function getMobileDimensions() {
+  const sw = window.innerWidth;
+  const sh = window.innerHeight;
+  // Use full screen width, fit height to aspect ratio
+  // Internal resolution scaled up for quality but matching screen aspect
+  const baseW = 480;
+  const baseH = Math.round(baseW * (sh / sw));
+  return { w: baseW, h: baseH };
+}
+
+function getGameDimensions() {
+  if (isMobileScreen()) {
+    const { w, h } = getMobileDimensions();
+    return { w, h };
+  }
+  return { w: DESKTOP_W, h: DESKTOP_H };
+}
 
 export default function App() {
   const [screen, setScreen] = useState("intro");
@@ -213,23 +234,31 @@ export default function App() {
   const [activeBoss, setActiveBoss] = useState(null);
   const activeBossRef = useRef(null);
   const [gameScale, setGameScale] = useState(1);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => isMobileScreen());
+  const [gameDims, setGameDims] = useState(() => getGameDimensions());
   const meteorTimerRef = useRef(null);
+
+  // Dynamic game dimensions
+  const GAME_W = gameDims.w;
+  const GAME_H = gameDims.h;
 
   const canvasRef = useRef(null);
   const animCanvasRef = useRef(null);
   const physicsCanvasRef = useRef(null);
   const vaultRef = useRef(null);
   const gameContainerRef = useRef(null);
+  const gameDimsRef = useRef(gameDims);
+  gameDimsRef.current = gameDims;
 
-  // Detect mobile/touch device
+  // Compute scale + detect mobile on resize
   useEffect(() => {
-    setIsMobile(isTouchDevice());
-  }, []);
-
-  // Compute scale to fit GAME_W×GAME_H into viewport
-  useEffect(() => {
-    const calc = () => setGameScale(Math.min(window.innerWidth / GAME_W, window.innerHeight / GAME_H));
+    const calc = () => {
+      const mobile = isMobileScreen();
+      setIsMobile(mobile);
+      const dims = getGameDimensions();
+      setGameDims(prev => (prev.w === dims.w && prev.h === dims.h) ? prev : dims);
+      setGameScale(Math.min(window.innerWidth / dims.w, window.innerHeight / dims.h));
+    };
     calc();
     window.addEventListener("resize", calc);
     return () => window.removeEventListener("resize", calc);
@@ -1546,7 +1575,7 @@ export default function App() {
     c.width = GAME_W; c.height = GAME_H;
     const ctx = c.getContext("2d");
     renderBiome(ctx, biome, room, c.width, c.height, isNight);
-  }, [biome, room, isNight]);
+  }, [biome, room, isNight, GAME_W, GAME_H]);
 
   // Animate biome overlay
   useEffect(() => {
@@ -1556,7 +1585,7 @@ export default function App() {
     if (!animatorRef.current) animatorRef.current = new BiomeAnimator();
     animatorRef.current.start(c, biome, isNight, weather);
     return () => { if (animatorRef.current) animatorRef.current.stop(); };
-  }, [biome, isNight, weather]);
+  }, [biome, isNight, weather, GAME_W, GAME_H]);
 
   // Physics canvas
   useEffect(() => {
@@ -1565,7 +1594,7 @@ export default function App() {
     c.width = GAME_W; c.height = GAME_H;
     if (!physicsRef.current) physicsRef.current = new PhysicsWorld();
     physicsRef.current.init(c);
-  }, [biome]);
+  }, [biome, GAME_W, GAME_H]);
 
   // Weather → physics
   useEffect(() => {
@@ -2967,24 +2996,17 @@ export default function App() {
   // GAME
   return (
     <div style={appStyle} className="game-no-select">
-      {/* Landscape orientation prompt for mobile */}
-      <div className="orientation-prompt">
-        <div style={{ fontSize: 64 }}>📱</div>
-        <div style={{ fontSize: 20, fontWeight: "bold" }}>Obróć telefon</div>
-        <div style={{ fontSize: 14, color: "#aaa", maxWidth: 280 }}>
-          Gra najlepiej działa w trybie poziomym (landscape)
-        </div>
-        <div style={{ fontSize: 48, animation: "fadeIn 1s ease-in-out infinite alternate" }}>↻</div>
-      </div>
-
       <div style={scanlinesStyle} /><div style={vignetteStyle} />
 
-      <TopBar doors={doors} initiative={initiative} treasures={inventory.length} money={money} mana={mana} maxMana={MAX_MANA}
-        onInv={() => togglePanel("inv")} onShop={() => togglePanel("shop")} onHideout={() => togglePanel("hideout")}
-        onBestiary={() => togglePanel("bestiary")} knowledge={knowledge}
-        musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} isMobile={isMobile} />
+      {/* Desktop: TopBar fixed at top, outside game container */}
+      {!isMobile && (
+        <TopBar doors={doors} initiative={initiative} treasures={inventory.length} money={money} mana={mana} maxMana={MAX_MANA}
+          onInv={() => togglePanel("inv")} onShop={() => togglePanel("shop")} onHideout={() => togglePanel("hideout")}
+          onBestiary={() => togglePanel("bestiary")} knowledge={knowledge}
+          musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} isMobile={false} />
+      )}
 
-      {/* Scaled game container – fixed resolution */}
+      {/* Scaled game container – fills entire screen on mobile */}
       <div ref={gameContainerRef} style={{
         width: GAME_W, height: GAME_H,
         transform: `scale(${gameScale})`,
@@ -2995,6 +3017,14 @@ export default function App() {
         touchAction: "manipulation",
         WebkitTouchCallout: "none",
       }}>
+
+      {/* Mobile: TopBar INSIDE game container at top */}
+      {isMobile && (
+        <TopBar doors={doors} initiative={initiative} treasures={inventory.length} money={money} mana={mana} maxMana={MAX_MANA}
+          onInv={() => togglePanel("inv")} onShop={() => togglePanel("shop")} onHideout={() => togglePanel("hideout")}
+          onBestiary={() => togglePanel("bestiary")} knowledge={knowledge}
+          musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} isMobile={true} gameW={GAME_W} />
+      )}
       <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H }} />
       <canvas ref={animCanvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none" }} />
       <canvas ref={physicsCanvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none", zIndex: 12 }} />
@@ -3002,9 +3032,9 @@ export default function App() {
       {/* Room & biome label – top center below TopBar */}
       {biome && (
         <div style={{
-          position: "absolute", top: 56, left: "50%", transform: "translateX(-50%)",
-          fontWeight: "bold", fontSize: 14, padding: "4px 16px", zIndex: 20, textShadow: "2px 2px 0 #000",
-          color: "#ccc", background: "rgba(26,14,18,0.85)", border: "2px solid #5a4030",
+          position: "absolute", top: isMobile ? 38 : 56, left: "50%", transform: "translateX(-50%)",
+          fontWeight: "bold", fontSize: isMobile ? 10 : 14, padding: isMobile ? "2px 8px" : "4px 16px", zIndex: 20, textShadow: "2px 2px 0 #000",
+          color: "#ccc", background: "rgba(26,14,18,0.85)", border: isMobile ? "1px solid #5a4030" : "2px solid #5a4030",
           boxShadow: "inset 0 0 10px rgba(0,0,0,0.4)", whiteSpace: "nowrap",
           opacity: transitioning ? 0 : 1, transition: "opacity 0.5s",
         }}>
@@ -3808,14 +3838,14 @@ export default function App() {
       {/* Scout Preview – next room info (requires spyglass tool) */}
       {nextRoomPreview && ownedTools.includes("spyglass") && (
         <div style={{
-          position: "absolute", top: 80, right: 10, zIndex: 20,
-          background: "rgba(20,14,10,0.9)", border: "2px solid #5a4030",
-          padding: "6px 10px", fontSize: 11, color: "#aaa",
+          position: "absolute", top: isMobile ? 50 : 80, right: isMobile ? 4 : 10, zIndex: 20,
+          background: "rgba(20,14,10,0.9)", border: isMobile ? "1px solid #5a4030" : "2px solid #5a4030",
+          padding: isMobile ? "3px 6px" : "6px 10px", fontSize: isMobile ? 8 : 11, color: "#aaa",
           boxShadow: "inset 0 0 8px rgba(0,0,0,0.4)",
           opacity: transitioning ? 0 : 0.85,
           transition: "opacity 0.5s",
         }}>
-          <div style={{ fontWeight: "bold", color: "#d4a030", marginBottom: 2, fontSize: 12 }}>🔭 Zwiad</div>
+          <div style={{ fontWeight: "bold", color: "#d4a030", marginBottom: 2, fontSize: isMobile ? 9 : 12 }}>🔭 Zwiad</div>
           <div>Komnata #{nextRoomPreview.room}: {nextRoomPreview.biome.emoji} {nextRoomPreview.biome.name}</div>
           {nextRoomPreview.isDefense && <div style={{ color: "#e05040", fontWeight: "bold" }}>⚔️ Obrona karawany!</div>}
           {nextRoomPreview.isBoss && <div style={{ color: "#ff4040", fontWeight: "bold" }}>💀 Boss!</div>}
@@ -3824,26 +3854,26 @@ export default function App() {
 
       {/* Kill counter */}
       {kills > 0 && (
-        <div style={{ position: "absolute", top: 58, left: 12, fontSize: 13, color: "#e05040", fontWeight: "bold", zIndex: 20, textShadow: "1px 1px 0 #000" }}>
+        <div style={{ position: "absolute", top: isMobile ? 38 : 58, left: isMobile ? 4 : 12, fontSize: isMobile ? 10 : 13, color: "#e05040", fontWeight: "bold", zIndex: 20, textShadow: "1px 1px 0 #000" }}>
           💀 {kills}
         </div>
       )}
 
       {/* Tool indicators – left side, below kill counter */}
       {ownedTools.length > 0 && (
-        <div style={{ position: "absolute", top: 78, left: 12, display: "flex", gap: 4, zIndex: 20 }}>
+        <div style={{ position: "absolute", top: isMobile ? 50 : 78, left: isMobile ? 4 : 12, display: "flex", gap: isMobile ? 2 : 4, zIndex: 20 }}>
           {ownedTools.map(tid => {
             const tool = SHOP_TOOLS.find(t => t.id === tid);
-            return tool ? <span key={tid} title={tool.name} style={{ fontSize: 18, opacity: 0.7 }}>{tool.icon}</span> : null;
+            return tool ? <span key={tid} title={tool.name} style={{ fontSize: isMobile ? 12 : 18, opacity: 0.7 }}>{tool.icon}</span> : null;
           })}
         </div>
       )}
 
-      {/* Active Relics HUD – bottom-left */}
+      {/* Active Relics HUD – bottom-left, above spell bar on mobile */}
       {activeRelics.length > 0 && (
-        <div style={{ position: "absolute", bottom: 10, left: 10, zIndex: 50, display: "flex", gap: 6 }}>
+        <div style={{ position: "absolute", bottom: isMobile ? 68 : 10, left: isMobile ? 4 : 10, zIndex: 50, display: "flex", gap: isMobile ? 3 : 6 }}>
           {activeRelics.map(r => (
-            <div key={r.id} title={`${r.name}: ${r.desc}`} style={{ fontSize: 22, filter: "drop-shadow(0 0 6px rgba(160,80,220,0.5))" }}>
+            <div key={r.id} title={`${r.name}: ${r.desc}`} style={{ fontSize: isMobile ? 14 : 22, filter: "drop-shadow(0 0 6px rgba(160,80,220,0.5))" }}>
               {r.emoji}
             </div>
           ))}
@@ -3853,7 +3883,7 @@ export default function App() {
       {/* NPC Info Card – bottom-left on click */}
       {inspectedNpc && (
         <div style={{
-          position: "absolute", bottom: 100, left: 12, zIndex: 25,
+          position: "absolute", bottom: isMobile ? 80 : 100, left: isMobile ? 4 : 12, zIndex: 25,
           background: "rgba(20,10,8,0.92)", border: "2px solid #5a4030",
           padding: "10px 14px", minWidth: 180,
           boxShadow: "inset 0 0 10px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.6)",
@@ -3970,8 +4000,10 @@ export default function App() {
       {/* Mercenary picker popup */}
       {summonPicker && (
         <div style={{
-          position: "fixed", bottom: isMobile ? 90 : 80, left: "50%", transform: "translateX(-50%)",
-          zIndex: 102, display: "flex", gap: isMobile ? 6 : 8, padding: isMobile ? "8px 10px" : "10px 14px",
+          position: isMobile ? "absolute" : "fixed",
+          bottom: isMobile ? 68 : 80, left: "50%", transform: "translateX(-50%)",
+          zIndex: 102, display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: "center",
+          gap: isMobile ? 4 : 8, padding: isMobile ? "6px 8px" : "10px 14px",
           background: "rgba(14,8,10,0.95)", border: "2px solid #3a6a3a",
           borderRadius: 8, boxShadow: "0 -4px 20px rgba(0,0,0,0.6), 0 0 20px rgba(60,180,80,0.15)",
           maxWidth: isMobile ? "95vw" : "none",
@@ -4025,17 +4057,20 @@ export default function App() {
         onSelect={handleSelectSpell}
         onDragStart={() => {}}
         isMobile={isMobile}
+        gameW={GAME_W}
+        gameH={GAME_H}
       />
 
       {/* Selected spell indicator */}
       {selectedSpell && (
         <div style={{
-          position: "fixed", bottom: isMobile ? 100 : 90, left: "50%", transform: "translateX(-50%)",
-          fontSize: isMobile ? 14 : 12, color: "#cc9040", fontWeight: "bold", zIndex: 101,
-          background: "rgba(0,0,0,0.85)", padding: isMobile ? "6px 16px" : "3px 12px", border: "1px solid #5a4030",
-          whiteSpace: "nowrap", borderRadius: isMobile ? 8 : 0,
+          position: isMobile ? "absolute" : "fixed",
+          bottom: isMobile ? 80 : 90, left: "50%", transform: "translateX(-50%)",
+          fontSize: isMobile ? 11 : 12, color: "#cc9040", fontWeight: "bold", zIndex: 101,
+          background: "rgba(0,0,0,0.85)", padding: isMobile ? "4px 10px" : "3px 12px", border: "1px solid #5a4030",
+          whiteSpace: "nowrap", borderRadius: 6,
         }}>
-          {isMobile ? "Dotknij wroga, by rzucić czar" : "Kliknij na cel, by rzucić czar (lub przeciągnij)"}
+          {isMobile ? "Dotknij wroga" : "Kliknij na cel, by rzucić czar (lub przeciągnij)"}
         </div>
       )}
 
