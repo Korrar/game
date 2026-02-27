@@ -4,8 +4,54 @@
   box-sizing: border-box;
 }
 
-body {
+html, body {
   margin: 0;
   overflow: hidden;
   background: #12080a;
+  touch-action: manipulation;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/* Prevent pull-to-refresh and bounce scrolling on mobile */
+html {
+  overscroll-behavior-y: contain;
+}
+
+/* Safe area padding for notched phones */
+body {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Prevent text selection on game elements */
+.game-no-select {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Landscape orientation prompt */
+.orientation-prompt {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 10000;
+  background: #12080a;
+  color: #d4a030;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: 'Segoe UI', monospace;
+  gap: 16px;
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  .orientation-prompt {
+    display: flex !important;
+  }
 }
