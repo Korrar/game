@@ -3,53 +3,59 @@ import { SPELLS } from "../data/npcs";
 
 const SPELLS_PER_PAGE = 6;
 
-const barStyle = {
+const barStyle = (mobile) => ({
   position: "fixed",
   bottom: 0, left: "50%", transform: "translateX(-50%)",
   zIndex: 100,
   display: "flex", alignItems: "stretch", gap: 0,
-  padding: "8px 6px",
+  padding: mobile ? "6px 4px" : "8px 6px",
   background: "linear-gradient(180deg, #1a0e12ee, #0e0608f0)",
   border: "3px solid #5a4030",
   borderBottom: "none",
   borderRadius: "12px 12px 0 0",
   boxShadow: "0 -4px 20px rgba(0,0,0,0.6)",
-};
+  maxWidth: mobile ? "100vw" : "none",
+});
 
-const manaBoxStyle = {
+const manaBoxStyle = (mobile) => ({
   display: "flex", flexDirection: "column", alignItems: "center",
   justifyContent: "center",
-  padding: "4px 10px", marginRight: 4,
+  padding: mobile ? "2px 6px" : "4px 10px", marginRight: mobile ? 2 : 4,
   borderRight: "2px solid #2a1e14",
-};
+});
 
-const slotStyle = (spell, selected, canCast) => ({
+const slotStyle = (spell, selected, canCast, mobile) => ({
   position: "relative",
   display: "flex", flexDirection: "column", alignItems: "center",
   justifyContent: "center",
-  padding: "5px 7px",
+  padding: mobile ? "4px 5px" : "5px 7px",
   border: `2px solid ${selected ? spell.color : spell.color + "40"}`,
   background: selected ? `${spell.color}18` : "rgba(255,255,255,0.02)",
   cursor: canCast ? "grab" : "not-allowed",
   transition: "border-color 0.15s, background 0.15s",
-  minWidth: 56,
+  minWidth: mobile ? 48 : 56,
+  minHeight: mobile ? 52 : "auto",
   userSelect: "none",
   overflow: "hidden",
+  WebkitTapHighlightColor: "transparent",
+  touchAction: "manipulation",
 });
 
-const arrowBtnStyle = (enabled) => ({
+const arrowBtnStyle = (enabled, mobile) => ({
   display: "flex", alignItems: "center", justifyContent: "center",
-  width: 22, minWidth: 22,
+  width: mobile ? 28 : 22, minWidth: mobile ? 28 : 22,
+  minHeight: mobile ? 44 : "auto",
   cursor: enabled ? "pointer" : "default",
   opacity: enabled ? 0.8 : 0.2,
   color: "#d4a030",
-  fontSize: 18,
+  fontSize: mobile ? 22 : 18,
   fontWeight: "bold",
   userSelect: "none",
   transition: "opacity 0.15s",
   background: "none",
   border: "none",
   padding: 0,
+  WebkitTapHighlightColor: "transparent",
 });
 
 const pageDotsStyle = {
@@ -57,10 +63,11 @@ const pageDotsStyle = {
   position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)",
 };
 
-export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart }) {
+export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart, isMobile }) {
   const [, tick] = useState(0);
   const [page, setPage] = useState(0);
   const [hoveredSpell, setHoveredSpell] = useState(null);
+  const m = isMobile;
 
   // Re-render periodically while any cooldown is active
   useEffect(() => {
@@ -72,6 +79,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
 
   // Keyboard shortcuts: 1-6 for spell slots on current page
   useEffect(() => {
+    if (m) return; // Skip keyboard on mobile
     const handleKey = (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       const num = parseInt(e.key);
@@ -86,7 +94,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [page, learnedSpells, onSelect]);
+  }, [page, learnedSpells, onSelect, m]);
 
   const now = Date.now();
   const known = learnedSpells || SPELLS.filter(s => s.learned).map(s => s.id);
@@ -102,24 +110,24 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
   const hasNext = safePage < totalPages - 1;
 
   return (
-    <div style={barStyle}>
+    <div style={barStyle(m)}>
       {/* Mana display */}
-      <div style={manaBoxStyle}>
-        <div style={{ fontSize: 24 }}>🔮</div>
-        <div style={{ fontWeight: "bold", fontSize: 14, color: "#60a0ff", textShadow: "0 0 8px rgba(60,120,255,0.4)" }}>{Math.floor(mana)}/100</div>
-        <div style={{ fontSize: 9, color: "#4466aa", letterSpacing: 1 }}>MANA</div>
+      <div style={manaBoxStyle(m)}>
+        <div style={{ fontSize: m ? 20 : 24 }}>🔮</div>
+        <div style={{ fontWeight: "bold", fontSize: m ? 12 : 14, color: "#60a0ff", textShadow: "0 0 8px rgba(60,120,255,0.4)" }}>{Math.floor(mana)}/100</div>
+        <div style={{ fontSize: m ? 7 : 9, color: "#4466aa", letterSpacing: 1 }}>MANA</div>
       </div>
 
       {/* Left arrow */}
       <div
-        style={arrowBtnStyle(hasPrev)}
+        style={arrowBtnStyle(hasPrev, m)}
         onClick={() => hasPrev && setPage(p => p - 1)}
-        onMouseEnter={e => { if (hasPrev) e.currentTarget.style.opacity = "1"; }}
-        onMouseLeave={e => { e.currentTarget.style.opacity = hasPrev ? "0.8" : "0.2"; }}
+        onMouseEnter={!m ? (e => { if (hasPrev) e.currentTarget.style.opacity = "1"; }) : undefined}
+        onMouseLeave={!m ? (e => { e.currentTarget.style.opacity = hasPrev ? "0.8" : "0.2"; }) : undefined}
       >◀</div>
 
       {/* Spell slots – current page */}
-      <div style={{ display: "flex", gap: 6, position: "relative" }}>
+      <div style={{ display: "flex", gap: m ? 4 : 6, position: "relative" }}>
         {pageSpells.map((spell, idx) => {
           const cdEnd = cooldowns[spell.id] || 0;
           const onCooldown = cdEnd > now;
@@ -135,27 +143,27 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
           return (
             <div
               key={spell.id}
-              style={slotStyle(spell, isSelected, canCast)}
-              draggable={canCast && !isAoe}
-              onDragStart={e => {
+              style={slotStyle(spell, isSelected, canCast, m)}
+              draggable={!m && canCast && !isAoe}
+              onDragStart={!m ? (e => {
                 if (!canCast || isAoe) { e.preventDefault(); return; }
                 e.dataTransfer.setData("text/plain", spell.id);
                 e.dataTransfer.effectAllowed = "move";
                 if (onDragStart) onDragStart(spell);
-              }}
+              }) : undefined}
               onClick={() => onSelect(spell.id)}
-              onMouseEnter={e => {
+              onMouseEnter={!m ? (e => {
                 setHoveredSpell(spell);
                 if (canCast) {
                   e.currentTarget.style.borderColor = spell.color;
                   e.currentTarget.style.background = `${spell.color}20`;
                 }
-              }}
-              onMouseLeave={e => {
+              }) : undefined}
+              onMouseLeave={!m ? (e => {
                 setHoveredSpell(null);
                 e.currentTarget.style.borderColor = isSelected ? spell.color : `${spell.color}40`;
                 e.currentTarget.style.background = isSelected ? `${spell.color}18` : "rgba(255,255,255,0.02)";
-              }}
+              }) : undefined}
             >
               {/* Cooldown overlay from top */}
               {onCooldown && (
@@ -168,22 +176,24 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
                 }} />
               )}
 
-              {/* Keyboard shortcut number */}
-              <div style={{
-                position: "absolute", top: 1, left: 3, fontSize: 8, color: "#666",
-                fontWeight: "bold", zIndex: 3,
-              }}>{keyNum}</div>
+              {/* Keyboard shortcut number (desktop only) */}
+              {!m && (
+                <div style={{
+                  position: "absolute", top: 1, left: 3, fontSize: 8, color: "#666",
+                  fontWeight: "bold", zIndex: 3,
+                }}>{keyNum}</div>
+              )}
 
-              <span style={{ fontSize: 26, position: "relative", zIndex: 3, opacity: canCast ? 1 : 0.35 }}>
+              <span style={{ fontSize: m ? 22 : 26, position: "relative", zIndex: 3, opacity: canCast ? 1 : 0.35 }}>
                 {spell.icon}
               </span>
               <div style={{
-                fontSize: 10, fontWeight: "bold",
+                fontSize: m ? 9 : 10, fontWeight: "bold",
                 color: isSelected ? spell.color : spell.color + "aa",
                 position: "relative", zIndex: 3, whiteSpace: "nowrap",
               }}>{spell.name}</div>
               <div style={{
-                fontSize: 9,
+                fontSize: m ? 8 : 9,
                 color: canCast ? "#6090cc" : "#804040",
                 position: "relative", zIndex: 3,
               }}>
@@ -194,7 +204,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
               {/* Cooldown remaining seconds */}
               {onCooldown && (
                 <div style={{
-                  fontSize: 11, fontWeight: "bold",
+                  fontSize: m ? 10 : 11, fontWeight: "bold",
                   color: "#ff9040", position: "relative", zIndex: 3,
                 }}>
                   {Math.ceil((cdEnd - now) / 1000)}s
@@ -204,8 +214,8 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
           );
         })}
 
-        {/* Spell tooltip on hover */}
-        {hoveredSpell && (
+        {/* Spell tooltip on hover (desktop only) */}
+        {!m && hoveredSpell && (
           <div style={{
             position: "absolute", bottom: "100%", left: "50%", transform: "translateX(-50%)",
             background: "rgba(14,8,10,0.95)", border: "2px solid #5a4030",
@@ -236,10 +246,10 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
 
       {/* Right arrow */}
       <div
-        style={arrowBtnStyle(hasNext)}
+        style={arrowBtnStyle(hasNext, m)}
         onClick={() => hasNext && setPage(p => p + 1)}
-        onMouseEnter={e => { if (hasNext) e.currentTarget.style.opacity = "1"; }}
-        onMouseLeave={e => { e.currentTarget.style.opacity = hasNext ? "0.8" : "0.2"; }}
+        onMouseEnter={!m ? (e => { if (hasNext) e.currentTarget.style.opacity = "1"; }) : undefined}
+        onMouseLeave={!m ? (e => { e.currentTarget.style.opacity = hasNext ? "0.8" : "0.2"; }) : undefined}
       >▶</div>
 
       {/* Page dots */}
@@ -247,7 +257,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
         <div style={pageDotsStyle}>
           {Array.from({ length: totalPages }, (_, i) => (
             <div key={i} onClick={() => setPage(i)} style={{
-              width: 6, height: 6, borderRadius: "50%",
+              width: m ? 8 : 6, height: m ? 8 : 6, borderRadius: "50%",
               background: i === safePage ? "#d4a030" : "#3a2a18",
               border: "1px solid #5a4030",
               cursor: "pointer",
