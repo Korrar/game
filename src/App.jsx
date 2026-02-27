@@ -145,8 +145,6 @@ export default function App() {
 
   // Mana & spell system
   const [mana, setMana] = useState(20);
-  // MAX_MANA computed from base + knowledge upgrades
-  const MAX_MANA = BASE_MAX_MANA + (knowledgeUpgrades.manaPool || 0) * 10;
   const [cooldowns, setCooldowns] = useState({});
   const [selectedSpell, setSelectedSpell] = useState(null);
   const [dragHighlight, setDragHighlight] = useState(null);
@@ -171,6 +169,8 @@ export default function App() {
     spellPower: 0,   // +5% spell damage per level (max 5)
     manaRegen: 0,    // +0.5 mana/sec per level (max 3)
   });
+  // MAX_MANA computed from base + knowledge upgrades
+  const MAX_MANA = BASE_MAX_MANA + (knowledgeUpgrades.manaPool || 0) * 10;
 
   // Meteorite event: phases: pending → falling → landed → opened
   const [meteorite, setMeteorite] = useState(null);
