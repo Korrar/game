@@ -16,6 +16,7 @@ import { renderVault } from "./renderers/vaultRenderer";
 import { BiomeAnimator } from "./renderers/biomeAnimator";
 import { PhysicsWorld } from "./physics/RapierPhysicsWorld";
 import { initRapier } from "./physics/rapierInit";
+import { PixiRenderer } from "./rendering/PixiRenderer";
 import {
   startMusic, toggleMusic, changeBiomeMusic, sfxDoor, sfxChest, sfxSell,
   sfxStore, sfxRetrieve, sfxUpgrade, sfxGather, sfxBuy,
@@ -64,6 +65,7 @@ const DESKTOP_H = 720;
 
 const animatorRef = { current: null };
 const physicsRef = { current: null };
+const pixiRef = { current: null };
 let walkerIdCounter = 0;
 let dmgPopupIdCounter = 0;
 
@@ -192,6 +194,8 @@ export default function App() {
   const [cooldowns, setCooldowns] = useState({});
   const [selectedSpell, setSelectedSpell] = useState(null);
   const [dragHighlight, setDragHighlight] = useState(null);
+  const [autoAttackTarget, setAutoAttackTarget] = useState(null); // { walkerId, spellId }
+  const autoAttackRef = useRef(null);
 
   // Floating damage popups
   const [dmgPopups, setDmgPopups] = useState([]);
@@ -338,13 +342,25 @@ export default function App() {
   }, []);
 
   // Spawn a floating damage popup at walker's current position
-  const spawnDmgPopup = useCallback((wid, text, color) => {
+  const spawnDmgPopup = useCallback((wid, text, color, element) => {
     const wd = walkDataRef.current[wid];
     const xPct = wd ? wd.x : 50;
     const yPct = wd && wd.y != null ? wd.y : 65;
     const pid = ++dmgPopupIdCounter;
     setDmgPopups(prev => [...prev, { id: pid, x: xPct, y: yPct, text, color }]);
     setTimeout(() => setDmgPopups(prev => prev.filter(p => p.id !== pid)), 1100);
+
+    // Also spawn PixiJS damage number for more precise positioning
+    if (pixiRef.current && physicsRef.current) {
+      const entry = physicsRef.current.bodies[wid];
+      if (entry && entry.limbBodies.torso) {
+        const pos = entry.limbBodies.torso.translation();
+        const amount = parseInt(text) || 0;
+        if (amount > 0) {
+          pixiRef.current.spawnDamageNumber(pos.x, pos.y - 20, amount, element || "default", amount >= 40);
+        }
+      }
+    }
   }, []);
 
   // Card drop handler – called on every NPC kill
@@ -867,7 +883,7 @@ export default function App() {
                   if (physicsRef.current) {
                     const tx = (w.x / 100) * GAME_W;
                     const ty = GAME_H * 0.25 - 30;
-                    physicsRef.current.combatEffects.spawnFireBreath(tx, ty, dirX);
+                    physicsRef.current.fx.spawnFireBreath(tx, ty, dirX);
                   }
                   if (enemyAbilityRef.current) enemyAbilityRef.current(parseInt(id), parseInt(friendId), ability.damage, ability.element);
                   break;
@@ -1478,6 +1494,7 @@ export default function App() {
     walkDataRef.current = { ...preservedData, ...newWalkData };
     npcElsRef.current = {};
     setSelectedSpell(null);
+    setAutoAttackTarget(null);
     setDragHighlight(null);
     setDmgPopups([]);
     setInspectedNpc(null);
@@ -1636,22 +1653,40 @@ export default function App() {
     return () => { if (animatorRef.current) animatorRef.current.stop(); };
   }, [biome, isNight, weather, GAME_W, GAME_H]);
 
-  // Physics canvas — async init for Rapier WASM
+  // Physics + PixiJS renderer — async init for Rapier WASM + PixiJS
   useEffect(() => {
-    if (!biome || !physicsCanvasRef.current) return;
+    if (!biome || !gameContainerRef.current) return;
     let cancelled = false;
-    const c = physicsCanvasRef.current;
-    c.width = GAME_W; c.height = GAME_H;
-    initRapier().then(() => {
+
+    const initAll = async () => {
+      await initRapier();
       if (cancelled) return;
-      if (!physicsRef.current) {
-        // First time: create PhysicsWorld and initialize Rapier world
-        physicsRef.current = new PhysicsWorld();
-        physicsRef.current.init(c);
+
+      // Initialize PixiJS renderer
+      if (!pixiRef.current) {
+        pixiRef.current = new PixiRenderer();
+        await pixiRef.current.init(gameContainerRef.current, GAME_W, GAME_H);
       } else {
-        // Subsequent biome/size changes: update canvas without recreating world
-        physicsRef.current.updateCanvas(c, GAME_W, GAME_H);
+        pixiRef.current.resize(GAME_W, GAME_H);
       }
+      if (cancelled) return;
+
+      // Initialize Rapier physics
+      if (!physicsRef.current) {
+        physicsRef.current = new PhysicsWorld();
+        // Use a dummy canvas for init (physics still needs W/H/GY)
+        const dummyCanvas = document.createElement("canvas");
+        dummyCanvas.width = GAME_W;
+        dummyCanvas.height = GAME_H;
+        physicsRef.current.init(dummyCanvas);
+        physicsRef.current.setPixiRenderer(pixiRef.current);
+      } else {
+        physicsRef.current.W = GAME_W;
+        physicsRef.current.H = GAME_H;
+        physicsRef.current.GY = GAME_H * 0.25;
+        physicsRef.current.setPixiRenderer(pixiRef.current);
+      }
+
       // Sync: create physics bodies for any walkers spawned before physics was ready
       const wd = walkDataRef.current;
       const ws = walkersRef.current;
@@ -1664,7 +1699,9 @@ export default function App() {
           }
         }
       }
-    });
+    };
+    initAll();
+
     return () => { cancelled = true; };
   }, [biome, GAME_W, GAME_H]);
 
@@ -2894,8 +2931,46 @@ export default function App() {
     const spell = SPELLS.find(s => s.id === selectedSpell);
     if (!spell) return;
     if (spell.aoe) { castAoeSpell(spell); return; }
+
+    // First cast immediately
     castSpellOnTarget(spell, walker);
+
+    // Enable auto-attack on this target with the selected spell
+    setAutoAttackTarget({ walkerId: walker.id, spellId: selectedSpell });
   };
+
+  // Auto-attack interval — repeatedly casts selected spell on target
+  useEffect(() => {
+    if (autoAttackRef.current) {
+      clearInterval(autoAttackRef.current);
+      autoAttackRef.current = null;
+    }
+    if (!autoAttackTarget) return;
+
+    const { walkerId, spellId } = autoAttackTarget;
+    autoAttackRef.current = setInterval(() => {
+      const spell = SPELLS.find(s => s.id === spellId);
+      if (!spell) { setAutoAttackTarget(null); return; }
+
+      // Find the walker - still alive?
+      const target = walkersRef.current.find(w => w.id === walkerId && w.alive && !w.dying);
+      if (!target) { setAutoAttackTarget(null); return; }
+
+      // Try to cast (checks mana + cooldown internally)
+      if (spell.aoe) {
+        castAoeSpell(spell);
+      } else {
+        castSpellOnTarget(spell, target);
+      }
+    }, 600); // Check every 600ms
+
+    return () => {
+      if (autoAttackRef.current) {
+        clearInterval(autoAttackRef.current);
+        autoAttackRef.current = null;
+      }
+    };
+  }, [autoAttackTarget, castSpellOnTarget]);
 
   const handleSelectSpell = (spellId) => {
     if (spellId === "summon") {
@@ -2912,6 +2987,34 @@ export default function App() {
     }
     setSelectedSpell(prev => prev === spellId ? null : spellId);
   };
+
+  // ─── KEYBOARD HOTKEYS ───
+  useEffect(() => {
+    const handleKey = (e) => {
+      // Number keys 1-5 to select spells
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= SPELLS.length) {
+        e.preventDefault();
+        const spell = SPELLS[num - 1];
+        if (spell) handleSelectSpell(spell.id);
+        return;
+      }
+      // Escape to cancel selection + auto-attack
+      if (e.key === "Escape") {
+        setSelectedSpell(null);
+        setAutoAttackTarget(null);
+        return;
+      }
+      // Q to toggle auto-attack off
+      if (e.key === "q" || e.key === "Q") {
+        setAutoAttackTarget(null);
+        showMessage("Auto-atak wyłączony", "#888");
+        return;
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
 
   // ─── TOWER ATTACK (cast spell on tower) ───
   const attackTower = (trapId) => {
@@ -3228,7 +3331,7 @@ export default function App() {
       )}
       <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H }} />
       <canvas ref={animCanvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none" }} />
-      <canvas ref={physicsCanvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none", zIndex: 12 }} />
+      {/* PixiJS canvas is dynamically inserted by PixiRenderer into gameContainerRef */}
 
       {/* Room & biome label – top center below TopBar */}
       {biome && (
@@ -3945,6 +4048,16 @@ export default function App() {
             onDrop={isFriendly ? undefined : e => handleSpellDrop(e, w)}
             onClick={isFriendly ? undefined : () => handleNpcClick(w)}
           >
+            {/* Auto-attack target indicator */}
+            {autoAttackTarget?.walkerId === w.id && w.alive && !w.dying && (
+              <div style={{
+                position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)",
+                fontSize: 12, color: "#ffaa00", fontWeight: "bold",
+                animation: "gemPulse 1s ease-in-out infinite",
+                pointerEvents: "none", zIndex: 20,
+                textShadow: "0 0 8px rgba(255,170,0,0.6)",
+              }}>⚔️ AUTO</div>
+            )}
             {/* Attack telegraph – shows when enemy is lunging */}
             {w.alive && !w.dying && !isFriendly && walkDataRef.current[w.id]?.lungeFrames > 0 && (
               <div style={{

@@ -76,6 +76,12 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
               WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
             }}>
               {onCooldown && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${cdPct * 100}%`, background: "rgba(0,0,0,0.65)", pointerEvents: "none", zIndex: 2 }} />}
+              {/* Hotkey number */}
+              {page === 0 && SPELLS.indexOf(spell) < 9 && (
+                <div style={{ position: "absolute", top: 1, left: 3, fontSize: 8, fontWeight: "bold", color: "#d4a030", opacity: 0.7, zIndex: 4 }}>
+                  {SPELLS.indexOf(spell) + 1}
+                </div>
+              )}
               <span style={{ fontSize: 20, zIndex: 3, opacity: canCast ? 1 : 0.3, filter: canCast ? `drop-shadow(0 0 4px ${spell.color}66)` : "none" }}>{spell.icon}</span>
               <div style={{ fontSize: 8, fontWeight: "bold", zIndex: 3, color: isSelected ? spell.color : spell.color + "99", whiteSpace: "nowrap" }}>{spell.name}</div>
               {onCooldown && <div style={{ fontSize: 9, fontWeight: "bold", color: "#ff9040", zIndex: 3 }}>{Math.ceil((cdEnd - now) / 1000)}s</div>}
@@ -151,7 +157,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
               }}
             >
               {onCooldown && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${cdPct * 100}%`, background: "rgba(0,0,0,0.6)", pointerEvents: "none", zIndex: 2, transition: "height 0.1s linear" }} />}
-              <div style={{ position: "absolute", top: 1, left: 3, fontSize: 8, color: "#555", fontWeight: "bold", zIndex: 3 }}>{idx + 1}</div>
+              <div style={{ position: "absolute", top: 1, left: 3, fontSize: 9, color: "#d4a030", fontWeight: "bold", zIndex: 4, opacity: 0.8, textShadow: "0 0 4px rgba(212,160,48,0.3)" }}>{page * SPELLS_PER_PAGE + idx + 1}</div>
               <span style={{ fontSize: 26, position: "relative", zIndex: 3, opacity: canCast ? 1 : 0.35, filter: canCast ? `drop-shadow(0 0 6px ${spell.color}88)` : "none" }}>{spell.icon}</span>
               <div style={{ fontSize: 10, fontWeight: "bold", color: isSelected ? spell.color : spell.color + "aa", zIndex: 3, whiteSpace: "nowrap", textShadow: isSelected ? `0 0 6px ${spell.color}44` : "none" }}>{spell.name}</div>
               <div style={{ fontSize: 9, color: canCast ? "#6090cc" : "#804040", zIndex: 3 }}>
