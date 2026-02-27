@@ -50,7 +50,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
       <div style={{
         position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "center",
-        gap: 0, padding: "3px 2px 4px",
+        gap: 0, padding: "3px 2px calc(4px + env(safe-area-inset-bottom, 0px))",
         background: "linear-gradient(0deg, rgba(14,6,8,0.95), rgba(26,14,18,0.88))",
         borderTop: "2px solid #5a4030",
       }}>

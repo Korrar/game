@@ -72,8 +72,8 @@ const isMobileScreen = () => isTouchDevice() && window.innerWidth < 900;
 
 // Compute mobile portrait game dimensions to fill screen
 function getMobileDimensions() {
-  const sw = window.innerWidth;
-  const sh = window.innerHeight;
+  const sw = window.visualViewport?.width || window.innerWidth;
+  const sh = window.visualViewport?.height || window.innerHeight;
   // Use full screen width, fit height to aspect ratio
   // Internal resolution scaled up for quality but matching screen aspect
   const baseW = 480;
@@ -257,11 +257,21 @@ export default function App() {
       setIsMobile(mobile);
       const dims = getGameDimensions();
       setGameDims(prev => (prev.w === dims.w && prev.h === dims.h) ? prev : dims);
-      setGameScale(Math.min(window.innerWidth / dims.w, window.innerHeight / dims.h));
+      const vw = window.visualViewport?.width || window.innerWidth;
+      const vh = window.visualViewport?.height || window.innerHeight;
+      setGameScale(Math.min(vw / dims.w, vh / dims.h));
     };
     calc();
     window.addEventListener("resize", calc);
-    return () => window.removeEventListener("resize", calc);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", calc);
+    }
+    return () => {
+      window.removeEventListener("resize", calc);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", calc);
+      }
+    };
   }, []);
 
   // Prevent pinch-zoom and pull-to-refresh on mobile
