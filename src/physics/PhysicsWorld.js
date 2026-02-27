@@ -70,7 +70,7 @@ export class PhysicsWorld {
     this.ctx = canvas.getContext("2d");
     this.W = canvas.width;
     this.H = canvas.height;
-    this.GY = this.H * 0.65;
+    this.GY = this.H * 0.25;
     this._createBoundaries();
   }
 
@@ -86,7 +86,7 @@ export class PhysicsWorld {
 
   resize(w, h) {
     const scaleX = w / (this.W || w);
-    this.W = w; this.H = h; this.GY = h * 0.65;
+    this.W = w; this.H = h; this.GY = h * 0.25;
     this._createBoundaries();
     for (const entry of Object.values(this.bodies)) {
       if (entry.ragdoll) continue;

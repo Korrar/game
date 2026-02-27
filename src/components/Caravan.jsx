@@ -8,7 +8,7 @@ export default function Caravan({ initiative, maxInitiative, cost, canTravel, on
 
   return (
     <div onClick={onClick} style={{
-      position: "absolute", top: "calc(65% - 58px)", left: 8, zIndex: 10,
+      position: "absolute", bottom: 8, left: 8, zIndex: 10,
       cursor: canTravel ? "pointer" : "not-allowed",
       filter: canTravel ? "drop-shadow(0 0 10px rgba(212,160,48,0.5))" : "brightness(0.7)",
       transition: "filter 0.3s, transform 0.2s",
