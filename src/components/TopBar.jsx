@@ -5,23 +5,24 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
   if (m) {
     return (
       <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, height: 34, zIndex: 100,
+        position: "absolute", top: 0, left: 0, right: 0, height: 36, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 4px",
-        background: "linear-gradient(180deg,rgba(30,18,16,0.95),rgba(20,10,8,0.9))",
-        borderBottom: "2px solid #3a2818",
+        background: "linear-gradient(180deg,rgba(14,8,6,0.97),rgba(8,4,2,0.95))",
+        borderBottom: "2px solid #5a3818",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.6), inset 0 -1px 0 rgba(212,160,48,0.15)",
       }}>
         {/* Stats */}
         <div style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 11 }}>
-          <span>🏕️<b style={{ color: "#d4a030" }}>{doors}</b></span>
-          <span>⏳<b style={{ color: "#d4a030" }}>{initiative}</b></span>
+          <span>🏕️<b style={{ color: "#e0b840" }}>{doors}</b></span>
+          <span>⏳<b style={{ color: "#e0b840" }}>{initiative}</b></span>
           <span>🔮<b style={{ color: "#60a0ff" }}>{Math.floor(mana)}</b></span>
         </div>
         {/* Currency */}
         <div style={{ display: "flex", gap: 3, alignItems: "center", fontSize: 10 }}>
-          <span style={{ color: "#b87333" }}>🟤<b>{money.copper}</b></span>
-          <span style={{ color: "#a8a8b0" }}>⚪<b>{money.silver}</b></span>
-          <span style={{ color: "#d4a030" }}>🟡<b>{money.gold}</b></span>
+          <span style={{ color: "#cd7f32" }}>🟤<b>{money.copper}</b></span>
+          <span style={{ color: "#c0c0c8" }}>⚪<b>{money.silver}</b></span>
+          <span style={{ color: "#ffd700" }}>🟡<b>{money.gold}</b></span>
         </div>
         {/* Buttons */}
         <div style={{ display: "flex", gap: 2 }}>
@@ -41,58 +42,114 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
   }
 
   // Desktop layout
-  const hoverOn = (e) => { e.target.style.background = "#d4a030"; e.target.style.color = "#000"; };
-  const hoverOff = (e) => { e.target.style.background = "none"; e.target.style.color = "#d4a030"; };
-
   return (
     <div style={{
-      position: "fixed", top: 0, left: 0, right: 0, height: 50,
+      position: "fixed", top: 0, left: 0, right: 0, height: 52,
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "0 12px", zIndex: 100, borderBottom: "3px solid #3a2818",
-      background: "linear-gradient(180deg,#1e1210,#140a08)",
+      padding: "0 16px", zIndex: 100,
+      background: "linear-gradient(180deg,#0e0808,#0a0506)",
+      borderBottom: "2px solid #5a3818",
+      boxShadow: "0 3px 16px rgba(0,0,0,0.7), inset 0 -1px 0 rgba(212,160,48,0.2)",
     }}>
-      <span style={{ fontWeight: "bold", fontSize: 17, color: "#d4a030", textShadow: "1px 1px 0 #000" }}>⚔️ Wrota Przeznaczenia</span>
-      <div style={{ display: "flex", gap: 14, fontSize: 18 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>🏕️<span style={{ color: "#d4a030", fontWeight: "bold" }}>{doors}</span></div>
-        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>💎<span style={{ color: "#d4a030", fontWeight: "bold" }}>{treasures}</span></div>
-        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>⏳<span style={{ color: "#d4a030", fontWeight: "bold" }}>{initiative}</span></div>
+      {/* Ornamental corner gems */}
+      <div style={{ position: "absolute", left: 8, top: 8, width: 6, height: 6, background: "radial-gradient(circle at 35% 35%, #ffe080, #a07020)", borderRadius: 1, transform: "rotate(45deg)", boxShadow: "0 0 6px rgba(212,160,48,0.4)" }} />
+      <div style={{ position: "absolute", right: 8, top: 8, width: 6, height: 6, background: "radial-gradient(circle at 35% 35%, #ffe080, #a07020)", borderRadius: 1, transform: "rotate(45deg)", boxShadow: "0 0 6px rgba(212,160,48,0.4)" }} />
+
+      <span style={{
+        fontWeight: "bold", fontSize: 18, color: "#ffd700",
+        textShadow: "0 0 10px rgba(212,160,48,0.4), 1px 1px 0 #000",
+        letterSpacing: 1,
+        background: "linear-gradient(90deg, #d4a030, #ffe080, #d4a030)",
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        backgroundSize: "200% 100%",
+        animation: "shimmer 4s ease-in-out infinite",
+      }}>⚔️ Wrota Przeznaczenia</span>
+      <div style={{ display: "flex", gap: 16, fontSize: 18 }}>
+        <StatBadge icon="🏕️" value={doors} />
+        <StatBadge icon="💎" value={treasures} />
+        <StatBadge icon="⏳" value={initiative} />
       </div>
-      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 16, color: "#b87333" }}>🟤<b>{money.copper}</b></div>
-        <div style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 16, color: "#a8a8b0" }}>⚪<b>{money.silver}</b></div>
-        <div style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 16, color: "#d4a030" }}>🟡<b>{money.gold}</b></div>
-        {mana !== undefined && <div style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 16, color: "#60a0ff" }}>🔮<b>{Math.floor(mana)}/{maxMana || 100}</b></div>}
-        {knowledge > 0 && <div style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 16, color: "#60a0ff" }}>📖<b>{knowledge}</b></div>}
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <CurrencyBadge icon="🟤" value={money.copper} color="#cd7f32" />
+        <CurrencyBadge icon="⚪" value={money.silver} color="#c0c0c8" />
+        <CurrencyBadge icon="🟡" value={money.gold} color="#ffd700" />
+        {mana !== undefined && <CurrencyBadge icon="🔮" value={`${Math.floor(mana)}/${maxMana || 100}`} color="#60a0ff" />}
+        {knowledge > 0 && <CurrencyBadge icon="📖" value={knowledge} color="#60a0ff" />}
       </div>
       <div style={{ display: "flex", gap: 6 }}>
         {onToggleMusic && (
-          <button style={desktopBtnStyle(musicOn ? 1 : 0.5)} onClick={onToggleMusic} title={musicOn ? "Wycisz" : "Włącz dźwięk"}>
+          <DesktopBtn onClick={onToggleMusic} opacity={musicOn ? 1 : 0.5} title={musicOn ? "Wycisz" : "Włącz dźwięk"}>
             {musicOn ? "🔊" : "🔇"}
-          </button>
+          </DesktopBtn>
         )}
-        {onSave && <button style={desktopBtnStyle(1)} onClick={onSave} title="Zapisz grę">💾</button>}
-        {onBestiary && <button style={desktopBtnStyle(1)} onClick={onBestiary} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>📖 Bestiariusz</button>}
-        <button style={desktopBtnStyle(1)} onClick={onShop} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>🏪 Targ</button>
-        <button style={desktopBtnStyle(1)} onClick={onHideout} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>🏰 Kryjówka</button>
-        <button style={desktopBtnStyle(1)} onClick={onInv} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>📜 Ekwipunek</button>
+        {onSave && <DesktopBtn onClick={onSave} title="Zapisz grę">💾</DesktopBtn>}
+        {onBestiary && <DesktopBtn onClick={onBestiary}>📖 Bestiariusz</DesktopBtn>}
+        <DesktopBtn onClick={onShop}>🏪 Targ</DesktopBtn>
+        <DesktopBtn onClick={onHideout}>🏰 Kryjówka</DesktopBtn>
+        <DesktopBtn onClick={onInv}>📜 Ekwipunek</DesktopBtn>
       </div>
     </div>
   );
 }
 
-function mobileBtnStyle(opacity) {
-  return {
-    background: "none", border: "1px solid #8a6018", color: "#d4a030",
-    fontSize: 14, padding: "3px 6px", cursor: "pointer",
-    minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center",
-    opacity, WebkitTapHighlightColor: "transparent",
-  };
+function StatBadge({ icon, value }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 3,
+      padding: "2px 8px",
+      background: "rgba(212,160,48,0.06)",
+      border: "1px solid rgba(212,160,48,0.2)",
+      borderRadius: 4,
+    }}>
+      {icon}<span style={{ color: "#ffd700", fontWeight: "bold", textShadow: "0 0 6px rgba(212,160,48,0.3)" }}>{value}</span>
+    </div>
+  );
 }
 
-function desktopBtnStyle(opacity) {
+function CurrencyBadge({ icon, value, color }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 16, color }}>
+      {icon}<b style={{ textShadow: `0 0 6px ${color}44` }}>{value}</b>
+    </div>
+  );
+}
+
+function DesktopBtn({ onClick, children, opacity = 1, title }) {
+  return (
+    <button
+      onClick={onClick} title={title}
+      style={{
+        background: "linear-gradient(180deg, rgba(40,25,10,0.9), rgba(20,12,6,0.9))",
+        border: "1px solid #7a5020",
+        borderBottom: "2px solid #5a3818",
+        color: "#e0b840",
+        fontSize: 13, fontWeight: "bold", padding: "4px 12px", cursor: "pointer",
+        transition: "all 0.15s", opacity,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(212,160,48,0.15)",
+        borderRadius: 3,
+      }}
+      onMouseEnter={e => {
+        e.target.style.background = "linear-gradient(180deg, #d4a030, #a07020)";
+        e.target.style.color = "#000";
+        e.target.style.boxShadow = "0 0 12px rgba(212,160,48,0.5), inset 0 1px 0 rgba(255,255,255,0.2)";
+      }}
+      onMouseLeave={e => {
+        e.target.style.background = "linear-gradient(180deg, rgba(40,25,10,0.9), rgba(20,12,6,0.9))";
+        e.target.style.color = "#e0b840";
+        e.target.style.boxShadow = "0 1px 4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(212,160,48,0.15)";
+      }}
+    >{children}</button>
+  );
+}
+
+function mobileBtnStyle(opacity) {
   return {
-    background: "none", border: "2px solid #8a6018", color: "#d4a030",
-    fontSize: 13, fontWeight: "bold", padding: "4px 10px", cursor: "pointer",
-    transition: "all 0.15s", opacity,
+    background: "linear-gradient(180deg, rgba(40,25,10,0.8), rgba(20,12,6,0.8))",
+    border: "1px solid #7a5020", color: "#e0b840",
+    fontSize: 14, padding: "3px 6px", cursor: "pointer",
+    minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center",
+    opacity, WebkitTapHighlightColor: "transparent", borderRadius: 3,
+    boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
   };
 }

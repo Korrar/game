@@ -3,24 +3,29 @@ import { SPELLS } from "../data/npcs";
 const overlayStyle = {
   position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200,
   display: "flex", alignItems: "center", justifyContent: "center",
-  background: "rgba(0,0,0,0.55)",
+  background: "rgba(0,0,0,0.65)",
 };
 
 const panelStyle = {
-  padding: "20px 28px", textAlign: "center",
-  background: "#1a0e12", border: "3px solid #5a4030",
-  boxShadow: "inset 0 0 20px rgba(0,0,0,0.5), 0 4px 20px rgba(0,0,0,0.6)",
-  minWidth: 320, maxWidth: 420,
+  padding: "24px 32px", textAlign: "center",
+  background: "linear-gradient(180deg, #1a0e08, #120806)",
+  border: "2px solid #5a3818",
+  borderRadius: 10,
+  boxShadow: "inset 0 0 25px rgba(0,0,0,0.6), 0 4px 30px rgba(0,0,0,0.7), 0 0 60px rgba(212,160,48,0.08)",
+  minWidth: 340, maxWidth: 440,
+  position: "relative", overflow: "hidden",
 };
 
 const spellBtnStyle = (color, hover) => ({
-  display: "flex", alignItems: "center", gap: 10,
-  padding: "8px 14px", marginBottom: 6, width: "100%",
-  background: hover ? `${color}18` : "rgba(255,255,255,0.02)",
-  border: `2px solid ${color}60`,
+  display: "flex", alignItems: "center", gap: 12,
+  padding: "10px 16px", marginBottom: 6, width: "100%",
+  background: hover ? `${color}18` : "rgba(10,6,4,0.6)",
+  border: `2px solid ${color}40`,
   color: "#d8c8a8", fontSize: 14, cursor: "pointer",
-  transition: "all 0.15s",
+  transition: "all 0.2s",
   textAlign: "left",
+  borderRadius: 6,
+  boxShadow: hover ? `0 0 12px ${color}33, inset 0 0 8px ${color}11` : "inset 0 0 6px rgba(0,0,0,0.3)",
 });
 
 export default function SpellMenu({ target, onCast, onClose }) {
@@ -32,9 +37,18 @@ export default function SpellMenu({ target, onCast, onClose }) {
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={panelStyle}>
-        <div style={{ fontSize: 48, marginBottom: 4 }}>{emoji}</div>
-        <div style={{ fontWeight: "bold", fontSize: 18, color: "#d8c8a8", marginBottom: 2 }}>{label}</div>
-        <div style={{ fontSize: 13, color: "#666", marginBottom: 14 }}>
+        {/* Top gold accent line */}
+        <div style={{ position: "absolute", top: 0, left: 10, right: 10, height: 1, background: "linear-gradient(90deg, transparent, rgba(212,160,48,0.4), transparent)" }} />
+        {/* Corner gems */}
+        <div style={{ position: "absolute", top: 4, left: 8, fontSize: 8, color: "#d4a030", opacity: 0.5 }}>◆</div>
+        <div style={{ position: "absolute", top: 4, right: 8, fontSize: 8, color: "#d4a030", opacity: 0.5 }}>◆</div>
+
+        <div style={{ fontSize: 52, marginBottom: 4, filter: "drop-shadow(0 0 12px rgba(200,150,50,0.3))" }}>{emoji}</div>
+        <div style={{
+          fontWeight: "bold", fontSize: 19, color: "#e8d0a0", marginBottom: 2,
+          textShadow: "0 0 8px rgba(200,150,50,0.3)",
+        }}>{label}</div>
+        <div style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>
           {isNpc ? "Wybierz czar, aby zaatakować" : "Wybierz czar, aby zniszczyć"}
         </div>
 
@@ -42,22 +56,34 @@ export default function SpellMenu({ target, onCast, onClose }) {
           <button
             key={spell.id}
             style={spellBtnStyle(spell.color, false)}
-            onMouseEnter={e => { e.currentTarget.style.background = `${spell.color}20`; e.currentTarget.style.borderColor = spell.color; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; e.currentTarget.style.borderColor = `${spell.color}60`; }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = `${spell.color}20`;
+              e.currentTarget.style.borderColor = spell.color;
+              e.currentTarget.style.boxShadow = `0 0 16px ${spell.color}44, inset 0 0 10px ${spell.color}18`;
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = "rgba(10,6,4,0.6)";
+              e.currentTarget.style.borderColor = `${spell.color}40`;
+              e.currentTarget.style.boxShadow = "inset 0 0 6px rgba(0,0,0,0.3)";
+            }}
             onClick={() => onCast(spell, target)}
           >
-            <span style={{ fontSize: 26 }}>{spell.icon}</span>
+            <span style={{ fontSize: 28, filter: `drop-shadow(0 0 6px ${spell.color}66)` }}>{spell.icon}</span>
             <div>
-              <div style={{ fontWeight: "bold", color: spell.color }}>{spell.name}</div>
+              <div style={{ fontWeight: "bold", color: spell.color, textShadow: `0 0 6px ${spell.color}33` }}>{spell.name}</div>
               <div style={{ fontSize: 12, color: "#777" }}>{spell.desc}</div>
             </div>
           </button>
         ))}
 
         <button onClick={onClose} style={{
-          marginTop: 8, background: "none", border: "2px solid #3a2818",
-          color: "#888", fontWeight: "bold", fontSize: 13, padding: "5px 18px", cursor: "pointer",
-        }}>Anuluj</button>
+          marginTop: 10, background: "rgba(10,6,4,0.6)", border: "2px solid #3a2818",
+          color: "#888", fontWeight: "bold", fontSize: 13, padding: "6px 20px", cursor: "pointer",
+          borderRadius: 6, transition: "all 0.2s",
+        }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = "#5a3818"; e.currentTarget.style.color = "#aaa"; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = "#3a2818"; e.currentTarget.style.color = "#888"; }}
+        >Anuluj</button>
       </div>
     </div>
   );

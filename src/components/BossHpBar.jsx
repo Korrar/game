@@ -29,11 +29,13 @@ export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp,
     }}>
       {/* Boss name + phase */}
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 4 }}>
-        <span style={{ fontSize: 22 }}>{boss.emoji}</span>
+        <span style={{ fontSize: 24, filter: "drop-shadow(0 0 8px rgba(200,40,20,0.5))" }}>{boss.emoji}</span>
         <span style={{
-          fontSize: 16, fontWeight: "bold", color: "#e8d0a0",
-          textShadow: "1px 1px 0 #000, -1px -1px 0 #000, 0 0 8px rgba(200,80,20,0.5)",
+          fontSize: 17, fontWeight: "bold",
+          background: "linear-gradient(90deg, #e8d0a0, #ffe0b0, #e8d0a0)",
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
           fontFamily: "'Segoe UI', monospace",
+          filter: "drop-shadow(1px 1px 0 #000)",
         }}>
           {boss.name}
         </span>
@@ -41,8 +43,9 @@ export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp,
           <span style={{
             fontSize: 12, color: phase >= 3 ? "#e040e0" : "#ff6020",
             fontWeight: "bold", border: `1px solid ${phase >= 3 ? "#e040e0" : "#ff6020"}`,
-            padding: "1px 6px", borderRadius: 4,
+            padding: "1px 8px", borderRadius: 4,
             background: phase >= 3 ? "rgba(200,40,200,0.15)" : "rgba(200,80,20,0.15)",
+            boxShadow: `0 0 8px ${phase >= 3 ? "rgba(200,40,200,0.3)" : "rgba(200,80,20,0.3)"}`,
           }}>
             Faza {phase}
           </span>
@@ -52,17 +55,29 @@ export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp,
       {/* Boss info: ability + resist */}
       <div style={{ display: "flex", justifyContent: "center", gap: 12, marginBottom: 4, fontSize: 10 }}>
         {ability && (
-          <span style={{ color: "#e0a040", background: "rgba(200,120,20,0.15)", padding: "1px 6px", border: "1px solid #5a4020", borderRadius: 3 }}>
+          <span style={{
+            color: "#e0a040", background: "rgba(200,120,20,0.15)", padding: "2px 8px",
+            border: "1px solid #5a4020", borderRadius: 4,
+            boxShadow: "0 0 4px rgba(200,120,20,0.15)",
+          }}>
             {ability.icon} {ability.name}
           </span>
         )}
         {resist && (
-          <span style={{ color: "#6688aa", background: "rgba(60,100,160,0.15)", padding: "1px 6px", border: "1px solid #2a4060", borderRadius: 3 }}>
+          <span style={{
+            color: "#6688aa", background: "rgba(60,100,160,0.15)", padding: "2px 8px",
+            border: "1px solid #2a4060", borderRadius: 4,
+            boxShadow: "0 0 4px rgba(60,100,160,0.15)",
+          }}>
             🛡️ Odporność: {resist.icon} {resist.name}
           </span>
         )}
         {boss.phase2 && (
-          <span style={{ color: "#cc8040", background: "rgba(200,80,40,0.1)", padding: "1px 6px", border: "1px solid #4a2818", borderRadius: 3 }}>
+          <span style={{
+            color: "#cc8040", background: "rgba(200,80,40,0.1)", padding: "2px 8px",
+            border: "1px solid #4a2818", borderRadius: 4,
+            boxShadow: "0 0 4px rgba(200,80,40,0.1)",
+          }}>
             ⚠️ Faza 2 przy {Math.round((boss.phase2.hpThreshold || 0.5) * 100)}% HP
           </span>
         )}
@@ -71,24 +86,26 @@ export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp,
       {/* Mana shield bar */}
       {manaShieldHp > 0 && manaShieldMaxHp > 0 && (
         <div style={{
-          width: "100%", height: 6, background: "rgba(0,0,40,0.7)",
-          border: "1px solid #4060cc44", borderRadius: 3,
-          overflow: "hidden", marginBottom: 2,
+          width: "100%", height: 7, background: "rgba(0,0,40,0.8)",
+          border: "1px solid #4060cc55", borderRadius: 4,
+          overflow: "hidden", marginBottom: 3,
+          boxShadow: "0 0 6px rgba(60,100,255,0.2)",
         }}>
           <div style={{
             height: "100%", width: `${shieldPct}%`,
             background: "linear-gradient(90deg, #3050cc, #60a0ff)",
-            borderRadius: 2, transition: "width 0.3s",
-            boxShadow: "0 0 6px rgba(60,100,255,0.5)",
+            borderRadius: 3, transition: "width 0.3s",
+            boxShadow: "0 0 8px rgba(60,100,255,0.5)",
           }} />
         </div>
       )}
 
       {/* HP bar */}
       <div style={{
-        width: "100%", height: 14, background: "rgba(0,0,0,0.8)",
-        border: "1px solid #88444488", borderRadius: 4,
+        width: "100%", height: 16, background: "rgba(0,0,0,0.85)",
+        border: "1px solid #88444488", borderRadius: 5,
         overflow: "hidden", position: "relative",
+        boxShadow: "0 0 8px rgba(200,40,20,0.2), inset 0 0 6px rgba(0,0,0,0.5)",
       }}>
         <div style={{
           height: "100%", width: `${hpPct}%`,
@@ -97,15 +114,17 @@ export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp,
             : hpPct > 25
             ? "linear-gradient(90deg, #c08020, #e0a030)"
             : "linear-gradient(90deg, #cc2020, #e03030)",
-          borderRadius: 3, transition: "width 0.3s, background 0.3s",
-          boxShadow: "0 0 8px rgba(200,60,20,0.4)",
+          borderRadius: 4, transition: "width 0.3s, background 0.3s",
+          boxShadow: hpPct <= 25
+            ? "0 0 12px rgba(200,30,30,0.6)"
+            : "0 0 8px rgba(200,60,20,0.4)",
         }} />
         {/* HP text overlay */}
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 10, fontWeight: "bold", color: "#fff",
-          textShadow: "1px 1px 0 #000", fontFamily: "'Segoe UI', monospace",
+          fontSize: 11, fontWeight: "bold", color: "#fff",
+          textShadow: "1px 1px 0 #000, 0 0 4px rgba(0,0,0,0.8)", fontFamily: "'Segoe UI', monospace",
         }}>
           {currentHp}/{maxHp}
         </div>

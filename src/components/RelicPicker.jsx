@@ -11,24 +11,28 @@ export default function RelicPicker({ choices, onSelect }) {
   return (
     <div style={{
       position: "absolute", inset: 0, zIndex: 200,
-      background: "rgba(0,0,0,0.82)",
+      background: "rgba(0,0,0,0.85)",
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       animation: "eventAppear 0.4s ease-out",
     }}>
       <div style={{
-        fontSize: 22, color: "#d4a030", fontWeight: "bold", marginBottom: 6,
-        textShadow: "0 0 12px rgba(200,150,50,0.5)", letterSpacing: 2,
+        fontSize: 24, fontWeight: "bold", marginBottom: 6,
+        background: "linear-gradient(90deg, #d4a030, #ffe080, #d4a030)",
+        WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+        backgroundSize: "200% 100%", animation: "shimmer 3s ease-in-out infinite",
+        letterSpacing: 3, textShadow: "none",
       }}>
         WYBIERZ RELIKT
       </div>
-      <div style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>
+      <div style={{ fontSize: 13, color: "#777", marginBottom: 22 }}>
         Kliknij kartę, aby aktywować pasywny bonus
       </div>
 
-      <div style={{ display: "flex", gap: 18 }}>
+      <div style={{ display: "flex", gap: 20 }}>
         {choices.map((relic, i) => {
           const color = RELIC_RARITY_COLOR[relic.rarity] || "#888";
           const isHov = hovered === i;
+          const isEpic = relic.rarity === "epic";
           return (
             <div
               key={relic.id}
@@ -36,36 +40,59 @@ export default function RelicPicker({ choices, onSelect }) {
               onMouseEnter={() => setHovered(i)}
               onMouseLeave={() => setHovered(null)}
               style={{
-                width: 180, padding: "20px 14px", cursor: "pointer",
-                background: "rgba(14,8,10,0.95)",
-                border: `2px solid ${color}`,
+                width: 190, padding: "22px 16px", cursor: "pointer",
+                background: "linear-gradient(180deg, rgba(14,8,10,0.97), rgba(8,4,6,0.97))",
+                border: `2px solid ${isHov ? color : color + "80"}`,
                 borderRadius: 10,
                 boxShadow: isHov
-                  ? `0 0 24px ${color}88, inset 0 0 20px ${color}22`
-                  : `0 0 8px ${color}44, inset 0 0 10px rgba(0,0,0,0.4)`,
-                transform: isHov ? "scale(1.07)" : "scale(1)",
-                transition: "transform 0.18s, box-shadow 0.18s",
+                  ? `0 0 30px ${color}66, 0 0 60px ${color}22, inset 0 0 20px ${color}18`
+                  : `0 0 10px ${color}33, inset 0 0 12px rgba(0,0,0,0.5)`,
+                transform: isHov ? "scale(1.08) translateY(-4px)" : "scale(1)",
+                transition: "transform 0.2s, box-shadow 0.2s, border-color 0.2s",
                 textAlign: "center",
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                position: "relative", overflow: "hidden",
               }}
             >
-              <div style={{ fontSize: 40, filter: `drop-shadow(0 0 8px ${color}88)` }}>
+              {/* Top accent line */}
+              <div style={{ position: "absolute", top: 0, left: 10, right: 10, height: 1, background: `linear-gradient(90deg, transparent, ${color}60, transparent)` }} />
+              {/* Corner gems */}
+              <div style={{ position: "absolute", top: 4, left: 6, fontSize: 7, color, opacity: 0.6 }}>◆</div>
+              <div style={{ position: "absolute", top: 4, right: 6, fontSize: 7, color, opacity: 0.6 }}>◆</div>
+
+              {/* Epic shimmer overlay */}
+              {isEpic && (
+                <div style={{
+                  position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                  background: `linear-gradient(135deg, transparent 30%, ${color}08 50%, transparent 70%)`,
+                  backgroundSize: "200% 200%", animation: "shimmer 3s ease-in-out infinite",
+                  pointerEvents: "none", borderRadius: 8,
+                }} />
+              )}
+
+              <div style={{ fontSize: 44, filter: `drop-shadow(0 0 10px ${color}88)`, zIndex: 1 }}>
                 {relic.emoji}
               </div>
-              <div style={{ fontSize: 15, fontWeight: "bold", color: color }}>
+              <div style={{
+                fontSize: 16, fontWeight: "bold", color, zIndex: 1,
+                textShadow: `0 0 8px ${color}44`,
+              }}>
                 {relic.name}
               </div>
               <div style={{
-                fontSize: 10, color: color, textTransform: "uppercase",
-                letterSpacing: 2, fontWeight: "bold", opacity: 0.8,
+                fontSize: 10, color, textTransform: "uppercase",
+                letterSpacing: 3, fontWeight: "bold", opacity: 0.7, zIndex: 1,
               }}>
-                {RARITY_LABEL[relic.rarity] || relic.rarity}
+                ◆ {RARITY_LABEL[relic.rarity] || relic.rarity} ◆
               </div>
               <div style={{
-                fontSize: 12, color: "#a09888", lineHeight: 1.4, marginTop: 4,
+                fontSize: 12, color: "#a09888", lineHeight: 1.5, marginTop: 4, zIndex: 1,
               }}>
                 {relic.desc}
               </div>
+
+              {/* Bottom accent */}
+              <div style={{ position: "absolute", bottom: 0, left: 10, right: 10, height: 1, background: `linear-gradient(90deg, transparent, ${color}40, transparent)` }} />
             </div>
           );
         })}

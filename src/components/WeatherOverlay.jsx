@@ -18,13 +18,20 @@ export default function WeatherOverlay({ weather }) {
       animation: "eventAppear 0.4s ease-out",
     }}>
       <div style={{
-        background: "rgba(14,8,10,0.92)",
-        border: "3px solid #4080cc",
-        padding: "10px 28px", minWidth: 240, borderRadius: 8,
-        boxShadow: "inset 0 0 15px rgba(0,0,0,0.5), 0 0 20px rgba(60,120,200,0.3)",
+        background: "linear-gradient(180deg, rgba(14,8,10,0.95), rgba(8,4,6,0.95))",
+        border: "2px solid #4080cc",
+        padding: "12px 30px", minWidth: 250, borderRadius: 10,
+        boxShadow: "inset 0 0 20px rgba(0,0,0,0.5), 0 0 24px rgba(60,120,200,0.3), 0 0 50px rgba(60,120,200,0.1)",
+        position: "relative", overflow: "hidden",
       }}>
-        <div style={{ fontSize: 28, marginBottom: 4 }}>{weather.emoji}</div>
-        <div style={{ fontSize: 18, color: "#80c0e0", fontWeight: "bold" }}>{weather.name}</div>
+        {/* Top accent line */}
+        <div style={{ position: "absolute", top: 0, left: 10, right: 10, height: 1, background: "linear-gradient(90deg, transparent, rgba(60,120,200,0.5), transparent)" }} />
+        {/* Corner gems */}
+        <div style={{ position: "absolute", top: 4, left: 8, fontSize: 7, color: "#4080cc", opacity: 0.5 }}>◆</div>
+        <div style={{ position: "absolute", top: 4, right: 8, fontSize: 7, color: "#4080cc", opacity: 0.5 }}>◆</div>
+
+        <div style={{ fontSize: 30, marginBottom: 4, filter: "drop-shadow(0 0 8px rgba(60,120,200,0.4))" }}>{weather.emoji}</div>
+        <div style={{ fontSize: 18, color: "#80c0e0", fontWeight: "bold", textShadow: "0 0 8px rgba(80,180,220,0.3)" }}>{weather.name}</div>
         <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{weather.description}</div>
       </div>
     </div>

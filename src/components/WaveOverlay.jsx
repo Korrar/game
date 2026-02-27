@@ -19,17 +19,25 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
       zIndex: 100, textAlign: "center", pointerEvents: isEnd ? "auto" : "none",
     }}>
       <div style={{
-        background: "rgba(14,8,10,0.92)", border: `3px solid ${borderColor}`,
-        padding: "10px 28px", minWidth: 280, borderRadius: 8,
-        boxShadow: `inset 0 0 15px rgba(0,0,0,0.5), 0 0 20px ${glowColor}`,
+        background: "linear-gradient(180deg, rgba(14,8,10,0.95), rgba(8,4,6,0.95))",
+        border: `2px solid ${borderColor}`,
+        padding: "12px 30px", minWidth: 300, borderRadius: 10,
+        boxShadow: `inset 0 0 20px rgba(0,0,0,0.5), 0 0 24px ${glowColor}, 0 0 50px ${glowColor}44`,
         animation: "eventAppear 0.4s ease-out",
+        position: "relative", overflow: "hidden",
       }}>
+        {/* Top accent line */}
+        <div style={{ position: "absolute", top: 0, left: 10, right: 10, height: 1, background: `linear-gradient(90deg, transparent, ${borderColor}60, transparent)` }} />
+
         {phase === "setup" && (
           <>
-            <div style={{ fontSize: 13, color: isBossRoom ? "#ff3030" : "#ff8040", fontWeight: "bold", letterSpacing: 2, marginBottom: 4 }}>
+            <div style={{
+              fontSize: 13, color: isBossRoom ? "#ff3030" : "#ff8040", fontWeight: "bold", letterSpacing: 3, marginBottom: 4,
+              textShadow: isBossRoom ? "0 0 8px rgba(255,30,30,0.4)" : "0 0 8px rgba(255,120,40,0.3)",
+            }}>
               {isBossRoom ? "WALKA Z BOSSEM" : "KOMNATA OBRONNA"}
             </div>
-            <div style={{ fontSize: 24, color: "#d4a030", fontWeight: "bold" }}>
+            <div style={{ fontSize: 24, color: "#d4a030", fontWeight: "bold", textShadow: "0 0 10px rgba(212,160,48,0.3)" }}>
               {isBossRoom && boss ? (
                 <>⚔️ {boss.emoji} {boss.name} nadchodzi!</>
               ) : (
@@ -51,16 +59,16 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
         {phase === "wave_active" && (
           <>
             {isBossRoom && boss ? (
-              <div style={{ fontSize: 13, color: "#cc3030", fontWeight: "bold", letterSpacing: 2, marginBottom: 4 }}>
+              <div style={{ fontSize: 13, color: "#cc3030", fontWeight: "bold", letterSpacing: 3, marginBottom: 4, textShadow: "0 0 8px rgba(200,40,40,0.4)" }}>
                 ⚔️ {boss.emoji} {boss.name}
                 {boss.phase > 1 && <span style={{ color: "#ff6020" }}> — Faza {boss.phase}</span>}
               </div>
             ) : (
               <>
-                <div style={{ fontSize: 13, color: "#cc3030", fontWeight: "bold", letterSpacing: 2, marginBottom: 4 }}>
+                <div style={{ fontSize: 13, color: "#cc3030", fontWeight: "bold", letterSpacing: 3, marginBottom: 4, textShadow: "0 0 8px rgba(200,40,40,0.4)" }}>
                   ⚔️ FALA {currentWave}/{totalWaves}
                 </div>
-                <div style={{ fontSize: 20, color: "#e05040", fontWeight: "bold" }}>
+                <div style={{ fontSize: 21, color: "#e05040", fontWeight: "bold", textShadow: "0 0 8px rgba(200,60,40,0.3)" }}>
                   Wrogowie: {enemiesRemaining}
                 </div>
               </>
@@ -70,10 +78,10 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
 
         {phase === "inter_wave" && (
           <>
-            <div style={{ fontSize: 15, color: "#40e060", fontWeight: "bold", marginBottom: 4 }}>
+            <div style={{ fontSize: 15, color: "#40e060", fontWeight: "bold", marginBottom: 4, textShadow: "0 0 8px rgba(60,200,80,0.3)" }}>
               Fala {currentWave - 1} pokonana!
             </div>
-            <div style={{ fontSize: 20, color: "#d4a030", fontWeight: "bold" }}>
+            <div style={{ fontSize: 21, color: "#d4a030", fontWeight: "bold", textShadow: "0 0 10px rgba(212,160,48,0.3)" }}>
               Następna fala za ⏱️ {timer}s
             </div>
             <div style={{ fontSize: 12, color: "#6a9a6a", marginTop: 4 }}>
@@ -85,18 +93,20 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
         {/* Caravan HP bar */}
         {showCaravanHp && (
           <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 12, color: chColor, fontWeight: "bold", marginBottom: 3 }}>
+            <div style={{ fontSize: 12, color: chColor, fontWeight: "bold", marginBottom: 3, textShadow: `0 0 6px ${chColor}33` }}>
               🐴 {caravanHp}/{caravanMaxHp}
             </div>
             <div style={{
-              width: "100%", height: 8, background: "rgba(0,0,0,0.6)",
+              width: "100%", height: 8, background: "rgba(0,0,0,0.7)",
               border: `1px solid ${chColor}44`, borderRadius: 4,
               overflow: "hidden",
+              boxShadow: `0 0 4px ${chColor}22`,
             }}>
               <div style={{
                 height: "100%", width: `${chPct}%`,
                 background: `linear-gradient(90deg, ${chColor}, ${chColor}cc)`,
                 borderRadius: 3, transition: "width 0.3s, background 0.3s",
+                boxShadow: `0 0 4px ${chColor}44`,
               }} />
             </div>
           </div>
@@ -104,7 +114,12 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
 
         {phase === "complete" && (
           <>
-            <div style={{ fontSize: 20, color: "#40e060", fontWeight: "bold", marginBottom: 6 }}>
+            <div style={{
+              fontSize: 21, fontWeight: "bold", marginBottom: 6,
+              background: "linear-gradient(90deg, #40e060, #80ff80, #40e060)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+              filter: "drop-shadow(0 0 8px rgba(60,200,80,0.3))",
+            }}>
               {isBossRoom && boss ? (
                 <>{boss.emoji} {boss.name} pokonany!</>
               ) : (
@@ -115,7 +130,7 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
               {isBossRoom ? "Podwójne łupy zdobyte!" : "Wszystkie fale pokonane!"}
             </div>
             {relicChoices ? (
-              <div style={{ fontSize: 12, color: "#a050e0", fontStyle: "italic" }}>
+              <div style={{ fontSize: 12, color: "#a050e0", fontStyle: "italic", textShadow: "0 0 6px rgba(160,80,220,0.3)" }}>
                 Wybierz relikt, aby kontynuować...
               </div>
             ) : (
@@ -124,14 +139,22 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
                 border: "2px solid #40e060", color: "#40e060", fontWeight: "bold",
                 borderRadius: 6, background: "rgba(40,120,40,0.15)",
                 fontFamily: "'Segoe UI', monospace", fontSize: 15,
-              }}>Dalej</div>
+                boxShadow: "0 0 12px rgba(60,200,80,0.2)",
+                transition: "box-shadow 0.2s, background 0.2s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 0 20px rgba(60,200,80,0.4)"; e.currentTarget.style.background = "rgba(40,120,40,0.25)"; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 0 12px rgba(60,200,80,0.2)"; e.currentTarget.style.background = "rgba(40,120,40,0.15)"; }}
+              >Dalej</div>
             )}
           </>
         )}
 
         {phase === "failed" && (
           <>
-            <div style={{ fontSize: 20, color: "#cc3030", fontWeight: "bold", marginBottom: 6 }}>
+            <div style={{
+              fontSize: 21, color: "#cc3030", fontWeight: "bold", marginBottom: 6,
+              textShadow: "0 0 10px rgba(200,40,40,0.4)",
+            }}>
               {isBossRoom && boss ? (
                 <>Karawana zniszczona przez {boss.name}!</>
               ) : (
@@ -146,14 +169,19 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
               border: "2px solid #cc8040", color: "#cc8040", fontWeight: "bold",
               borderRadius: 6, background: "rgba(120,40,20,0.15)",
               fontFamily: "'Segoe UI', monospace", fontSize: 15,
-            }}>Dalej</div>
+              boxShadow: "0 0 12px rgba(200,100,40,0.2)",
+              transition: "box-shadow 0.2s, background 0.2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 0 20px rgba(200,100,40,0.4)"; e.currentTarget.style.background = "rgba(120,40,20,0.25)"; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 0 12px rgba(200,100,40,0.2)"; e.currentTarget.style.background = "rgba(120,40,20,0.15)"; }}
+            >Dalej</div>
           </>
         )}
       </div>
 
       {/* Wave progress dots — hide for boss rooms (single wave) */}
       {!isBossRoom && (
-        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 6 }}>
+        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 8 }}>
           {Array.from({ length: totalWaves }, (_, i) => {
             const done = i + 1 < currentWave || (i + 1 === currentWave && phase === "inter_wave");
             const active = i + 1 === currentWave && phase === "wave_active";
@@ -163,8 +191,8 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
                 width: 10, height: 10, borderRadius: "50%",
                 background: allDone || done ? "#40e060" : active ? "#ff6020" : "#333",
                 border: "1px solid #555",
-                boxShadow: active ? "0 0 8px rgba(255,80,20,0.6)" : allDone ? "0 0 6px rgba(60,200,80,0.4)" : "none",
-                transition: "background 0.3s",
+                boxShadow: active ? "0 0 10px rgba(255,80,20,0.6)" : allDone || done ? "0 0 6px rgba(60,200,80,0.4)" : "none",
+                transition: "background 0.3s, box-shadow 0.3s",
               }} />
             );
           })}
