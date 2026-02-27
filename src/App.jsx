@@ -353,7 +353,7 @@ export default function App() {
     // Also spawn PixiJS damage number for more precise positioning
     if (pixiRef.current && physicsRef.current) {
       const entry = physicsRef.current.bodies[wid];
-      if (entry && entry.limbBodies.torso) {
+      if (entry && entry.limbBodies && entry.limbBodies.torso) {
         const pos = entry.limbBodies.torso.translation();
         const amount = parseInt(text) || 0;
         if (amount > 0) {
@@ -2970,7 +2970,7 @@ export default function App() {
         autoAttackRef.current = null;
       }
     };
-  }, [autoAttackTarget, castSpellOnTarget]);
+  }, [autoAttackTarget, castSpellOnTarget, castAoeSpell]);
 
   const handleSelectSpell = (spellId) => {
     if (spellId === "summon") {
@@ -2989,14 +2989,18 @@ export default function App() {
   };
 
   // ─── KEYBOARD HOTKEYS ───
+  const handleSelectSpellRef = useRef(handleSelectSpell);
+  handleSelectSpellRef.current = handleSelectSpell;
+
   useEffect(() => {
     const handleKey = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       // Number keys 1-5 to select spells
       const num = parseInt(e.key);
       if (num >= 1 && num <= SPELLS.length) {
         e.preventDefault();
         const spell = SPELLS[num - 1];
-        if (spell) handleSelectSpell(spell.id);
+        if (spell) handleSelectSpellRef.current(spell.id);
         return;
       }
       // Escape to cancel selection + auto-attack
@@ -3014,7 +3018,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, []);
+  }, [showMessage]);
 
   // ─── TOWER ATTACK (cast spell on tower) ───
   const attackTower = (trapId) => {

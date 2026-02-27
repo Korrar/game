@@ -564,7 +564,7 @@ export class CharacterSprite {
       g.lineTo(t1.x, t1.y);
       g.lineTo(t2.x, t2.y);
       g.stroke();
-      g.setStrokeStyle({ width: 2.5 });
+      g.setStrokeStyle({ width: 2.5, color: flash ? this._flashColor(flashAlpha) : c.body });
       g.moveTo(t2.x, t2.y);
       g.lineTo(st.x, st.y);
       g.stroke();

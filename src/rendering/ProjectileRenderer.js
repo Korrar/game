@@ -32,7 +32,10 @@ export class ProjectileRenderer {
   }
 
   _drawProjectile(g, proj) {
-    const angle = Math.atan2(proj.vy, proj.vx);
+    const vx = proj.vx || 0;
+    const vy = proj.vy || 0;
+    const age = age || 0;
+    const angle = Math.atan2(vy, vx);
 
     switch (proj.type) {
       case "arrow": {
@@ -58,7 +61,7 @@ export class ProjectileRenderer {
         break;
       }
       case "fireball_npc": {
-        const r = 5 + Math.sin(proj.age * 0.5) * 1.5;
+        const r = 5 + Math.sin(age * 0.5) * 1.5;
         // Outer glow
         g.circle(proj.x, proj.y, r * 3);
         g.fill({ color: 0xff6414, alpha: 0.1 });
@@ -74,8 +77,8 @@ export class ProjectileRenderer {
         break;
       }
       case "iceShard_npc": {
-        const cos = Math.cos(angle + proj.age * 0.2);
-        const sin = Math.sin(angle + proj.age * 0.2);
+        const cos = Math.cos(angle + age * 0.2);
+        const sin = Math.sin(angle + age * 0.2);
         // Glow
         g.circle(proj.x, proj.y, 8);
         g.fill({ color: 0x80d0ff, alpha: 0.15 });
@@ -119,7 +122,7 @@ export class ProjectileRenderer {
         break;
       }
       case "mageSpell": {
-        const r = 5 + Math.sin(proj.age * 0.4) * 1.5;
+        const r = 5 + Math.sin(age * 0.4) * 1.5;
         // Outer glow
         g.circle(proj.x, proj.y, r * 4);
         g.fill({ color: 0x8c50dc, alpha: 0.1 });
