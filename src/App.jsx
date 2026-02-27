@@ -421,7 +421,7 @@ export default function App() {
             const nDmg = Math.round(mt.damage * 0.7);
             const nd = { emoji: mt.emoji, name: `${mt.name} 💀`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
             setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
-            walkDataRef.current[nid] = { x: sx, y: 65 + Math.random() * 18, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 65, maxY: 83, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
+            walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
             if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
             showMessage(`💀 Nekromancja! ${mt.name} przywołany!`, "#a050e0");
             setTimeout(() => {
@@ -865,7 +865,7 @@ export default function App() {
                 case "fireBreath":
                   if (physicsRef.current) {
                     const tx = (w.x / 100) * GAME_W;
-                    const ty = GAME_H * 0.65 - 30;
+                    const ty = GAME_H * 0.25 - 30;
                     physicsRef.current.combatEffects.spawnFireBreath(tx, ty, dirX);
                   }
                   if (enemyAbilityRef.current) enemyAbilityRef.current(parseInt(id), parseInt(friendId), ability.damage, ability.element);
@@ -1069,8 +1069,8 @@ export default function App() {
         // Y movement – gentle wandering up and down
         if (w.y != null) {
           w.y += w.ySpeed * w.yDir;
-          if (w.y > (w.maxY || 83)) { w.y = w.maxY || 83; w.yDir = -1; }
-          if (w.y < (w.minY || 65)) { w.y = w.minY || 65; w.yDir = 1; }
+          if (w.y > (w.maxY || 90)) { w.y = w.maxY || 90; w.yDir = -1; }
+          if (w.y < (w.minY || 25)) { w.y = w.minY || 25; w.yDir = 1; }
           // Random Y direction change
           if (Math.random() < 0.003) w.yDir *= -1;
         }
@@ -1088,7 +1088,7 @@ export default function App() {
         if (el) {
           const bounceY = w.stationary ? 0 : Math.abs(Math.sin(w.bouncePhase)) * 4;
           const lungeX = w.lungeOffset || 0;
-          const yPos = w.y != null ? w.y : 65;
+          const yPos = w.y != null ? w.y : 25;
           el.style.left = `${w.x}%`;
           el.style.top = `calc(${yPos}% - 75px)`;
           el.style.transform = `translateX(-50%) translateY(${-bounceY}px) translateX(${lungeX * w.dir}px)`;
@@ -1154,7 +1154,7 @@ export default function App() {
               showMessage("💥 Mina eksplodowała!", "#ff6020");
               if (animatorRef.current) {
                 const ex = npcElsRef.current[id];
-                let px = GAME_W * (trap.x / 100), py = GAME_H * 0.65;
+                let px = GAME_W * (trap.x / 100), py = GAME_H * 0.25;
                 if (ex && gameContainerRef.current) {
                   const gr = gameContainerRef.current.getBoundingClientRect();
                   const r = ex.getBoundingClientRect();
@@ -1249,7 +1249,7 @@ export default function App() {
 
     const chestRate = hasRelic("fortune_magnet") ? 0.15 : 0.08;
     if (!isDefenseRoom && Math.random() < chestRate) {
-      const cx = 10 + Math.random() * 72, cy = 65 + Math.random() * 18;
+      const cx = 10 + Math.random() * 72, cy = 25 + Math.random() * 65;
       setChestPos({ x: cx, y: cy });
       setShowChest(true);
     } else {
@@ -1429,7 +1429,7 @@ export default function App() {
           hp: npcData.hp,
           maxHp: npcData.hp,
         });
-        const spawnY = 65 + Math.random() * 18; // 65-83% (on ground)
+        const spawnY = 25 + Math.random() * 65; // 65-83% (on ground)
         const dmgScale = 1 + Math.min(newRoom / 20, 2.0); // damage scales 1x→3x over 40 rooms
         newWalkData[wid] = {
           x: spawnX,
@@ -1440,7 +1440,7 @@ export default function App() {
           ySpeed: 0.005 + Math.random() * 0.015,
           minX: Math.max(5, spawnX - walkRange),
           maxX: Math.min(90, spawnX + walkRange),
-          minY: 65, maxY: 83,
+          minY: 25, maxY: 90,
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true,
           friendly: false,
@@ -1527,8 +1527,8 @@ export default function App() {
         const bNpc = { emoji: "🪵", name: "Barykada", hp: bHp, resist: null, loot: {}, bodyColor: "#6a4a20", armorColor: "#4a3010", bodyType: "barricade" };
         setWalkers(prev => [...prev, { id: bId, npcData: bNpc, alive: true, dying: false, hp: bHp, maxHp: bHp, friendly: true, isBarricade: true }]);
         walkDataRef.current[bId] = {
-          x: 18, y: 74, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
-          minX: 18, maxX: 18, minY: 65, maxY: 83,
+          x: 18, y: 82, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
+          minX: 18, maxX: 18, minY: 25, maxY: 90,
           bouncePhase: 0, alive: true, friendly: true,
           damage: 0, lungeFrames: 0, lungeOffset: 0,
           stationary: true, combatStyle: "none", attackCd: 99999,
@@ -1541,8 +1541,8 @@ export default function App() {
         const tNpc = { emoji: "🗼", name: "Wieża karawany", hp: towerHp, resist: null, loot: {}, bodyColor: "#5a5a5a", armorColor: "#3a3a3a", bodyType: "tower" };
         setWalkers(prev => [...prev, { id: tId, npcData: tNpc, alive: true, dying: false, hp: towerHp, maxHp: towerHp, friendly: true, isTower: true }]);
         walkDataRef.current[tId] = {
-          x: 10, y: 72, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
-          minX: 10, maxX: 10, minY: 65, maxY: 83,
+          x: 10, y: 80, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
+          minX: 10, maxX: 10, minY: 25, maxY: 90,
           bouncePhase: 0, alive: true, friendly: true,
           damage: cl.tower.damage, projectileDamage: cl.tower.damage,
           lungeFrames: 0, lungeOffset: 0,
@@ -1560,9 +1560,9 @@ export default function App() {
           const dNpc = { emoji: "🐕", name: "Ogar bojowy", hp: 80, resist: null, loot: {}, bodyColor: "#8a6030", armorColor: "#5a4020", bodyType: "quadruped" };
           setWalkers(prev => [...prev, { id: dId, npcData: dNpc, alive: true, dying: false, hp: 80, maxHp: 80, friendly: true, isDog: true }]);
           walkDataRef.current[dId] = {
-            x: 12, y: 72, dir: 1, yDir: Math.random() < 0.5 ? 1 : -1,
+            x: 12, y: 80, dir: 1, yDir: Math.random() < 0.5 ? 1 : -1,
             speed: 0.06, ySpeed: 0.01,
-            minX: 5, maxX: 28, minY: 65, maxY: 83,
+            minX: 5, maxX: 28, minY: 25, maxY: 90,
             bouncePhase: 0, alive: true, friendly: true,
             damage: 10, lungeFrames: 0, lungeOffset: 0,
             combatStyle: "melee", attackCd: 1800,
@@ -1579,7 +1579,7 @@ export default function App() {
     if (meteorTimerRef.current) { clearTimeout(meteorTimerRef.current); meteorTimerRef.current = null; }
     if (Math.random() < 0.12) {
       const mx = 15 + Math.random() * 65;
-      const landY = 58 + Math.random() * 5; // land at ground level (~58-63%, NPC line is 65%)
+      const landY = 20 + Math.random() * 5; // land at ground level (~20-25%, NPC line is 25%)
       setMeteorite({ x: mx, y: landY, phase: "pending" });
       // Start falling 1 second after room transition ends
       meteorTimerRef.current = setTimeout(() => {
@@ -1718,7 +1718,7 @@ export default function App() {
       };
       const wid = ++walkerIdCounter;
       const spawnX = 95;
-      const spawnY = 72;
+      const spawnY = 55;
       setWalkers(prev => [...prev, {
         id: wid, npcData: bossNpc, alive: true, dying: false,
         hp: boss.maxHp, maxHp: boss.maxHp, isBoss: true, friendly: false,
@@ -1727,7 +1727,7 @@ export default function App() {
         x: spawnX, y: spawnY, dir: -1,
         yDir: Math.random() < 0.5 ? 1 : -1,
         speed: boss.speed, ySpeed: 0.005,
-        minX: 5, maxX: 98, minY: 65, maxY: 83,
+        minX: 5, maxX: 98, minY: 25, maxY: 90,
         bouncePhase: 0, alive: true, friendly: false,
         damage: boss.damage,
         lungeFrames: 0, lungeOffset: 0,
@@ -1765,7 +1765,7 @@ export default function App() {
         npcData.hp = Math.round(npcData.hp * hpMult);
         const wid = ++walkerIdCounter;
         const spawnX = 92 + Math.random() * 6;
-        const spawnY = 65 + Math.random() * 18;
+        const spawnY = 25 + Math.random() * 65;
         setWalkers(prev => [...prev, {
           id: wid, npcData, alive: true, dying: false, hp: npcData.hp, maxHp: npcData.hp,
         }]);
@@ -1774,7 +1774,7 @@ export default function App() {
           yDir: Math.random() < 0.5 ? 1 : -1,
           speed: 0.02 + Math.random() * 0.03,
           ySpeed: 0.005 + Math.random() * 0.015,
-          minX: 5, maxX: 98, minY: 65, maxY: 83,
+          minX: 5, maxX: 98, minY: 25, maxY: 90,
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true, friendly: false,
           damage: Math.ceil(npcData.hp / 8 * dmgMult),
@@ -1812,7 +1812,7 @@ export default function App() {
         };
         const wid = ++walkerIdCounter;
         const spawnX = 90 + i * 3;
-        const spawnY = 65 + Math.random() * 18;
+        const spawnY = 25 + Math.random() * 65;
         setWalkers(prev => [...prev, {
           id: wid, npcData: minionNpc, alive: true, dying: false,
           hp: minionHp, maxHp: minionHp, isMinion: true,
@@ -1822,7 +1822,7 @@ export default function App() {
           yDir: Math.random() < 0.5 ? 1 : -1,
           speed: m.speed || 0.04,
           ySpeed: 0.005 + Math.random() * 0.015,
-          minX: 5, maxX: 98, minY: 65, maxY: 83,
+          minX: 5, maxX: 98, minY: 25, maxY: 90,
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true, friendly: false,
           damage: minionDmg,
@@ -2111,9 +2111,9 @@ export default function App() {
       id: wid, npcData, alive: true, dying: false, hp: finalHp, maxHp, friendly: true,
     }]);
     walkDataRef.current[wid] = {
-      x: spawnX, y: 65 + Math.random() * 18, dir: 1,
+      x: spawnX, y: 25 + Math.random() * 65, dir: 1,
       yDir: Math.random() < 0.5 ? 1 : -1, speed: mercType.speed, ySpeed: 0.008 + Math.random() * 0.012,
-      minX: 5, maxX: 90, minY: 65, maxY: 83, bouncePhase: 0, alive: true, friendly: true,
+      minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true,
       damage: finalDmg, attackCd: mercType.attackCd || 2500,
       lungeFrames: 0, lungeOffset: 0,
       combatStyle: mercType.combatStyle || "melee",
@@ -2258,13 +2258,13 @@ export default function App() {
           id: wid, npcData, alive: true, dying: false,
           hp: npcData.hp, maxHp: npcData.hp,
         });
-        const spawnY = 65 + Math.random() * 18;
+        const spawnY = 25 + Math.random() * 65;
         walkDataRef.current[wid] = {
           x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? 1 : -1,
           yDir: Math.random() < 0.5 ? 1 : -1, speed, ySpeed: 0.005 + Math.random() * 0.015,
           minX: Math.max(5, spawnX - walkRange),
           maxX: Math.min(90, spawnX + walkRange),
-          minY: 65, maxY: 83,
+          minY: 25, maxY: 90,
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true, friendly: false,
           damage: Math.ceil(npcData.hp / 8),
@@ -2398,9 +2398,9 @@ export default function App() {
       id: wid, npcData, alive: true, dying: false, hp: finalHp, maxHp: finalHp, friendly: true,
     }]);
     walkDataRef.current[wid] = {
-      x: spawnX, y: 65 + Math.random() * 18, dir: Math.random() < 0.5 ? 1 : -1,
+      x: spawnX, y: 25 + Math.random() * 65, dir: Math.random() < 0.5 ? 1 : -1,
       yDir: Math.random() < 0.5 ? 1 : -1, speed: mercType.speed, ySpeed: 0.008 + Math.random() * 0.012,
-      minX: 5, maxX: 90, minY: 65, maxY: 83, bouncePhase: 0, alive: true, friendly: true,
+      minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true,
       damage: finalDmg, attackCd: mercType.attackCd || 2500,
       lungeFrames: 0, lungeOffset: 0,
       combatStyle: mercType.combatStyle || "melee",
@@ -2465,7 +2465,7 @@ export default function App() {
     setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + spell.cooldown }));
     sfxRecruit();
     if (animatorRef.current) {
-      animatorRef.current.playSpell("summon", GAME_W * 0.5, GAME_H * 0.65, mercType.color || spell.color, spell.colorLight);
+      animatorRef.current.playSpell("summon", GAME_W * 0.5, GAME_H * 0.25, mercType.color || spell.color, spell.colorLight);
     }
     setTimeout(() => {
       const wid = ++walkerIdCounter;
@@ -2485,9 +2485,9 @@ export default function App() {
         id: wid, npcData, alive: true, dying: false, hp: finalHp, maxHp: finalHp, friendly: true,
       }]);
       walkDataRef.current[wid] = {
-        x: spawnX, y: 65 + Math.random() * 18, dir: Math.random() < 0.5 ? 1 : -1,
+        x: spawnX, y: 25 + Math.random() * 65, dir: Math.random() < 0.5 ? 1 : -1,
         yDir: Math.random() < 0.5 ? 1 : -1, speed: mercType.speed, ySpeed: 0.008 + Math.random() * 0.012,
-        minX: 5, maxX: 90, minY: 65, maxY: 83, bouncePhase: 0, alive: true, friendly: true,
+        minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true,
         damage: finalDmg, attackCd: mercType.attackCd || 2500,
         lungeFrames: 0, lungeOffset: 0,
         combatStyle: mercType.combatStyle || "melee",
@@ -2529,7 +2529,7 @@ export default function App() {
     if (sfxFn) sfxFn();
 
     // Get target pixel position for canvas animation (convert screen coords to game coords)
-    let tx = GAME_W * 0.7, ty = GAME_H * 0.65;
+    let tx = GAME_W * 0.7, ty = GAME_H * 0.25;
     const el = npcElsRef.current[walker.id];
     if (el && gameContainerRef.current) {
       const gr = gameContainerRef.current.getBoundingClientRect();
@@ -2649,7 +2649,7 @@ export default function App() {
               const nDmg = Math.round(mt.damage * 0.7);
               const nd = { emoji: mt.emoji, name: `${mt.name} 💀`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
               setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
-              walkDataRef.current[nid] = { x: sx, y: 65 + Math.random() * 18, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 65, maxY: 83, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
+              walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
               if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
               showMessage(`💀 Nekromancja! ${mt.name} przywołany!`, "#a050e0");
               setTimeout(() => {
@@ -2793,7 +2793,7 @@ export default function App() {
               const nDmg = Math.round(mt.damage * 0.7);
               const nd = { emoji: mt.emoji, name: `${mt.name} 💀`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
               setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
-              walkDataRef.current[nid] = { x: sx, y: 65 + Math.random() * 18, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 65, maxY: 83, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
+              walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
               if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
               showMessage(`💀 Nekromancja! ${mt.name} przywołany!`, "#a050e0");
               setTimeout(() => {
@@ -3382,7 +3382,7 @@ export default function App() {
       {/* ─── FRUIT TREE (biome variant) ─── */}
       {fruitTree && (
         <div style={{
-          position: "absolute", left: `${fruitTree.x}%`, bottom: "28%", zIndex: 14,
+          position: "absolute", left: `${fruitTree.x}%`, bottom: "5%", zIndex: 14,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           {/* Trunk */}
@@ -3426,7 +3426,7 @@ export default function App() {
       {/* ─── MINE (biome variant rock formation) ─── */}
       {mineNugget && (
         <div style={{
-          position: "absolute", left: `${mineNugget.x}%`, bottom: "28%", zIndex: 14,
+          position: "absolute", left: `${mineNugget.x}%`, bottom: "5%", zIndex: 14,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           {/* Rock body */}
@@ -3482,7 +3482,7 @@ export default function App() {
         const [wr,wg,wb] = waterfall.rgb;
         return (
         <div style={{
-          position: "absolute", left: `${waterfall.x}%`, bottom: "28%", zIndex: 13,
+          position: "absolute", left: `${waterfall.x}%`, bottom: "5%", zIndex: 13,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           <div style={{
@@ -3557,7 +3557,7 @@ export default function App() {
       {/* ─── MERCENARY CAMP ─── */}
       {mercCamp && (
         <div style={{
-          position: "absolute", left: `${mercCamp.x}%`, bottom: "28%", zIndex: 14,
+          position: "absolute", left: `${mercCamp.x}%`, bottom: "5%", zIndex: 14,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           {/* Tent */}
@@ -3635,7 +3635,7 @@ export default function App() {
         const canAfford = totalCopper(money) >= wizardPoi.cost;
         return (
           <div style={{
-            position: "absolute", left: `${wizardPoi.x}%`, bottom: "22%", zIndex: 14,
+            position: "absolute", left: `${wizardPoi.x}%`, bottom: "3%", zIndex: 14,
             transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
           }}>
             {/* Wizard tent */}
@@ -3715,7 +3715,7 @@ export default function App() {
           const spikeH = spikesUp ? 18 : 3;
           return (
             <div key={trap.id} style={{
-              position: "absolute", left: `${trap.x}%`, bottom: "22%", zIndex: 13,
+              position: "absolute", left: `${trap.x}%`, bottom: "3%", zIndex: 13,
               transform: "translateX(-50%)", pointerEvents: "none",
             }}>
               {/* Base plate */}
@@ -3749,7 +3749,7 @@ export default function App() {
             // Explosion visual
             return (
               <div key={trap.id} style={{
-                position: "absolute", left: `${trap.x}%`, bottom: "23%", zIndex: 13,
+                position: "absolute", left: `${trap.x}%`, bottom: "3%", zIndex: 13,
                 transform: "translateX(-50%)", pointerEvents: "none",
                 fontSize: 28, animation: "dmgFloat 1.5s ease-out forwards",
               }}>💥</div>
@@ -3782,7 +3782,7 @@ export default function App() {
           const hpPct = trap.hp / trap.maxHp;
           return (
             <div key={trap.id} style={{
-              position: "absolute", left: `${trap.x}%`, bottom: "22%", zIndex: 15,
+              position: "absolute", left: `${trap.x}%`, bottom: "3%", zIndex: 15,
               transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
               cursor: selectedSpell ? "crosshair" : "pointer",
             }}
@@ -3856,7 +3856,7 @@ export default function App() {
         if (trap.type === "tower" && !trap.active) {
           return (
             <div key={trap.id} style={{
-              position: "absolute", left: `${trap.x}%`, bottom: "22%", zIndex: 10,
+              position: "absolute", left: `${trap.x}%`, bottom: "3%", zIndex: 10,
               transform: "translateX(-50%)", pointerEvents: "none", opacity: 0.4,
             }}>
               <div style={{ position: "relative", width: 30, height: 25 }}>
@@ -3899,7 +3899,7 @@ export default function App() {
             style={{
               position: "absolute",
               left: "50%",
-              top: "calc(60% - 75px)",
+              top: "calc(25% - 75px)",
               zIndex: isBossWalker ? 12 : 11,
               display: "flex", flexDirection: "column", alignItems: "center",
               cursor: !isFriendly && selectedSpell ? "crosshair" : isFriendly ? "default" : "pointer",

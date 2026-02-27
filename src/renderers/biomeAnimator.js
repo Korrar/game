@@ -31,7 +31,7 @@ export class BiomeAnimator {
     this.weather = weather || null;
     this.W = canvas.width;
     this.H = canvas.height;
-    this.GY = this.H * 0.65;
+    this.GY = this.H * 0.25;
     this.time = 0;
     this.particles.forEach(p => { p.alive = false; });
     this._loop();
@@ -42,7 +42,7 @@ export class BiomeAnimator {
   }
 
   resize(w, h) {
-    this.W = w; this.H = h; this.GY = h * 0.65;
+    this.W = w; this.H = h; this.GY = h * 0.25;
   }
 
   _spawn(type, props) {

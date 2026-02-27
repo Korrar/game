@@ -1,7 +1,7 @@
 import { seedRng } from "../utils/helpers";
 
 export function renderBiome(ctx, biome, room, W, H, isNight) {
-  const GY = H * 0.65;
+  const GY = H * 0.25;
   const rng = seedRng(room * 137 + 42);
 
   // Sky
