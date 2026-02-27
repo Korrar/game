@@ -125,7 +125,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
   // Desktop layout
   return (
     <div style={{
-      position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+      position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)",
       zIndex: 100, display: "flex", alignItems: "stretch", gap: 0,
       padding: "8px 6px",
       background: "linear-gradient(180deg, #1a0e12ee, #0e0608f0)",
