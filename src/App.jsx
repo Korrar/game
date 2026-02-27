@@ -65,6 +65,9 @@ const physicsRef = { current: null };
 let walkerIdCounter = 0;
 let dmgPopupIdCounter = 0;
 
+// Mobile detection helper
+const isTouchDevice = () => "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
 export default function App() {
   const [screen, setScreen] = useState("intro");
   const [room, setRoom] = useState(0);
@@ -210,6 +213,7 @@ export default function App() {
   const [activeBoss, setActiveBoss] = useState(null);
   const activeBossRef = useRef(null);
   const [gameScale, setGameScale] = useState(1);
+  const [isMobile, setIsMobile] = useState(false);
   const meteorTimerRef = useRef(null);
 
   const canvasRef = useRef(null);
@@ -218,6 +222,11 @@ export default function App() {
   const vaultRef = useRef(null);
   const gameContainerRef = useRef(null);
 
+  // Detect mobile/touch device
+  useEffect(() => {
+    setIsMobile(isTouchDevice());
+  }, []);
+
   // Compute scale to fit GAME_W×GAME_H into viewport
   useEffect(() => {
     const calc = () => setGameScale(Math.min(window.innerWidth / GAME_W, window.innerHeight / GAME_H));
@@ -225,6 +234,21 @@ export default function App() {
     window.addEventListener("resize", calc);
     return () => window.removeEventListener("resize", calc);
   }, []);
+
+  // Prevent pinch-zoom and pull-to-refresh on mobile
+  useEffect(() => {
+    if (!isMobile) return;
+    const preventZoom = (e) => {
+      if (e.touches && e.touches.length > 1) e.preventDefault();
+    };
+    const preventContextMenu = (e) => e.preventDefault();
+    document.addEventListener("touchmove", preventZoom, { passive: false });
+    document.addEventListener("contextmenu", preventContextMenu);
+    return () => {
+      document.removeEventListener("touchmove", preventZoom);
+      document.removeEventListener("contextmenu", preventContextMenu);
+    };
+  }, [isMobile]);
 
   useEffect(() => { activeBossRef.current = activeBoss; }, [activeBoss]);
 
@@ -2942,13 +2966,23 @@ export default function App() {
 
   // GAME
   return (
-    <div style={appStyle}>
+    <div style={appStyle} className="game-no-select">
+      {/* Landscape orientation prompt for mobile */}
+      <div className="orientation-prompt">
+        <div style={{ fontSize: 64 }}>📱</div>
+        <div style={{ fontSize: 20, fontWeight: "bold" }}>Obróć telefon</div>
+        <div style={{ fontSize: 14, color: "#aaa", maxWidth: 280 }}>
+          Gra najlepiej działa w trybie poziomym (landscape)
+        </div>
+        <div style={{ fontSize: 48, animation: "fadeIn 1s ease-in-out infinite alternate" }}>↻</div>
+      </div>
+
       <div style={scanlinesStyle} /><div style={vignetteStyle} />
 
       <TopBar doors={doors} initiative={initiative} treasures={inventory.length} money={money} mana={mana} maxMana={MAX_MANA}
         onInv={() => togglePanel("inv")} onShop={() => togglePanel("shop")} onHideout={() => togglePanel("hideout")}
         onBestiary={() => togglePanel("bestiary")} knowledge={knowledge}
-        musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} />
+        musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} isMobile={isMobile} />
 
       {/* Scaled game container – fixed resolution */}
       <div ref={gameContainerRef} style={{
@@ -2958,6 +2992,8 @@ export default function App() {
         position: "relative",
         overflow: "hidden",
         animation: screenShake ? "screenShake 0.08s infinite alternate" : "none",
+        touchAction: "manipulation",
+        WebkitTouchCallout: "none",
       }}>
       <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H }} />
       <canvas ref={animCanvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none" }} />
@@ -3734,7 +3770,7 @@ export default function App() {
               </div>
             )}
             {/* Invisible click area (stick figure rendered on physics canvas) */}
-            <div style={{ width: 40, height: 60 }} />
+            <div style={{ width: isMobile ? 56 : 40, height: isMobile ? 76 : 60 }} />
             {w.alive && !w.dying && (
               <div style={{
                 fontSize: isBossWalker ? 13 : 11, fontWeight: "bold",
@@ -3876,7 +3912,7 @@ export default function App() {
             {tutorialStep === 1 && <>
               <div style={{ fontSize: 32, marginBottom: 8 }}>🔮</div>
               <div style={{ fontSize: 16, fontWeight: "bold", color: "#60a0ff", marginBottom: 8 }}>Czary i Walka</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Wybierz czar z paska na dole, a potem kliknij na wroga. Możesz też przeciągnąć czar na cel. Czary kosztują manę 🔮 i mają czas odnowienia. Łącz żywioły (ogień+lód, lód+piorun) dla bonusów COMBO!</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>{isMobile ? "Wybierz czar z paska na dole, a potem dotknij wroga. Czary kosztują manę 🔮 i mają czas odnowienia. Łącz żywioły (ogień+lód, lód+piorun) dla bonusów COMBO!" : "Wybierz czar z paska na dole, a potem kliknij na wroga. Możesz też przeciągnąć czar na cel. Czary kosztują manę 🔮 i mają czas odnowienia. Łącz żywioły (ogień+lód, lód+piorun) dla bonusów COMBO!"}</div>
             </>}
             {tutorialStep === 2 && <>
               <div style={{ fontSize: 32, marginBottom: 8 }}>⚔️</div>
@@ -3934,10 +3970,11 @@ export default function App() {
       {/* Mercenary picker popup */}
       {summonPicker && (
         <div style={{
-          position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
-          zIndex: 102, display: "flex", gap: 8, padding: "10px 14px",
+          position: "fixed", bottom: isMobile ? 90 : 80, left: "50%", transform: "translateX(-50%)",
+          zIndex: 102, display: "flex", gap: isMobile ? 6 : 8, padding: isMobile ? "8px 10px" : "10px 14px",
           background: "rgba(14,8,10,0.95)", border: "2px solid #3a6a3a",
           borderRadius: 8, boxShadow: "0 -4px 20px rgba(0,0,0,0.6), 0 0 20px rgba(60,180,80,0.15)",
+          maxWidth: isMobile ? "95vw" : "none",
         }}>
           {MERCENARY_TYPES.map(merc => {
             const lvl = KNIGHT_LEVELS[knightLevel];
@@ -3953,14 +3990,16 @@ export default function App() {
                 onClick={() => canSummon && castSummon(merc)}
                 style={{
                   display: "flex", flexDirection: "column", alignItems: "center",
-                  padding: "8px 10px", minWidth: 80,
+                  padding: isMobile ? "8px 8px" : "8px 10px", minWidth: isMobile ? 68 : 80,
+                  minHeight: isMobile ? 72 : "auto",
                   border: `2px solid ${canSummon ? merc.color + "80" : "#333"}`,
                   background: canSummon ? `${merc.color}10` : "rgba(0,0,0,0.3)",
                   cursor: canSummon ? "pointer" : "not-allowed",
                   borderRadius: 6, transition: "border-color 0.15s, background 0.15s",
+                  WebkitTapHighlightColor: "transparent",
                 }}
-                onMouseEnter={e => { if (canSummon) { e.currentTarget.style.borderColor = merc.color; e.currentTarget.style.background = `${merc.color}20`; } }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = canSummon ? merc.color + "80" : "#333"; e.currentTarget.style.background = canSummon ? `${merc.color}10` : "rgba(0,0,0,0.3)"; }}
+                onMouseEnter={!isMobile ? (e => { if (canSummon) { e.currentTarget.style.borderColor = merc.color; e.currentTarget.style.background = `${merc.color}20`; } }) : undefined}
+                onMouseLeave={!isMobile ? (e => { e.currentTarget.style.borderColor = canSummon ? merc.color + "80" : "#333"; e.currentTarget.style.background = canSummon ? `${merc.color}10` : "rgba(0,0,0,0.3)"; }) : undefined}
               >
                 <span style={{ fontSize: 28, opacity: canSummon ? 1 : 0.35 }}>{merc.emoji}</span>
                 <div style={{ fontSize: 11, fontWeight: "bold", color: canSummon ? merc.color : "#555", whiteSpace: "nowrap" }}>{merc.name}</div>
@@ -3985,22 +4024,23 @@ export default function App() {
         learnedSpells={learnedSpells}
         onSelect={handleSelectSpell}
         onDragStart={() => {}}
+        isMobile={isMobile}
       />
 
       {/* Selected spell indicator */}
       {selectedSpell && (
         <div style={{
-          position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
-          fontSize: 12, color: "#cc9040", fontWeight: "bold", zIndex: 101,
-          background: "rgba(0,0,0,0.7)", padding: "3px 12px", border: "1px solid #5a4030",
-          whiteSpace: "nowrap",
+          position: "fixed", bottom: isMobile ? 100 : 90, left: "50%", transform: "translateX(-50%)",
+          fontSize: isMobile ? 14 : 12, color: "#cc9040", fontWeight: "bold", zIndex: 101,
+          background: "rgba(0,0,0,0.85)", padding: isMobile ? "6px 16px" : "3px 12px", border: "1px solid #5a4030",
+          whiteSpace: "nowrap", borderRadius: isMobile ? 8 : 0,
         }}>
-          Kliknij na cel, by rzucić czar (lub przeciągnij)
+          {isMobile ? "Dotknij wroga, by rzucić czar" : "Kliknij na cel, by rzucić czar (lub przeciągnij)"}
         </div>
       )}
 
       {/* INVENTORY PANEL */}
-      <SidePanel open={panel === "inv"} side="right" width={400} onClose={() => { setPanel(null); setSelectedInv(-1); }} title="📜 Ekwipunek">
+      <SidePanel open={panel === "inv"} side="right" width={400} onClose={() => { setPanel(null); setSelectedInv(-1); }} title="📜 Ekwipunek" isMobile={isMobile}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
           {[...Array(Math.max(20, Math.ceil(inventory.length / 5) * 5 + 5))].map((_, i) => (
             <ItemSlot key={i} item={inventory[i]} selected={i === selectedInv} onClick={() => setSelectedInv(i)} />
@@ -4013,7 +4053,7 @@ export default function App() {
       </SidePanel>
 
       {/* SHOP PANEL */}
-      <SidePanel open={panel === "shop"} side="left" width={430} onClose={() => setPanel(null)} title="🏪 Targ">
+      <SidePanel open={panel === "shop"} side="left" width={430} onClose={() => setPanel(null)} title="🏪 Targ" isMobile={isMobile}>
         <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#60a0ff", marginBottom: 8, borderBottom: "1px solid #1a2a3a", paddingBottom: 4 }}>🔮 Mikstury Many</h3>
         {MANA_POTIONS.map(potion => {
           const canAfford = totalCopper(money) >= totalCopper(potion.cost);
@@ -4079,7 +4119,7 @@ export default function App() {
       </SidePanel>
 
       {/* HIDEOUT PANEL */}
-      <SidePanel open={panel === "hideout"} side="right" width={460} onClose={() => setPanel(null)} title="🏰 Moja Kryjówka">
+      <SidePanel open={panel === "hideout"} side="right" width={460} onClose={() => setPanel(null)} title="🏰 Moja Kryjówka" isMobile={isMobile}>
         <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}>💰 Skarbiec</h3>
         <canvas ref={vaultRef} width={420} height={200} style={{ width: "100%", height: 200, border: "2px solid #3a2818", background: "#0a0604", marginBottom: 12, display: "block" }} />
 
@@ -4184,7 +4224,7 @@ export default function App() {
       </SidePanel>
 
       {/* BESTIARY PANEL */}
-      <SidePanel open={panel === "bestiary"} side="left" width={460} onClose={() => setPanel(null)} title="📖 Bestiariusz">
+      <SidePanel open={panel === "bestiary"} side="left" width={460} onClose={() => setPanel(null)} title="📖 Bestiariusz" isMobile={isMobile}>
         <div style={{ fontSize: 14, color: "#60a0ff", marginBottom: 8, fontWeight: "bold" }}>
           📖 Wiedza: {knowledge} | Odkryto: {Object.keys(bestiary).length}/{ALL_NPCS.length}
         </div>
