@@ -8,11 +8,11 @@ export default function Caravan({ initiative, maxInitiative, cost, canTravel, on
 
   return (
     <div onClick={onClick} style={{
-      position: "absolute", bottom: 8, left: 8, zIndex: 10,
+      position: "absolute", bottom: 8, left: "50%", zIndex: 10,
       cursor: canTravel ? "pointer" : "not-allowed",
       filter: canTravel ? "drop-shadow(0 0 10px rgba(212,160,48,0.5))" : "brightness(0.7)",
       transition: "filter 0.3s, transform 0.2s",
-      transform: canTravel ? "scale(1)" : "scale(0.97)",
+      transform: canTravel ? "translateX(-50%) scale(1)" : "translateX(-50%) scale(0.97)",
       userSelect: "none",
       animation: lowHp ? "caravanDmgFlash 0.6s ease-in-out infinite" : "none",
     }}>
