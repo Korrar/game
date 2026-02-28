@@ -779,11 +779,9 @@ export class PhysicsWorld {
     const cfg = SKILLSHOT_TYPES[spellId];
     if (!cfg) return;
 
-    // Player fires from left side of screen (caravan position ~10%)
-    const sx = this.W * 0.10;
-    // Start projectile ABOVE ground line (NPC torso height) so it doesn't
-    // immediately trigger ground-explosion checks
-    const sy = this.GY - FIGURE_HALF_HEIGHT;
+    // Player fires from caravan position (bottom-center of screen)
+    const sx = this.W * 0.50;
+    const sy = this.H * 0.85;
 
     if (cfg.type === "mine") {
       // Place mine at target location
@@ -857,10 +855,14 @@ export class PhysicsWorld {
       chainOnHit: cfg.chainOnHit || false,
       maxChains: cfg.maxChains || 0,
       chainDamageMult: cfg.chainDamageMult || 0.6,
-      explodeOnGround: cfg.explodeOnGround || false,
+      // Arc projectiles explode at target point, not on "ground"
+      explodeAtTarget: cfg.type === "arc",
+      targetX: targetPx,
+      targetY: targetPy,
+      tFlight: Math.round(tFlight),
       type: cfg.type,
       spellId, damage, element,
-      age: 0, maxAge: 200,
+      age: 0, maxAge: Math.round(tFlight) + 30, // a little extra in case of miss
       onHit, onMiss, onHeadshot,
       hitIds: [], // track pierced enemies
     });
@@ -975,19 +977,18 @@ export class PhysicsWorld {
         }
       }
 
-      // Check if hit ground (for arc/heavy projectiles)
-      // Only trigger when: 1) projectile is descending (vy > 0), 2) past initial launch phase (age > 10),
-      // 3) projectile is at or below the NPC ground line
-      if (!hit && proj.explodeOnGround && proj.age > 10 && proj.vy > 0 && proj.y >= this.GY) {
+      // Arc projectiles: explode when they reach the target point (age >= tFlight)
+      if (!hit && proj.explodeAtTarget && proj.age >= proj.tFlight) {
         hit = true;
-        // Ground explosion
-        fx.spawnFire(proj.x, proj.y);
-        fx.spawnFire(proj.x - 10, proj.y);
-        fx.spawnFire(proj.x + 10, proj.y);
-        if (this.pixiRenderer) this.pixiRenderer.screenShake(8);
-        // Splash damage at ground point
+        // Explosion at target
+        const ex = proj.targetX, ey = proj.targetY;
+        fx.spawnFire(ex, ey);
+        fx.spawnFire(ex - 12, ey - 6);
+        fx.spawnFire(ex + 12, ey + 6);
+        if (this.pixiRenderer) this.pixiRenderer.screenShake(10);
+        // Splash damage at target point
         if (proj.splashRadius > 0) {
-          this._applySplashDamage(proj, proj.x, proj.y, -1);
+          this._applySplashDamage(proj, ex, ey, -1);
         }
         if (!hitAnybody && proj.onMiss) proj.onMiss();
       }
