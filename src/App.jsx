@@ -3841,9 +3841,9 @@ export default function App() {
       )}
       <ComboOverlay combo={activeCombo} comboCounter={comboCounter} />
       {!defenseMode && <PowerSpikeWarning show={powerSpikeWarning} />}
-      <RelicPicker choices={relicChoices} onSelect={selectRelic} />
-      <SpellUpgradePicker choices={upgradeChoices} onSelect={selectUpgrade} />
-      <LevelUpPicker choices={levelUpChoices} onSelect={selectPerk} playerLevel={playerLevel} />
+      <RelicPicker choices={relicChoices} onSelect={selectRelic} isMobile={isMobile} />
+      <SpellUpgradePicker choices={upgradeChoices} onSelect={selectUpgrade} isMobile={isMobile} />
+      <LevelUpPicker choices={levelUpChoices} onSelect={selectPerk} playerLevel={playerLevel} isMobile={isMobile} />
       <WeatherOverlay weather={weather} />
 
       <Caravan

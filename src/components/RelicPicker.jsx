@@ -4,7 +4,7 @@ import { getIconUrl } from "../rendering/icons";
 
 const RARITY_LABEL = { common: "Zwykły", rare: "Rzadki", epic: "Epicki" };
 
-export default function RelicPicker({ choices, onSelect }) {
+export default function RelicPicker({ choices, onSelect, isMobile }) {
   const [hovered, setHovered] = useState(null);
 
   if (!choices || choices.length === 0) return null;
@@ -15,9 +15,10 @@ export default function RelicPicker({ choices, onSelect }) {
       background: "rgba(0,0,0,0.85)",
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       animation: "eventAppear 0.4s ease-out",
+      padding: isMobile ? "8px 6px" : 0,
     }}>
       <div style={{
-        fontSize: 24, fontWeight: "bold", marginBottom: 6,
+        fontSize: isMobile ? 18 : 24, fontWeight: "bold", marginBottom: 6,
         background: "linear-gradient(90deg, #d4a030, #ffe080, #d4a030)",
         WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
         backgroundSize: "200% 100%", animation: "shimmer 3s ease-in-out infinite",
@@ -25,11 +26,11 @@ export default function RelicPicker({ choices, onSelect }) {
       }}>
         WYBIERZ RELIKT
       </div>
-      <div style={{ fontSize: 13, color: "#777", marginBottom: 22 }}>
+      <div style={{ fontSize: isMobile ? 11 : 13, color: "#777", marginBottom: isMobile ? 10 : 22 }}>
         Kliknij kartę, aby aktywować pasywny bonus
       </div>
 
-      <div style={{ display: "flex", gap: 20 }}>
+      <div style={{ display: "flex", gap: isMobile ? 6 : 20, flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: "center", maxWidth: isMobile ? "100%" : "none" }}>
         {choices.map((relic, i) => {
           const color = RELIC_RARITY_COLOR[relic.rarity] || "#888";
           const isHov = hovered === i;
@@ -41,7 +42,7 @@ export default function RelicPicker({ choices, onSelect }) {
               onMouseEnter={() => setHovered(i)}
               onMouseLeave={() => setHovered(null)}
               style={{
-                width: 190, padding: "22px 16px", cursor: "pointer",
+                width: isMobile ? 140 : 190, padding: isMobile ? "12px 8px" : "22px 16px", cursor: "pointer",
                 background: "linear-gradient(180deg, rgba(14,8,10,0.97), rgba(8,4,6,0.97))",
                 border: `2px solid ${isHov ? color : color + "80"}`,
                 borderRadius: 10,
@@ -51,7 +52,7 @@ export default function RelicPicker({ choices, onSelect }) {
                 transform: isHov ? "scale(1.08) translateY(-4px)" : "scale(1)",
                 transition: "transform 0.2s, box-shadow 0.2s, border-color 0.2s",
                 textAlign: "center",
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 8,
                 position: "relative", overflow: "hidden",
               }}
             >
@@ -72,22 +73,22 @@ export default function RelicPicker({ choices, onSelect }) {
               )}
 
               <div style={{ filter: `drop-shadow(0 0 10px ${color}88)`, zIndex: 1 }}>
-                {getIconUrl(relic.icon, 44) ? <img src={getIconUrl(relic.icon, 44)} width={44} height={44} alt="" /> : null}
+                {getIconUrl(relic.icon, isMobile ? 32 : 44) ? <img src={getIconUrl(relic.icon, isMobile ? 32 : 44)} width={isMobile ? 32 : 44} height={isMobile ? 32 : 44} alt="" /> : null}
               </div>
               <div style={{
-                fontSize: 16, fontWeight: "bold", color, zIndex: 1,
+                fontSize: isMobile ? 13 : 16, fontWeight: "bold", color, zIndex: 1,
                 textShadow: `0 0 8px ${color}44`,
               }}>
                 {relic.name}
               </div>
               <div style={{
-                fontSize: 10, color, textTransform: "uppercase",
+                fontSize: isMobile ? 9 : 10, color, textTransform: "uppercase",
                 letterSpacing: 3, fontWeight: "bold", opacity: 0.7, zIndex: 1,
               }}>
                 ◆ {RARITY_LABEL[relic.rarity] || relic.rarity} ◆
               </div>
               <div style={{
-                fontSize: 12, color: "#a09888", lineHeight: 1.5, marginTop: 4, zIndex: 1,
+                fontSize: isMobile ? 10 : 12, color: "#a09888", lineHeight: 1.5, marginTop: isMobile ? 2 : 4, zIndex: 1,
               }}>
                 {relic.desc}
               </div>

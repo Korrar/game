@@ -23,7 +23,7 @@ html {
 
 /* Safe area padding for notched phones */
 body {
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
 }
 
 /* Prevent text selection on game elements */
