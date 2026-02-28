@@ -358,6 +358,7 @@ export class PhysicsWorld {
   setWeather(w) {
     this.windDeflection = w?.windDeflection || 0;
     this.fogVisibility = w?.fogVisibility || 0;
+    this.currentWeather = w || null;
   }
 
   setPixiRenderer(renderer) {
@@ -820,19 +821,31 @@ export class PhysicsWorld {
     // Total flight time = distance / speed (in frames)
     const tFlight = Math.max(15, dist / cfg.speed);
 
+    // Weather: extra gravity for arc in rain
+    let effectiveGravity = cfg.gravity || 0;
+    if (this.currentWeather?.skillshotEffect === "extra_gravity" && cfg.type === "arc") {
+      effectiveGravity *= this.currentWeather.gravityMult || 1.4;
+    }
+
+    // Weather: wind drift for linear projectiles (applied per frame in update)
+    let windDrift = 0;
+    if (this.currentWeather?.skillshotEffect === "wind_drift" && cfg.type === "linear") {
+      windDrift = (this.currentWeather.windStrength || 0.5) * (this.currentWeather.windDir || 1);
+    }
+
     let vx, vy;
     if (cfg.type === "arc") {
       // Arc: calculate vx/vy so projectile arrives at target in tFlight frames
       // accounting for gravity: y(t) = sy + vy*t + 0.5*g*t^2 = targetPy
       // vy = (dy - 0.5*g*t^2) / t
       vx = dx / tFlight;
-      vy = (dy - 0.5 * cfg.gravity * tFlight * tFlight) / tFlight;
+      vy = (dy - 0.5 * effectiveGravity * tFlight * tFlight) / tFlight;
     } else {
       // Linear: aim directly, gravity (if any) is compensated by arc-like formula
       if (cfg.gravity > 0) {
         // Heavy projectile with gravity — use arc formula so it actually reaches target
         vx = dx / tFlight;
-        vy = (dy - 0.5 * cfg.gravity * tFlight * tFlight) / tFlight;
+        vy = (dy - 0.5 * effectiveGravity * tFlight * tFlight) / tFlight;
       } else {
         // Pure linear — direct aim
         vx = (dx / dist) * cfg.speed;
@@ -842,7 +855,8 @@ export class PhysicsWorld {
 
     this.playerSkillshots.push({
       x: sx, y: sy, vx, vy,
-      gravity: cfg.gravity || 0,
+      gravity: effectiveGravity,
+      windDrift,
       speed: cfg.speed,
       size: cfg.size,
       hitRadius: cfg.hitRadius,
@@ -890,6 +904,8 @@ export class PhysicsWorld {
       proj.x += proj.vx;
       proj.y += proj.vy;
       if (proj.gravity) proj.vy += proj.gravity;
+      // Wind drift for linear projectiles (gale weather)
+      if (proj.windDrift) proj.x += proj.windDrift;
       if (this.windDeflection) {
         proj.vx += this.windDeflection * 0.3;
       }

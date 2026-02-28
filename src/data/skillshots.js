@@ -115,3 +115,40 @@ export const ENEMY_DODGE_REACT_DIST = 80;  // pixel distance at which enemies re
 export const BARREL_HP = 1;
 export const BARREL_SPLASH_RADIUS = 60;
 export const BARREL_DAMAGE = 30;
+
+// Player-placeable defense traps (during setup phase)
+export const DEFENSE_TRAPS = [
+  {
+    id: "caltrops",
+    name: "Kolczatki",
+    desc: "Spowalnia wrogów o 40% w obszarze",
+    icon: "spike",
+    cost: { harpoon: 1 },
+    slowMult: 0.6,
+    radius: 8,        // % of screen width
+    duration: 0,       // permanent until wave ends
+    maxCount: 3,
+  },
+  {
+    id: "powder_barrel",
+    name: "Beczka Prochu",
+    desc: "Eksploduje przy kontakcie wroga — 35 obrażeń AoE",
+    icon: "fire",
+    cost: { dynamite: 1 },
+    damage: 35,
+    splashRadius: 8,   // % of screen width
+    triggerRadius: 4,
+    maxCount: 3,
+  },
+  {
+    id: "net_trap",
+    name: "Sieć",
+    desc: "Łapie pierwszego wroga na 3s — zatrzymuje ruch",
+    icon: "anchor",
+    cost: { harpoon: 1 },
+    stunDuration: 3000,
+    triggerRadius: 4,
+    maxCount: 2,
+  },
+];
+export const MAX_PLAYER_TRAPS = 5;
