@@ -186,7 +186,8 @@ export function drawWeapon(ctx, limbs, entry, GY) {
       ctx.lineWidth = 2.5;
       ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(shoulder.x - dir * 1, GY - 2);
+      const staffBottom = Math.min(GY - 2, shoulder.y + 50);
+      ctx.moveTo(shoulder.x - dir * 1, staffBottom);
       ctx.lineTo(staffTopX, staffTopY);
       ctx.stroke();
       const orbPulse = 0.6 + Math.sin(Date.now() * 0.004) * 0.3;

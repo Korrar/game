@@ -1,5 +1,6 @@
 import { RARITY_C, RARITY_L } from "../data/treasures";
 import { formatValHTML } from "../utils/helpers";
+import { getIconUrl } from "../rendering/icons";
 
 const RARITY_GLOW = {
   common: "rgba(136,136,136,0.15)", uncommon: "rgba(80,168,80,0.25)",
@@ -23,7 +24,9 @@ export default function LootPopup({ loot, onClose }) {
       }}>
         {/* Shimmer overlay for legendary */}
         {isLeg && <div style={{ position: "absolute", inset: 0, pointerEvents: "none", borderRadius: 5, overflow: "hidden", background: "linear-gradient(105deg, transparent 40%, rgba(255,224,128,0.08) 45%, rgba(255,224,128,0.15) 50%, rgba(255,224,128,0.08) 55%, transparent 60%)", backgroundSize: "200% 100%", animation: "shimmer 3s ease-in-out infinite" }} />}
-        <div style={{ fontSize: 60, filter: `drop-shadow(0 0 12px ${glow})`, position: "relative", zIndex: 1 }}>{loot.icon}</div>
+        <div style={{ fontSize: 60, filter: `drop-shadow(0 0 12px ${glow})`, position: "relative", zIndex: 1 }}>
+          {getIconUrl(loot.icon, 60) ? <img src={getIconUrl(loot.icon, 60)} width={60} height={60} alt={loot.icon} /> : loot.icon}
+        </div>
         <div style={{
           fontWeight: "bold", fontSize: 20, color: rc, marginBottom: 4, position: "relative", zIndex: 1,
           textShadow: `0 0 12px ${glow}`,

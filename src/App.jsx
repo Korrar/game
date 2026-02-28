@@ -6,7 +6,7 @@ import { HIDEOUT_LEVELS } from "./data/hideout";
 import { CARAVAN_LEVELS } from "./data/caravanLevels";
 import { KNIGHT_LEVELS } from "./data/knightLevels";
 import { MERCENARY_TYPES } from "./data/mercenaries";
-import { SHOP_TOOLS, MANA_POTIONS, pickResource, MINE_TIMES } from "./data/shopItems";
+import { SHOP_TOOLS, MANA_POTIONS, AMMO_ITEMS, pickResource, MINE_TIMES } from "./data/shopItems";
 import { pickNpc, SPELLS, RESIST_NAMES } from "./data/npcs";
 import { totalCopper, copperToMoney, pickTreasure, formatValHTML } from "./utils/helpers";
 import { rollRandomEvent } from "./data/randomEvents";
@@ -59,7 +59,7 @@ const vignetteStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
 
 const SPELL_SFX = {
   fireball: sfxFireball, lightning: sfxLightning, icelance: sfxIceLance,
-  shadowbolt: sfxShadowBolt, holybeam: sfxHolyBeam,
+  holybeam: sfxHolyBeam,
   meteor: sfxFireball, blizzard: sfxIceLance, drain: sfxShadowBolt,
   chainlightning: sfxLightning, earthquake: sfxHolyBeam,
 };
@@ -201,6 +201,9 @@ export default function App() {
 
   // Mana & spell system
   const [mana, setMana] = useState(20);
+  const [ammo, setAmmo] = useState({ dynamite: 5, harpoon: 5, cannonball: 3 });
+  const ammoRef = useRef({ dynamite: 5, harpoon: 5, cannonball: 3 });
+  ammoRef.current = ammo;
   const [cooldowns, setCooldowns] = useState({});
   const [selectedSpell, setSelectedSpell] = useState(null);
   const [dragHighlight, setDragHighlight] = useState(null);
@@ -440,6 +443,7 @@ export default function App() {
         if (hasRelic("golden_reaper")) addMoneyFn(w.npcData.loot || {});
         setKills(k => k + 1);
         handleCardDrop(w.npcData);
+        rollAmmoDrop();
         // necromancer: 10% chance to spawn temp friendly
         if (hasRelic("necromancer") && Math.random() < 0.10) {
           const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
@@ -1400,7 +1404,7 @@ export default function App() {
       const wizX = pickX(30, 75);
       if (wizX !== null) {
         const spell = unlearned[Math.floor(Math.random() * unlearned.length)];
-        const wizCost = 30 + Math.floor(spell.manaCost * 2);
+        const wizCost = 10000; // 1 gold
         newWizard = { x: wizX, spellId: spell.id, cost: wizCost };
       }
     }
@@ -2078,7 +2082,7 @@ export default function App() {
   // Save/Load system
   const saveGame = () => {
     const saveData = {
-      room, money, mana, kills, doors, initiative, inventory, hideoutItems,
+      room, money, mana, ammo, kills, doors, initiative, inventory, hideoutItems,
       ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp,
       bestiary, knowledge, learnedSpells, activeRelics: activeRelics.map(r => r.id),
       knowledgeUpgrades, bossesDefeated,
@@ -2117,6 +2121,7 @@ export default function App() {
       }
       setKnowledgeUpgrades(s.knowledgeUpgrades || { manaPool: 0, spellPower: 0, manaRegen: 0 });
       setBossesDefeated(s.bossesDefeated || 0);
+      setAmmo(s.ammo || { dynamite: 5, harpoon: 5, cannonball: 3 });
       setMana(s.mana || 20);
       setScreen("game");
       enterRoom(s.room || 1, s.ownedTools || []);
@@ -2527,6 +2532,7 @@ export default function App() {
     if (mana < getSpellManaCost(spell)) return false;
     const cdEnd = cooldowns[spell.id] || 0;
     if (Date.now() < cdEnd) return false;
+    if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) return false;
     return true;
   };
 
@@ -2597,13 +2603,17 @@ export default function App() {
 
   const castSpellOnTarget = useCallback((spell, walker) => {
     if (!canCastSpell(spell)) {
-      if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
+      if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
+        const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
+        showMessage(`Brak ${ammoNames[spell.ammoCost.type] || "amunicji"}!`, "#c04040");
+      } else if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
       else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
       return;
     }
 
     // Spend mana & set cooldown (chaos_blade: +25% mana cost)
     setMana(m => m - getSpellManaCost(spell));
+    if (spell.ammoCost) setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - spell.ammoCost.amount }));
     setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + spell.cooldown }));
 
     const sfxFn = SPELL_SFX[spell.id];
@@ -2720,6 +2730,7 @@ export default function App() {
           if (hasRelic("golden_reaper")) addMoneyFn(npcData.loot);
           setKills(k => k + 1);
           handleCardDrop(npcData);
+          rollAmmoDrop();
           // necromancer: 10% chance to spawn temp friendly
           if (hasRelic("necromancer") && Math.random() < 0.10) {
             const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
@@ -2765,12 +2776,16 @@ export default function App() {
   // ─── AoE SPELL (hits all enemies) ───
   const castAoeSpell = useCallback((spell) => {
     if (!canCastSpell(spell)) {
-      if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
+      if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
+        const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
+        showMessage(`Brak ${ammoNames[spell.ammoCost.type] || "amunicji"}!`, "#c04040");
+      } else if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
       else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
       return;
     }
 
     setMana(m => m - getSpellManaCost(spell));
+    if (spell.ammoCost) setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - spell.ammoCost.amount }));
     setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + spell.cooldown }));
 
     const sfxFn = SPELL_SFX[spell.id];
@@ -2864,6 +2879,7 @@ export default function App() {
           if (hasRelic("golden_reaper")) addMoneyFn(npcData.loot);
           setKills(k => k + 1);
           handleCardDrop(npcData);
+          rollAmmoDrop();
           // necromancer: 10% chance to spawn temp friendly
           if (hasRelic("necromancer") && Math.random() < 0.10) {
             const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
@@ -3038,11 +3054,15 @@ export default function App() {
     const spell = SPELLS.find(s => s.id === selectedSpell);
     if (!spell || spell.id === "summon") return;
     if (!canCastSpell(spell)) {
-      if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
+      if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
+        const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
+        showMessage(`Brak ${ammoNames[spell.ammoCost.type] || "amunicji"}!`, "#c04040");
+      } else if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
       else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
       return;
     }
-    setMana(m => m - spell.manaCost);
+    setMana(m => m - getSpellManaCost(spell));
+    if (spell.ammoCost) setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - spell.ammoCost.amount }));
     setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + spell.cooldown }));
     const sfxFn = SPELL_SFX[spell.id];
     if (sfxFn) sfxFn();
@@ -3124,6 +3144,33 @@ export default function App() {
     sfxDrinkMana(); setMoney(copperToMoney(tc - need));
     setMana(prev => Math.min(MAX_MANA, prev + potion.mana));
     showMessage(`+${potion.mana} prochu!`, "#c0a060");
+  };
+
+  const buyAmmo = (itemId) => {
+    const item = AMMO_ITEMS.find(a => a.id === itemId);
+    if (!item) return;
+    const tc = totalCopper(money); const need = totalCopper(item.cost);
+    if (tc < need) { showMessage("Za mało monet!", "#b83030"); return; }
+    sfxBuy(); setMoney(copperToMoney(tc - need));
+    setAmmo(prev => ({ ...prev, [item.ammoType]: (prev[item.ammoType] || 0) + item.amount }));
+    showMessage(`+${item.amount} ${item.name}!`, "#e0a040");
+  };
+
+  // Ammo drop table — rolled on each monster kill
+  const AMMO_DROP_TABLE = [
+    { type: "dynamite", chance: 0.12, amount: 1 },
+    { type: "harpoon", chance: 0.10, amount: 1 },
+    { type: "cannonball", chance: 0.06, amount: 1 },
+  ];
+  const rollAmmoDrop = () => {
+    for (const drop of AMMO_DROP_TABLE) {
+      if (Math.random() < drop.chance) {
+        setAmmo(prev => ({ ...prev, [drop.type]: (prev[drop.type] || 0) + drop.amount }));
+        const ammoLabels = { dynamite: "Dynamit", harpoon: "Harpun", cannonball: "Kula armatnia" };
+        showMessage(`+${drop.amount} ${ammoLabels[drop.type]}!`, "#e0a040");
+        return;
+      }
+    }
   };
 
   const storeItem = (idx) => {
@@ -3779,7 +3826,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ─── WIZARD TENT POI ─── */}
+      {/* ─── ARSENAL TENT POI ─── */}
       {wizardPoi && (() => {
         const spell = SPELLS.find(s => s.id === wizardPoi.spellId);
         if (!spell) return null;
@@ -3789,53 +3836,53 @@ export default function App() {
             position: "absolute", left: `${wizardPoi.x}%`, bottom: "12%", zIndex: 14,
             transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
           }}>
-            {/* Wizard tent */}
+            {/* Arsenal tent */}
             <div style={{ position: "relative", width: 65, height: 55 }}>
-              {/* Tent fabric – pointed top, mystical purple */}
+              {/* Tent fabric – pointed top, brown leather */}
               <div style={{
                 width: 0, height: 0,
                 borderLeft: "32px solid transparent", borderRight: "32px solid transparent",
-                borderBottom: "35px solid #302060",
+                borderBottom: "35px solid #6a4a20",
                 position: "absolute", top: 0, left: 0,
               }} />
               <div style={{
                 position: "absolute", top: 35, left: 2, right: 2, height: 18,
-                background: "linear-gradient(180deg,#302060,#201848)",
+                background: "linear-gradient(180deg,#6a4a20,#4a3018)",
                 borderRadius: "0 0 3px 3px",
               }} />
-              {/* Stars on tent */}
-              <div style={{ position: "absolute", top: 18, left: 12, opacity: 0.8 }}><Icon name="star" size={7} /></div>
-              <div style={{ position: "absolute", top: 28, right: 14, opacity: 0.7 }}><Icon name="star" size={6} /></div>
-              <div style={{ position: "absolute", top: 12, right: 20, opacity: 0.6 }}><Icon name="star" size={5} /></div>
+              {/* Weapon icons on tent */}
+              <div style={{ position: "absolute", top: 18, left: 12, opacity: 0.8 }}><Icon name="swords" size={7} /></div>
+              <div style={{ position: "absolute", top: 28, right: 14, opacity: 0.7 }}><Icon name="cannon" size={6} /></div>
+              <div style={{ position: "absolute", top: 12, right: 20, opacity: 0.6 }}><Icon name="swords" size={5} /></div>
               {/* Tent opening */}
               <div style={{
                 position: "absolute", top: 26, left: "50%", transform: "translateX(-50%)",
                 width: 14, height: 26,
-                background: "linear-gradient(180deg,#0a0620,#060410)",
+                background: "linear-gradient(180deg,#1a0e04,#0a0600)",
                 borderRadius: "5px 5px 0 0",
               }} />
-              {/* Pole top with glowing orb */}
+              {/* Pole top with lantern */}
               <div style={{
                 position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)",
-                width: 3, height: 10, background: "#4a3060", borderRadius: 1,
+                width: 3, height: 10, background: "#5a3818", borderRadius: 1,
               }} />
               <div style={{
                 position: "absolute", top: -14, left: "50%", transform: "translateX(-50%)",
                 width: 10, height: 10, borderRadius: "50%",
-                background: `radial-gradient(circle,${spell.color},${spell.color}40)`,
-                boxShadow: `0 0 10px ${spell.color}`,
+                background: "radial-gradient(circle,#e0a040,#8a602040)",
+                boxShadow: "0 0 10px #e0a04080",
                 animation: "resNode 2s ease-in-out infinite",
               }} />
-              {/* Crystal ball at entrance */}
+              {/* Ammo crate at entrance */}
               <div style={{
                 position: "absolute", bottom: -2, left: "50%", transform: "translateX(-50%)",
                 fontSize: 12, animation: "keyF 3s ease-in-out infinite",
-              }}><Icon name="gem" size={12} /></div>
+              }}><Icon name="dynamite" size={12} /></div>
             </div>
             {/* Spell offer – icon button like merc camp */}
             <div style={{ display: "flex", justifyContent: "center", marginTop: 4 }}>
               <div onClick={() => canAfford && learnSpellFromWizard()}
-                title={`${spell.name} – ${wizardPoi.cost} Cu`}
+                title={`${spell.name} – 1 złota`}
                 style={{
                   fontSize: 20, cursor: canAfford ? "pointer" : "not-allowed",
                   opacity: canAfford ? 1 : 0.4,
@@ -3846,10 +3893,10 @@ export default function App() {
               </div>
             </div>
             <div style={{ fontSize: 8, color: canAfford ? "#d4a030" : "#666", marginTop: 1 }}>
-              <Icon name="coin" size={8} /> {wizardPoi.cost} Cu
+              <Icon name="gold" size={8} /> 1 złota
             </div>
-            <div style={{ fontSize: 9, color: "#8080c0", textShadow: "1px 1px 0 #000", marginTop: 1 }}>
-              <Icon name="gunner" size={9} /> Zbrojmistrz
+            <div style={{ fontSize: 9, color: "#c0a060", textShadow: "1px 1px 0 #000", marginTop: 1 }}>
+              <Icon name="swords" size={9} /> Arsenał
             </div>
           </div>
         );
@@ -4317,6 +4364,7 @@ export default function App() {
       {/* Spell Bar – fixed to viewport bottom, OUTSIDE game container */}
       <SpellBar
         mana={mana}
+        ammo={ammo}
         selectedSpell={selectedSpell}
         cooldowns={cooldowns}
         learnedSpells={learnedSpells}
@@ -4431,6 +4479,24 @@ export default function App() {
               </div>
               <button onClick={() => buyMana(potion.id)} disabled={!canAfford}
                 style={{ background: "none", border: `2px solid ${canAfford ? "#4080cc" : "#333"}`, color: canAfford ? "#60a0ff" : "#555", fontSize: 14, padding: "3px 12px", cursor: canAfford ? "pointer" : "not-allowed", fontWeight: "bold" }}>Kup</button>
+            </div>
+          );
+        })}
+
+        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#e0a040", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #3a2a18", paddingBottom: 4 }}><Icon name="dynamite" size={15} /> Amunicja</h3>
+        <div style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>Posiadasz: <Icon name="dynamite" size={12} /> {ammo.dynamite} | <Icon name="harpoon" size={12} /> {ammo.harpoon} | <Icon name="cannon" size={12} /> {ammo.cannonball}</div>
+        {AMMO_ITEMS.map(item => {
+          const canAfford = totalCopper(money) >= totalCopper(item.cost);
+          return (
+            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: "2px solid #2a1e14", marginBottom: 6, background: "rgba(224,160,64,0.04)" }}>
+              <span><Icon name={item.icon} size={28} /></span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: "bold", fontSize: 14, color: "#e0a040" }}>{item.name}</div>
+                <div style={{ fontSize: 12, color: "#8a7040" }}>{item.desc}</div>
+                <div style={{ fontSize: 13, color: "#888" }}><Icon name="coin" size={13} /> {formatValHTML(item.cost)}</div>
+              </div>
+              <button onClick={() => buyAmmo(item.id)} disabled={!canAfford}
+                style={{ background: "none", border: `2px solid ${canAfford ? "#e0a040" : "#333"}`, color: canAfford ? "#e0a040" : "#555", fontSize: 14, padding: "3px 12px", cursor: canAfford ? "pointer" : "not-allowed", fontWeight: "bold" }}>Kup</button>
             </div>
           );
         })}

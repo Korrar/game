@@ -46,6 +46,16 @@ export const RESOURCES = {
   ],
 };
 
+// Ammo items available at the market
+export const AMMO_ITEMS = [
+  { id: "dynamite_pack",    icon: "dynamite",  name: "Paczka Dynamitu",     desc: "+3 dynamitu",      ammoType: "dynamite",    amount: 3,  cost: { copper: 15 } },
+  { id: "dynamite_crate",   icon: "dynamite",  name: "Skrzynia Dynamitu",   desc: "+8 dynamitu",      ammoType: "dynamite",    amount: 8,  cost: { silver: 1 } },
+  { id: "harpoon_bundle",   icon: "harpoon",   name: "Wiązka Harpunów",     desc: "+3 harpuny",       ammoType: "harpoon",     amount: 3,  cost: { copper: 15 } },
+  { id: "harpoon_crate",    icon: "harpoon",   name: "Skrzynia Harpunów",   desc: "+8 harpunów",      ammoType: "harpoon",     amount: 8,  cost: { silver: 1 } },
+  { id: "cannonball_pouch", icon: "cannon",    name: "Worek Kul Armatnich", desc: "+2 kule armatnie", ammoType: "cannonball",  amount: 2,  cost: { copper: 25 } },
+  { id: "cannonball_crate", icon: "cannon",    name: "Skrzynia Kul",        desc: "+5 kul armatnich", ammoType: "cannonball",  amount: 5,  cost: { silver: 2 } },
+];
+
 // Ammo (proch) potions available at the market
 export const MANA_POTIONS = [
   { id: "mana_small",  icon: "gunpowder", name: "Mały Zapas Prochu",     desc: "+15 prochu",  mana: 15,  cost: { copper: 20 } },

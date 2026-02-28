@@ -213,7 +213,8 @@ export class CharacterSprite {
         if (!shoulder) break;
         const stX = shoulder.x - dir * 3, stY = shoulder.y - 20;
         w.setStrokeStyle({ width: 3.5, color: 0x6a4a2a, cap: "round" });
-        w.moveTo(shoulder.x - dir, GY - 2); w.lineTo(stX, stY); w.stroke();
+        const staffBottom = Math.min(GY - 2, shoulder.y + 50);
+        w.moveTo(shoulder.x - dir, staffBottom); w.lineTo(stX, stY); w.stroke();
         const orbPulse = 0.6 + Math.sin(Date.now() * 0.004) * 0.3;
         const orbAlpha = animT > 0 ? 0.9 : 0.5 * orbPulse;
         w.circle(stX, stY - 4, 10);

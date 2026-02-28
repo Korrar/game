@@ -182,7 +182,7 @@ export class BiomeAnimator {
         case "fireball": this._drawFireball(ctx, eff, t); break;
         case "lightning": this._drawLightningEffect(ctx, eff, t); break;
         case "icelance": this._drawIceLance(ctx, eff, t); break;
-        case "shadowbolt": case "drain": this._drawShadowBolt(ctx, eff, t); break;
+        case "drain": this._drawShadowBolt(ctx, eff, t); break;
         case "holybeam": this._drawHolyBeam(ctx, eff, t); break;
         case "summon": this._drawSummonEffect(ctx, eff, t); break;
         case "melee": this._drawMeleeClash(ctx, eff, t); break;
@@ -375,167 +375,214 @@ export class BiomeAnimator {
   }
 
   _drawFireball(ctx, eff, t) {
-    const { sx, sy, tx, ty, color, colorLight } = eff;
+    const { sx, sy, tx, ty } = eff;
     if (t < 0.45) {
-      // Projectile flying
+      // Tumbling dynamite stick flying toward target
       const pt = t / 0.45;
       const x = sx + (tx - sx) * pt;
-      const y = sy + (ty - sy) * pt - Math.sin(pt * Math.PI) * 40;
-      const r = 8 + pt * 6;
-      // Trail
-      for (let i = 0; i < 5; i++) {
-        const tt = Math.max(0, pt - i * 0.04);
-        const px = sx + (tx - sx) * tt;
-        const py = sy + (ty - sy) * tt - Math.sin(tt * Math.PI) * 40;
-        const g = ctx.createRadialGradient(px, py, 0, px, py, r * (1 - i * 0.15));
-        g.addColorStop(0, `rgba(255,100,20,${0.3 - i * 0.05})`);
-        g.addColorStop(1, "transparent");
-        ctx.fillStyle = g;
-        ctx.fillRect(px - r * 2, py - r * 2, r * 4, r * 4);
+      const y = sy + (ty - sy) * pt - Math.sin(pt * Math.PI) * 50;
+      const rot = pt * Math.PI * 4; // tumble rotation
+      // Fuse spark trail
+      for (let i = 0; i < 6; i++) {
+        const tt = Math.max(0, pt - i * 0.035);
+        const px = sx + (tx - sx) * tt + (Math.random() - 0.5) * 4;
+        const py = sy + (ty - sy) * tt - Math.sin(tt * Math.PI) * 50 + (Math.random() - 0.5) * 4;
+        ctx.fillStyle = `rgba(255,${180 + i * 10},40,${0.4 - i * 0.06})`;
+        ctx.beginPath(); ctx.arc(px, py, 2.5 - i * 0.3, 0, Math.PI * 2); ctx.fill();
       }
-      // Core
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, colorLight);
-      g.addColorStop(0.4, color);
-      g.addColorStop(1, "transparent");
-      ctx.fillStyle = g;
-      ctx.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
+      // Dynamite stick body
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      ctx.fillStyle = "#c03020";
+      ctx.fillRect(-4, -10, 8, 20);
+      ctx.fillStyle = "#8a2010";
+      ctx.fillRect(-4.5, -3, 9, 3);
+      ctx.fillRect(-4.5, 5, 9, 3);
+      // Fuse
+      ctx.strokeStyle = "#5a4a30";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(3, -14); ctx.stroke();
+      // Spark at fuse tip
+      ctx.fillStyle = "#ffe040";
+      ctx.beginPath(); ctx.arc(3, -14, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     } else {
-      // Explosion
+      // Big explosion with smoke clouds
       const et = (t - 0.45) / 0.55;
-      const maxR = 60;
+      const maxR = 70;
       const r = maxR * Math.sin(et * Math.PI * 0.5);
       const alpha = 1 - et;
-      // Outer blast
+      // Flash
+      if (et < 0.15) {
+        ctx.fillStyle = `rgba(255,240,200,${0.3 * (1 - et / 0.15)})`;
+        ctx.fillRect(tx - r * 2, ty - r * 2, r * 4, r * 4);
+      }
+      // Fireball core
       const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, r);
-      g.addColorStop(0, `rgba(255,200,80,${alpha * 0.6})`);
-      g.addColorStop(0.3, `rgba(255,100,20,${alpha * 0.4})`);
-      g.addColorStop(0.7, `rgba(200,40,10,${alpha * 0.2})`);
+      g.addColorStop(0, `rgba(255,220,80,${alpha * 0.7})`);
+      g.addColorStop(0.3, `rgba(255,100,20,${alpha * 0.5})`);
+      g.addColorStop(0.6, `rgba(160,40,10,${alpha * 0.3})`);
       g.addColorStop(1, "transparent");
       ctx.fillStyle = g;
-      ctx.fillRect(tx - r, ty - r, r * 2, r * 2);
-      // Sparks
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2 + et * 2;
-        const d = r * 0.8 * et;
+      ctx.fillRect(tx - r * 1.5, ty - r * 1.5, r * 3, r * 3);
+      // Smoke puffs
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + et;
+        const d = r * 0.6 * et;
+        const px = tx + Math.cos(a) * d;
+        const py = ty + Math.sin(a) * d - et * 20;
+        const sr = 8 + et * 12;
+        ctx.fillStyle = `rgba(80,60,40,${alpha * 0.35})`;
+        ctx.beginPath(); ctx.arc(px, py, sr, 0, Math.PI * 2); ctx.fill();
+      }
+      // Debris sparks
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 + et * 3;
+        const d = r * 1.1 * et;
         const px = tx + Math.cos(a) * d;
         const py = ty + Math.sin(a) * d;
-        ctx.fillStyle = `rgba(255,180,40,${alpha * 0.7})`;
-        ctx.beginPath(); ctx.arc(px, py, 2 + (1 - et) * 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(255,180,40,${alpha * 0.8})`;
+        ctx.beginPath(); ctx.arc(px, py, 1.5 + (1 - et) * 2.5, 0, Math.PI * 2); ctx.fill();
       }
     }
   }
 
   _drawLightningEffect(ctx, eff, t) {
-    const { tx, ty, color, colorLight } = eff;
-    if (t < 0.15) {
-      // Flash
-      const alpha = 0.4 * (1 - t / 0.15);
-      ctx.fillStyle = `rgba(255,255,240,${alpha})`;
-      ctx.fillRect(0, 0, this.W, this.H);
-    }
-    if (t < 0.5) {
-      const alpha = 1 - t / 0.5;
-      // Draw bolt from top to target
-      ctx.strokeStyle = `rgba(255,255,200,${alpha})`;
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      let bx = tx, by = 0;
-      ctx.moveTo(bx, by);
-      const segments = 10;
-      for (let i = 1; i <= segments; i++) {
-        bx = tx + (Math.random() - 0.5) * 60 * (1 - i / segments);
-        by = (ty / segments) * i;
-        ctx.lineTo(bx, by);
-      }
-      ctx.lineTo(tx, ty);
-      ctx.stroke();
-      // Glow
-      ctx.strokeStyle = `rgba(240,220,100,${alpha * 0.3})`;
-      ctx.lineWidth = 12;
-      ctx.stroke();
-      // Branches
-      ctx.strokeStyle = `rgba(200,200,255,${alpha * 0.5})`;
-      ctx.lineWidth = 1.5;
-      for (let i = 0; i < 4; i++) {
-        const by2 = ty * (0.2 + Math.random() * 0.5);
-        const bxOff = tx + (Math.random() - 0.5) * 40;
-        ctx.beginPath();
-        ctx.moveTo(bxOff, by2);
-        ctx.lineTo(bxOff + (Math.random() - 0.5) * 50, by2 + 20 + Math.random() * 30);
-        ctx.stroke();
-      }
-    }
-    // Impact glow
-    if (t > 0.1 && t < 0.6) {
-      const it = (t - 0.1) / 0.5;
-      const r = 30 + it * 20;
-      const alpha = 0.5 * (1 - it);
-      const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, r);
-      g.addColorStop(0, `rgba(240,230,100,${alpha})`);
+    const { tx, ty } = eff;
+    const sx = 0; // bullet comes from left side
+    const sy = ty - 10 + Math.sin(tx) * 5;
+    // Muzzle flash at origin
+    if (t < 0.1) {
+      const fa = 1 - t / 0.1;
+      const fr = 15 + fa * 10;
+      const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, fr);
+      g.addColorStop(0, `rgba(255,240,180,${fa})`);
+      g.addColorStop(0.4, `rgba(255,200,60,${fa * 0.6})`);
       g.addColorStop(1, "transparent");
       ctx.fillStyle = g;
-      ctx.fillRect(tx - r, ty - r, r * 2, r * 2);
+      ctx.fillRect(sx - fr, sy - fr, fr * 2, fr * 2);
+    }
+    // Bullet tracer from left to target
+    if (t < 0.2) {
+      const pt = t / 0.2;
+      const headX = sx + (tx - sx) * pt;
+      const headY = sy + (ty - sy) * pt;
+      const tailX = sx + (tx - sx) * Math.max(0, pt - 0.4);
+      const tailY = sy + (ty - sy) * Math.max(0, pt - 0.4);
+      ctx.strokeStyle = `rgba(255,240,180,${1 - pt * 0.5})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(tailX, tailY);
+      ctx.lineTo(headX, headY);
+      ctx.stroke();
+      // Tracer glow
+      ctx.strokeStyle = `rgba(255,200,60,${0.4 - pt * 0.2})`;
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(tailX, tailY);
+      ctx.lineTo(headX, headY);
+      ctx.stroke();
+    }
+    // Impact spark burst at target
+    if (t > 0.15 && t < 0.6) {
+      const it = (t - 0.15) / 0.45;
+      const sparkCount = 8;
+      for (let i = 0; i < sparkCount; i++) {
+        const angle = (i / sparkCount) * Math.PI * 2 + it * 0.5;
+        const dist = 5 + it * 30;
+        const sx2 = tx + Math.cos(angle) * dist;
+        const sy2 = ty + Math.sin(angle) * dist;
+        const alpha = 0.8 * (1 - it);
+        ctx.fillStyle = `rgba(255,220,100,${alpha})`;
+        ctx.fillRect(sx2 - 1.5, sy2 - 1.5, 3, 3);
+      }
+      // Central impact flash
+      if (it < 0.3) {
+        const r = 12 + it * 20;
+        const alpha = 0.6 * (1 - it / 0.3);
+        const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, r);
+        g.addColorStop(0, `rgba(255,240,200,${alpha})`);
+        g.addColorStop(1, "transparent");
+        ctx.fillStyle = g;
+        ctx.fillRect(tx - r, ty - r, r * 2, r * 2);
+      }
     }
   }
 
   _drawIceLance(ctx, eff, t) {
-    const { sx, sy, tx, ty, color, colorLight } = eff;
+    const { sx, sy, tx, ty } = eff;
     if (t < 0.35) {
-      // Projectile
+      // Flying harpoon with rope trail
       const pt = t / 0.35;
       const x = sx + (tx - sx) * pt;
       const y = sy + (ty - sy) * pt;
-      // Trail crystals
-      for (let i = 0; i < 4; i++) {
-        const tt = Math.max(0, pt - i * 0.06);
-        const px = sx + (tx - sx) * tt + (Math.random() - 0.5) * 8;
-        const py = sy + (ty - sy) * tt + (Math.random() - 0.5) * 8;
-        ctx.fillStyle = `rgba(100,200,255,${0.3 - i * 0.06})`;
-        ctx.beginPath(); ctx.arc(px, py, 3 - i * 0.5, 0, Math.PI * 2); ctx.fill();
-      }
-      // Lance shape
       const angle = Math.atan2(ty - sy, tx - sx);
+      // Rope trail
+      ctx.strokeStyle = `rgba(140,110,60,${0.5 - pt * 0.3})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      for (let i = 1; i <= 8; i++) {
+        const rpt = pt * (i / 8);
+        const rx = sx + (tx - sx) * rpt;
+        const ry = sy + (ty - sy) * rpt + Math.sin(rpt * Math.PI * 4) * 4;
+        ctx.lineTo(rx, ry);
+      }
+      ctx.stroke();
+      // Harpoon head
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle);
-      ctx.fillStyle = colorLight;
+      // Shaft
+      ctx.fillStyle = "#6a5030";
+      ctx.fillRect(-18, -1.5, 22, 3);
+      // Metal head with barbs
+      ctx.fillStyle = "#a0b0c0";
       ctx.beginPath();
-      ctx.moveTo(14, 0); ctx.lineTo(-8, -5); ctx.lineTo(-4, 0); ctx.lineTo(-8, 5);
+      ctx.moveTo(8, 0); ctx.lineTo(2, -4); ctx.lineTo(4, 0); ctx.lineTo(2, 4);
       ctx.closePath(); ctx.fill();
-      // Glow
-      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 16);
-      g.addColorStop(0, "rgba(100,200,255,0.4)");
-      g.addColorStop(1, "transparent");
-      ctx.fillStyle = g;
-      ctx.fillRect(-16, -16, 32, 32);
+      // Barbs
+      ctx.fillStyle = "#8090a0";
+      ctx.beginPath(); ctx.moveTo(3, -3); ctx.lineTo(0, -6); ctx.lineTo(1, -2); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(3, 3); ctx.lineTo(0, 6); ctx.lineTo(1, 2); ctx.closePath(); ctx.fill();
       ctx.restore();
+      // Water splash particles along trail
+      for (let i = 0; i < 3; i++) {
+        const tt = Math.max(0, pt - i * 0.08);
+        const px = sx + (tx - sx) * tt + (Math.random() - 0.5) * 6;
+        const py = sy + (ty - sy) * tt + (Math.random() - 0.5) * 6;
+        ctx.fillStyle = `rgba(100,200,255,${0.25 - i * 0.06})`;
+        ctx.beginPath(); ctx.arc(px, py, 2 - i * 0.4, 0, Math.PI * 2); ctx.fill();
+      }
     } else {
-      // Freeze burst
+      // Metal impact with sparks
       const ft = (t - 0.35) / 0.65;
       const alpha = 1 - ft;
-      const r = 35 * Math.min(1, ft * 3);
-      // Frost circle
-      ctx.strokeStyle = `rgba(100,200,255,${alpha * 0.6})`;
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(tx, ty, r, 0, Math.PI * 2); ctx.stroke();
-      // Ice shards
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2;
-        const d = r * 0.7;
+      const r = 25 * Math.min(1, ft * 3);
+      // Impact flash
+      if (ft < 0.2) {
+        const flashAlpha = 0.4 * (1 - ft / 0.2);
+        ctx.fillStyle = `rgba(200,220,255,${flashAlpha})`;
+        ctx.beginPath(); ctx.arc(tx, ty, 15, 0, Math.PI * 2); ctx.fill();
+      }
+      // Metal sparks flying outward
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + ft * 2;
+        const d = r * 1.2 * ft;
         const px = tx + Math.cos(a) * d;
         const py = ty + Math.sin(a) * d;
-        ctx.fillStyle = `rgba(180,230,255,${alpha * 0.5})`;
-        ctx.save(); ctx.translate(px, py); ctx.rotate(a);
-        ctx.fillRect(-2, -5, 4, 10);
-        ctx.restore();
+        ctx.fillStyle = `rgba(220,200,160,${alpha * 0.8})`;
+        ctx.beginPath(); ctx.arc(px, py, 1.5 + (1 - ft) * 2, 0, Math.PI * 2); ctx.fill();
       }
-      // Center glow
-      const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, r * 0.6);
-      g.addColorStop(0, `rgba(200,240,255,${alpha * 0.3})`);
-      g.addColorStop(1, "transparent");
-      ctx.fillStyle = g;
-      ctx.fillRect(tx - r, ty - r, r * 2, r * 2);
+      // Embedded harpoon silhouette
+      if (ft < 0.6) {
+        const hAlpha = alpha * 0.4;
+        ctx.fillStyle = `rgba(100,120,140,${hAlpha})`;
+        ctx.fillRect(tx - 12, ty - 1, 16, 2);
+        ctx.fillStyle = `rgba(160,180,200,${hAlpha})`;
+        ctx.beginPath(); ctx.moveTo(tx + 6, ty); ctx.lineTo(tx + 2, ty - 3); ctx.lineTo(tx + 2, ty + 3); ctx.closePath(); ctx.fill();
+      }
     }
   }
 
@@ -592,47 +639,76 @@ export class BiomeAnimator {
   }
 
   _drawHolyBeam(ctx, eff, t) {
-    const { tx, ty, colorLight } = eff;
-    // Beam from above
-    if (t < 0.7) {
-      const bt = Math.min(1, t / 0.3);
-      const alpha = t < 0.5 ? 1 : 1 - (t - 0.5) / 0.2;
-      const beamW = 24 * bt;
-      // Beam column
-      const g = ctx.createLinearGradient(tx - beamW, 0, tx + beamW, 0);
-      g.addColorStop(0, "transparent");
-      g.addColorStop(0.3, `rgba(255,240,180,${alpha * 0.15})`);
-      g.addColorStop(0.5, `rgba(255,240,180,${alpha * 0.35})`);
-      g.addColorStop(0.7, `rgba(255,240,180,${alpha * 0.15})`);
-      g.addColorStop(1, "transparent");
-      ctx.fillStyle = g;
-      ctx.fillRect(tx - beamW * 2, 0, beamW * 4, ty);
-      // Core beam
-      ctx.fillStyle = `rgba(255,250,200,${alpha * 0.2})`;
-      ctx.fillRect(tx - beamW * 0.3, 0, beamW * 0.6, ty);
-    }
-    // Impact radiance
-    if (t > 0.1) {
-      const it = (t - 0.1) / 0.9;
-      const alpha = it < 0.3 ? it / 0.3 : 1 - (it - 0.3) / 0.7;
-      const r = 30 + it * 25;
-      // Radial burst
+    const { tx, ty } = eff;
+    // Cannonball arc trajectory from off-screen left
+    const sx = 0, sy = 0; // cannon fires from top-left
+    if (t < 0.45) {
+      const pt = t / 0.45;
+      const x = sx + (tx - sx) * pt;
+      const y = sy + (ty - sy) * pt - Math.sin(pt * Math.PI) * 80; // high arc
+      // Muzzle flash at start
+      if (pt < 0.15) {
+        const mAlpha = 0.7 * (1 - pt / 0.15);
+        ctx.fillStyle = `rgba(255,200,60,${mAlpha})`;
+        ctx.beginPath(); ctx.arc(sx + 10, sy + 10, 20 * (1 - pt / 0.15), 0, Math.PI * 2); ctx.fill();
+        // Smoke puff
+        ctx.fillStyle = `rgba(180,160,140,${mAlpha * 0.5})`;
+        ctx.beginPath(); ctx.arc(sx + 20, sy + 5, 15, 0, Math.PI * 2); ctx.fill();
+      }
+      // Smoke trail
+      for (let i = 0; i < 4; i++) {
+        const tt = Math.max(0, pt - i * 0.05);
+        const px = sx + (tx - sx) * tt;
+        const py = sy + (ty - sy) * tt - Math.sin(tt * Math.PI) * 80;
+        ctx.fillStyle = `rgba(120,110,100,${0.2 - i * 0.04})`;
+        ctx.beginPath(); ctx.arc(px, py, 4 + i * 2, 0, Math.PI * 2); ctx.fill();
+      }
+      // Cannonball
+      ctx.fillStyle = "#2a2a2a";
+      ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.fill();
+      // Metal sheen
+      ctx.fillStyle = "rgba(160,160,170,0.4)";
+      ctx.beginPath(); ctx.arc(x - 2, y - 2, 3, 0, Math.PI * 2); ctx.fill();
+    } else {
+      // Impact — debris explosion + dust cloud
+      const et = (t - 0.45) / 0.55;
+      const alpha = 1 - et;
+      const r = 55 * Math.sin(et * Math.PI * 0.5);
+      // Impact flash
+      if (et < 0.1) {
+        const fAlpha = 0.5 * (1 - et / 0.1);
+        ctx.fillStyle = `rgba(255,220,120,${fAlpha})`;
+        ctx.beginPath(); ctx.arc(tx, ty, 25, 0, Math.PI * 2); ctx.fill();
+      }
+      // Dust/debris cloud
       const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, r);
-      g.addColorStop(0, `rgba(255,240,180,${alpha * 0.5})`);
-      g.addColorStop(0.5, `rgba(212,160,48,${alpha * 0.2})`);
+      g.addColorStop(0, `rgba(180,140,80,${alpha * 0.5})`);
+      g.addColorStop(0.4, `rgba(140,110,60,${alpha * 0.3})`);
+      g.addColorStop(0.7, `rgba(100,80,50,${alpha * 0.15})`);
       g.addColorStop(1, "transparent");
       ctx.fillStyle = g;
-      ctx.fillRect(tx - r, ty - r, r * 2, r * 2);
-      // Holy sparkles
+      ctx.fillRect(tx - r * 1.5, ty - r * 1.5, r * 3, r * 3);
+      // Rock debris chunks
       for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2 + it * 3;
-        const d = r * 0.6 * it;
+        const a = (i / 8) * Math.PI * 2 + et * 1.5;
+        const d = r * 0.9 * et;
         const px = tx + Math.cos(a) * d;
-        const py = ty + Math.sin(a) * d;
-        ctx.fillStyle = `rgba(255,250,200,${alpha * 0.6})`;
-        // Cross shape
-        ctx.fillRect(px - 3, py - 0.5, 6, 1);
-        ctx.fillRect(px - 0.5, py - 3, 1, 6);
+        const py = ty + Math.sin(a) * d - et * 10;
+        const chunkR = 2 + (1 - et) * 3;
+        ctx.fillStyle = `rgba(${100 + i * 15},${80 + i * 10},${50 + i * 8},${alpha * 0.7})`;
+        ctx.fillRect(px - chunkR, py - chunkR, chunkR * 2, chunkR * 1.5);
+      }
+      // Ground crack lines
+      if (et < 0.7) {
+        ctx.strokeStyle = `rgba(60,40,20,${alpha * 0.4})`;
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2 + 0.3;
+          ctx.beginPath();
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(tx + Math.cos(a) * r * 0.8, ty + Math.sin(a) * r * 0.8);
+          ctx.stroke();
+        }
       }
     }
   }

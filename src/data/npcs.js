@@ -64,18 +64,17 @@ export const BIOME_NPCS = {
 // Actions the player can perform – each has ammo (proch) cost, cooldown (ms), damage, element
 // learned: false = requires learning from a gunsmith POI
 export const SPELLS = [
-  { id: "fireball",  icon: "dynamite", name: "Dynamit",        color: "#ff6020", colorLight: "#ffb060", desc: "Laski dynamitu eksplodują przy trafieniu",     manaCost: 8,  cooldown: 3000, damage: 25, element: "fire", learned: true },
+  { id: "fireball",  icon: "dynamite", name: "Dynamit",        color: "#ff6020", colorLight: "#ffb060", desc: "Laski dynamitu eksplodują przy trafieniu (wymaga dynamitu)",     manaCost: 0,  cooldown: 3000, damage: 25, element: "fire", learned: true, ammoCost: { type: "dynamite", amount: 1 } },
   { id: "lightning",  icon: "sniper", name: "Strzał Snajpera", color: "#f0e060", colorLight: "#fffff0", desc: "Precyzyjny strzał z dalekiego zasięgu",        manaCost: 12, cooldown: 5000, damage: 35, element: "lightning", learned: true },
-  { id: "icelance",   icon: "harpoon", name: "Harpun",          color: "#40c0ff", colorLight: "#c0f0ff", desc: "Harpun przeszywa cel na wylot",                manaCost: 6,  cooldown: 2500, damage: 18, element: "ice", learned: true },
-  { id: "shadowbolt", icon: "poison", name: "Zatruty Pocisk",  color: "#a040e0", colorLight: "#d0a0ff", desc: "Pocisk nasączony jadem węża",                  manaCost: 10, cooldown: 4000, damage: 30, element: "shadow", learned: true },
-  { id: "holybeam",   icon: "goldBullet", name: "Złota Kula",      color: "#d4a030", colorLight: "#fff8d0", desc: "Złoty pocisk z drogocennego metalu",            manaCost: 15, cooldown: 6000, damage: 40, element: "holy", learned: true },
+  { id: "icelance",   icon: "harpoon", name: "Harpun",          color: "#40c0ff", colorLight: "#c0f0ff", desc: "Harpun przeszywa cel na wylot (wymaga harpunów)",                manaCost: 0,  cooldown: 2500, damage: 18, element: "ice", learned: true, ammoCost: { type: "harpoon", amount: 1 } },
+  { id: "holybeam",   icon: "cannon", name: "Strzał z Armaty",      color: "#d4a030", colorLight: "#fff8d0", desc: "Kula armatnia miażdży cel (wymaga kul armatnich)",            manaCost: 15, cooldown: 6000, damage: 40, element: "holy", learned: true, ammoCost: { type: "cannonball", amount: 1 } },
   { id: "summon",     icon: "recruit", name: "Zwerbuj Rewolwerowca", color: "#40e060", colorLight: "#a0ffa0", desc: "Werbuje rewolwerowca (koszt: monety)", manaCost: 0, cooldown: 15000, damage: 0, element: "summon", learned: true },
-  // Hidden actions – unlocked via gunsmith POI
-  { id: "meteor",    icon: "cannon", name: "Salwa Armatnia",  color: "#ff4020", colorLight: "#ff8060", desc: "Salwa z dział okrętowych",                      manaCost: 20, cooldown: 8000, damage: 50, element: "fire", learned: false, aoe: true },
-  { id: "blizzard",  icon: "bulletRain", name: "Grad Kul",        color: "#80d0ff", colorLight: "#d0f0ff", desc: "Deszcz kul z karabinów maszynowych",            manaCost: 18, cooldown: 7000, damage: 35, element: "ice", learned: false, aoe: true },
-  { id: "drain",     icon: "pirateRaid", name: "Piracki Haracz",  color: "#c02060", colorLight: "#ff80a0", desc: "Okrada wroga i leczy wykonawcę",                manaCost: 14, cooldown: 5000, damage: 28, element: "shadow", learned: false },
-  { id: "chainlightning", icon: "ricochet", name: "Rykoszet",   color: "#e0e040", colorLight: "#ffff80", desc: "Kula odbija się między wrogami",                manaCost: 22, cooldown: 6000, damage: 30, element: "lightning", learned: false, aoe: true },
-  { id: "earthquake", icon: "mine", name: "Mina Wybuchowa",  color: "#8a6030", colorLight: "#c0a060", desc: "Eksplozja ogłusza wszystkich wrogów",           manaCost: 16, cooldown: 7000, damage: 45, element: "holy", learned: false, aoe: true },
+  // Hidden actions – unlocked via arsenal POI
+  { id: "meteor",    icon: "cannon", name: "Salwa Armatnia",  color: "#ff4020", colorLight: "#ff8060", desc: "Salwa z dział okrętowych",                      manaCost: 0, cooldown: 8000, damage: 50, element: "fire", learned: false, aoe: true, ammoCost: { type: "cannonball", amount: 2 } },
+  { id: "blizzard",  icon: "bulletRain", name: "Grad Kul",        color: "#80d0ff", colorLight: "#d0f0ff", desc: "Deszcz kul z karabinów maszynowych",            manaCost: 0, cooldown: 7000, damage: 35, element: "ice", learned: false, aoe: true, ammoCost: { type: "harpoon", amount: 2 } },
+  { id: "drain",     icon: "pirateRaid", name: "Piracki Haracz",  color: "#c02060", colorLight: "#ff80a0", desc: "Okrada wroga i leczy wykonawcę",                manaCost: 0, cooldown: 5000, damage: 28, element: "shadow", learned: false, ammoCost: { type: "dynamite", amount: 1 } },
+  { id: "chainlightning", icon: "ricochet", name: "Rykoszet",   color: "#e0e040", colorLight: "#ffff80", desc: "Kula odbija się między wrogami",                manaCost: 0, cooldown: 6000, damage: 30, element: "lightning", learned: false, aoe: true, ammoCost: { type: "harpoon", amount: 2 } },
+  { id: "earthquake", icon: "mine", name: "Mina Wybuchowa",  color: "#8a6030", colorLight: "#c0a060", desc: "Eksplozja ogłusza wszystkich wrogów",           manaCost: 0, cooldown: 7000, damage: 45, element: "holy", learned: false, aoe: true, ammoCost: { type: "dynamite", amount: 2 } },
 ];
 
 // Resistance labels for messages

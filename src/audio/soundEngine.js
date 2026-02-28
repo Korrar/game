@@ -636,29 +636,22 @@ export function sfxFireball() {
 
 export function sfxLightning() {
   playSfx((c, now, dest) => {
-    // Sharp crack
-    const buf = c.createBuffer(1, c.sampleRate * 0.08, c.sampleRate);
+    // Sharp gunshot crack (short noise burst, high volume, fast decay)
+    const buf = c.createBuffer(1, c.sampleRate * 0.05, c.sampleRate);
     const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 0.5);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
     const n = c.createBufferSource(); n.buffer = buf;
-    const g = c.createGain(); g.gain.setValueAtTime(0.5, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-    n.connect(g); g.connect(dest); n.start(now);
-    // Rolling thunder
-    const buf2 = c.createBuffer(1, c.sampleRate * 1.2, c.sampleRate);
+    const f = c.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 800;
+    const g = c.createGain(); g.gain.setValueAtTime(0.7, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    n.connect(f); f.connect(g); g.connect(dest); n.start(now);
+    // Brief echo/reverb tail (no rolling thunder)
+    const buf2 = c.createBuffer(1, c.sampleRate * 0.3, c.sampleRate);
     const d2 = buf2.getChannelData(0);
-    for (let i = 0; i < d2.length; i++) {
-      const env = Math.pow(1 - i / d2.length, 2) * (0.5 + Math.sin(i * 0.001) * 0.5);
-      d2[i] = (Math.random() * 2 - 1) * env;
-    }
+    for (let i = 0; i < d2.length; i++) d2[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d2.length, 4);
     const n2 = c.createBufferSource(); n2.buffer = buf2;
-    const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 400;
-    const g2 = c.createGain(); g2.gain.setValueAtTime(0.25, now + 0.08); g2.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
-    n2.connect(f); f.connect(g2); g2.connect(dest); n2.start(now + 0.08);
-    // High electric zap
-    const osc = c.createOscillator(); osc.type = "sawtooth"; osc.frequency.value = 2000;
-    const f2 = c.createBiquadFilter(); f2.type = "bandpass"; f2.frequency.value = 3000; f2.Q.value = 5;
-    const g3 = c.createGain(); g3.gain.setValueAtTime(0.12, now); g3.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-    osc.connect(f2); f2.connect(g3); g3.connect(dest); osc.start(now); osc.stop(now + 0.08);
+    const f2 = c.createBiquadFilter(); f2.type = "bandpass"; f2.frequency.value = 600; f2.Q.value = 1;
+    const g2 = c.createGain(); g2.gain.setValueAtTime(0.15, now + 0.04); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    n2.connect(f2); f2.connect(g2); g2.connect(dest); n2.start(now + 0.04);
   });
 }
 

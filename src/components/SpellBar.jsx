@@ -5,7 +5,7 @@ import { SPELL_ICON_MAP } from "../rendering/icons";
 
 const SPELLS_PER_PAGE = 6;
 
-export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart, isMobile, gameW, gameH }) {
+export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart, isMobile, gameW, gameH }) {
   const [, tick] = useState(0);
   const [page, setPage] = useState(0);
   const [hoveredSpell, setHoveredSpell] = useState(null);
@@ -66,7 +66,8 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
           const cdPct = onCooldown ? (cdEnd - now) / spell.cooldown : 0;
           const isSelected = selectedSpell === spell.id;
           const isSummon = spell.id === "summon";
-          const canCast = isSummon ? !onCooldown : mana >= spell.manaCost && !onCooldown;
+          const hasAmmo = !spell.ammoCost || (ammo && (ammo[spell.ammoCost.type] || 0) >= spell.ammoCost.amount);
+          const canCast = isSummon ? !onCooldown : (spell.manaCost === 0 ? hasAmmo && !onCooldown : mana >= spell.manaCost && !onCooldown && hasAmmo);
           return (
             <div key={spell.id} onClick={() => onSelect(spell.id)} style={{
               position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -88,6 +89,11 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
                 {SPELL_ICON_MAP[spell.id] ? <GameIcon name={SPELL_ICON_MAP[spell.id]} size={20} /> : spell.icon}
               </span>
               <div style={{ fontSize: 8, fontWeight: "bold", zIndex: 3, color: isSelected ? spell.color : spell.color + "99", whiteSpace: "nowrap" }}>{spell.name}</div>
+              {spell.ammoCost && ammo && (
+                <div style={{ fontSize: 7, zIndex: 3, color: hasAmmo ? "#e0a040" : "#804040", fontWeight: "bold" }}>
+                  <GameIcon name={SPELL_ICON_MAP[spell.id] || spell.icon} size={8} /> {ammo[spell.ammoCost.type] || 0}
+                </div>
+              )}
               {onCooldown && <div style={{ fontSize: 9, fontWeight: "bold", color: "#ff9040", zIndex: 3 }}>{Math.ceil((cdEnd - now) / 1000)}s</div>}
             </div>
           );
@@ -132,7 +138,8 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
           const isSelected = selectedSpell === spell.id;
           const isSummon = spell.id === "summon";
           const isAoe = !!spell.aoe;
-          const canCast = isSummon ? !onCooldown : mana >= spell.manaCost && !onCooldown;
+          const hasAmmo = !spell.ammoCost || (ammo && (ammo[spell.ammoCost.type] || 0) >= spell.ammoCost.amount);
+          const canCast = isSummon ? !onCooldown : (spell.manaCost === 0 ? hasAmmo && !onCooldown : mana >= spell.manaCost && !onCooldown && hasAmmo);
 
           return (
             <div key={spell.id}
@@ -167,9 +174,14 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
               </span>
               <div style={{ fontSize: 10, fontWeight: "bold", color: isSelected ? spell.color : spell.color + "aa", zIndex: 3, whiteSpace: "nowrap", textShadow: isSelected ? `0 0 6px ${spell.color}44` : "none" }}>{spell.name}</div>
               <div style={{ fontSize: 9, color: canCast ? "#6090cc" : "#804040", zIndex: 3 }}>
-                {isSummon ? <><GameIcon name="gold" size={12} /> Wybierz</> : <><GameIcon name="gunpowder" size={12} />{spell.manaCost}</>}
+                {isSummon ? <><GameIcon name="gold" size={12} /> Wybierz</> : spell.manaCost === 0 && spell.ammoCost ? <><GameIcon name={SPELL_ICON_MAP[spell.id] || spell.icon} size={12} /> {spell.ammoCost.amount}</> : <><GameIcon name="gunpowder" size={12} />{spell.manaCost}</>}
                 {isAoe && <span style={{ color: "#e0a040", marginLeft: 3 }}><GameIcon name="lightning" size={9} />AoE</span>}
               </div>
+              {spell.manaCost > 0 && spell.ammoCost && ammo && (
+                <div style={{ fontSize: 9, zIndex: 3, color: hasAmmo ? "#e0a040" : "#804040", fontWeight: "bold" }}>
+                  <GameIcon name={SPELL_ICON_MAP[spell.id] || spell.icon} size={10} /> {ammo[spell.ammoCost.type] || 0}
+                </div>
+              )}
               {onCooldown && <div style={{ fontSize: 11, fontWeight: "bold", color: "#ff9040", zIndex: 3 }}>{Math.ceil((cdEnd - now) / 1000)}s</div>}
             </div>
           );
@@ -194,7 +206,12 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
             </div>
             {hoveredSpell.id !== "summon" && (
               <div style={{ fontSize: 11, color: "#aaa" }}>
-                <span style={{ color: "#e05040" }}>Obrażenia: {hoveredSpell.damage}</span> | <span style={{ color: "#c0a060" }}>Proch: {hoveredSpell.manaCost}</span> | <span style={{ color: "#cc9040" }}>CD: {(hoveredSpell.cooldown / 1000).toFixed(1)}s</span>
+                <span style={{ color: "#e05040" }}>Obrażenia: {hoveredSpell.damage}</span>
+                {hoveredSpell.manaCost > 0 && <span style={{ color: "#c0a060" }}> | Proch: {hoveredSpell.manaCost}</span>}
+                <span style={{ color: "#cc9040" }}> | CD: {(hoveredSpell.cooldown / 1000).toFixed(1)}s</span>
+                {hoveredSpell.ammoCost && ammo && (
+                  <span style={{ color: (ammo[hoveredSpell.ammoCost.type] || 0) >= hoveredSpell.ammoCost.amount ? "#e0a040" : "#804040" }}> | Amunicja: {ammo[hoveredSpell.ammoCost.type] || 0}/{hoveredSpell.ammoCost.amount}</span>
+                )}
               </div>
             )}
           </div>
