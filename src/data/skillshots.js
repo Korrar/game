@@ -150,5 +150,25 @@ export const DEFENSE_TRAPS = [
     triggerRadius: 4,
     maxCount: 2,
   },
+  {
+    id: "barricade",
+    name: "Barykada",
+    desc: "Blokuje wrogów — muszą ją zniszczyć (60 HP)",
+    icon: "wood",
+    cost: { cannonball: 1 },
+    hp: 60,
+    blockRadius: 5,    // % — enemies in this radius are blocked
+    maxCount: 3,
+  },
+  {
+    id: "fire_pit",
+    name: "Ognisko",
+    desc: "Pali wrogów w zasięgu — 5 obrażeń/s",
+    icon: "fire",
+    cost: { dynamite: 1 },
+    dps: 5,
+    radius: 6,
+    maxCount: 2,
+  },
 ];
-export const MAX_PLAYER_TRAPS = 5;
+export const MAX_PLAYER_TRAPS = 8;
