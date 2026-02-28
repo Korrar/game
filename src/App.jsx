@@ -45,6 +45,12 @@ import { LEVEL_PERKS, xpForLevel, rollLevelPerks } from "./data/levelPerks";
 import { rollUpgradeChoices, getUpgradedSpellStats, MAX_UPGRADES_PER_SPELL } from "./data/spellUpgrades";
 import { isEliteRoom, rollEliteModifier } from "./data/eliteEnemies";
 import { rollChallenge } from "./data/challenges";
+import { CREW_ROLES, CREW_RELATIONS, getLoyaltyLevel, rollCrewRecruit } from "./data/crew";
+import { STORY_ARCS, MORAL_DILEMMAS, rollStoryStep, rollNewStoryArc, rollMoralDilemma } from "./data/storyEvents";
+import { SHIP_UPGRADES, SEA_EVENTS, rollSeaEvent, rollIslandDiscovery, getSeaEventCount } from "./data/sailing";
+import { FORTIFICATION_TREE, TRAP_COMBOS, FORTIFICATION_PHASE, getAvailableFortifications, checkTrapCombo } from "./data/advancedTraps";
+import { FACTIONS, getFactionBonus, getFactionHostility, rollFactionQuest, rollFactionEvent } from "./data/factions";
+import { ARTIFACT_SETS, SECRET_ROOMS, DISCOVERY_MILESTONES, JOURNAL_CATEGORIES, getDiscoveryMilestone, rollSecretRoom, getCompletedSetBonuses } from "./data/discovery";
 import ComboOverlay from "./components/ComboOverlay";
 import LevelUpPicker from "./components/LevelUpPicker";
 import SpellUpgradePicker from "./components/SpellUpgradePicker";
@@ -356,6 +362,44 @@ export default function App() {
   const playerDoubleDmgRoomsRef = useRef(0);
   playerDoubleDmgRoomsRef.current = playerDoubleDmgRooms;
 
+  // ─── FEATURE: Crew Management ───
+  const [crew, setCrew] = useState([]);           // [{role, loyalty, skillLevel, id}]
+  const crewRef = useRef([]);
+  crewRef.current = crew;
+  const [crewRecruitOffer, setCrewRecruitOffer] = useState(null);
+
+  // ─── FEATURE: Story Events ───
+  const [activeStory, setActiveStory] = useState(null);     // {id, currentStep}
+  const [completedStories, setCompletedStories] = useState([]);
+  const [storyEvent, setStoryEvent] = useState(null);       // current step event display
+  const [moralDilemma, setMoralDilemma] = useState(null);
+
+  // ─── FEATURE: Sailing / Naval ───
+  const [shipUpgrades, setShipUpgrades] = useState([]);     // IDs of bought upgrades
+  const [seaEvent, setSeaEvent] = useState(null);           // current sea event
+  const [discoveredIslands, setDiscoveredIslands] = useState([]);
+
+  // ─── FEATURE: Advanced Traps & Fortifications ───
+  const [unlockedFortifications, setUnlockedFortifications] = useState(["wooden_wall", "spike_pit", "alarm_bell"]);
+  const [activeFortifications, setActiveFortifications] = useState([]); // placed this room
+  const [fortificationPhase, setFortificationPhase] = useState(false);
+
+  // ─── FEATURE: Factions & Reputation ───
+  const [factionRep, setFactionRep] = useState({
+    merchants_guild: 0, treasure_hunters: 0, shadow_council: 0, royal_navy: 0,
+  });
+  const factionRepRef = useRef({ merchants_guild: 0, treasure_hunters: 0, shadow_council: 0, royal_navy: 0 });
+  factionRepRef.current = factionRep;
+  const [activeFactionQuest, setActiveFactionQuest] = useState(null);
+  const [factionEvent, setFactionEvent] = useState(null);
+
+  // ─── FEATURE: Discovery & Collecting ───
+  const [journal, setJournal] = useState({ biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
+  const [ownedArtifacts, setOwnedArtifacts] = useState([]);
+  const [totalDiscoveries, setTotalDiscoveries] = useState(0);
+  const [secretRoom, setSecretRoom] = useState(null);
+  const [showJournal, setShowJournal] = useState(false);
+
   // Knowledge bonus: +5% damage per discovered NPC type (max +50%)
   const getKnowledgeBonus = (npcId) => {
     const entry = bestiaryRef.current[npcId];
@@ -427,6 +471,73 @@ export default function App() {
       return newStreak;
     });
   }, [addMoneyFn, showMessage, grantXp]);
+
+  // ─── Crew helpers ───
+  const getCrewBonus = useCallback((bonusKey) => {
+    let total = 0;
+    for (const member of crewRef.current) {
+      const role = CREW_ROLES.find(r => r.id === member.role);
+      if (!role) continue;
+      const loyaltyLvl = getLoyaltyLevel(member.loyalty);
+      const skill = role.skills[Math.min(member.skillLevel, role.skills.length - 1)];
+      const effect = member.skillLevel > 0 ? skill.effect : role.passive;
+      if (effect && effect[bonusKey] !== undefined) {
+        total += (typeof effect[bonusKey] === "number" ? effect[bonusKey] : 0) * loyaltyLvl.effectMult;
+      }
+    }
+    return total;
+  }, []);
+
+  const updateCrewLoyalty = useCallback((delta) => {
+    setCrew(prev => prev.map(m => ({ ...m, loyalty: Math.max(0, Math.min(100, m.loyalty + delta)) })));
+  }, []);
+
+  const addCrewMember = useCallback((roleId) => {
+    const role = CREW_ROLES.find(r => r.id === roleId);
+    if (!role) return;
+    setCrew(prev => {
+      if (prev.find(m => m.role === roleId)) return prev;
+      return [...prev, { role: roleId, loyalty: 50, skillLevel: 0, id: Date.now() }];
+    });
+    showMessage(`${role.name} dołączył do załogi!`, "#40e060");
+  }, [showMessage]);
+
+  // ─── Faction helpers ───
+  const changeFactionRep = useCallback((factionId, amount) => {
+    setFactionRep(prev => ({
+      ...prev,
+      [factionId]: Math.max(-50, Math.min(100, (prev[factionId] || 0) + amount)),
+    }));
+    const faction = FACTIONS.find(f => f.id === factionId);
+    if (faction) {
+      const prefix = amount > 0 ? "+" : "";
+      showMessage(`${faction.name}: ${prefix}${amount} reputacji`, faction.color);
+    }
+  }, [showMessage]);
+
+  // ─── Discovery helpers ───
+  const addDiscovery = useCallback((category, entry) => {
+    setJournal(prev => {
+      const cat = prev[category] || [];
+      if (cat.find(e => e.id === entry.id)) return prev;
+      return { ...prev, [category]: [...cat, entry] };
+    });
+    setTotalDiscoveries(prev => prev + 1);
+  }, []);
+
+  // ─── Computed faction bonuses ───
+  const getAllFactionBonuses = () => {
+    const bonuses = {};
+    for (const faction of FACTIONS) {
+      const rep = factionRepRef.current[faction.id] || 0;
+      const bonus = getFactionBonus(faction.id, rep);
+      if (bonus) bonuses[faction.id] = bonus;
+    }
+    return bonuses;
+  };
+
+  // ─── Computed discovery bonuses ───
+  const getArtifactSetBonuses = () => getCompletedSetBonuses(ownedArtifacts);
 
   const [activeBoss, setActiveBoss] = useState(null);
   const activeBossRef = useRef(null);
@@ -1964,6 +2075,65 @@ export default function App() {
     } // end !isDefenseRoom traps
     setTraps(newTraps);
 
+    // ─── NEW: Crew passive — cook heals caravan each room ───
+    const cookHeal = getCrewBonus("healPerRoom");
+    if (cookHeal > 0) {
+      setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + cookHeal));
+      showMessage(`Kucharz serwuje posiłek! +${Math.round(cookHeal)} HP`, "#40e060");
+    }
+    // Crew loyalty change per room (small random drift)
+    updateCrewLoyalty(Math.random() < 0.7 ? 1 : -1);
+
+    // ─── NEW: Story arc progression ───
+    if (!isDefenseRoom) {
+      if (!activeStory) {
+        const newArc = rollNewStoryArc(completedStories);
+        if (newArc) {
+          setActiveStory(newArc);
+          const arcDef = STORY_ARCS.find(a => a.id === newArc.id);
+          if (arcDef) showMessage(`Nowa przygoda: ${arcDef.name}!`, arcDef.themeColor);
+        }
+      } else {
+        const step = rollStoryStep(activeStory, newRoom);
+        if (step) setStoryEvent(step);
+      }
+      // Moral dilemma (12% chance)
+      const dilemma = rollMoralDilemma();
+      if (dilemma && !storyEvent) setMoralDilemma(dilemma);
+    }
+
+    // ─── NEW: Faction events ───
+    if (!isDefenseRoom) {
+      const fEvt = rollFactionEvent();
+      if (fEvt) setFactionEvent(fEvt);
+      // Check faction quests
+      for (const faction of FACTIONS) {
+        const rep = factionRepRef.current[faction.id] || 0;
+        if (!activeFactionQuest) {
+          const quest = rollFactionQuest(faction.id, rep);
+          if (quest) {
+            setActiveFactionQuest({ ...quest, startRoom: newRoom, progress: 0 });
+            showMessage(`Zlecenie: ${quest.name}!`, faction.color);
+          }
+        }
+      }
+    }
+
+    // ─── NEW: Secret room (5-10% chance) ───
+    if (!isDefenseRoom) {
+      const sr = rollSecretRoom(newRoom);
+      if (sr) {
+        setSecretRoom(sr);
+        addDiscovery("secrets", { id: sr.id, name: sr.name, room: newRoom });
+        showMessage(`Odkryto ukryty pokój: ${sr.name}!`, sr.themeColor);
+      } else {
+        setSecretRoom(null);
+      }
+    }
+
+    // ─── NEW: Journal — biome discovery ───
+    addDiscovery("biomes", { id: b.id, name: b.name });
+
     // Walking NPCs – 70% chance, 1-2 NPCs
     const newWalkers = [];
     const newWalkData = {};
@@ -2734,6 +2904,16 @@ export default function App() {
     setPlayerTraps([]); setPlacingTrap(null);
     setRoomChallenge(null);
     setCaravanShield({ active: false, cooldown: 0 });
+    // Reset new gameplay systems
+    setCrew([]); setCrewRecruitOffer(null);
+    setActiveStory(null); setCompletedStories([]); setStoryEvent(null); setMoralDilemma(null);
+    setShipUpgrades([]); setSeaEvent(null); setDiscoveredIslands([]);
+    setUnlockedFortifications(["wooden_wall", "spike_pit", "alarm_bell"]);
+    setActiveFortifications([]); setFortificationPhase(false);
+    setFactionRep({ merchants_guild: 0, treasure_hunters: 0, shadow_council: 0, royal_navy: 0 });
+    setActiveFactionQuest(null); setFactionEvent(null);
+    setJournal({ biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
+    setOwnedArtifacts([]); setTotalDiscoveries(0); setSecretRoom(null); setShowJournal(false);
     walkDataRef.current = {};
     setGameOverStats(null);
     localStorage.removeItem("wrota_save");
@@ -2761,6 +2941,12 @@ export default function App() {
       spellUpgrades,
       killStreak,
       enemyBuffRooms, playerDoubleDmgRooms,
+      // New gameplay systems
+      crew, activeStory, completedStories,
+      shipUpgrades, discoveredIslands,
+      unlockedFortifications,
+      factionRep,
+      journal, ownedArtifacts, totalDiscoveries,
       savedAt: Date.now(),
     };
     try {
@@ -2810,6 +2996,17 @@ export default function App() {
       setKillStreak(s.killStreak || 0);
       setEnemyBuffRooms(s.enemyBuffRooms || 0);
       setPlayerDoubleDmgRooms(s.playerDoubleDmgRooms || 0);
+      // Load new gameplay systems
+      setCrew(s.crew || []);
+      setActiveStory(s.activeStory || null);
+      setCompletedStories(s.completedStories || []);
+      setShipUpgrades(s.shipUpgrades || []);
+      setDiscoveredIslands(s.discoveredIslands || []);
+      setUnlockedFortifications(s.unlockedFortifications || ["wooden_wall", "spike_pit", "alarm_bell"]);
+      setFactionRep(s.factionRep || { merchants_guild: 0, treasure_hunters: 0, shadow_council: 0, royal_navy: 0 });
+      setJournal(s.journal || { biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
+      setOwnedArtifacts(s.ownedArtifacts || []);
+      setTotalDiscoveries(s.totalDiscoveries || 0);
       setScreen("game");
       enterRoom(s.room || 1, s.ownedTools || []);
       startMusic();
@@ -2838,12 +3035,16 @@ export default function App() {
         playerXp, playerLevel, levelPerks,
         spellUpgrades, killStreak,
         enemyBuffRooms, playerDoubleDmgRooms,
+        crew, activeStory, completedStories,
+        shipUpgrades, discoveredIslands,
+        unlockedFortifications, factionRep,
+        journal, ownedArtifacts, totalDiscoveries,
         savedAt: Date.now(),
       };
       try { localStorage.setItem("wrota_save", JSON.stringify(saveData)); } catch {}
     }, 60000);
     return () => clearInterval(iv);
-  }, [screen, room, money, mana, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades, activeSynergies, playerXp, playerLevel, levelPerks, spellUpgrades, killStreak, enemyBuffRooms, playerDoubleDmgRooms]);
+  }, [screen, room, money, mana, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades, activeSynergies, playerXp, playerLevel, levelPerks, spellUpgrades, killStreak, enemyBuffRooms, playerDoubleDmgRooms, crew, activeStory, completedStories, shipUpgrades, discoveredIslands, unlockedFortifications, factionRep, journal, ownedArtifacts, totalDiscoveries]);
 
   const travelCaravan = () => {
     if (defenseMode && defenseMode.phase !== "complete") {
@@ -2854,7 +3055,25 @@ export default function App() {
       return;
     }
     setInitiative(prev => prev - CARAVAN_COST);
+    // Navigator crew bonus: initiative boost
+    const navBonus = getCrewBonus("initiativeMult");
+    if (navBonus > 0) setInitiative(prev => Math.min(MAX_INITIATIVE, prev + Math.round(navBonus * 5)));
     sfxDoor(); setTransitioning(true); setDoors(d => d + 1);
+    // Sea event when entering a boss room (biome transition)
+    const nextRoom = room + 1;
+    if (nextRoom % 10 === 1 && nextRoom > 1) {
+      const seaEvt = rollSeaEvent();
+      if (seaEvt) {
+        setTimeout(() => { setSeaEvent(seaEvt); sfxEventAppear(); }, 300);
+        // Island discovery chance
+        const island = rollIslandDiscovery();
+        if (island) {
+          setDiscoveredIslands(prev => [...prev, island]);
+          addDiscovery("secrets", { id: island.id, name: island.name });
+        }
+        return; // sea event pauses travel, resolved in sea event modal
+      }
+    }
     const event = rollRandomEvent(room + 1);
     if (event) {
       setTimeout(() => {
@@ -4652,7 +4871,10 @@ export default function App() {
           onInv={() => togglePanel("inv")} onShop={() => togglePanel("shop")} onHideout={() => togglePanel("hideout")}
           onBestiary={() => togglePanel("bestiary")} knowledge={knowledge}
           musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} isMobile={false}
-          playerLevel={playerLevel} playerXp={playerXp} xpNeeded={xpForLevel(playerLevel)} />
+          playerLevel={playerLevel} playerXp={playerXp} xpNeeded={xpForLevel(playerLevel)}
+          onCrew={() => togglePanel("crew")} onFactions={() => togglePanel("factions")}
+          onJournal={() => togglePanel("journal")} onShip={() => togglePanel("ship")}
+          onFortifications={() => togglePanel("fortifications")} />
       )}
 
       {/* Scaled game container – fills entire screen on mobile */}
@@ -4678,7 +4900,10 @@ export default function App() {
           onInv={() => togglePanel("inv")} onShop={() => togglePanel("shop")} onHideout={() => togglePanel("hideout")}
           onBestiary={() => togglePanel("bestiary")} knowledge={knowledge}
           musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} isMobile={true} gameW={GAME_W}
-          playerLevel={playerLevel} playerXp={playerXp} xpNeeded={xpForLevel(playerLevel)} />
+          playerLevel={playerLevel} playerXp={playerXp} xpNeeded={xpForLevel(playerLevel)}
+          onCrew={() => togglePanel("crew")} onFactions={() => togglePanel("factions")}
+          onJournal={() => togglePanel("journal")} onShip={() => togglePanel("ship")}
+          onFortifications={() => togglePanel("fortifications")} />
       )}
       <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H }} />
       <canvas ref={animCanvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none" }} />
@@ -6446,6 +6671,509 @@ export default function App() {
           </div>
         ))}
       </SidePanel>
+
+      {/* CREW PANEL */}
+      <SidePanel open={panel === "crew"} side="right" width={460} onClose={() => setPanel(null)} title="Załoga" isMobile={isMobile}>
+        <div style={{ fontSize: 12, color: "#aaa", marginBottom: 10 }}>
+          Zarządzaj członkami załogi. Każdy daje pasywne bonusy.
+        </div>
+        {crew.length === 0 && (
+          <div style={{ color: "#666", fontSize: 13, padding: 16, textAlign: "center" }}>
+            Brak członków załogi. Szukaj ich podczas podróży!
+          </div>
+        )}
+        {crew.map(member => {
+          const role = CREW_ROLES.find(r => r.id === member.role);
+          if (!role) return null;
+          const loyaltyLvl = getLoyaltyLevel(member.loyalty);
+          const skill = role.skills[Math.min(member.skillLevel, role.skills.length - 1)];
+          const canUpgrade = member.skillLevel < role.skills.length - 1;
+          const upgradeCost = (member.skillLevel + 1) * 3;
+          return (
+            <div key={member.id} style={{ padding: "8px 10px", marginBottom: 8, border: `1px solid ${loyaltyLvl.color}33`, background: "rgba(255,255,255,0.02)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <Icon name={role.icon} size={20} />
+                <span style={{ fontWeight: "bold", fontSize: 14, color: "#d8c8a8" }}>{role.name}</span>
+                <span style={{ fontSize: 11, color: loyaltyLvl.color, marginLeft: "auto" }}>{loyaltyLvl.label} ({member.loyalty})</span>
+              </div>
+              <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>{role.desc}</div>
+              <div style={{ fontSize: 11, color: "#40c040", marginBottom: 4 }}>
+                Umiejętność (Poz. {member.skillLevel + 1}): {skill.name} — {skill.desc}
+              </div>
+              <div style={{ width: "100%", height: 4, background: "#1a1a2a", borderRadius: 2 }}>
+                <div style={{ width: `${member.loyalty}%`, height: "100%", background: loyaltyLvl.color, borderRadius: 2 }} />
+              </div>
+              {canUpgrade && (
+                <button onClick={() => {
+                  if (totalCopper(money) < upgradeCost * 100) { showMessage("Za mało pieniędzy!", "#cc4040"); return; }
+                  setMoney(prev => copperToMoney(totalCopper(prev) - upgradeCost * 100));
+                  setCrew(prev => prev.map(m => m.id === member.id ? { ...m, skillLevel: m.skillLevel + 1 } : m));
+                  showMessage(`${role.name} awansował!`, "#40e060");
+                }} style={{ marginTop: 4, background: "none", border: "1px solid #4060cc", color: "#60a0ff", fontSize: 11, padding: "2px 8px", cursor: "pointer" }}>
+                  Ulepsz ({upgradeCost} Ag)
+                </button>
+              )}
+            </div>
+          );
+        })}
+        {/* Available recruits */}
+        {CREW_ROLES.filter(r => !crew.find(m => m.role === r.id)).length > 0 && (
+          <div style={{ marginTop: 12, borderTop: "1px solid #2a2018", paddingTop: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: "bold", color: "#d4a030", marginBottom: 6 }}>Rekrutuj nowego członka:</div>
+            {CREW_ROLES.filter(r => !crew.find(m => m.role === r.id)).map(role => {
+              const canAfford = totalCopper(money) >= totalCopper(role.cost);
+              return (
+                <div key={role.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px", marginBottom: 4, border: "1px solid #1a1a2a" }}>
+                  <Icon name={role.icon} size={18} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: "bold", fontSize: 12, color: "#aaa" }}>{role.name}</div>
+                    <div style={{ fontSize: 10, color: "#666" }}>{role.passive.desc}</div>
+                  </div>
+                  <button onClick={() => {
+                    if (!canAfford) { showMessage("Za mało pieniędzy!", "#cc4040"); return; }
+                    setMoney(prev => copperToMoney(totalCopper(prev) - totalCopper(role.cost)));
+                    addCrewMember(role.id);
+                  }} disabled={!canAfford} style={{ background: "none", border: `1px solid ${canAfford ? "#4060cc" : "#333"}`, color: canAfford ? "#60a0ff" : "#555", fontSize: 11, padding: "2px 8px", cursor: canAfford ? "pointer" : "not-allowed" }}>
+                    {role.cost.silver || 0} Ag
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {/* Crew relations */}
+        {crew.length >= 2 && (
+          <div style={{ marginTop: 12, borderTop: "1px solid #2a2018", paddingTop: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: "bold", color: "#d4a030", marginBottom: 6 }}>Relacje:</div>
+            {CREW_RELATIONS.filter(rel => crew.find(m => m.role === rel.pair[0]) && crew.find(m => m.role === rel.pair[1])).map(rel => (
+              <div key={rel.name} style={{ fontSize: 11, padding: "3px 6px", marginBottom: 2, color: rel.type === "synergy" ? "#40c040" : "#cc6040", border: `1px solid ${rel.type === "synergy" ? "#2a4a2a" : "#4a2a2a"}` }}>
+                {rel.type === "synergy" ? "+" : "-"} {rel.name}: {rel.desc}
+              </div>
+            ))}
+          </div>
+        )}
+      </SidePanel>
+
+      {/* FACTIONS PANEL */}
+      <SidePanel open={panel === "factions"} side="left" width={460} onClose={() => setPanel(null)} title="Frakcje" isMobile={isMobile}>
+        {FACTIONS.map(faction => {
+          const rep = factionRep[faction.id] || 0;
+          const hostility = getFactionHostility(faction.id, rep);
+          const bonus = getFactionBonus(faction.id, rep);
+          return (
+            <div key={faction.id} style={{ padding: "10px", marginBottom: 10, border: `1px solid ${faction.color}44`, background: faction.bgColor }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <Icon name={faction.icon} size={20} />
+                <span style={{ fontWeight: "bold", fontSize: 14, color: faction.color }}>{faction.name}</span>
+                <span style={{ fontSize: 11, color: hostility === "hostile" ? "#cc3030" : hostility === "friendly" ? "#40c040" : "#888", marginLeft: "auto" }}>
+                  {hostility === "hostile" ? "Wrogi" : hostility === "unfriendly" ? "Nieufny" : hostility === "neutral" ? "Neutralny" : "Przyjazny"} ({rep})
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>{faction.desc}</div>
+              <div style={{ width: "100%", height: 4, background: "#1a1a2a", borderRadius: 2, marginBottom: 6 }}>
+                <div style={{ width: `${Math.max(0, Math.min(100, rep))}%`, height: "100%", background: faction.color, borderRadius: 2 }} />
+              </div>
+              {bonus && (
+                <div style={{ fontSize: 11, color: "#40c040", padding: "3px 6px", border: "1px solid #2a4a2a" }}>
+                  Aktywny bonus: {bonus.desc}
+                </div>
+              )}
+              {faction.bonuses.map((b, i) => (
+                <div key={i} style={{ fontSize: 10, color: rep >= b.minRep ? "#40c040" : "#555", padding: "1px 6px" }}>
+                  {rep >= b.minRep ? "✓" : "○"} {b.minRep} rep: {b.desc}
+                </div>
+              ))}
+              {hostility !== "hostile" && (
+                <button onClick={() => {
+                  if (totalCopper(money) < 100) { showMessage("Za mało pieniędzy!", "#cc4040"); return; }
+                  setMoney(prev => copperToMoney(totalCopper(prev) - 100));
+                  changeFactionRep(faction.id, 5);
+                }} style={{ marginTop: 4, background: "none", border: "1px solid #4060cc", color: "#60a0ff", fontSize: 10, padding: "2px 6px", cursor: "pointer" }}>
+                  Dotacja (1 Ag → +5 rep)
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </SidePanel>
+
+      {/* JOURNAL / DISCOVERY PANEL */}
+      <SidePanel open={panel === "journal"} side="right" width={460} onClose={() => setPanel(null)} title="Dziennik Podróży" isMobile={isMobile}>
+        <div style={{ fontSize: 12, color: "#e0c040", marginBottom: 8 }}>
+          <Icon name="compass" size={14} /> Odkrycia: {totalDiscoveries} | Milestone: {getDiscoveryMilestone(totalDiscoveries)?.name || "—"}
+        </div>
+        {/* Artifact sets */}
+        <div style={{ marginBottom: 12, borderBottom: "1px solid #2a2018", paddingBottom: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: "bold", color: "#d4a030", marginBottom: 6 }}>Kolekcja Artefaktów</div>
+          {ARTIFACT_SETS.map(set => {
+            const owned = set.pieces.filter(p => ownedArtifacts.includes(p.id));
+            const complete = owned.length === set.pieces.length;
+            return (
+              <div key={set.id} style={{ padding: "6px 8px", marginBottom: 6, border: `1px solid ${complete ? set.color : "#1a1a2a"}44`, background: complete ? `${set.color}11` : "transparent" }}>
+                <div style={{ fontWeight: "bold", fontSize: 12, color: set.color }}><Icon name={set.icon} size={14} /> {set.name} ({owned.length}/{set.pieces.length})</div>
+                <div style={{ fontSize: 10, color: "#666", marginBottom: 4 }}>{set.desc}</div>
+                {set.pieces.map(p => (
+                  <div key={p.id} style={{ fontSize: 10, color: ownedArtifacts.includes(p.id) ? "#40c040" : "#555", padding: "1px 4px" }}>
+                    {ownedArtifacts.includes(p.id) ? "✓" : "○"} <Icon name={p.icon} size={10} /> {p.name}
+                    {ownedArtifacts.includes(p.id) && <span style={{ color: "#888", fontSize: 9, marginLeft: 6 }}>— {p.lore.slice(0, 60)}...</span>}
+                  </div>
+                ))}
+                {complete && <div style={{ fontSize: 10, color: "#40c040", fontWeight: "bold", marginTop: 2 }}>KOMPLET: {set.setBonus.desc}</div>}
+              </div>
+            );
+          })}
+        </div>
+        {/* Journal categories */}
+        {JOURNAL_CATEGORIES.map(cat => (
+          <div key={cat.id} style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: "bold", color: "#d4a030" }}>
+              <Icon name={cat.icon} size={12} /> {cat.name}: {(journal[cat.id] || []).length}
+            </div>
+            {(journal[cat.id] || []).slice(0, 5).map((entry, i) => (
+              <div key={i} style={{ fontSize: 10, color: "#888", padding: "1px 8px" }}>• {entry.name}</div>
+            ))}
+            {(journal[cat.id] || []).length > 5 && <div style={{ fontSize: 10, color: "#555", padding: "1px 8px" }}>...i {(journal[cat.id] || []).length - 5} więcej</div>}
+          </div>
+        ))}
+        {/* Discovery milestones */}
+        <div style={{ marginTop: 12, borderTop: "1px solid #2a2018", paddingTop: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: "bold", color: "#d4a030", marginBottom: 6 }}>Milestony Odkryć</div>
+          {DISCOVERY_MILESTONES.map(m => (
+            <div key={m.threshold} style={{ fontSize: 10, color: totalDiscoveries >= m.threshold ? "#40c040" : "#555", padding: "1px 6px" }}>
+              {totalDiscoveries >= m.threshold ? "✓" : "○"} {m.threshold} odkryć: {m.name} — {m.desc}
+            </div>
+          ))}
+        </div>
+      </SidePanel>
+
+      {/* SHIP / SAILING PANEL */}
+      <SidePanel open={panel === "ship"} side="left" width={460} onClose={() => setPanel(null)} title="Statek" isMobile={isMobile}>
+        <div style={{ fontSize: 12, color: "#aaa", marginBottom: 10 }}>
+          Ulepszaj statek, by bezpieczniej podróżować między biomami.
+        </div>
+        {["hull", "sails", "cannons", "special"].map(category => (
+          <div key={category} style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: "bold", color: "#d4a030", marginBottom: 4, textTransform: "capitalize" }}>
+              {category === "hull" ? "Kadłub" : category === "sails" ? "Żagle" : category === "cannons" ? "Działa" : "Specjalne"}
+            </div>
+            {SHIP_UPGRADES.filter(u => u.category === category).map(upg => {
+              const owned = shipUpgrades.includes(upg.id);
+              const reqMet = !upg.requires || shipUpgrades.includes(upg.requires);
+              const canAfford = totalCopper(money) >= totalCopper(upg.cost);
+              return (
+                <div key={upg.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px", marginBottom: 4, border: `1px solid ${owned ? "#2a6a2a" : "#1a1a2a"}`, opacity: reqMet ? 1 : 0.4 }}>
+                  <Icon name={upg.icon} size={18} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: "bold", fontSize: 12, color: owned ? "#40c040" : "#aaa" }}>{upg.name}</div>
+                    <div style={{ fontSize: 10, color: "#666" }}>{upg.desc}</div>
+                  </div>
+                  {owned ? (
+                    <span style={{ color: "#40c040", fontSize: 11, fontWeight: "bold" }}>✓</span>
+                  ) : reqMet ? (
+                    <button onClick={() => {
+                      if (!canAfford) { showMessage("Za mało pieniędzy!", "#cc4040"); return; }
+                      setMoney(prev => copperToMoney(totalCopper(prev) - totalCopper(upg.cost)));
+                      setShipUpgrades(prev => [...prev, upg.id]);
+                      showMessage(`${upg.name} zainstalowane!`, "#40e060");
+                    }} disabled={!canAfford} style={{ background: "none", border: `1px solid ${canAfford ? "#4060cc" : "#333"}`, color: canAfford ? "#60a0ff" : "#555", fontSize: 11, padding: "2px 8px", cursor: canAfford ? "pointer" : "not-allowed" }}>
+                      {upg.cost.silver || 0} Ag
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: 10, color: "#555" }}>Wymaga: {SHIP_UPGRADES.find(u => u.id === upg.requires)?.name}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        {discoveredIslands.length > 0 && (
+          <div style={{ marginTop: 12, borderTop: "1px solid #2a2018", paddingTop: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: "bold", color: "#d4a030", marginBottom: 6 }}>Odkryte Wyspy</div>
+            {discoveredIslands.map((island, i) => (
+              <div key={i} style={{ fontSize: 11, color: "#888", padding: "2px 6px" }}>
+                <Icon name={island.icon} size={12} /> {island.name} — {island.desc}
+              </div>
+            ))}
+          </div>
+        )}
+      </SidePanel>
+
+      {/* FORTIFICATIONS PANEL */}
+      <SidePanel open={panel === "fortifications"} side="right" width={460} onClose={() => setPanel(null)} title="Fortyfikacje" isMobile={isMobile}>
+        <div style={{ fontSize: 12, color: "#aaa", marginBottom: 10 }}>
+          Buduj zaawansowane pułapki i fortyfikacje. Wyższe tiery wymagają odblokowania.
+        </div>
+        {[1, 2, 3].map(tier => (
+          <div key={tier} style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: "bold", color: tier === 1 ? "#888" : tier === 2 ? "#40a8b8" : "#d4a030", marginBottom: 4 }}>
+              Tier {tier} {tier === 1 ? "(Podstawowe)" : tier === 2 ? "(Zaawansowane)" : "(Mistrzowskie)"}
+            </div>
+            {FORTIFICATION_TREE.filter(f => f.tier === tier).map(fort => {
+              const unlocked = unlockedFortifications.includes(fort.id);
+              const reqMet = !fort.requires || unlockedFortifications.includes(fort.requires);
+              const canAfford = totalCopper(money) >= totalCopper(fort.cost);
+              return (
+                <div key={fort.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", marginBottom: 4, border: `1px solid ${unlocked ? "#2a6a2a" : "#1a1a2a"}`, opacity: reqMet ? 1 : 0.4 }}>
+                  <Icon name={fort.icon} size={18} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: "bold", fontSize: 12, color: unlocked ? "#40c040" : "#aaa" }}>{fort.name}</div>
+                    <div style={{ fontSize: 10, color: "#666" }}>{fort.desc}</div>
+                    <div style={{ fontSize: 9, color: "#555" }}>Typ: {fort.type} | Max: {fort.maxCount}</div>
+                  </div>
+                  {unlocked ? (
+                    <span style={{ color: "#40c040", fontSize: 11, fontWeight: "bold" }}>✓</span>
+                  ) : reqMet ? (
+                    <button onClick={() => {
+                      if (!canAfford) { showMessage("Za mało pieniędzy!", "#cc4040"); return; }
+                      setMoney(prev => copperToMoney(totalCopper(prev) - totalCopper(fort.cost)));
+                      setUnlockedFortifications(prev => [...prev, fort.id]);
+                      showMessage(`${fort.name} odblokowane!`, "#40e060");
+                    }} disabled={!canAfford} style={{ background: "none", border: `1px solid ${canAfford ? "#4060cc" : "#333"}`, color: canAfford ? "#60a0ff" : "#555", fontSize: 11, padding: "2px 8px", cursor: canAfford ? "pointer" : "not-allowed" }}>
+                      {fort.cost.silver ? `${fort.cost.silver} Ag` : `${fort.cost.copper} Cu`}
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: 10, color: "#555" }}>Wymaga: {FORTIFICATION_TREE.find(f => f.id === fort.requires)?.name}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        {/* Trap Combos info */}
+        <div style={{ marginTop: 12, borderTop: "1px solid #2a2018", paddingTop: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: "bold", color: "#d4a030", marginBottom: 6 }}>Elementalne Kombo Pułapek</div>
+          {TRAP_COMBOS.map((tc, i) => (
+            <div key={i} style={{ fontSize: 10, color: "#888", padding: "2px 6px", marginBottom: 2 }}>
+              <span style={{ color: "#e0c040" }}>{tc.name}</span>: {tc.desc}
+            </div>
+          ))}
+        </div>
+      </SidePanel>
+
+      {/* STORY EVENT MODAL */}
+      {storyEvent && (
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#1a1210", border: "2px solid #d4a030", padding: 20, minWidth: 320, maxWidth: 400, animation: "eventAppear 0.3s ease" }}>
+          <div style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8 }}>
+            <Icon name={storyEvent.icon} size={18} /> {STORY_ARCS.find(a => a.id === storyEvent.arcId)?.name || "Przygoda"}
+          </div>
+          <div style={{ fontSize: 13, color: "#d8c8a8", marginBottom: 12 }}>{storyEvent.desc}</div>
+          {storyEvent.choices ? (
+            storyEvent.choices.map((choice, i) => (
+              <button key={i} onClick={() => {
+                if (choice.reward) {
+                  if (choice.reward.copper) addMoneyFn({ copper: choice.reward.copper });
+                  if (choice.reward.silver) addMoneyFn({ silver: choice.reward.silver });
+                  if (choice.reward.gold) addMoneyFn({ gold: choice.reward.gold });
+                  showMessage(choice.desc, "#40c040");
+                }
+                if (choice.penalty?.enemyBuff) setEnemyBuffRooms(prev => prev + choice.penalty.enemyBuff);
+                setActiveStory(prev => prev ? { ...prev, currentStep: prev.currentStep + 1 } : null);
+                setStoryEvent(null);
+                addDiscovery("events", { id: `${storyEvent.arcId}_${storyEvent.stepIndex}`, name: storyEvent.desc.slice(0, 40) });
+              }} style={{ display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: "1px solid #4060cc", color: "#60a0ff", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
+                <Icon name={choice.icon} size={14} /> <strong>{choice.label}</strong> — {choice.desc}
+              </button>
+            ))
+          ) : (
+            <button onClick={() => {
+              if (storyEvent.reward) {
+                if (storyEvent.reward.copper) addMoneyFn({ copper: storyEvent.reward.copper });
+                if (storyEvent.reward.silver) addMoneyFn({ silver: storyEvent.reward.silver });
+                if (storyEvent.reward.gold) addMoneyFn({ gold: storyEvent.reward.gold });
+                if (storyEvent.reward.mana) setMana(prev => Math.min(prev + storyEvent.reward.mana, 200));
+                if (storyEvent.reward.dynamite) setAmmo(prev => ({ ...prev, dynamite: prev.dynamite + storyEvent.reward.dynamite }));
+                if (storyEvent.reward.harpoon) setAmmo(prev => ({ ...prev, harpoon: prev.harpoon + storyEvent.reward.harpoon }));
+              }
+              setActiveStory(prev => {
+                if (!prev) return null;
+                const next = prev.currentStep + 1;
+                const arc = STORY_ARCS.find(a => a.id === prev.id);
+                if (arc && next >= arc.totalSteps) {
+                  setCompletedStories(cs => [...cs, prev.id]);
+                  showMessage(`Przygoda "${arc.name}" ukończona!`, arc.themeColor);
+                  return null;
+                }
+                return { ...prev, currentStep: next };
+              });
+              setStoryEvent(null);
+              addDiscovery("events", { id: `${storyEvent.arcId}_${storyEvent.stepIndex}`, name: storyEvent.desc.slice(0, 40) });
+            }} style={{ padding: "8px 16px", background: "none", border: "1px solid #d4a030", color: "#d4a030", fontSize: 13, cursor: "pointer" }}>
+              Kontynuuj
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* MORAL DILEMMA MODAL */}
+      {moralDilemma && (
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#1a1210", border: "2px solid #e0c040", padding: 20, minWidth: 320, maxWidth: 420, animation: "eventAppear 0.3s ease" }}>
+          <div style={{ fontWeight: "bold", fontSize: 16, color: moralDilemma.themeColor, marginBottom: 8 }}>
+            <Icon name={moralDilemma.icon} size={18} /> {moralDilemma.name}
+          </div>
+          <div style={{ fontSize: 13, color: "#d8c8a8", marginBottom: 12 }}>{moralDilemma.question}</div>
+          {moralDilemma.choices.map((choice, i) => (
+            <button key={i} onClick={() => {
+              if (choice.reward) {
+                if (choice.reward.copper) addMoneyFn({ copper: choice.reward.copper });
+                if (choice.reward.silver) addMoneyFn({ silver: choice.reward.silver });
+                if (choice.reward.shopDiscount) showMessage(`Zniżka w sklepie: ${choice.reward.shopDiscount * 100}%!`, "#40c040");
+              }
+              if (choice.penalty?.loyaltyLoss) updateCrewLoyalty(-choice.penalty.loyaltyLoss);
+              if (choice.penalty?.shopPriceMult) showMessage("Kupcy podnoszą ceny...", "#cc6040");
+              setMoralDilemma(null);
+              addDiscovery("events", { id: moralDilemma.id, name: moralDilemma.name });
+            }} style={{ display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: `1px solid ${moralDilemma.themeColor}88`, color: "#d8c8a8", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
+              <Icon name={choice.icon} size={14} /> <strong>{choice.label}</strong> — {choice.desc}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* SECRET ROOM MODAL */}
+      {secretRoom && (
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#1a1210", border: "2px solid #c0a0ff", padding: 20, minWidth: 320, maxWidth: 400, animation: "eventAppear 0.3s ease" }}>
+          <div style={{ fontWeight: "bold", fontSize: 16, color: secretRoom.themeColor, marginBottom: 8 }}>
+            <Icon name={secretRoom.icon} size={18} /> {secretRoom.name}
+          </div>
+          <div style={{ fontSize: 13, color: "#d8c8a8", marginBottom: 8 }}>{secretRoom.desc}</div>
+          <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>{secretRoom.puzzle.desc}</div>
+          {secretRoom.puzzle.type === "trade" ? (
+            secretRoom.puzzle.trades.map((trade, i) => (
+              <button key={i} onClick={() => {
+                if (trade.cost.caravanHp) setCaravanHp(prev => Math.max(1, prev - trade.cost.caravanHp));
+                if (trade.cost.mana) setMana(prev => Math.max(0, prev - trade.cost.mana));
+                if (trade.cost.silver) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - trade.cost.silver * 100)));
+                if (trade.reward.permDmgBuff) showMessage(`Permanentny bonus: +${trade.reward.permDmgBuff * 100}% obrażeń!`, "#a050e0");
+                if (trade.reward.artifact) {
+                  const allPieces = ARTIFACT_SETS.flatMap(s => s.pieces).filter(p => !ownedArtifacts.includes(p.id));
+                  if (allPieces.length > 0) {
+                    const piece = allPieces[Math.floor(Math.random() * allPieces.length)];
+                    setOwnedArtifacts(prev => [...prev, piece.id]);
+                    addDiscovery("artifacts", { id: piece.id, name: piece.name });
+                    showMessage(`Znaleziono artefakt: ${piece.name}!`, "#d4a030");
+                  }
+                }
+                setSecretRoom(null);
+              }} style={{ display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: "1px solid #6040a0", color: "#c0a0ff", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
+                Ofiaruj {trade.offer} → {trade.rewardDesc}
+              </button>
+            ))
+          ) : (
+            <button onClick={() => {
+              const success = Math.random() < (1 / secretRoom.puzzle.difficulty);
+              if (success) {
+                const r = secretRoom.puzzle.reward;
+                if (r.copper) addMoneyFn({ copper: r.copper });
+                if (r.gold) addMoneyFn({ gold: r.gold });
+                if (r.silver) addMoneyFn({ silver: r.silver });
+                if (r.knowledge) { setKnowledge(prev => prev + r.knowledge); }
+                if (r.artifact) {
+                  const allPieces = ARTIFACT_SETS.flatMap(s => s.pieces).filter(p => !ownedArtifacts.includes(p.id));
+                  if (allPieces.length > 0) {
+                    const piece = allPieces[Math.floor(Math.random() * allPieces.length)];
+                    setOwnedArtifacts(prev => [...prev, piece.id]);
+                    addDiscovery("artifacts", { id: piece.id, name: piece.name });
+                    showMessage(`Artefakt: ${piece.name}!`, "#d4a030");
+                  }
+                }
+                showMessage("Zagadka rozwiązana!", "#40c040");
+              } else {
+                const pen = secretRoom.puzzle.failPenalty;
+                if (pen.caravanDmg) setCaravanHp(prev => Math.max(1, prev - pen.caravanDmg));
+                if (pen.manaLoss) setMana(prev => Math.max(0, prev - pen.manaLoss));
+                if (pen.copperLoss) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - pen.copperLoss)));
+                showMessage("Nie udało się...", "#cc4040");
+              }
+              setSecretRoom(null);
+            }} style={{ padding: "8px 16px", background: "none", border: "1px solid #c0a0ff", color: "#c0a0ff", fontSize: 13, cursor: "pointer" }}>
+              Spróbuj rozwiązać! (szansa: {Math.round(100 / secretRoom.puzzle.difficulty)}%)
+            </button>
+          )}
+          <button onClick={() => setSecretRoom(null)} style={{ marginTop: 8, padding: "6px 12px", background: "none", border: "1px solid #555", color: "#888", fontSize: 11, cursor: "pointer" }}>
+            Odejdź
+          </button>
+        </div>
+      )}
+
+      {/* SEA EVENT MODAL */}
+      {seaEvent && (
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#0a1020", border: "2px solid #4080c0", padding: 20, minWidth: 320, maxWidth: 420, animation: "eventAppear 0.3s ease" }}>
+          <div style={{ fontWeight: "bold", fontSize: 16, color: seaEvent.themeColor, marginBottom: 8 }}>
+            <Icon name={seaEvent.icon} size={18} /> {seaEvent.name}
+          </div>
+          <div style={{ fontSize: 13, color: "#d8c8a8", marginBottom: 12 }}>{seaEvent.desc}</div>
+          {seaEvent.choices ? (
+            seaEvent.choices.map((choice, i) => (
+              <button key={i} onClick={() => {
+                if (choice.reward?.copper) addMoneyFn({ copper: choice.reward.copper });
+                if (choice.reward?.silver) addMoneyFn({ silver: choice.reward.silver });
+                if (choice.penalty?.caravanDmg) setCaravanHp(prev => Math.max(1, prev - choice.penalty.caravanDmg));
+                if (choice.reward?.gamble) {
+                  if (Math.random() < 0.5) {
+                    addMoneyFn({ gold: 1, silver: 5 });
+                    showMessage("Legendarne skarby znalezione!", "#d4a030");
+                  } else {
+                    setCaravanHp(prev => Math.max(1, prev - 30));
+                    showMessage("Pułapka! Konwój uszkodzony!", "#cc4040");
+                  }
+                }
+                if (choice.risk?.caravanDmg && choice.reward?.legendaryTreasure) {
+                  setCaravanHp(prev => Math.max(1, prev - choice.risk.caravanDmg));
+                  addMoneyFn({ gold: 3 });
+                  showMessage("Pokonałeś morskie bestie! Legendarny łup!", "#d4a030");
+                }
+                setSeaEvent(null);
+              }} style={{ display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: `1px solid ${seaEvent.themeColor}88`, color: "#d8c8a8", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
+                <Icon name={choice.icon} size={14} /> <strong>{choice.label}</strong> — {choice.desc}
+              </button>
+            ))
+          ) : (
+            <button onClick={() => {
+              const eff = seaEvent.effect;
+              if (eff.type === "heal") setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + eff.value));
+              if (eff.type === "damage") {
+                const dmg = seaEvent.dodgeable ? Math.round(eff.value * seaEvent.dodgeReduction) : eff.value;
+                setCaravanHp(prev => Math.max(1, prev - dmg));
+              }
+              if (eff.type === "loot") addMoneyFn({ copper: 40 + Math.floor(Math.random() * 40) });
+              if (eff.type === "buff") {
+                if (eff.manaRestore) setMana(prev => Math.min(prev + eff.manaRestore, 200));
+                if (eff.initiativeBoost) setInitiative(prev => Math.min(MAX_INITIATIVE, prev + eff.initiativeBoost));
+              }
+              showMessage(seaEvent.resultText, seaEvent.themeColor);
+              setSeaEvent(null);
+            }} style={{ padding: "8px 16px", background: "none", border: `1px solid ${seaEvent.themeColor}`, color: seaEvent.themeColor, fontSize: 13, cursor: "pointer" }}>
+              Kontynuuj Rejs
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* FACTION EVENT MODAL */}
+      {factionEvent && (
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#1a1210", border: `2px solid ${factionEvent.factionColor}`, padding: 20, minWidth: 300, maxWidth: 380, animation: "eventAppear 0.3s ease" }}>
+          <div style={{ fontWeight: "bold", fontSize: 16, color: factionEvent.factionColor, marginBottom: 8 }}>
+            <Icon name={factionEvent.factionIcon} size={18} /> {factionEvent.factionName}
+          </div>
+          <div style={{ fontSize: 13, color: "#d8c8a8", marginBottom: 12 }}>
+            {factionEvent.type === "trade"
+              ? `Handlarz z ${factionEvent.factionName} oferuje swoje towary.`
+              : `${factionEvent.factionName} potrzebuje twojej pomocy.`
+            }
+          </div>
+          <button onClick={() => {
+            changeFactionRep(factionEvent.factionId, factionEvent.type === "trade" ? 3 : 10);
+            if (factionEvent.type === "trade") addMoneyFn({ copper: 20 });
+            setFactionEvent(null);
+            addDiscovery("factions", { id: factionEvent.factionId, name: factionEvent.factionName });
+          }} style={{ padding: "8px 16px", background: "none", border: `1px solid ${factionEvent.factionColor}`, color: factionEvent.factionColor, fontSize: 13, cursor: "pointer", marginRight: 8 }}>
+            {factionEvent.type === "trade" ? "Handluj" : "Pomóż"}
+          </button>
+          <button onClick={() => setFactionEvent(null)} style={{ padding: "8px 16px", background: "none", border: "1px solid #555", color: "#888", fontSize: 13, cursor: "pointer" }}>
+            Ignoruj
+          </button>
+        </div>
+      )}
 
       <style>{`
         @keyframes lockP{0%,100%{opacity:1;transform:translateX(-50%) scale(1)}50%{opacity:.6;transform:translateX(-50%) scale(1.1)}}

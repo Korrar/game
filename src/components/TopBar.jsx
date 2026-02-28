@@ -1,6 +1,6 @@
 import GameIcon from "./GameIcon";
 
-export default function TopBar({ doors, initiative, treasures, money, mana, maxMana, onInv, onShop, onHideout, onBestiary, knowledge, musicOn, onToggleMusic, onSave, isMobile, gameW, playerLevel, playerXp, xpNeeded }) {
+export default function TopBar({ doors, initiative, treasures, money, mana, maxMana, onInv, onShop, onHideout, onBestiary, knowledge, musicOn, onToggleMusic, onSave, isMobile, gameW, playerLevel, playerXp, xpNeeded, onCrew, onFactions, onJournal, onShip, onFortifications }) {
   const m = isMobile;
 
   // Mobile portrait: render inside game container as absolute-positioned bar
@@ -44,6 +44,8 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
           <button onClick={onShop} style={mobileBtnStyle(1)}><GameIcon name="shop" size={16} /></button>
           <button onClick={onHideout} style={mobileBtnStyle(1)}><GameIcon name="base" size={16} /></button>
           <button onClick={onInv} style={mobileBtnStyle(1)}><GameIcon name="scroll" size={16} /></button>
+          {onCrew && <button onClick={onCrew} style={mobileBtnStyle(1)}><GameIcon name="recruit" size={16} /></button>}
+          {onJournal && <button onClick={onJournal} style={mobileBtnStyle(1)}><GameIcon name="compass" size={16} /></button>}
         </div>
       </div>
     );
@@ -97,6 +99,11 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
         <DesktopBtn onClick={onShop}><GameIcon name="shop" size={16} style={{ marginRight: 4 }} />Bazar Portowy</DesktopBtn>
         <DesktopBtn onClick={onHideout}><GameIcon name="base" size={16} style={{ marginRight: 4 }} />Baza</DesktopBtn>
         <DesktopBtn onClick={onInv}><GameIcon name="scroll" size={16} style={{ marginRight: 4 }} />Ekwipunek</DesktopBtn>
+        {onCrew && <DesktopBtn onClick={onCrew}><GameIcon name="recruit" size={16} style={{ marginRight: 4 }} />Załoga</DesktopBtn>}
+        {onFactions && <DesktopBtn onClick={onFactions}><GameIcon name="pirate" size={16} style={{ marginRight: 4 }} />Frakcje</DesktopBtn>}
+        {onJournal && <DesktopBtn onClick={onJournal}><GameIcon name="compass" size={16} style={{ marginRight: 4 }} />Dziennik</DesktopBtn>}
+        {onShip && <DesktopBtn onClick={onShip}><GameIcon name="anchor" size={16} style={{ marginRight: 4 }} />Statek</DesktopBtn>}
+        {onFortifications && <DesktopBtn onClick={onFortifications}><GameIcon name="shield" size={16} style={{ marginRight: 4 }} />Fort</DesktopBtn>}
       </div>
     </div>
   );
