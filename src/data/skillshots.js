@@ -2,7 +2,7 @@
 // Each spell gets a skillshot type that determines how the projectile travels
 
 export const SKILLSHOT_TYPES = {
-  // Dynamit — arc trajectory (parabola), explodes on ground or enemy hit, splash damage
+  // Dynamit — arc trajectory (parabola), leci lobem z karawany do celu, splash damage
   fireball: {
     type: "arc",
     speed: 6,
@@ -12,7 +12,6 @@ export const SKILLSHOT_TYPES = {
     splashRadius: 50,  // AoE splash radius (pixels)
     splashDamageMult: 0.5, // splash damage = 50% of direct hit
     trail: "fire",
-    explodeOnGround: true,
   },
   // Strzał Snajpera — fast straight line, narrow hitbox
   lightning: {
@@ -37,7 +36,7 @@ export const SKILLSHOT_TYPES = {
     pierce: true,
     maxPierce: 1,
   },
-  // Strzał z Armaty — slow arc, large projectile with splash damage
+  // Strzał z Armaty — wolny lob z karawany, duży splash damage
   holybeam: {
     type: "arc",
     speed: 5,
@@ -47,7 +46,6 @@ export const SKILLSHOT_TYPES = {
     splashRadius: 60,
     splashDamageMult: 0.6,
     trail: "fire",
-    explodeOnGround: true,
   },
   // Salwa Armatnia — player marks area, after 1s bombardment falls
   meteor: {
