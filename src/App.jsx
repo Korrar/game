@@ -5365,6 +5365,53 @@ export default function App() {
         spellUpgrades={spellUpgrades}
       />
 
+      {/* Mobile Dodge Roll Button — replaces spacebar for mobile */}
+      {isMobile && screen === "game" && (
+        <div
+          onClick={() => {
+            const now = Date.now();
+            if (dodgeRollRef.current.cooldown && now < dodgeRollRef.current.cooldown) return;
+            dodgeRollRef.current.cooldown = now + DODGE_ROLL_COOLDOWN;
+            dodgeRollRef.current.active = true;
+            setIsDodging(true);
+            setDodgeRollCooldown(now + DODGE_ROLL_COOLDOWN);
+            showMessage("Unik!", "#40c0ff");
+            setTimeout(() => {
+              dodgeRollRef.current.active = false;
+              setIsDodging(false);
+            }, DODGE_ROLL_DURATION);
+          }}
+          style={{
+            position: "fixed",
+            bottom: 68,
+            right: 10,
+            width: 50, height: 50,
+            borderRadius: "50%",
+            background: isDodging
+              ? "radial-gradient(circle, rgba(64,192,255,0.5), rgba(64,192,255,0.15))"
+              : dodgeRollCooldown > Date.now()
+                ? "radial-gradient(circle, rgba(60,60,60,0.7), rgba(30,30,30,0.5))"
+                : "radial-gradient(circle, rgba(64,192,255,0.3), rgba(20,40,60,0.6))",
+            border: `2px solid ${isDodging ? "#40c0ff" : dodgeRollCooldown > Date.now() ? "#444" : "#40a0d0"}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 200,
+            userSelect: "none",
+            WebkitTapHighlightColor: "transparent",
+            boxShadow: isDodging ? "0 0 16px rgba(64,192,255,0.6)" : "0 2px 8px rgba(0,0,0,0.5)",
+            opacity: dodgeRollCooldown > Date.now() && !isDodging ? 0.5 : 1,
+            transition: "opacity 0.3s, box-shadow 0.2s",
+          }}
+        >
+          <span style={{
+            fontSize: 20, color: isDodging ? "#40c0ff" : "#aad0e0",
+            fontWeight: "bold", textShadow: "0 1px 2px #000",
+            pointerEvents: "none", lineHeight: 1,
+          }}>
+            &#10132;
+          </span>
+        </div>
+      )}
+
       {/* Tutorial overlay – shows on first few rooms */}
       {showTutorial && room <= 1 && tutorialStep >= 0 && tutorialStep < 5 && (
         <div style={{
