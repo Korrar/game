@@ -7123,6 +7123,8 @@ export default function App() {
                   showMessage("Pokonałeś morskie bestie! Legendarny łup!", "#d4a030");
                 }
                 setSeaEvent(null);
+                // Resume travel after sea event
+                setTimeout(() => { enterRoom(room + 1, ownedTools); setTimeout(() => setTransitioning(false), 150); }, 300);
               }} style={{ display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: `1px solid ${seaEvent.themeColor}88`, color: "#d8c8a8", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
                 <Icon name={choice.icon} size={14} /> <strong>{choice.label}</strong> — {choice.desc}
               </button>
@@ -7142,6 +7144,8 @@ export default function App() {
               }
               showMessage(seaEvent.resultText, seaEvent.themeColor);
               setSeaEvent(null);
+              // Resume travel after sea event
+              setTimeout(() => { enterRoom(room + 1, ownedTools); setTimeout(() => setTransitioning(false), 150); }, 300);
             }} style={{ padding: "8px 16px", background: "none", border: `1px solid ${seaEvent.themeColor}`, color: seaEvent.themeColor, fontSize: 13, cursor: "pointer" }}>
               Kontynuuj Rejs
             </button>

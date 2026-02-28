@@ -16,7 +16,7 @@ export const FACTIONS = [
       { minRep: 100, desc: "Darmowy przedmiot co 5 pokoi", effect: { shopDiscount: 0.30, exclusiveItems: true, freeItemInterval: 5 } },
     ],
     exclusiveItems: [
-      { icon: "gem", name: "Diament Handlowy", desc: "Wart fortunę — natychmiastowe 5 srebrnych", cost: { silver: 2 }, reward: { silver: 5 }, type: "trade" },
+      { icon: "gem", name: "Diament Handlowy", desc: "Wart fortunę — natychmiastowe 3 srebrne zysku", cost: { silver: 4 }, reward: { silver: 5 }, type: "trade" },
       { icon: "scroll", name: "Handlowy Immunitet", desc: "Kupcy nie atakują przez 5 pokoi", cost: { silver: 3 }, reward: { factionProtection: 5 }, type: "protection" },
     ],
     hostileNpcs: [
@@ -90,7 +90,7 @@ export const FACTIONS = [
 
 // Akcje wpływające na reputację
 export const REP_ACTIONS = {
-  kill_faction_enemy:   -5,   // zabicie NPC wrogiej frakcji danej frakcji = +rep dla frakcji
+  kill_faction_enemy:   +5,   // zabicie NPC wrogiej frakcji = +rep u jej rywali
   help_faction_event:   +10,  // pomoc w wydarzeniu frakcyjnym
   betray_faction:       -20,  // zdrada frakcji
   trade_with_faction:   +3,   // handel z kupcem frakcyjnym

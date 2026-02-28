@@ -42,8 +42,8 @@ function Btn({ label, color, onClick, disabled }) {
         opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer",
         boxShadow: disabled ? "none" : `0 0 8px ${color}22`,
       }}
-      onMouseEnter={e => { if (!disabled) { e.target.style.background = color + "30"; e.target.style.boxShadow = `0 0 16px ${color}44`; } }}
-      onMouseLeave={e => { e.target.style.background = disabled ? "rgba(30,20,15,0.5)" : "rgba(30,20,15,0.8)"; e.target.style.boxShadow = disabled ? "none" : `0 0 8px ${color}22`; }}
+      onMouseEnter={e => { if (!disabled) { e.currentTarget.style.background = color + "30"; e.currentTarget.style.boxShadow = `0 0 16px ${color}44`; } }}
+      onMouseLeave={e => { e.currentTarget.style.background = disabled ? "rgba(30,20,15,0.5)" : "rgba(30,20,15,0.8)"; e.currentTarget.style.boxShadow = disabled ? "none" : `0 0 8px ${color}22`; }}
     >{label}</button>
   );
 }
@@ -175,8 +175,8 @@ function AmbushView({ event, onResolve }) {
               fontSize: 18, padding: "14px 40px",
               boxShadow: "0 0 12px rgba(200,40,40,0.3)",
             }}
-            onMouseDown={e => { e.target.style.transform = "scale(0.95)"; }}
-            onMouseUp={e => { e.target.style.transform = "scale(1)"; }}
+            onMouseDown={e => { e.currentTarget.style.transform = "scale(0.95)"; }}
+            onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
           ><EIcon name="swords" size={18} /> WALCZ!</button>
         </>
       )}

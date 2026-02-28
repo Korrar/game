@@ -33,7 +33,7 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
           <span style={{ color: "#ffd700" }}><GameIcon name="gold" size={12} /><b>{money.gold}</b></span>
         </div>
         {/* Buttons */}
-        <div style={{ display: "flex", gap: 2 }}>
+        <div style={{ display: "flex", gap: 2, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "60%" }}>
           {onToggleMusic && (
             <button onClick={onToggleMusic} style={mobileBtnStyle(musicOn ? 1 : 0.5)}>
               <GameIcon name={musicOn ? "soundOn" : "soundOff"} size={16} />
@@ -46,6 +46,9 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
           <button onClick={onInv} style={mobileBtnStyle(1)}><GameIcon name="scroll" size={16} /></button>
           {onCrew && <button onClick={onCrew} style={mobileBtnStyle(1)}><GameIcon name="recruit" size={16} /></button>}
           {onJournal && <button onClick={onJournal} style={mobileBtnStyle(1)}><GameIcon name="compass" size={16} /></button>}
+          {onFactions && <button onClick={onFactions} style={mobileBtnStyle(1)}><GameIcon name="pirate" size={16} /></button>}
+          {onShip && <button onClick={onShip} style={mobileBtnStyle(1)}><GameIcon name="anchor" size={16} /></button>}
+          {onFortifications && <button onClick={onFortifications} style={mobileBtnStyle(1)}><GameIcon name="shield" size={16} /></button>}
         </div>
       </div>
     );
@@ -146,14 +149,14 @@ function DesktopBtn({ onClick, children, opacity = 1, title }) {
         borderRadius: 3,
       }}
       onMouseEnter={e => {
-        e.target.style.background = "linear-gradient(180deg, #d4a030, #a07020)";
-        e.target.style.color = "#000";
-        e.target.style.boxShadow = "0 0 12px rgba(212,160,48,0.5), inset 0 1px 0 rgba(255,255,255,0.2)";
+        e.currentTarget.style.background = "linear-gradient(180deg, #d4a030, #a07020)";
+        e.currentTarget.style.color = "#000";
+        e.currentTarget.style.boxShadow = "0 0 12px rgba(212,160,48,0.5), inset 0 1px 0 rgba(255,255,255,0.2)";
       }}
       onMouseLeave={e => {
-        e.target.style.background = "linear-gradient(180deg, rgba(40,25,10,0.9), rgba(20,12,6,0.9))";
-        e.target.style.color = "#e0b840";
-        e.target.style.boxShadow = "0 1px 4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(212,160,48,0.15)";
+        e.currentTarget.style.background = "linear-gradient(180deg, rgba(40,25,10,0.9), rgba(20,12,6,0.9))";
+        e.currentTarget.style.color = "#e0b840";
+        e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(212,160,48,0.15)";
       }}
     >{children}</button>
   );

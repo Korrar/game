@@ -46,8 +46,8 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
     );
   }
 
-  // Reset dismissed state when phase changes to end
-  if (isEnd && dismissed) setDismissed(false);
+  // Reset dismissed state when phase changes to end (deferred to avoid setState during render)
+  if (isEnd && dismissed) setTimeout(() => setDismissed(false), 0);
 
   return (
     <div
