@@ -348,11 +348,21 @@ export class PhysicsWorld {
     this._groundCollider = null;
     this._wallLCollider = null;
     this._wallRCollider = null;
+    this.pixiRenderer = null; // PixiJS renderer reference
   }
 
   setWeather(w) {
     this.windDeflection = w?.windDeflection || 0;
     this.fogVisibility = w?.fogVisibility || 0;
+  }
+
+  setPixiRenderer(renderer) {
+    this.pixiRenderer = renderer;
+  }
+
+  // Proxy for combat effects — routes to PixiRenderer or Canvas CombatEffects
+  get fx() {
+    return this.pixiRenderer || this.combatEffects;
   }
 
   init(canvas) {
@@ -796,8 +806,9 @@ export class PhysicsWorld {
         proj.vy += this.windDeflection * Math.sin(proj.age * 0.2) * 0.15;
       }
 
-      if (proj.type === "arrow" && proj.age % 3 === 0) this.combatEffects.spawnArrowTrail(proj.x, proj.y, proj.vx, proj.vy);
-      if ((proj.type === "fireball_npc" || proj.type === "mageSpell") && proj.age % 2 === 0) this.combatEffects.spawnFire(proj.x, proj.y);
+      const fx = this.pixiRenderer || this.combatEffects;
+      if (proj.type === "arrow" && proj.age % 3 === 0) fx.spawnArrowTrail(proj.x, proj.y, proj.vx, proj.vy);
+      if ((proj.type === "fireball_npc" || proj.type === "mageSpell") && proj.age % 2 === 0) fx.spawnFire(proj.x, proj.y);
 
       let hit = false;
 
@@ -805,7 +816,7 @@ export class PhysicsWorld {
         const ddx = proj.x - proj.targetPos.x, ddy = proj.y - proj.targetPos.y;
         if (ddx * ddx + ddy * ddy < 600) {
           hit = true;
-          this.combatEffects.spawnMeleeSparks(proj.targetPos.x, proj.targetPos.y, Math.sign(proj.vx) || 1);
+          fx.spawnMeleeSparks(proj.targetPos.x, proj.targetPos.y, Math.sign(proj.vx) || 1);
           if (proj.onHit) proj.onHit(null, proj.damage, proj.element);
         }
       }
@@ -824,12 +835,14 @@ export class PhysicsWorld {
         const hitR = 400;
         if (ddx * ddx + ddy * ddy < hitR) {
           hit = true;
-          this.combatEffects.spawnBlood(ePos.x, ePos.y, Math.sign(proj.vx) || 1, 0.4);
-          if (proj.element === "fire") this.combatEffects.spawnFire(ePos.x, ePos.y);
-          else if (proj.element === "ice") this.combatEffects.spawnIceShards(ePos.x, ePos.y, Math.sign(proj.vx));
-          else if (proj.element === "shadow") this.combatEffects.spawnPoisonCloud(ePos.x, ePos.y);
-          else this.combatEffects.spawnMeleeSparks(ePos.x, ePos.y, Math.sign(proj.vx));
+          fx.spawnBlood(ePos.x, ePos.y, Math.sign(proj.vx) || 1, 0.4);
+          if (proj.element === "fire") fx.spawnFire(ePos.x, ePos.y);
+          else if (proj.element === "ice") fx.spawnIceShards(ePos.x, ePos.y, Math.sign(proj.vx));
+          else if (proj.element === "shadow") fx.spawnPoisonCloud(ePos.x, ePos.y);
+          else fx.spawnMeleeSparks(ePos.x, ePos.y, Math.sign(proj.vx));
           if (proj.onHit) proj.onHit(parseInt(id), proj.damage, proj.element);
+          // Screen shake on hit
+          if (this.pixiRenderer) this.pixiRenderer.screenShake(4);
           break;
         }
       }
@@ -875,6 +888,19 @@ export class PhysicsWorld {
   }
 
   render() {
+    // PixiJS rendering mode
+    if (this.pixiRenderer) {
+      // Remove bodies flagged for cleanup
+      for (const [id, entry] of Object.entries(this.bodies)) {
+        if (entry._removeFlag) {
+          this.removeNpc(parseInt(id));
+        }
+      }
+      this.pixiRenderer.render(this.bodies, this.projectiles, this.fogVisibility);
+      return;
+    }
+
+    // Fallback: Canvas2D rendering
     const { ctx, W, H, GY } = this;
     if (!ctx || !W) return;
     ctx.clearRect(0, 0, W, H);
