@@ -4,7 +4,7 @@
 import { Graphics } from "pixi.js";
 
 const _isMobile = ("ontouchstart" in window || navigator.maxTouchPoints > 0) && window.innerWidth < 900;
-const MAX_PARTICLES = _isMobile ? 150 : 400;
+const MAX_PARTICLES = _isMobile ? 100 : 250;
 
 export class CombatParticles {
   constructor(layer) {
@@ -50,7 +50,7 @@ export class CombatParticles {
   }
 
   spawnFire(x, y) {
-    this._emit(this._c(22), x, y, {
+    this._emit(this._c(12), x, y, {
       vx: () => (Math.random() - 0.5) * 4,
       vy: () => -(Math.random() * 4 + 2),
       life: 20 + Math.random() * 10,
@@ -59,7 +59,7 @@ export class CombatParticles {
       gravity: -0.08,
     });
     // Inner white-hot
-    this._emit(this._c(6), x, y, {
+    this._emit(this._c(3), x, y, {
       vx: () => (Math.random() - 0.5) * 2,
       vy: () => -(Math.random() * 3 + 1),
       life: 12,
@@ -70,7 +70,7 @@ export class CombatParticles {
   }
 
   spawnIceShards(x, y, dirX) {
-    this._emit(this._c(14), x, y, {
+    this._emit(this._c(8), x, y, {
       vx: () => dirX * (Math.random() * 3 + 1) + (Math.random() - 0.5) * 2,
       vy: () => -(Math.random() * 3 + 1),
       life: 22 + Math.random() * 10,
@@ -112,7 +112,7 @@ export class CombatParticles {
   }
 
   spawnMeleeSparks(x, y, dirX) {
-    this._emit(this._c(12), x, y, {
+    this._emit(this._c(6), x, y, {
       vx: () => dirX * (Math.random() * 5 + 2) + (Math.random() - 0.5) * 2,
       vy: () => -(Math.random() * 4 + 1),
       life: 12 + Math.random() * 8,
@@ -134,7 +134,7 @@ export class CombatParticles {
   }
 
   spawnPoisonCloud(x, y) {
-    this._emit(this._c(14), x, y, {
+    this._emit(this._c(8), x, y, {
       vx: () => (Math.random() - 0.5) * 2,
       vy: () => -(Math.random() * 1.5),
       life: 35 + Math.random() * 15,
@@ -158,7 +158,9 @@ export class CombatParticles {
   update() {
     this.gfx.clear();
 
-    for (let i = this.particles.length - 1; i >= 0; i--) {
+    // Swap-and-pop removal to avoid O(n^2) splice
+    let len = this.particles.length;
+    for (let i = len - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.x += p.vx;
       p.y += p.vy;
@@ -166,7 +168,8 @@ export class CombatParticles {
       p.life--;
 
       if (p.life <= 0) {
-        this.particles.splice(i, 1);
+        this.particles[i] = this.particles[len - 1];
+        len--;
         continue;
       }
 
@@ -192,5 +195,6 @@ export class CombatParticles {
         this.gfx.fill({ color: p.color, alpha: alpha * 0.7 });
       }
     }
+    this.particles.length = len;
   }
 }

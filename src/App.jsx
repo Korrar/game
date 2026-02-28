@@ -3646,28 +3646,8 @@ export default function App() {
       );
     }
 
-    // Play spell animation
-    if (animatorRef.current) {
-      if (cfg && cfg.type === "area") {
-        const enemyPositions = [];
-        const curWalkers = walkersRef.current || [];
-        curWalkers.forEach(w => {
-          if (w.friendly || !w.alive || w.dying) return;
-          const el = npcElsRef.current[w.id];
-          if (el && gameContainerRef.current) {
-            const gr = gameContainerRef.current.getBoundingClientRect();
-            const r = el.getBoundingClientRect();
-            enemyPositions.push({
-              x: ((r.left + r.width / 2) - gr.left) / gameScale,
-              y: ((r.top + r.height / 2) - gr.top) / gameScale,
-            });
-          }
-        });
-        animatorRef.current.playAoeSpell(spell.id, spell.color, spell.colorLight, enemyPositions);
-      } else {
-        animatorRef.current.playSpell(spell.id, targetPx, targetPy, spell.color, spell.colorLight);
-      }
-    }
+    // Projectile visuals are handled by ProjectileRenderer (PixiJS) —
+    // no need for duplicate biomeAnimator canvas effects
 
     // Keep spell selected for repeated shots (don't deselect)
     // setSelectedSpell(null); -- removed: keep spell active for continuous skillshots

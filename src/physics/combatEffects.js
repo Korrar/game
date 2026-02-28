@@ -55,7 +55,7 @@ export class CombatEffects {
 
   // ─── FIRE ───
   spawnFire(x, y) {
-    const count = this._c(20);
+    const count = this._c(10);
     for (let i = 0; i < count; i++) {
       this._spawn({
         type: "fire",
@@ -72,7 +72,7 @@ export class CombatEffects {
 
   // ─── ICE SHARDS ───
   spawnIceShards(x, y, dirX) {
-    const count = this._c(14);
+    const count = this._c(8);
     for (let i = 0; i < count; i++) {
       const angle = (dirX > 0 ? 0 : Math.PI) + (Math.random() - 0.5) * 2;
       const speed = 2 + Math.random() * 4;
@@ -128,7 +128,7 @@ export class CombatEffects {
 
   // ─── MELEE SPARKS ───
   spawnMeleeSparks(x, y, dirX) {
-    const count = this._c(10);
+    const count = this._c(6);
     for (let i = 0; i < count; i++) {
       const angle = (dirX > 0 ? -0.3 : Math.PI + 0.3) + (Math.random() - 0.5) * 1.8;
       const speed = 3 + Math.random() * 5;
@@ -164,7 +164,7 @@ export class CombatEffects {
 
   // ─── POISON CLOUD ───
   spawnPoisonCloud(x, y) {
-    const count = this._c(12);
+    const count = this._c(6);
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 0.3 + Math.random() * 1.5;

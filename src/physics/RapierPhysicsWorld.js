@@ -895,6 +895,7 @@ export class PhysicsWorld {
   // Update player skillshot projectiles
   _updatePlayerSkillshots() {
     const fx = this.pixiRenderer || this.combatEffects;
+    const bodyEntries = Object.entries(this.bodies);
 
     for (let i = this.playerSkillshots.length - 1; i >= 0; i--) {
       const proj = this.playerSkillshots[i];
@@ -910,19 +911,20 @@ export class PhysicsWorld {
         proj.vx += this.windDeflection * 0.3;
       }
 
-      // Trail effects
-      if (proj.trail === "fire" && proj.age % 2 === 0) fx.spawnFire(proj.x, proj.y);
-      if (proj.trail === "ice" && proj.age % 3 === 0) fx.spawnIceShards(proj.x, proj.y, Math.sign(proj.vx));
-      if (proj.trail === "spark" && proj.age % 2 === 0) fx.spawnMeleeSparks(proj.x, proj.y, Math.sign(proj.vx));
-      if (proj.trail === "shadow" && proj.age % 3 === 0) fx.spawnPoisonCloud(proj.x, proj.y);
+      // Trail effects (throttled to reduce particle load)
+      if (proj.trail === "fire" && proj.age % 4 === 0) fx.spawnFire(proj.x, proj.y);
+      if (proj.trail === "ice" && proj.age % 5 === 0) fx.spawnIceShards(proj.x, proj.y, Math.sign(proj.vx));
+      if (proj.trail === "spark" && proj.age % 4 === 0) fx.spawnMeleeSparks(proj.x, proj.y, Math.sign(proj.vx));
+      if (proj.trail === "shadow" && proj.age % 5 === 0) fx.spawnPoisonCloud(proj.x, proj.y);
 
       let hit = false;
       let hitAnybody = false;
 
       // Check collision with enemy bodies
-      for (const [id, entry] of Object.entries(this.bodies)) {
+      for (const [id, entry] of bodyEntries) {
         if (entry.ragdoll || !entry.alive || entry.friendly) continue;
-        if (proj.hitIds.includes(parseInt(id))) continue; // already pierced
+        const nid = parseInt(id);
+        if (proj.hitIds.includes(nid)) continue; // already pierced
 
         const torso = entry.limbBodies.torso;
         if (!torso) continue;
@@ -949,24 +951,24 @@ export class PhysicsWorld {
 
           // Notify hit callback
           if (isHeadshot && proj.onHeadshot) {
-            proj.onHeadshot(parseInt(id), proj.damage, proj.element);
+            proj.onHeadshot(nid, proj.damage, proj.element);
           } else if (proj.onHit) {
-            proj.onHit(parseInt(id), proj.damage, proj.element, isHeadshot);
+            proj.onHit(nid, proj.damage, proj.element, isHeadshot);
           }
 
           // Handle splash damage
           if (proj.splashRadius > 0) {
-            this._applySplashDamage(proj, ePos.x, ePos.y, parseInt(id));
+            this._applySplashDamage(proj, ePos.x, ePos.y, nid);
           }
 
           // Handle chain on hit (rykoszet)
           if (proj.chainOnHit && proj.pierceCount < proj.maxChains) {
-            proj.hitIds.push(parseInt(id));
+            proj.hitIds.push(nid);
             proj.pierceCount++;
             proj.damage = Math.round(proj.damage * proj.chainDamageMult);
             // Retarget to nearest unhit enemy
             let nearId = null, nearDist = Infinity;
-            for (const [eid, ee] of Object.entries(this.bodies)) {
+            for (const [eid, ee] of bodyEntries) {
               if (ee.ragdoll || !ee.alive || ee.friendly || proj.hitIds.includes(parseInt(eid))) continue;
               const ep = ee.limbBodies.torso?.translation();
               if (!ep) continue;
@@ -983,7 +985,7 @@ export class PhysicsWorld {
             hit = true; // No more targets, remove
           } else if (proj.pierce && proj.pierceCount < proj.maxPierce) {
             // Pierce: pass through enemy
-            proj.hitIds.push(parseInt(id));
+            proj.hitIds.push(nid);
             proj.pierceCount++;
             continue;
           } else {
@@ -996,11 +998,9 @@ export class PhysicsWorld {
       // Arc projectiles: explode when they reach the target point (age >= tFlight)
       if (!hit && proj.explodeAtTarget && proj.age >= proj.tFlight) {
         hit = true;
-        // Explosion at target
+        // Explosion at target (single burst)
         const ex = proj.targetX, ey = proj.targetY;
         fx.spawnFire(ex, ey);
-        fx.spawnFire(ex - 12, ey - 6);
-        fx.spawnFire(ex + 12, ey + 6);
         if (this.pixiRenderer) this.pixiRenderer.screenShake(10);
         // Splash damage at target point
         if (proj.splashRadius > 0) {
@@ -1064,8 +1064,6 @@ export class PhysicsWorld {
           mine.triggered = true;
           // Explosion effects (no screen shake — mine is subtle)
           fx.spawnFire(mine.x, mine.y);
-          fx.spawnFire(mine.x - 15, mine.y);
-          fx.spawnFire(mine.x + 15, mine.y);
 
           // Damage all enemies in splash radius
           for (const [eid, ee] of Object.entries(this.bodies)) {
@@ -1103,8 +1101,6 @@ export class PhysicsWorld {
       if (now - ind.createdAt >= ind.delay) {
         // Impact! Damage all enemies in radius
         fx.spawnFire(ind.x, ind.y);
-        fx.spawnFire(ind.x - 20, ind.y - 10);
-        fx.spawnFire(ind.x + 20, ind.y + 10);
         if (this.pixiRenderer) this.pixiRenderer.screenShake(12);
 
         for (const [id, entry] of Object.entries(this.bodies)) {
