@@ -1,3 +1,11 @@
+import { getIconUrl } from "../rendering/icons";
+
+function CIcon({ name, size = 11 }) {
+  const url = getIconUrl(name, size);
+  if (!url) return null;
+  return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block" }} alt={name} />;
+}
+
 export default function Caravan({ initiative, maxInitiative, cost, canTravel, onClick, hp, maxHp, showHp }) {
   const pct = Math.min(100, (initiative / maxInitiative) * 100);
   const costPct = (cost / maxInitiative) * 100;
@@ -190,8 +198,8 @@ export default function Caravan({ initiative, maxInitiative, cost, canTravel, on
         textShadow: canTravel ? "0 0 8px rgba(212,160,48,0.4)" : "1px 1px 0 #000",
         animation: canTravel ? "doorGlow 2s ease-in-out infinite" : "none",
       }}>
-        🐴 Konwój
-        <span style={{ fontSize: 9, color: "#888", marginLeft: 4 }}>⏳{cost}</span>
+        <CIcon name="convoy" size={11} /> Konwój
+        <span style={{ fontSize: 9, color: "#888", marginLeft: 4 }}><CIcon name="hourglass" size={9} />{cost}</span>
       </div>
 
       <style>{`@keyframes caravanDmgFlash{0%,100%{filter:brightness(1)}50%{filter:brightness(1.4) sepia(0.5) hue-rotate(-30deg)}}`}</style>

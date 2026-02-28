@@ -504,11 +504,11 @@ DRAW.gunpowder = (ctx, s) => {
   westernStroke(ctx, "#8a6a40", s * 0.025);
   sketchLine(ctx, cx - s * 0.22, cy - s * 0.1, cx + s * 0.22, cy - s * 0.1, 0.3);
   sketchLine(ctx, cx - s * 0.22, cy + s * 0.1, cx + s * 0.22, cy + s * 0.1, 0.3);
-  // skull mark
-  ctx.fillStyle = "#d4a870";
-  ctx.font = `${s * 0.18}px serif`;
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText("☠", cx, cy);
+  // skull mark (drawn X)
+  ctx.strokeStyle = "#d4a870";
+  ctx.lineWidth = s * 0.03;
+  sketchLine(ctx, cx - s * 0.08, cy - s * 0.08, cx + s * 0.08, cy + s * 0.08, 0.3);
+  sketchLine(ctx, cx + s * 0.08, cy - s * 0.08, cx - s * 0.08, cy + s * 0.08, 0.3);
 };
 
 DRAW.fame = (ctx, s) => {
@@ -1021,6 +1021,1116 @@ DRAW.emperor = (ctx, s) => {
   ctx.fill();
 };
 
+// ─── NPC BODY TYPE ICONS (for game sprites) ───
+
+const NPC_BODY_DRAW = {};
+
+NPC_BODY_DRAW.humanoid = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2;
+  // Hat
+  ctx.fillStyle = ac;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - s * 0.22, s * 0.3, s * 0.05, 0, 0, Math.PI * 2);
+  ctx.fill();
+  sketchRect(ctx, cx - s * 0.12, cy - s * 0.42, s * 0.24, s * 0.21, 0.5);
+  ctx.fill();
+  westernStroke(ctx, "#1a1008", s * 0.025);
+  ctx.stroke();
+  // Head
+  ctx.fillStyle = "#d4a870";
+  sketchCircle(ctx, cx, cy - s * 0.12, s * 0.1);
+  ctx.fill();
+  westernStroke(ctx, "#6a4a20", s * 0.02);
+  ctx.stroke();
+  // Eyes
+  ctx.fillStyle = "#1a1008";
+  sketchCircle(ctx, cx - s * 0.04, cy - s * 0.14, s * 0.015);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.04, cy - s * 0.14, s * 0.015);
+  ctx.fill();
+  // Torso (vest)
+  ctx.fillStyle = bc;
+  sketchRect(ctx, cx - s * 0.14, cy - s * 0.02, s * 0.28, s * 0.25, 0.6);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.025);
+  ctx.stroke();
+  // Belt
+  ctx.fillStyle = "#3a2010";
+  ctx.fillRect(cx - s * 0.15, cy + s * 0.2, s * 0.3, s * 0.04);
+  ctx.fillStyle = "#d4a030";
+  ctx.fillRect(cx - s * 0.03, cy + s * 0.2, s * 0.06, s * 0.04);
+  // Legs
+  westernStroke(ctx, ac, s * 0.05);
+  sketchLine(ctx, cx - s * 0.08, cy + s * 0.24, cx - s * 0.1, cy + s * 0.42, 0.4);
+  sketchLine(ctx, cx + s * 0.08, cy + s * 0.24, cx + s * 0.1, cy + s * 0.42, 0.4);
+  // Boots
+  ctx.fillStyle = "#2a1a08";
+  sketchCircle(ctx, cx - s * 0.1, cy + s * 0.44, s * 0.05);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.1, cy + s * 0.44, s * 0.05);
+  ctx.fill();
+  // Arms
+  westernStroke(ctx, bc, s * 0.04);
+  sketchLine(ctx, cx - s * 0.14, cy + s * 0.02, cx - s * 0.22, cy + s * 0.18, 0.4);
+  sketchLine(ctx, cx + s * 0.14, cy + s * 0.02, cx + s * 0.22, cy + s * 0.18, 0.4);
+};
+
+NPC_BODY_DRAW.quadruped = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2;
+  // Body (horizontal ellipse)
+  ctx.fillStyle = bc;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, s * 0.28, s * 0.14, 0, 0, Math.PI * 2);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.025);
+  ctx.stroke();
+  // Legs
+  westernStroke(ctx, ac, s * 0.04);
+  sketchLine(ctx, cx - s * 0.18, cy + s * 0.1, cx - s * 0.2, cy + s * 0.35, 0.4);
+  sketchLine(ctx, cx - s * 0.06, cy + s * 0.12, cx - s * 0.08, cy + s * 0.35, 0.4);
+  sketchLine(ctx, cx + s * 0.06, cy + s * 0.12, cx + s * 0.08, cy + s * 0.35, 0.4);
+  sketchLine(ctx, cx + s * 0.18, cy + s * 0.1, cx + s * 0.2, cy + s * 0.35, 0.4);
+  // Head
+  ctx.fillStyle = bc;
+  sketchCircle(ctx, cx + s * 0.28, cy - s * 0.08, s * 0.1);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.stroke();
+  // Eye
+  ctx.fillStyle = "#1a1008";
+  sketchCircle(ctx, cx + s * 0.3, cy - s * 0.1, s * 0.02);
+  ctx.fill();
+  // Ears
+  westernStroke(ctx, bc, s * 0.03);
+  sketchLine(ctx, cx + s * 0.25, cy - s * 0.15, cx + s * 0.22, cy - s * 0.25, 0.3);
+  sketchLine(ctx, cx + s * 0.3, cy - s * 0.15, cx + s * 0.32, cy - s * 0.25, 0.3);
+  // Tail
+  westernStroke(ctx, ac, s * 0.025);
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.28, cy - s * 0.02);
+  ctx.quadraticCurveTo(cx - s * 0.38, cy - s * 0.15, cx - s * 0.35, cy - s * 0.25);
+  ctx.stroke();
+};
+
+NPC_BODY_DRAW.floating = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2;
+  // Ethereal glow
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 0.4);
+  g.addColorStop(0, bc + "40");
+  g.addColorStop(1, "transparent");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, s, s);
+  // Robed body (triangle)
+  ctx.fillStyle = ac;
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.2, cy - s * 0.1);
+  ctx.lineTo(cx + s * 0.2, cy - s * 0.1);
+  ctx.lineTo(cx + s * 0.08, cy + s * 0.3);
+  ctx.lineTo(cx - s * 0.08, cy + s * 0.3);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, bc, s * 0.02);
+  ctx.stroke();
+  // Wavy bottom
+  westernStroke(ctx, ac, s * 0.03);
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.08, cy + s * 0.3);
+  ctx.quadraticCurveTo(cx - s * 0.05, cy + s * 0.4, cx, cy + s * 0.35);
+  ctx.quadraticCurveTo(cx + s * 0.05, cy + s * 0.3, cx + s * 0.08, cy + s * 0.38);
+  ctx.stroke();
+  // Hood/head
+  ctx.fillStyle = ac;
+  sketchCircle(ctx, cx, cy - s * 0.2, s * 0.12);
+  ctx.fill();
+  westernStroke(ctx, bc, s * 0.02);
+  ctx.stroke();
+  // Eyes (glowing)
+  ctx.fillStyle = "#40e0ff";
+  sketchCircle(ctx, cx - s * 0.04, cy - s * 0.22, s * 0.025);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.04, cy - s * 0.22, s * 0.025);
+  ctx.fill();
+};
+
+NPC_BODY_DRAW.scorpion = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2 + s * 0.05;
+  // Body
+  ctx.fillStyle = bc;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, s * 0.18, s * 0.08, 0, 0, Math.PI * 2);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.stroke();
+  // Legs (6)
+  westernStroke(ctx, bc, s * 0.02);
+  for (let i = 0; i < 3; i++) {
+    const ox = (i - 1) * s * 0.1;
+    sketchLine(ctx, cx + ox, cy + s * 0.07, cx + ox - s * 0.1, cy + s * 0.2, 0.3);
+    sketchLine(ctx, cx + ox, cy + s * 0.07, cx + ox + s * 0.1, cy + s * 0.2, 0.3);
+  }
+  // Tail (curved up)
+  westernStroke(ctx, bc, s * 0.035);
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.18, cy);
+  ctx.quadraticCurveTo(cx - s * 0.3, cy - s * 0.15, cx - s * 0.2, cy - s * 0.3);
+  ctx.quadraticCurveTo(cx - s * 0.1, cy - s * 0.4, cx - s * 0.05, cy - s * 0.32);
+  ctx.stroke();
+  // Stinger
+  ctx.fillStyle = "#cc3030";
+  sketchCircle(ctx, cx - s * 0.05, cy - s * 0.32, s * 0.03);
+  ctx.fill();
+  // Pincers
+  westernStroke(ctx, ac, s * 0.03);
+  sketchLine(ctx, cx + s * 0.18, cy - s * 0.02, cx + s * 0.3, cy - s * 0.1, 0.3);
+  sketchLine(ctx, cx + s * 0.3, cy - s * 0.1, cx + s * 0.35, cy - s * 0.05, 0.2);
+  sketchLine(ctx, cx + s * 0.3, cy - s * 0.1, cx + s * 0.35, cy - s * 0.15, 0.2);
+  sketchLine(ctx, cx + s * 0.18, cy + s * 0.02, cx + s * 0.3, cy + s * 0.1, 0.3);
+  sketchLine(ctx, cx + s * 0.3, cy + s * 0.1, cx + s * 0.35, cy + s * 0.05, 0.2);
+  sketchLine(ctx, cx + s * 0.3, cy + s * 0.1, cx + s * 0.35, cy + s * 0.15, 0.2);
+};
+
+NPC_BODY_DRAW.spider = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2;
+  // Body
+  ctx.fillStyle = bc;
+  sketchCircle(ctx, cx, cy, s * 0.12);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.stroke();
+  // Abdomen
+  ctx.fillStyle = ac;
+  sketchCircle(ctx, cx - s * 0.15, cy + s * 0.05, s * 0.14);
+  ctx.fill();
+  westernStroke(ctx, bc, s * 0.02);
+  ctx.stroke();
+  // Abdomen pattern
+  westernStroke(ctx, bc, s * 0.015);
+  sketchLine(ctx, cx - s * 0.18, cy, cx - s * 0.15, cy - s * 0.05, 0.2);
+  sketchLine(ctx, cx - s * 0.12, cy, cx - s * 0.15, cy - s * 0.05, 0.2);
+  // 8 legs
+  westernStroke(ctx, bc, s * 0.02);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 0.8 - 0.3;
+    const kx = cx + Math.cos(a) * s * 0.2;
+    const ky = cy + Math.sin(a) * s * 0.08 - s * 0.05;
+    const fx = cx + Math.cos(a) * s * 0.38;
+    const fy = cy + Math.sin(a) * s * 0.2 + s * 0.1;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * s * 0.1, cy);
+    ctx.lineTo(kx, ky);
+    ctx.lineTo(fx, fy);
+    ctx.stroke();
+    // Mirror
+    ctx.beginPath();
+    ctx.moveTo(cx - Math.cos(a) * s * 0.1 - s * 0.1, cy);
+    ctx.lineTo(cx - kx + cx - s * 0.1, ky);
+    ctx.lineTo(cx - fx + cx - s * 0.1, fy);
+    ctx.stroke();
+  }
+  // Eyes
+  ctx.fillStyle = "#cc2020";
+  sketchCircle(ctx, cx + s * 0.06, cy - s * 0.06, s * 0.025);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.12, cy - s * 0.04, s * 0.02);
+  ctx.fill();
+};
+
+NPC_BODY_DRAW.frog = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2 + s * 0.05;
+  // Body
+  ctx.fillStyle = bc;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, s * 0.2, s * 0.14, 0, 0, Math.PI * 2);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.stroke();
+  // Belly
+  ctx.fillStyle = ac;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + s * 0.04, s * 0.12, s * 0.08, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Hind legs
+  westernStroke(ctx, bc, s * 0.04);
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.15, cy + s * 0.08);
+  ctx.quadraticCurveTo(cx - s * 0.3, cy + s * 0.05, cx - s * 0.28, cy + s * 0.25);
+  ctx.lineTo(cx - s * 0.18, cy + s * 0.3);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.15, cy + s * 0.08);
+  ctx.quadraticCurveTo(cx + s * 0.3, cy + s * 0.05, cx + s * 0.28, cy + s * 0.25);
+  ctx.lineTo(cx + s * 0.18, cy + s * 0.3);
+  ctx.stroke();
+  // Front legs
+  westernStroke(ctx, bc, s * 0.025);
+  sketchLine(ctx, cx - s * 0.12, cy + s * 0.1, cx - s * 0.2, cy + s * 0.22, 0.3);
+  sketchLine(ctx, cx + s * 0.12, cy + s * 0.1, cx + s * 0.2, cy + s * 0.22, 0.3);
+  // Eyes (big, on top)
+  ctx.fillStyle = "#e0e0a0";
+  sketchCircle(ctx, cx - s * 0.1, cy - s * 0.14, s * 0.07);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.1, cy - s * 0.14, s * 0.07);
+  ctx.fill();
+  ctx.fillStyle = "#1a1a08";
+  sketchCircle(ctx, cx - s * 0.1, cy - s * 0.14, s * 0.03);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.1, cy - s * 0.14, s * 0.03);
+  ctx.fill();
+};
+
+NPC_BODY_DRAW.serpent = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2;
+  // S-curved body
+  westernStroke(ctx, bc, s * 0.08);
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.3, cy - s * 0.2);
+  ctx.bezierCurveTo(cx + s * 0.1, cy - s * 0.35, cx - s * 0.15, cy - s * 0.1, cx - s * 0.05, cy + s * 0.05);
+  ctx.bezierCurveTo(cx + s * 0.1, cy + s * 0.2, cx - s * 0.2, cy + s * 0.35, cx - s * 0.3, cy + s * 0.25);
+  ctx.stroke();
+  // Belly stripe
+  westernStroke(ctx, ac, s * 0.03);
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.28, cy - s * 0.18);
+  ctx.bezierCurveTo(cx + s * 0.08, cy - s * 0.33, cx - s * 0.17, cy - s * 0.08, cx - s * 0.07, cy + s * 0.07);
+  ctx.bezierCurveTo(cx + s * 0.08, cy + s * 0.22, cx - s * 0.22, cy + s * 0.37, cx - s * 0.28, cy + s * 0.27);
+  ctx.stroke();
+  // Head
+  ctx.fillStyle = bc;
+  sketchCircle(ctx, cx + s * 0.32, cy - s * 0.22, s * 0.08);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.stroke();
+  // Eye
+  ctx.fillStyle = "#cc3030";
+  sketchCircle(ctx, cx + s * 0.34, cy - s * 0.24, s * 0.025);
+  ctx.fill();
+  // Forked tongue
+  westernStroke(ctx, "#cc3030", s * 0.015);
+  sketchLine(ctx, cx + s * 0.38, cy - s * 0.22, cx + s * 0.44, cy - s * 0.2, 0.2);
+  sketchLine(ctx, cx + s * 0.38, cy - s * 0.22, cx + s * 0.44, cy - s * 0.25, 0.2);
+};
+
+NPC_BODY_DRAW.barricade = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2;
+  // Planks
+  for (const dx of [-0.22, -0.11, 0, 0.11, 0.22]) {
+    ctx.fillStyle = Math.abs(dx) > 0.15 ? ac : bc;
+    sketchRect(ctx, cx + dx * s - s * 0.04, cy - s * 0.3, s * 0.08, s * 0.6, 0.5);
+    ctx.fill();
+    westernStroke(ctx, "#1a1008", s * 0.015);
+    ctx.stroke();
+  }
+  // Crossbars
+  ctx.fillStyle = ac;
+  ctx.fillRect(cx - s * 0.28, cy - s * 0.15, s * 0.56, s * 0.05);
+  ctx.fillRect(cx - s * 0.28, cy + s * 0.08, s * 0.56, s * 0.05);
+  // Pointed tops
+  for (const dx of [-0.22, -0.11, 0, 0.11, 0.22]) {
+    ctx.fillStyle = bc;
+    ctx.beginPath();
+    ctx.moveTo(cx + dx * s - s * 0.04, cy - s * 0.3);
+    ctx.lineTo(cx + dx * s, cy - s * 0.38);
+    ctx.lineTo(cx + dx * s + s * 0.04, cy - s * 0.3);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Nails
+  ctx.fillStyle = "#808080";
+  sketchCircle(ctx, cx - s * 0.11, cy - s * 0.13, s * 0.015);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.11, cy + s * 0.1, s * 0.015);
+  ctx.fill();
+};
+
+NPC_BODY_DRAW.tower = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2;
+  // Base
+  ctx.fillStyle = ac;
+  sketchRect(ctx, cx - s * 0.2, cy + s * 0.1, s * 0.4, s * 0.28, 0.5);
+  ctx.fill();
+  westernStroke(ctx, "#1a1a1a", s * 0.02);
+  ctx.stroke();
+  // Column
+  ctx.fillStyle = bc;
+  sketchRect(ctx, cx - s * 0.14, cy - s * 0.25, s * 0.28, s * 0.38, 0.5);
+  ctx.fill();
+  westernStroke(ctx, "#1a1a1a", s * 0.02);
+  ctx.stroke();
+  // Stone pattern
+  westernStroke(ctx, "rgba(0,0,0,0.15)", s * 0.01);
+  for (let r = 0; r < 4; r++) {
+    const ry = cy - s * 0.2 + r * s * 0.1;
+    sketchLine(ctx, cx - s * 0.13, ry, cx + s * 0.13, ry, 0.3);
+  }
+  // Battlements
+  ctx.fillStyle = bc;
+  for (const dx of [-0.12, -0.04, 0.04, 0.12]) {
+    sketchRect(ctx, cx + dx * s - s * 0.03, cy - s * 0.34, s * 0.06, s * 0.1, 0.3);
+    ctx.fill();
+  }
+  // Flag
+  westernStroke(ctx, "#3a2010", s * 0.02);
+  sketchLine(ctx, cx, cy - s * 0.34, cx, cy - s * 0.48, 0.3);
+  ctx.fillStyle = "#c04020";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s * 0.48);
+  ctx.lineTo(cx + s * 0.12, cy - s * 0.44);
+  ctx.lineTo(cx, cy - s * 0.4);
+  ctx.closePath();
+  ctx.fill();
+};
+
+// ─── COMMON UI ICONS (replacing emoji) ───
+
+DRAW.skull = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4, 0.2);
+  ctx.fillStyle = "#e0e0d0";
+  sketchCircle(ctx, cx, cy - s * 0.05, s * 0.22);
+  ctx.fill();
+  westernStroke(ctx, "#5a4030", s * 0.025);
+  ctx.stroke();
+  // Jaw
+  ctx.fillStyle = "#d0d0c0";
+  sketchRect(ctx, cx - s * 0.12, cy + s * 0.1, s * 0.24, s * 0.12, 0.5);
+  ctx.fill();
+  westernStroke(ctx, "#5a4030", s * 0.02);
+  ctx.stroke();
+  // Eyes
+  ctx.fillStyle = "#1a1008";
+  sketchCircle(ctx, cx - s * 0.08, cy - s * 0.08, s * 0.05);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.08, cy - s * 0.08, s * 0.05);
+  ctx.fill();
+  // Nose
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.03, cy + s * 0.04);
+  ctx.lineTo(cx, cy + s * 0.01);
+  ctx.lineTo(cx + s * 0.03, cy + s * 0.04);
+  ctx.closePath();
+  ctx.fill();
+};
+
+DRAW.swords = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4);
+  westernStroke(ctx, "#c0c8d0", s * 0.04);
+  sketchLine(ctx, cx - s * 0.3, cy + s * 0.3, cx + s * 0.2, cy - s * 0.3, 0.5);
+  sketchLine(ctx, cx + s * 0.3, cy + s * 0.3, cx - s * 0.2, cy - s * 0.3, 0.5);
+  // Guards
+  westernStroke(ctx, "#d4a030", s * 0.04);
+  sketchLine(ctx, cx - s * 0.18, cy - s * 0.02, cx + s * 0.02, cy + s * 0.12, 0.3);
+  sketchLine(ctx, cx + s * 0.18, cy - s * 0.02, cx - s * 0.02, cy + s * 0.12, 0.3);
+};
+
+DRAW.shield = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4);
+  ctx.fillStyle = "#6a6a70";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s * 0.32);
+  ctx.lineTo(cx + s * 0.28, cy - s * 0.15);
+  ctx.lineTo(cx + s * 0.2, cy + s * 0.2);
+  ctx.lineTo(cx, cy + s * 0.35);
+  ctx.lineTo(cx - s * 0.2, cy + s * 0.2);
+  ctx.lineTo(cx - s * 0.28, cy - s * 0.15);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#3a3a40", s * 0.03);
+  ctx.stroke();
+  // Cross emblem
+  westernStroke(ctx, "#d4a030", s * 0.03);
+  sketchLine(ctx, cx, cy - s * 0.15, cx, cy + s * 0.15, 0.3);
+  sketchLine(ctx, cx - s * 0.12, cy, cx + s * 0.12, cy, 0.3);
+};
+
+DRAW.fire = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  ctx.fillStyle = "#ff6020";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s * 0.35);
+  ctx.bezierCurveTo(cx + s * 0.25, cy - s * 0.15, cx + s * 0.2, cy + s * 0.1, cx + s * 0.15, cy + s * 0.3);
+  ctx.lineTo(cx - s * 0.15, cy + s * 0.3);
+  ctx.bezierCurveTo(cx - s * 0.2, cy + s * 0.1, cx - s * 0.25, cy - s * 0.15, cx, cy - s * 0.35);
+  ctx.fill();
+  ctx.fillStyle = "#ffb040";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s * 0.15);
+  ctx.bezierCurveTo(cx + s * 0.12, cy, cx + s * 0.1, cy + s * 0.15, cx + s * 0.06, cy + s * 0.3);
+  ctx.lineTo(cx - s * 0.06, cy + s * 0.3);
+  ctx.bezierCurveTo(cx - s * 0.1, cy + s * 0.15, cx - s * 0.12, cy, cx, cy - s * 0.15);
+  ctx.fill();
+};
+
+DRAW.ice = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4, 0.15);
+  westernStroke(ctx, "#80d0ff", s * 0.04);
+  // Snowflake
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI;
+    sketchLine(ctx, cx + Math.cos(a) * s * 0.3, cy + Math.sin(a) * s * 0.3,
+               cx - Math.cos(a) * s * 0.3, cy - Math.sin(a) * s * 0.3, 0.3);
+  }
+  // Center
+  ctx.fillStyle = "#c0f0ff";
+  sketchCircle(ctx, cx, cy, s * 0.06);
+  ctx.fill();
+};
+
+DRAW.star = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  ctx.fillStyle = "#e0c040";
+  const pts = 5, outerR = s * 0.35, innerR = s * 0.15;
+  ctx.beginPath();
+  for (let i = 0; i < pts * 2; i++) {
+    const a = (i / (pts * 2)) * Math.PI * 2 - Math.PI / 2;
+    const r = i % 2 === 0 ? outerR : innerR;
+    const x = cx + Math.cos(a) * r;
+    const y = cy + Math.sin(a) * r;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#a08020", s * 0.025);
+  ctx.stroke();
+};
+
+DRAW.crown = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4, 0.3);
+  ctx.fillStyle = "#d4a030";
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.3, cy + s * 0.15);
+  ctx.lineTo(cx - s * 0.25, cy - s * 0.15);
+  ctx.lineTo(cx - s * 0.1, cy + s * 0.05);
+  ctx.lineTo(cx, cy - s * 0.25);
+  ctx.lineTo(cx + s * 0.1, cy + s * 0.05);
+  ctx.lineTo(cx + s * 0.25, cy - s * 0.15);
+  ctx.lineTo(cx + s * 0.3, cy + s * 0.15);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#8a6020", s * 0.03);
+  ctx.stroke();
+  // Gems
+  ctx.fillStyle = "#ff3030";
+  sketchCircle(ctx, cx, cy - s * 0.12, s * 0.04);
+  ctx.fill();
+  ctx.fillStyle = "#40c0ff";
+  sketchCircle(ctx, cx - s * 0.15, cy, s * 0.03);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.15, cy, s * 0.03);
+  ctx.fill();
+};
+
+DRAW.anchor = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4);
+  westernStroke(ctx, "#6a6a70", s * 0.04);
+  // Vertical bar
+  sketchLine(ctx, cx, cy - s * 0.3, cx, cy + s * 0.25, 0.3);
+  // Crossbar
+  sketchLine(ctx, cx - s * 0.2, cy - s * 0.1, cx + s * 0.2, cy - s * 0.1, 0.3);
+  // Curved bottom
+  ctx.beginPath();
+  ctx.arc(cx, cy + s * 0.25, s * 0.18, Math.PI, 0);
+  ctx.stroke();
+  // Ring at top
+  westernStroke(ctx, "#d4a030", s * 0.03);
+  sketchCircle(ctx, cx, cy - s * 0.34, s * 0.06);
+  ctx.stroke();
+};
+
+DRAW.moon = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  ctx.fillStyle = "#e0d080";
+  ctx.beginPath();
+  ctx.arc(cx - s * 0.05, cy, s * 0.28, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#1a1820";
+  ctx.beginPath();
+  ctx.arc(cx + s * 0.1, cy - s * 0.05, s * 0.22, 0, Math.PI * 2);
+  ctx.fill();
+};
+
+DRAW.lightning = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  ctx.fillStyle = "#ffe040";
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.05, cy - s * 0.38);
+  ctx.lineTo(cx - s * 0.12, cy + s * 0.02);
+  ctx.lineTo(cx + s * 0.05, cy + s * 0.02);
+  ctx.lineTo(cx - s * 0.05, cy + s * 0.38);
+  ctx.lineTo(cx + s * 0.15, cy - s * 0.02);
+  ctx.lineTo(cx - s * 0.02, cy - s * 0.02);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#a08020", s * 0.02);
+  ctx.stroke();
+};
+
+DRAW.dog = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4);
+  // Body
+  ctx.fillStyle = "#8a6030";
+  ctx.beginPath();
+  ctx.ellipse(cx - s * 0.05, cy + s * 0.05, s * 0.2, s * 0.12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  westernStroke(ctx, "#5a4020", s * 0.02);
+  ctx.stroke();
+  // Head
+  ctx.fillStyle = "#8a6030";
+  sketchCircle(ctx, cx + s * 0.18, cy - s * 0.08, s * 0.1);
+  ctx.fill(); ctx.stroke();
+  // Ear
+  ctx.fillStyle = "#6a4020";
+  ctx.beginPath();
+  ctx.ellipse(cx + s * 0.22, cy - s * 0.16, s * 0.04, s * 0.08, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // Eye
+  ctx.fillStyle = "#1a1008";
+  sketchCircle(ctx, cx + s * 0.2, cy - s * 0.1, s * 0.02);
+  ctx.fill();
+  // Legs
+  westernStroke(ctx, "#5a4020", s * 0.03);
+  sketchLine(ctx, cx - s * 0.15, cy + s * 0.15, cx - s * 0.16, cy + s * 0.32, 0.3);
+  sketchLine(ctx, cx + s * 0.05, cy + s * 0.15, cx + s * 0.06, cy + s * 0.32, 0.3);
+  // Tail
+  westernStroke(ctx, "#8a6030", s * 0.025);
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.24, cy);
+  ctx.quadraticCurveTo(cx - s * 0.32, cy - s * 0.1, cx - s * 0.28, cy - s * 0.2);
+  ctx.stroke();
+};
+
+DRAW.storm = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  // Cloud
+  ctx.fillStyle = "#606070";
+  sketchCircle(ctx, cx - s * 0.1, cy - s * 0.12, s * 0.14);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.08, cy - s * 0.1, s * 0.12);
+  ctx.fill();
+  sketchCircle(ctx, cx, cy - s * 0.05, s * 0.16);
+  ctx.fill();
+  // Lightning bolt
+  ctx.fillStyle = "#ffe040";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.02);
+  ctx.lineTo(cx - s * 0.08, cy + s * 0.18);
+  ctx.lineTo(cx + s * 0.02, cy + s * 0.16);
+  ctx.lineTo(cx - s * 0.04, cy + s * 0.35);
+  ctx.lineTo(cx + s * 0.08, cy + s * 0.12);
+  ctx.lineTo(cx, cy + s * 0.14);
+  ctx.closePath();
+  ctx.fill();
+};
+
+DRAW.fog = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  ctx.globalAlpha = 0.5;
+  westernStroke(ctx, "#a0a0a0", s * 0.04);
+  for (let i = 0; i < 4; i++) {
+    const y = cy - s * 0.2 + i * s * 0.13;
+    const w = s * (0.3 + i * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(cx - w, y);
+    ctx.quadraticCurveTo(cx, y + s * 0.04, cx + w, y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+};
+
+DRAW.rain = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  // Cloud
+  ctx.fillStyle = "#708090";
+  sketchCircle(ctx, cx - s * 0.08, cy - s * 0.18, s * 0.12);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.08, cy - s * 0.15, s * 0.1);
+  ctx.fill();
+  // Drops
+  westernStroke(ctx, "#4080c0", s * 0.02);
+  for (const [dx, dy] of [[-0.15, 0.1], [0, 0.05], [0.12, 0.12], [-0.08, 0.25], [0.08, 0.22]]) {
+    sketchLine(ctx, cx + dx * s, cy + dy * s, cx + dx * s - s * 0.02, cy + dy * s + s * 0.1, 0.3);
+  }
+};
+
+DRAW.wind = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  westernStroke(ctx, "#8090a0", s * 0.035);
+  for (let i = 0; i < 3; i++) {
+    const y = cy - s * 0.15 + i * s * 0.15;
+    const w = s * (0.25 - i * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(cx - w, y);
+    ctx.quadraticCurveTo(cx + w * 0.5, y - s * 0.05, cx + w, y + s * 0.02);
+    ctx.stroke();
+  }
+};
+
+DRAW.question = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4);
+  ctx.fillStyle = "#d4a030";
+  ctx.font = `bold ${s * 0.5}px serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("?", cx, cy);
+  westernStroke(ctx, "#8a6020", s * 0.03);
+  sketchCircle(ctx, cx, cy, s * 0.35);
+  ctx.stroke();
+};
+
+DRAW.wood = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  ctx.fillStyle = "#8a6a30";
+  sketchRect(ctx, cx - s * 0.12, cy - s * 0.35, s * 0.24, s * 0.6, 0.5);
+  ctx.fill();
+  westernStroke(ctx, "#5a4020", s * 0.025);
+  ctx.stroke();
+  ctx.fillStyle = "#6a4a20";
+  sketchRect(ctx, cx - s * 0.3, cy - s * 0.12, s * 0.25, s * 0.08, 0.5);
+  ctx.fill();
+  ctx.stroke();
+};
+
+DRAW.pickaxe = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4);
+  westernStroke(ctx, "#6a4a2a", s * 0.04);
+  sketchLine(ctx, cx - s * 0.25, cy + s * 0.3, cx + s * 0.2, cy - s * 0.2, 0.5);
+  ctx.fillStyle = "#808080";
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.2, cy - s * 0.2);
+  ctx.lineTo(cx + s * 0.35, cy - s * 0.35);
+  ctx.lineTo(cx + s * 0.28, cy - s * 0.15);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#4a4a4a", s * 0.02);
+  ctx.stroke();
+};
+
+DRAW.water = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  westernStroke(ctx, "#4080c0", s * 0.04);
+  for (let i = 0; i < 3; i++) {
+    const y = cy - s * 0.1 + i * s * 0.15;
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.3, y);
+    ctx.quadraticCurveTo(cx - s * 0.15, y - s * 0.08, cx, y);
+    ctx.quadraticCurveTo(cx + s * 0.15, y + s * 0.08, cx + s * 0.3, y);
+    ctx.stroke();
+  }
+};
+
+DRAW.meteor = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  // Trail
+  ctx.fillStyle = "#ff8020";
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.15, cy - s * 0.1);
+  ctx.lineTo(cx - s * 0.35, cy - s * 0.35);
+  ctx.lineTo(cx - s * 0.25, cy - s * 0.15);
+  ctx.lineTo(cx - s * 0.4, cy - s * 0.2);
+  ctx.closePath();
+  ctx.fill();
+  // Rock
+  ctx.fillStyle = "#6a4a30";
+  sketchCircle(ctx, cx + s * 0.1, cy, s * 0.18);
+  ctx.fill();
+  westernStroke(ctx, "#3a2010", s * 0.03);
+  ctx.stroke();
+  // Glow
+  ctx.fillStyle = "#ff4020";
+  sketchCircle(ctx, cx + s * 0.1, cy, s * 0.1);
+  ctx.fill();
+};
+
+// ─── ADDITIONAL UI / ITEM ICONS ───
+
+DRAW.coin = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4, 0.3);
+  ctx.fillStyle = "#d4a030";
+  sketchCircle(ctx, cx, cy, s * 0.28);
+  ctx.fill();
+  westernStroke(ctx, "#8a6020", s * 0.035);
+  ctx.stroke();
+  sketchCircle(ctx, cx, cy, s * 0.18);
+  ctx.stroke();
+  ctx.fillStyle = "#b08020";
+  ctx.font = `bold ${s * 0.22}px serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("C", cx, cy + s * 0.02);
+};
+
+DRAW.gem = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4, 0.25);
+  ctx.fillStyle = "#50a0e0";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s * 0.3);
+  ctx.lineTo(cx + s * 0.25, cy - s * 0.05);
+  ctx.lineTo(cx + s * 0.15, cy + s * 0.25);
+  ctx.lineTo(cx - s * 0.15, cy + s * 0.25);
+  ctx.lineTo(cx - s * 0.25, cy - s * 0.05);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#205080", s * 0.03);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,0.3)";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s * 0.3);
+  ctx.lineTo(cx + s * 0.1, cy - s * 0.05);
+  ctx.lineTo(cx, cy + s * 0.05);
+  ctx.lineTo(cx - s * 0.1, cy - s * 0.05);
+  ctx.closePath();
+  ctx.fill();
+};
+
+DRAW.compass = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4);
+  ctx.fillStyle = "#d4c8a0";
+  sketchCircle(ctx, cx, cy, s * 0.3);
+  ctx.fill();
+  westernStroke(ctx, "#6a5030", s * 0.035);
+  ctx.stroke();
+  ctx.fillStyle = "#c03020";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s * 0.2);
+  ctx.lineTo(cx + s * 0.06, cy);
+  ctx.lineTo(cx, cy + s * 0.04);
+  ctx.lineTo(cx - s * 0.06, cy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#e0e0e0";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.2);
+  ctx.lineTo(cx + s * 0.06, cy);
+  ctx.lineTo(cx, cy - s * 0.04);
+  ctx.lineTo(cx - s * 0.06, cy);
+  ctx.closePath();
+  ctx.fill();
+};
+
+DRAW.spyglass = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4);
+  ctx.fillStyle = "#8a6a30";
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.3, cy + s * 0.15);
+  ctx.lineTo(cx + s * 0.15, cy - s * 0.1);
+  ctx.lineTo(cx + s * 0.18, cy - s * 0.06);
+  ctx.lineTo(cx - s * 0.27, cy + s * 0.18);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#5a4020", s * 0.03);
+  ctx.stroke();
+  ctx.fillStyle = "#6080a0";
+  sketchCircle(ctx, cx + s * 0.22, cy - s * 0.12, s * 0.12);
+  ctx.fill();
+  westernStroke(ctx, "#304060", s * 0.03);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(180,220,255,0.3)";
+  sketchCircle(ctx, cx + s * 0.2, cy - s * 0.14, s * 0.05);
+  ctx.fill();
+};
+
+DRAW.ring = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.35);
+  westernStroke(ctx, "#d4a030", s * 0.06);
+  sketchCircle(ctx, cx, cy + s * 0.05, s * 0.2);
+  ctx.stroke();
+  ctx.fillStyle = "#c03030";
+  sketchCircle(ctx, cx, cy - s * 0.15, s * 0.08);
+  ctx.fill();
+  westernStroke(ctx, "#801020", s * 0.02);
+  ctx.stroke();
+};
+
+DRAW.rum = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4, 0.2);
+  ctx.fillStyle = "#4a3020";
+  sketchRect(ctx, cx - s * 0.12, cy - s * 0.1, s * 0.24, s * 0.38, 0.5);
+  ctx.fill();
+  westernStroke(ctx, "#2a1810", s * 0.03);
+  ctx.stroke();
+  ctx.fillStyle = "#6a4a20";
+  sketchRect(ctx, cx - s * 0.06, cy - s * 0.28, s * 0.12, s * 0.2, 0.5);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#d4c8a0";
+  sketchRect(ctx, cx - s * 0.1, cy + s * 0.02, s * 0.2, s * 0.12, 0.3);
+  ctx.fill();
+};
+
+DRAW.trophy = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.45, 0.3);
+  ctx.fillStyle = "#d4a030";
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.2, cy - s * 0.25);
+  ctx.quadraticCurveTo(cx - s * 0.25, cy + s * 0.05, cx - s * 0.05, cy + s * 0.1);
+  ctx.lineTo(cx + s * 0.05, cy + s * 0.1);
+  ctx.quadraticCurveTo(cx + s * 0.25, cy + s * 0.05, cx + s * 0.2, cy - s * 0.25);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#8a6020", s * 0.03);
+  ctx.stroke();
+  ctx.fillStyle = "#b08020";
+  sketchRect(ctx, cx - s * 0.08, cy + s * 0.1, s * 0.16, s * 0.06, 0.3);
+  ctx.fill();
+  sketchRect(ctx, cx - s * 0.12, cy + s * 0.16, s * 0.24, s * 0.08, 0.3);
+  ctx.fill();
+  westernStroke(ctx, "#8a6020", s * 0.02);
+  ctx.stroke();
+};
+
+DRAW.rock = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.35, 0.15);
+  ctx.fillStyle = "#7a7a70";
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.25, cy + s * 0.15);
+  ctx.lineTo(cx - s * 0.2, cy - s * 0.1);
+  ctx.lineTo(cx - s * 0.05, cy - s * 0.22);
+  ctx.lineTo(cx + s * 0.15, cy - s * 0.18);
+  ctx.lineTo(cx + s * 0.25, cy - s * 0.05);
+  ctx.lineTo(cx + s * 0.2, cy + s * 0.15);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#4a4a40", s * 0.03);
+  ctx.stroke();
+  westernStroke(ctx, "#5a5a50", s * 0.015);
+  sketchLine(ctx, cx - s * 0.1, cy - s * 0.05, cx + s * 0.1, cy + s * 0.02, 0.3);
+};
+
+DRAW.mushroom = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.35, 0.15);
+  ctx.fillStyle = "#d0c0a0";
+  sketchRect(ctx, cx - s * 0.06, cy, s * 0.12, s * 0.22, 0.5);
+  ctx.fill();
+  westernStroke(ctx, "#6a5a40", s * 0.02);
+  ctx.stroke();
+  ctx.fillStyle = "#c03020";
+  ctx.beginPath();
+  ctx.arc(cx, cy, s * 0.2, Math.PI, 0);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#802010", s * 0.025);
+  ctx.stroke();
+  ctx.fillStyle = "#f0e0c0";
+  sketchCircle(ctx, cx - s * 0.08, cy - s * 0.08, s * 0.04);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.08, cy - s * 0.12, s * 0.03);
+  ctx.fill();
+};
+
+DRAW.herb = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.35, 0.15);
+  westernStroke(ctx, "#2a6020", s * 0.03);
+  sketchLine(ctx, cx, cy + s * 0.25, cx, cy - s * 0.15, 0.5);
+  ctx.fillStyle = "#40a030";
+  for (let i = 0; i < 3; i++) {
+    const ly = cy - s * 0.1 + i * s * 0.12;
+    const lx = (i % 2 === 0) ? cx - s * 0.12 : cx + s * 0.12;
+    ctx.beginPath();
+    ctx.ellipse(lx, ly, s * 0.1, s * 0.05, (i % 2 === 0) ? -0.3 : 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  westernStroke(ctx, "#1a4010", s * 0.02);
+  ctx.stroke();
+};
+
+DRAW.palm = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4, 0.15);
+  westernStroke(ctx, "#6a4a20", s * 0.05);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.35);
+  ctx.quadraticCurveTo(cx + s * 0.05, cy, cx - s * 0.02, cy - s * 0.15);
+  ctx.stroke();
+  ctx.fillStyle = "#30a020";
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + (i - 2) * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.02, cy - s * 0.15);
+    const ex = cx - s * 0.02 + Math.cos(a) * s * 0.3;
+    const ey = cy - s * 0.15 + Math.sin(a) * s * 0.25;
+    ctx.quadraticCurveTo(cx + Math.cos(a) * s * 0.15, cy - s * 0.2 + Math.sin(a) * s * 0.1, ex, ey);
+    ctx.lineWidth = s * 0.04;
+    ctx.strokeStyle = "#208010";
+    ctx.stroke();
+  }
+};
+
+DRAW.leaf = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.3, 0.15);
+  ctx.fillStyle = "#c06020";
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.25, cy + s * 0.1);
+  ctx.quadraticCurveTo(cx, cy - s * 0.3, cx + s * 0.25, cy);
+  ctx.quadraticCurveTo(cx, cy + s * 0.3, cx - s * 0.25, cy + s * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#804010", s * 0.02);
+  ctx.stroke();
+  sketchLine(ctx, cx - s * 0.15, cy + s * 0.05, cx + s * 0.15, cy - s * 0.05, 0.3);
+};
+
+DRAW.flower = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.3, 0.15);
+  ctx.fillStyle = "#e060a0";
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const px = cx + Math.cos(a) * s * 0.14;
+    const py = cy + Math.sin(a) * s * 0.14;
+    sketchCircle(ctx, px, py, s * 0.1);
+    ctx.fill();
+  }
+  ctx.fillStyle = "#e0c040";
+  sketchCircle(ctx, cx, cy, s * 0.08);
+  ctx.fill();
+};
+
+DRAW.axe = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4);
+  westernStroke(ctx, "#6a4a20", s * 0.05);
+  sketchLine(ctx, cx - s * 0.2, cy + s * 0.3, cx + s * 0.1, cy - s * 0.2, 0.5);
+  ctx.fillStyle = "#808890";
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.1, cy - s * 0.2);
+  ctx.quadraticCurveTo(cx + s * 0.35, cy - s * 0.3, cx + s * 0.3, cy - s * 0.05);
+  ctx.lineTo(cx + s * 0.05, cy - s * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#404850", s * 0.03);
+  ctx.stroke();
+};
+
+DRAW.bandage = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.35);
+  ctx.fillStyle = "#e0d8c8";
+  sketchRect(ctx, cx - s * 0.25, cy - s * 0.1, s * 0.5, s * 0.2, 0.5);
+  ctx.fill();
+  westernStroke(ctx, "#8a7a60", s * 0.025);
+  ctx.stroke();
+  ctx.fillStyle = "#c03020";
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.08, cy);
+  ctx.lineTo(cx + s * 0.08, cy);
+  ctx.lineWidth = s * 0.06;
+  ctx.strokeStyle = "#c03020";
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s * 0.08);
+  ctx.lineTo(cx, cy + s * 0.08);
+  ctx.stroke();
+};
+
+DRAW.magnet = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4);
+  ctx.fillStyle = "#c03030";
+  ctx.beginPath();
+  ctx.arc(cx, cy - s * 0.05, s * 0.22, Math.PI, 0);
+  ctx.lineTo(cx + s * 0.22, cy + s * 0.15);
+  ctx.lineTo(cx + s * 0.12, cy + s * 0.15);
+  ctx.arc(cx, cy - s * 0.05, s * 0.12, 0, Math.PI, true);
+  ctx.lineTo(cx - s * 0.22, cy + s * 0.15);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#802020", s * 0.025);
+  ctx.stroke();
+  ctx.fillStyle = "#e0e0e0";
+  sketchRect(ctx, cx - s * 0.23, cy + s * 0.08, s * 0.11, s * 0.08, 0.3);
+  ctx.fill();
+  sketchRect(ctx, cx + s * 0.12, cy + s * 0.08, s * 0.11, s * 0.08, 0.3);
+  ctx.fill();
+};
+
+DRAW.vortex = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4, 0.2);
+  westernStroke(ctx, "#8040c0", s * 0.04);
+  for (let i = 0; i < 3; i++) {
+    const r = s * (0.1 + i * 0.08);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, i * 0.8, i * 0.8 + Math.PI * 1.5);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#a060e0";
+  sketchCircle(ctx, cx, cy, s * 0.06);
+  ctx.fill();
+};
+
+DRAW.feather = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.35, 0.15);
+  ctx.fillStyle = "#d4a030";
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.15, cy + s * 0.3);
+  ctx.quadraticCurveTo(cx - s * 0.05, cy, cx + s * 0.1, cy - s * 0.3);
+  ctx.quadraticCurveTo(cx + s * 0.2, cy - s * 0.1, cx + s * 0.05, cy + s * 0.05);
+  ctx.quadraticCurveTo(cx - s * 0.05, cy + s * 0.15, cx - s * 0.15, cy + s * 0.3);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#8a6020", s * 0.02);
+  ctx.stroke();
+  westernStroke(ctx, "#b08030", s * 0.015);
+  sketchLine(ctx, cx - s * 0.12, cy + s * 0.25, cx + s * 0.1, cy - s * 0.25, 0.3);
+};
+
+DRAW.eye = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4, 0.2);
+  ctx.fillStyle = "#e0e0d0";
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.3, cy);
+  ctx.quadraticCurveTo(cx, cy - s * 0.22, cx + s * 0.3, cy);
+  ctx.quadraticCurveTo(cx, cy + s * 0.22, cx - s * 0.3, cy);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#4a3020", s * 0.025);
+  ctx.stroke();
+  ctx.fillStyle = "#2060a0";
+  sketchCircle(ctx, cx, cy, s * 0.1);
+  ctx.fill();
+  ctx.fillStyle = "#101010";
+  sketchCircle(ctx, cx, cy, s * 0.05);
+  ctx.fill();
+};
+
+DRAW.banjo = (ctx, s) => {
+  const cx = s / 2, cy = s / 2;
+  sepiaGlow(ctx, cx, cy, s * 0.4);
+  ctx.fillStyle = "#d4a030";
+  sketchCircle(ctx, cx, cy + s * 0.08, s * 0.2);
+  ctx.fill();
+  westernStroke(ctx, "#8a6020", s * 0.03);
+  ctx.stroke();
+  ctx.fillStyle = "#6a4a20";
+  sketchRect(ctx, cx - s * 0.04, cy - s * 0.35, s * 0.08, s * 0.35, 0.5);
+  ctx.fill();
+  westernStroke(ctx, "#3a2010", s * 0.025);
+  ctx.stroke();
+  westernStroke(ctx, "#c0a060", s * 0.01);
+  for (let i = 0; i < 3; i++) {
+    const lx = cx - s * 0.03 + i * s * 0.03;
+    sketchLine(ctx, lx, cy - s * 0.3, lx, cy + s * 0.2, 0.2);
+  }
+};
+
 /* ── Mapping from icon name → draw function ─────────── */
 
 export const ICON_MAP = {
@@ -1041,8 +2151,48 @@ export const ICON_MAP = {
   pirate: DRAW.pirate,
   alchemist: DRAW.alchemist,
   gunner: DRAW.gunner,
-  // UI
+  // UI / common
   gunpowder: DRAW.gunpowder,
+  skull: DRAW.skull,
+  swords: DRAW.swords,
+  shield: DRAW.shield,
+  fire: DRAW.fire,
+  ice: DRAW.ice,
+  star: DRAW.star,
+  crown: DRAW.crown,
+  anchor: DRAW.anchor,
+  moon: DRAW.moon,
+  lightning: DRAW.lightning,
+  dog: DRAW.dog,
+  storm: DRAW.storm,
+  fog: DRAW.fog,
+  rain: DRAW.rain,
+  wind: DRAW.wind,
+  question: DRAW.question,
+  wood: DRAW.wood,
+  pickaxe: DRAW.pickaxe,
+  water: DRAW.water,
+  meteor: DRAW.meteor,
+  coin: DRAW.coin,
+  gem: DRAW.gem,
+  compass: DRAW.compass,
+  spyglass: DRAW.spyglass,
+  ring: DRAW.ring,
+  rum: DRAW.rum,
+  trophy: DRAW.trophy,
+  rock: DRAW.rock,
+  mushroom: DRAW.mushroom,
+  herb: DRAW.herb,
+  palm: DRAW.palm,
+  leaf: DRAW.leaf,
+  flower: DRAW.flower,
+  axe: DRAW.axe,
+  bandage: DRAW.bandage,
+  magnet: DRAW.magnet,
+  vortex: DRAW.vortex,
+  feather: DRAW.feather,
+  eye: DRAW.eye,
+  banjo: DRAW.banjo,
   fame: DRAW.fame,
   copper: DRAW.copper,
   silver: DRAW.silver,
@@ -1126,3 +2276,70 @@ export function getIconUrl(name, size = 32) {
 export function getSpellIconUrl(spellId, size = 32) {
   return getIconUrl(SPELL_ICON_MAP[spellId], size);
 }
+
+/**
+ * Get the raw canvas for an NPC body-type icon with custom colors.
+ * Results are cached by (bodyType, bodyColor, armorColor, size).
+ * Use this for PixiJS Texture.from(canvas) to avoid async data-URL issues.
+ */
+const _npcCanvasCache = {};
+export function getNpcIconCanvas(bodyType, bodyColor = "#6a4a30", armorColor = "#4a3a28", size = 48) {
+  const key = `npc_${bodyType}_${bodyColor}_${armorColor}_${size}`;
+  if (_npcCanvasCache[key]) return _npcCanvasCache[key];
+  const drawFn = NPC_BODY_DRAW[bodyType];
+  if (!drawFn) return null;
+  const [cvs, ctx] = _canvas(size);
+  const _origRandom = Math.random;
+  let _seed = 0;
+  for (let i = 0; i < key.length; i++) _seed += key.charCodeAt(i) * (i + 1);
+  _seed = (_seed * 9301 + 49297) % 233280;
+  Math.random = () => { _seed = (_seed * 9301 + 49297) % 233280; return _seed / 233280; };
+  try { drawFn(ctx, size, bodyColor, armorColor); } finally { Math.random = _origRandom; }
+  _npcCanvasCache[key] = cvs;
+  return cvs;
+}
+
+/**
+ * Get a data-URL for an NPC body-type icon with custom colors.
+ * Results are cached by (bodyType, bodyColor, armorColor, size).
+ */
+export function getNpcIconUrl(bodyType, bodyColor = "#6a4a30", armorColor = "#4a3a28", size = 48) {
+  const key = `npc_${bodyType}_${bodyColor}_${armorColor}_${size}`;
+  if (_cache[key]) return _cache[key];
+  const cvs = getNpcIconCanvas(bodyType, bodyColor, armorColor, size);
+  if (!cvs) return getIconUrl("question", size);
+  const url = cvs.toDataURL();
+  _cache[key] = url;
+  return url;
+}
+
+/**
+ * Get a cached drawable for an NPC body-type icon.
+ * Returns the raw canvas (usable with ctx.drawImage directly).
+ */
+export function getNpcIconImage(bodyType, bodyColor, armorColor, size = 48) {
+  return getNpcIconCanvas(bodyType, bodyColor, armorColor, size);
+}
+
+/**
+ * Get a cached canvas for a UI icon.
+ * Returns the raw canvas (usable with ctx.drawImage directly).
+ */
+const _iconCanvasCache = {};
+export function getIconImage(name, size = 32) {
+  const key = `${name}_${size}`;
+  if (_iconCanvasCache[key]) return _iconCanvasCache[key];
+  const drawFn = ICON_MAP[name];
+  if (!drawFn) return null;
+  const [cvs, ctx] = _canvas(size);
+  const _origRandom = Math.random;
+  let _seed = 0;
+  for (let i = 0; i < name.length; i++) _seed += name.charCodeAt(i) * (i + 1);
+  _seed = (_seed * 9301 + 49297) % 233280;
+  Math.random = () => { _seed = (_seed * 9301 + 49297) % 233280; return _seed / 233280; };
+  try { drawFn(ctx, size); } finally { Math.random = _origRandom; }
+  _iconCanvasCache[key] = cvs;
+  return cvs;
+}
+
+export { NPC_BODY_DRAW };

@@ -168,7 +168,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
               <div style={{ fontSize: 10, fontWeight: "bold", color: isSelected ? spell.color : spell.color + "aa", zIndex: 3, whiteSpace: "nowrap", textShadow: isSelected ? `0 0 6px ${spell.color}44` : "none" }}>{spell.name}</div>
               <div style={{ fontSize: 9, color: canCast ? "#6090cc" : "#804040", zIndex: 3 }}>
                 {isSummon ? <><GameIcon name="gold" size={12} /> Wybierz</> : <><GameIcon name="gunpowder" size={12} />{spell.manaCost}</>}
-                {isAoe && <span style={{ color: "#e0a040", marginLeft: 3 }}>⚡AoE</span>}
+                {isAoe && <span style={{ color: "#e0a040", marginLeft: 3 }}><GameIcon name="lightning" size={9} />AoE</span>}
               </div>
               {onCooldown && <div style={{ fontSize: 11, fontWeight: "bold", color: "#ff9040", zIndex: 3 }}>{Math.ceil((cdEnd - now) / 1000)}s</div>}
             </div>

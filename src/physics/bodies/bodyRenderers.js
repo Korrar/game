@@ -1,19 +1,13 @@
-// ASCII symbol body renderers — Canvas2D fallback
-// Each enemy/NPC is rendered as a large ASCII character symbol
+// Icon-based body renderers — Canvas2D fallback
+// Each enemy/NPC is rendered as a hand-drawn icon
 
 import { HALF_HEIGHTS, FIGURE_HALF_HEIGHT } from "./constants.js";
+import { getNpcIconImage } from "../../rendering/icons.js";
 
-// ASCII symbol mapping per body type
-const BODY_SYMBOLS = {
-  humanoid:  { char: "@", size: 42 },
-  quadruped: { char: "W", size: 36 },
-  floating:  { char: "~", size: 38 },
-  scorpion:  { char: "}", size: 34 },
-  spider:    { char: "X", size: 32 },
-  frog:      { char: "&", size: 30 },
-  serpent:   { char: "S", size: 36 },
-  barricade: { char: "#", size: 44 },
-  tower:     { char: "T", size: 48 },
+// Icon size per body type
+const ICON_SIZES = {
+  humanoid: 48, quadruped: 44, floating: 44, scorpion: 40,
+  spider: 38, frog: 36, serpent: 44, barricade: 52, tower: 56,
 };
 
 // ─── SHARED DRAW UTILS ───
@@ -59,12 +53,12 @@ export function getColors(entry, fogVisibility, W) {
   };
 }
 
-// ─── UNIFIED ASCII SYMBOL RENDERER ───
+// ─── UNIFIED ICON RENDERER ───
 
-function drawSymbolBody(ctx, limbs, colors, dir, entry) {
+function drawIconBody(ctx, limbs, colors, dir, entry) {
   const c = colors;
-  const sym = BODY_SYMBOLS[entry.bodyType] || BODY_SYMBOLS.humanoid;
   const halfH = HALF_HEIGHTS[entry.bodyType] || FIGURE_HALF_HEIGHT;
+  const iconSize = ICON_SIZES[entry.bodyType] || 48;
 
   ctx.save();
   ctx.globalAlpha = c.alpha;
@@ -81,32 +75,31 @@ function drawSymbolBody(ctx, limbs, colors, dir, entry) {
   // Ground aura
   drawGroundAura(ctx, tx, ty + halfH + 2, 14, entry.friendly, entry);
 
-  // Ragdoll: tilt
-  if (entry.ragdoll) {
-    ctx.translate(tx, ty);
-    const rotAngle = (1 - c.alpha) * (Math.PI / 2);
-    ctx.rotate(rotAngle);
-    _renderSymbol(ctx, 0, 0, sym, c, entry);
-  } else {
-    // Mirror for direction
-    if (dir < 0) {
+  // Get icon image
+  const bodyColor = entry.friendly ? "#3a8a40" : (entry.npcData.bodyColor || "#6a4a30");
+  const armorColor = entry.friendly ? "#2a5a28" : (entry.npcData.armorColor || "#4a3a28");
+  const img = c.flash
+    ? getNpcIconImage(entry.bodyType, "#cc2020", "#880000", iconSize)
+    : getNpcIconImage(entry.bodyType, bodyColor, armorColor, iconSize);
+
+  // Draw icon (img is a canvas element, always ready)
+  if (img) {
+    const halfIcon = iconSize / 2;
+
+    if (entry.ragdoll) {
+      ctx.translate(tx, ty);
+      const rotAngle = (1 - c.alpha) * (Math.PI / 2);
+      ctx.rotate(rotAngle);
+      ctx.drawImage(img, -halfIcon, -halfIcon, iconSize, iconSize);
+    } else if (dir < 0) {
       ctx.save();
       ctx.translate(tx, ty);
       ctx.scale(-1, 1);
-      _renderSymbol(ctx, 0, 0, sym, c, entry);
+      ctx.drawImage(img, -halfIcon, -halfIcon, iconSize, iconSize);
       ctx.restore();
     } else {
-      _renderSymbol(ctx, tx, ty, sym, c, entry);
+      ctx.drawImage(img, tx - halfIcon, ty - halfIcon, iconSize, iconSize);
     }
-  }
-
-  // Small emoji label above
-  if (limbs.head) {
-    ctx.font = "14px serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.fillText(entry.npcData.emoji, limbs.head.x, limbs.head.y - 12);
-    ctx.textAlign = "start";
   }
 
   // Glow ring
@@ -114,7 +107,7 @@ function drawSymbolBody(ctx, limbs, colors, dir, entry) {
     const pulse = 0.7 + Math.sin(Date.now() * 0.004) * 0.3;
     const glowColor = entry.friendly ? "rgba(60,220,80," : "rgba(200,60,60,";
     const glowAlpha = entry.friendly ? 0.35 * pulse : 0.25 * pulse;
-    const r = sym.size * 0.45;
+    const r = iconSize * 0.5;
     ctx.shadowColor = glowColor + (entry.friendly ? `${0.5 * pulse})` : `${0.3 * pulse})`);
     ctx.shadowBlur = 10 * pulse;
     ctx.strokeStyle = glowColor + `${glowAlpha})`;
@@ -126,23 +119,6 @@ function drawSymbolBody(ctx, limbs, colors, dir, entry) {
   }
 
   ctx.restore();
-}
-
-function _renderSymbol(ctx, x, y, sym, c, entry) {
-  ctx.font = `bold ${sym.size}px monospace`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  // Outline
-  ctx.strokeStyle = c.flash || c.armor;
-  ctx.lineWidth = 3;
-  ctx.strokeText(sym.char, x, y);
-
-  // Fill
-  ctx.fillStyle = c.flash || (entry.friendly ? "#40c060" : c.body);
-  ctx.fillText(sym.char, x, y);
-
-  ctx.textAlign = "start";
 }
 
 // ─── WEAPON RENDERER ───
@@ -326,7 +302,6 @@ export function drawProjectile(ctx, proj) {
 // ─── DRAW DISPATCH ───
 
 export function drawBody(ctx, bodyType, limbs, colors, dir, entry) {
-  // Single unified renderer for all body types
   entry.bodyType = entry.bodyType || bodyType;
-  drawSymbolBody(ctx, limbs, colors, dir, entry);
+  drawIconBody(ctx, limbs, colors, dir, entry);
 }

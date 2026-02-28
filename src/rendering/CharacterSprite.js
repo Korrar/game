@@ -1,46 +1,20 @@
-// CharacterSprite — PixiJS ASCII symbol character rendering
-// Each enemy/NPC is represented by a large ASCII character
+// CharacterSprite — PixiJS icon-based character rendering
+// Each enemy/NPC is represented by a hand-drawn icon sprite
 
-import { Container, Graphics, Text, TextStyle } from "pixi.js";
-import { HALF_HEIGHTS, FIGURE_HALF_HEIGHT, HEAD_RADIUS, QUAD_HEAD_RADIUS } from "../physics/bodies/constants.js";
+import { Container, Graphics, Sprite, Texture } from "pixi.js";
+import { HALF_HEIGHTS, FIGURE_HALF_HEIGHT } from "../physics/bodies/constants.js";
+import { getNpcIconCanvas } from "./icons.js";
 
 // Glow color presets
 const GLOW_FRIENDLY = { color: 0x3cdc50, alpha: 0.5 };
 const GLOW_ENEMY = { color: 0xc83c3c, alpha: 0.35 };
 const GLOW_HIT = { color: 0xff2828, alpha: 0.7 };
 
-// ASCII symbol mapping per body type
-const BODY_SYMBOLS = {
-  humanoid:  { char: "@", size: 42 },
-  quadruped: { char: "W", size: 36 },
-  floating:  { char: "~", size: 38 },
-  scorpion:  { char: "}", size: 34 },
-  spider:    { char: "X", size: 32 },
-  frog:      { char: "&", size: 30 },
-  serpent:   { char: "S", size: 36 },
-  barricade: { char: "#", size: 44 },
-  tower:     { char: "T", size: 48 },
+// Icon size per body type (in pixels)
+const ICON_SIZES = {
+  humanoid: 48, quadruped: 44, floating: 44, scorpion: 40,
+  spider: 38, frog: 36, serpent: 44, barricade: 52, tower: 56,
 };
-
-function hexToPixi(hex) {
-  if (typeof hex === "number") return hex;
-  if (typeof hex === "string" && hex.startsWith("#")) return parseInt(hex.slice(1), 16);
-  return 0x6a4a30;
-}
-
-function darken(c, amt = 40) {
-  const r = Math.max(0, ((c >> 16) & 0xff) - amt);
-  const g = Math.max(0, ((c >> 8) & 0xff) - amt);
-  const b = Math.max(0, (c & 0xff) - amt);
-  return (r << 16) | (g << 8) | b;
-}
-
-function lighten(c, amt = 40) {
-  const r = Math.min(255, ((c >> 16) & 0xff) + amt);
-  const g = Math.min(255, ((c >> 8) & 0xff) + amt);
-  const b = Math.min(255, (c & 0xff) + amt);
-  return (r << 16) | (g << 8) | b;
-}
 
 export class CharacterSprite {
   constructor(npcData, friendly) {
@@ -54,55 +28,38 @@ export class CharacterSprite {
     // Graphics layers
     this.auraGfx = new Graphics();
     this.shadowGfx = new Graphics();
-    this.bodyGfx = new Graphics();
     this.glowGfx = new Graphics();
     this.weaponGfx = new Graphics();
 
     this.auraGfx.zIndex = 0;
     this.shadowGfx.zIndex = 1;
-    this.bodyGfx.zIndex = 2;
     this.weaponGfx.zIndex = 3;
     this.glowGfx.zIndex = 4;
 
     this.container.addChild(this.auraGfx);
     this.container.addChild(this.shadowGfx);
-    this.container.addChild(this.bodyGfx);
     this.container.addChild(this.weaponGfx);
     this.container.addChild(this.glowGfx);
 
-    // ASCII symbol text — the main body representation
-    const sym = BODY_SYMBOLS[this.bodyType] || BODY_SYMBOLS.humanoid;
-    const bodyColor = friendly ? "#40c060" : (npcData.bodyColor || "#6a4a30");
-    this.symbolText = new Text({
-      text: sym.char,
-      style: new TextStyle({
-        fontSize: sym.size,
-        fontFamily: "monospace",
-        fontWeight: "bold",
-        fill: bodyColor,
-        stroke: { color: friendly ? "#1a3a1a" : (npcData.armorColor || "#2a1a10"), width: 3 },
-      }),
-    });
-    this.symbolText.anchor.set(0.5, 0.5);
-    this.symbolText.zIndex = 3;
-    this.container.addChild(this.symbolText);
+    // Create icon sprite from raw canvas (avoids PixiJS async data-URL issues)
+    const iconSize = ICON_SIZES[this.bodyType] || 48;
+    const bodyColor = friendly ? "#3a8a40" : (npcData.bodyColor || "#6a4a30");
+    const armorColor = friendly ? "#2a5a28" : (npcData.armorColor || "#4a3a28");
+    const iconCanvas = getNpcIconCanvas(this.bodyType, bodyColor, armorColor, iconSize);
 
-    // Small emoji label above the symbol (for identification)
-    this.emojiText = new Text({
-      text: npcData.emoji || "?",
-      style: new TextStyle({ fontSize: 14, fontFamily: "serif" }),
-    });
-    this.emojiText.anchor.set(0.5, 1);
-    this.emojiText.zIndex = 5;
-    this.container.addChild(this.emojiText);
+    this.iconSprite = new Sprite(Texture.from(iconCanvas));
+    this.iconSprite.anchor.set(0.5, 0.5);
+    this.iconSprite.zIndex = 3;
+    this.iconSize = iconSize;
+    this.container.addChild(this.iconSprite);
 
-    // Store colors for flash
-    this.colors = {
-      body: hexToPixi(bodyColor),
-      armor: hexToPixi(friendly ? "#2a5a28" : (npcData.armorColor || "#4a3a28")),
-    };
-    this.baseBodyColor = bodyColor;
-    this.baseArmorColor = friendly ? "#1a3a1a" : (npcData.armorColor || "#2a1a10");
+    // Create hit flash icon (red-tinted version)
+    const flashCanvas = getNpcIconCanvas(this.bodyType, "#cc2020", "#880000", iconSize);
+    this.flashSprite = new Sprite(Texture.from(flashCanvas));
+    this.flashSprite.anchor.set(0.5, 0.5);
+    this.flashSprite.zIndex = 3;
+    this.flashSprite.visible = false;
+    this.container.addChild(this.flashSprite);
 
     this._lastDir = 1;
   }
@@ -132,12 +89,10 @@ export class CharacterSprite {
     const dir = entry._dir || 1;
     this._lastDir = dir;
     const flash = entry.hitFlash > 0;
-    const flashAlpha = flash ? entry.hitFlash / 8 * 0.6 : 0;
 
     // Clear graphics
     this.auraGfx.clear();
     this.shadowGfx.clear();
-    this.bodyGfx.clear();
     this.glowGfx.clear();
     this.weaponGfx.clear();
 
@@ -155,39 +110,37 @@ export class CharacterSprite {
       this._drawGroundAura(tx, ty);
     }
 
-    // Position ASCII symbol at torso
-    this.symbolText.position.set(tx, ty);
+    // Position icon sprite at torso
+    this.iconSprite.position.set(tx, ty);
+    this.flashSprite.position.set(tx, ty);
 
-    // Ragdoll: tilt the symbol
+    // Hit flash — show/hide flash sprite
+    if (flash) {
+      this.iconSprite.visible = false;
+      this.flashSprite.visible = true;
+      this.flashSprite.alpha = 0.6 + (entry.hitFlash / 8) * 0.4;
+    } else {
+      this.iconSprite.visible = true;
+      this.flashSprite.visible = false;
+    }
+
+    // Ragdoll: tilt the sprite
     if (entry.ragdoll) {
       const rotAngle = (1 - alpha) * (Math.PI / 2);
-      this.symbolText.rotation = rotAngle;
+      this.iconSprite.rotation = rotAngle;
+      this.flashSprite.rotation = rotAngle;
     } else {
-      this.symbolText.rotation = 0;
+      this.iconSprite.rotation = 0;
+      this.flashSprite.rotation = 0;
     }
 
     // Mirror based on direction
-    this.symbolText.scale.x = dir;
+    this.iconSprite.scale.x = dir;
+    this.flashSprite.scale.x = dir;
 
-    // Hit flash — change fill color
-    if (flash) {
-      this.symbolText.style.fill = "#ff2828";
-      this.symbolText.style.stroke = { color: "#aa0000", width: 3 };
-    } else {
-      this.symbolText.style.fill = this.baseBodyColor;
-      this.symbolText.style.stroke = { color: this.baseArmorColor, width: 3 };
-    }
-
-    // Position emoji above the symbol
-    if (limbs.head) {
-      this.emojiText.position.set(limbs.head.x, limbs.head.y - 14);
-    } else {
-      this.emojiText.position.set(tx, ty - halfH - 8);
-    }
-
-    // Glow ring around symbol
+    // Glow ring around icon
     if (!entry.ragdoll) {
-      this._drawSymbolGlow(tx, ty, halfH, flash, flashAlpha);
+      this._drawSymbolGlow(tx, ty, halfH, flash);
     }
 
     // Draw weapon if applicable
@@ -196,20 +149,12 @@ export class CharacterSprite {
     }
   }
 
-  _fc(flash, flashAlpha, normal) { return flash ? this._flashColor(flashAlpha) : normal; }
-
-  _flashColor(alpha) {
-    const a = Math.round(alpha * 255);
-    return (0xff0000 | (0x28 << 8) | 0x28) | (a << 24);
-  }
-
-  _drawSymbolGlow(tx, ty, halfH, flash, flashAlpha) {
+  _drawSymbolGlow(tx, ty, halfH, flash) {
     const pulse = 0.7 + Math.sin(Date.now() * 0.004) * 0.3;
     const glow = this.friendly ? GLOW_FRIENDLY : GLOW_ENEMY;
     const glowColor = flash ? GLOW_HIT.color : glow.color;
     const glowAlpha = (flash ? GLOW_HIT.alpha : glow.alpha) * pulse;
-    const sym = BODY_SYMBOLS[this.bodyType] || BODY_SYMBOLS.humanoid;
-    const r = sym.size * 0.45;
+    const r = this.iconSize * 0.5;
     this.glowGfx.setStrokeStyle({ width: 2, color: glowColor, alpha: glowAlpha });
     this.glowGfx.circle(tx, ty, r);
     this.glowGfx.stroke();

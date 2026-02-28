@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getIconUrl } from "../rendering/icons";
 
 export default function WeatherOverlay({ weather }) {
   const [visible, setVisible] = useState(true);
@@ -30,7 +31,7 @@ export default function WeatherOverlay({ weather }) {
         <div style={{ position: "absolute", top: 4, left: 8, fontSize: 7, color: "#4080cc", opacity: 0.5 }}>◆</div>
         <div style={{ position: "absolute", top: 4, right: 8, fontSize: 7, color: "#4080cc", opacity: 0.5 }}>◆</div>
 
-        <div style={{ fontSize: 30, marginBottom: 4, filter: "drop-shadow(0 0 8px rgba(60,120,200,0.4))" }}>{weather.emoji}</div>
+        <div style={{ marginBottom: 4, filter: "drop-shadow(0 0 8px rgba(60,120,200,0.4))" }}>{getIconUrl(weather.icon, 30) ? <img src={getIconUrl(weather.icon, 30)} width={30} height={30} alt="" /> : null}</div>
         <div style={{ fontSize: 18, color: "#80c0e0", fontWeight: "bold", textShadow: "0 0 8px rgba(80,180,220,0.3)" }}>{weather.name}</div>
         <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{weather.description}</div>
       </div>

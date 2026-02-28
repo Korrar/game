@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { RELIC_RARITY_COLOR } from "../data/relics";
+import { getIconUrl } from "../rendering/icons";
 
 const RARITY_LABEL = { common: "Zwykły", rare: "Rzadki", epic: "Epicki" };
 
@@ -70,8 +71,8 @@ export default function RelicPicker({ choices, onSelect }) {
                 }} />
               )}
 
-              <div style={{ fontSize: 44, filter: `drop-shadow(0 0 10px ${color}88)`, zIndex: 1 }}>
-                {relic.emoji}
+              <div style={{ filter: `drop-shadow(0 0 10px ${color}88)`, zIndex: 1 }}>
+                {getIconUrl(relic.icon, 44) ? <img src={getIconUrl(relic.icon, 44)} width={44} height={44} alt="" /> : null}
               </div>
               <div style={{
                 fontSize: 16, fontWeight: "bold", color, zIndex: 1,

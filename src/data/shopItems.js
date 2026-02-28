@@ -2,7 +2,7 @@
 export const SHOP_TOOLS = [
   {
     id: "axe",
-    icon: "🪓",
+    icon: "axe",
     name: "Siekiera drwala",
     desc: "Pozwala rąbać drewno w leśnych biomach",
     cost: { silver: 3 },
@@ -10,7 +10,7 @@ export const SHOP_TOOLS = [
   },
   {
     id: "pickaxe",
-    icon: "⛏️",
+    icon: "pickaxe",
     name: "Kilof górnika",
     desc: "Pozwala kopać rudę w kamiennych biomach",
     cost: { silver: 3 },
@@ -18,7 +18,7 @@ export const SHOP_TOOLS = [
   },
   {
     id: "spyglass",
-    icon: "🔭",
+    icon: "spyglass",
     name: "Luneta zwiadowcy",
     desc: "Pokaże podgląd następnej komnaty przed wejściem",
     cost: { silver: 5 },
@@ -31,26 +31,26 @@ export const SHOP_TOOLS = [
 // chance: probability of resource node spawning in matching biome
 export const RESOURCES = {
   forest: [
-    { icon: "🪵", name: "Drewno dębowe", desc: "Solidny kawałek twardego drewna", rarity: "common", value: { copper: 6 }, chance: 0.5 },
-    { icon: "🪵", name: "Drewno sosnowe", desc: "Lekkie, żywiczne drewno", rarity: "common", value: { copper: 4 }, chance: 0.55 },
-    { icon: "🌿", name: "Rzadkie zioła", desc: "Cenione przez alchemików", rarity: "uncommon", value: { copper: 12 }, chance: 0.25 },
-    { icon: "🍄", name: "Grzyb trujący", desc: "Mieni się w ciemności", rarity: "rare", value: { copper: 18 }, chance: 0.12 },
-    { icon: "🪵", name: "Drewno mahoniowe", desc: "Ciemny połysk, niezwykle trwałe", rarity: "epic", value: { silver: 1 }, chance: 0.06 },
+    { icon: "wood", name: "Drewno dębowe", desc: "Solidny kawałek twardego drewna", rarity: "common", value: { copper: 6 }, chance: 0.5 },
+    { icon: "wood", name: "Drewno sosnowe", desc: "Lekkie, żywiczne drewno", rarity: "common", value: { copper: 4 }, chance: 0.55 },
+    { icon: "herb", name: "Rzadkie zioła", desc: "Cenione przez alchemików", rarity: "uncommon", value: { copper: 12 }, chance: 0.25 },
+    { icon: "mushroom", name: "Grzyb trujący", desc: "Mieni się w ciemności", rarity: "rare", value: { copper: 18 }, chance: 0.12 },
+    { icon: "wood", name: "Drewno mahoniowe", desc: "Ciemny połysk, niezwykle trwałe", rarity: "epic", value: { silver: 1 }, chance: 0.06 },
   ],
   mine: [
-    { icon: "🪨", name: "Ruda żelaza", desc: "Ciężki kawałek rudy", rarity: "common", value: { copper: 7 }, chance: 0.5 },
-    { icon: "🪨", name: "Ruda miedzi", desc: "Zielonkawy kamień z żyłami metalu", rarity: "common", value: { copper: 5 }, chance: 0.55 },
-    { icon: "💎", name: "Surowy kryształ", desc: "Lśni w blasku pochodni", rarity: "uncommon", value: { copper: 15 }, chance: 0.2 },
-    { icon: "🪨", name: "Ruda srebra", desc: "Błyszczące żyły w skale", rarity: "rare", value: { copper: 25 }, chance: 0.1 },
-    { icon: "💎", name: "Złota żyła", desc: "Pulsuje wewnętrznym blaskiem", rarity: "epic", value: { silver: 1, copper: 20 }, chance: 0.05 },
+    { icon: "rock", name: "Ruda żelaza", desc: "Ciężki kawałek rudy", rarity: "common", value: { copper: 7 }, chance: 0.5 },
+    { icon: "rock", name: "Ruda miedzi", desc: "Zielonkawy kamień z żyłami metalu", rarity: "common", value: { copper: 5 }, chance: 0.55 },
+    { icon: "gem", name: "Surowy kryształ", desc: "Lśni w blasku pochodni", rarity: "uncommon", value: { copper: 15 }, chance: 0.2 },
+    { icon: "rock", name: "Ruda srebra", desc: "Błyszczące żyły w skale", rarity: "rare", value: { copper: 25 }, chance: 0.1 },
+    { icon: "gem", name: "Złota żyła", desc: "Pulsuje wewnętrznym blaskiem", rarity: "epic", value: { silver: 1, copper: 20 }, chance: 0.05 },
   ],
 };
 
 // Ammo (proch) potions available at the market
 export const MANA_POTIONS = [
-  { id: "mana_small",  icon: "🪖", name: "Mały Zapas Prochu",     desc: "+15 prochu",  mana: 15,  cost: { copper: 20 } },
-  { id: "mana_medium", icon: "🪖", name: "Średni Zapas Prochu",   desc: "+40 prochu",  mana: 40,  cost: { silver: 1 } },
-  { id: "mana_large",  icon: "🪖", name: "Duży Zapas Prochu",     desc: "+100 prochu", mana: 100, cost: { silver: 3 } },
+  { id: "mana_small",  icon: "gunpowder", name: "Mały Zapas Prochu",     desc: "+15 prochu",  mana: 15,  cost: { copper: 20 } },
+  { id: "mana_medium", icon: "gunpowder", name: "Średni Zapas Prochu",   desc: "+40 prochu",  mana: 40,  cost: { silver: 1 } },
+  { id: "mana_large",  icon: "gunpowder", name: "Duży Zapas Prochu",     desc: "+100 prochu", mana: 100, cost: { silver: 3 } },
 ];
 
 // Mine times in seconds based on rarity (hold-to-mine mechanic)

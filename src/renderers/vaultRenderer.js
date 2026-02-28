@@ -1,3 +1,5 @@
+import { getIconImage } from "../rendering/icons.js";
+
 // ─── FURNITURE DEFINITIONS PER HIDEOUT LEVEL ───
 
 // Each level adds its own set of furniture drawn on the vault canvas
@@ -107,9 +109,10 @@ function drawTable(ctx, x, y) {
   ctx.fillRect(x - 18, y + 3, 4, 18);
   ctx.fillRect(x + 14, y + 3, 4, 18);
   // Items on table
-  ctx.font = "8px serif";
-  ctx.fillText("🕯️", x - 6, y - 3);
-  ctx.fillText("📜", x + 4, y - 3);
+  const candle = getIconImage("fire", 8);
+  const scrl = getIconImage("scroll", 8);
+  if (candle) ctx.drawImage(candle, x - 10, y - 7, 8, 8);
+  if (scrl) ctx.drawImage(scrl, x + 0, y - 7, 8, 8);
 }
 
 function drawStool(ctx, x, y) {
@@ -204,8 +207,8 @@ function drawDesk(ctx, x, y) {
   ctx.fillStyle = "#888";
   ctx.fillRect(x - 1, y + 8, 2, 2); // handle
   // Quill & scroll on desk
-  ctx.font = "7px serif";
-  ctx.fillText("📖", x - 8, y - 1);
+  const deskScroll = getIconImage("scroll", 7);
+  if (deskScroll) ctx.drawImage(deskScroll, x - 11, y - 4, 7, 7);
 }
 
 function drawChair(ctx, x, y) {
@@ -238,11 +241,8 @@ function drawAltar(ctx, x, y) {
   ctx.fillStyle = g;
   ctx.fillRect(x - 22, y - 10, 44, 40);
   // Rune symbol
-  ctx.fillStyle = "#c080ff";
-  ctx.font = "10px serif";
-  ctx.textAlign = "center";
-  ctx.fillText("⛤", x, y + 3);
-  ctx.textAlign = "start";
+  const runeIcon = getIconImage("star", 10);
+  if (runeIcon) ctx.drawImage(runeIcon, x - 5, y - 2, 10, 10);
 }
 
 function drawCandelabra(ctx, x, y) {
@@ -343,11 +343,8 @@ function drawBanner(ctx, x, y, W) {
   ctx.closePath();
   ctx.fill();
   // Emblem
-  ctx.fillStyle = "#d4a030";
-  ctx.font = "12px serif";
-  ctx.textAlign = "center";
-  ctx.fillText("⚔", x, y + 18);
-  ctx.textAlign = "start";
+  const swordsIcon = getIconImage("swords", 12);
+  if (swordsIcon) ctx.drawImage(swordsIcon, x - 6, y + 12, 12, 12);
 }
 
 function drawCrystal(ctx, x, y, item) {
@@ -436,11 +433,8 @@ function drawThrone(ctx, x, y) {
   ctx.closePath();
   ctx.fill();
   // Crown on top
-  ctx.fillStyle = "#d4a030";
-  ctx.font = "9px serif";
-  ctx.textAlign = "center";
-  ctx.fillText("👑", x, y - 14);
-  ctx.textAlign = "start";
+  const crownIcon = getIconImage("crown", 9);
+  if (crownIcon) ctx.drawImage(crownIcon, x - 4, y - 18, 9, 9);
   // Seat cushion
   ctx.fillStyle = "#6a1828";
   ctx.fillRect(x - 12, y + 12, 24, 6);
@@ -596,7 +590,7 @@ export function renderVault(ctx, W, H, totalGold, money, hideoutLevel) {
     const g = ctx.createRadialGradient(tx, ty, 3, tx, ty + 10, 80);
     g.addColorStop(0, "rgba(255,160,40,0.25)"); g.addColorStop(1, "transparent");
     ctx.fillStyle = g; ctx.fillRect(tx - 80, ty - 20, 160, 120);
-    ctx.font = "16px serif"; ctx.textAlign = "center"; ctx.fillText("🔥", tx, ty + 5);
+    const torchIcon = getIconImage("fire", 16); if (torchIcon) ctx.drawImage(torchIcon, tx - 8, ty - 3, 16, 16);
   });
 
   // ─── DRAW FURNITURE for current level and all below ───
@@ -638,6 +632,6 @@ export function renderVault(ctx, W, H, totalGold, money, hideoutLevel) {
 
   // HUD
   ctx.fillStyle = "#d4a030"; ctx.font = "bold 15px monospace"; ctx.textAlign = "center";
-  ctx.fillText(`💰 ${money.copper}Cu  ${money.silver}Ag  ${money.gold}Au  │  Zarobiono: ~${totalGold.toFixed(1)} Au`, W / 2, 18);
+  ctx.fillText(`${money.copper}Cu  ${money.silver}Ag  ${money.gold}Au  |  Zarobiono: ~${totalGold.toFixed(1)} Au`, W / 2, 18);
   ctx.textAlign = "start";
 }

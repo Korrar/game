@@ -12,7 +12,10 @@ for (const [biomeId, npcs] of Object.entries(BIOME_NPCS)) {
     ALL_NPCS.push({
       id: key,
       biomeId,
-      emoji: npc.emoji,
+      icon: npc.icon,
+      bodyType: npc.bodyType,
+      bodyColor: npc.bodyColor,
+      armorColor: npc.armorColor,
       name: npc.name,
       hp: npc.hp,
       resist: npc.resist,

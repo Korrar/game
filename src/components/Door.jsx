@@ -1,3 +1,11 @@
+import { getIconUrl } from "../rendering/icons";
+
+function DIcon({ name, size = 16 }) {
+  const url = getIconUrl(name, size);
+  if (!url) return null;
+  return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block" }} alt={name} />;
+}
+
 export default function Door({ hasKey, onClick }) {
   return (
     <div onClick={onClick} style={{
@@ -9,7 +17,7 @@ export default function Door({ hasKey, onClick }) {
       transition: "filter 0.3s, transform 0.2s",
       transform: "scale(0.55)", transformOrigin: "top right",
     }}>
-      {!hasKey && <div style={{ position: "absolute", top: -32, left: "50%", transform: "translateX(-50%)", fontSize: 28, animation: "lockP 1.5s infinite" }}>🔒</div>}
+      {!hasKey && <div style={{ position: "absolute", top: -32, left: "50%", transform: "translateX(-50%)", animation: "lockP 1.5s infinite" }}><DIcon name="shield" size={28} /></div>}
       <div style={{
         width: 120, height: 190, border: "5px solid #7a5a30", borderRadius: "50% 50% 0 0 / 30% 30% 0 0",
         background: "linear-gradient(180deg,#4a2a12,#3a1e0a)", boxShadow: "0 0 30px rgba(0,0,0,0.8),inset 0 0 20px rgba(0,0,0,0.5)",
@@ -38,7 +46,7 @@ export default function Door({ hasKey, onClick }) {
         fontSize: 16, color: hasKey ? "#d4a030" : "#555",
         textShadow: hasKey ? "0 0 8px rgba(212,160,48,0.4)" : "1px 1px 0 #000",
         animation: hasKey ? "doorGlow 2s ease-in-out infinite" : "none",
-      }}>🚪 Wrota</div>
+      }}><DIcon name="doors" size={16} /> Wrota</div>
     </div>
   );
 }

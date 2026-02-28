@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { MERCENARY_TYPES } from "../data/mercenaries";
 import { totalCopper } from "../utils/helpers";
+import { getIconUrl } from "../rendering/icons";
+
+function EIcon({ name, size = 16, style: st }) {
+  const url = getIconUrl(name, size);
+  if (!url) return null;
+  return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block", ...st }} alt={name} />;
+}
 
 const frameStyle = {
   position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 600,
@@ -60,7 +67,7 @@ function MerchantView({ event, money, onResolve }) {
   return (
     <div>
       <SectionHeader event={event} />
-      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(200,150,50,0.4))" }}>{event.emoji}</div>
+      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(200,150,50,0.4))" }}><EIcon name={event.icon} size={46} /></div>
       <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
       <div style={{ fontSize: 14, color: "#a89878", marginBottom: 18, fontStyle: "italic" }}>
         Wyłarty płaszcz, ciężka torba... kupiec oferuje rzadkie towary.
@@ -80,11 +87,11 @@ function MerchantView({ event, money, onResolve }) {
             onMouseEnter={e => { if (canBuy) { e.currentTarget.style.borderColor = event.themeColor; e.currentTarget.style.boxShadow = `0 0 16px ${event.themeColor}44`; } }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = canBuy ? event.themeColor + "80" : "#333"; e.currentTarget.style.boxShadow = canBuy ? `0 0 8px ${event.themeColor}22` : "none"; }}
             onClick={() => canBuy && onResolve({ type: "merchantBuy", item })}>
-              <div style={{ fontSize: 30, filter: `drop-shadow(0 0 6px ${event.themeColor}44)` }}>{item.icon}</div>
+              <div style={{ filter: `drop-shadow(0 0 6px ${event.themeColor}44)` }}><EIcon name={item.icon} size={30} /></div>
               <div style={{ fontSize: 13, fontWeight: "bold", color: event.themeColor, marginBottom: 4, textShadow: `0 0 6px ${event.themeColor}22` }}>{item.name}</div>
               <div style={{ fontSize: 11, color: "#a89878", marginBottom: 6 }}>{item.desc}</div>
               <div style={{ fontSize: 12, color: canBuy ? "#e0c060" : "#664", fontWeight: "bold" }}>
-                🪙 {item.cost.silver ? item.cost.silver + "s " : ""}{item.cost.copper || 0} Cu
+                <EIcon name="coin" size={12} /> {item.cost.silver ? item.cost.silver + "s " : ""}{item.cost.copper || 0} Cu
               </div>
             </div>
           );
@@ -129,7 +136,7 @@ function AmbushView({ event, onResolve }) {
   return (
     <div>
       <SectionHeader event={event} />
-      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(200,40,40,0.5))" }}>{event.emoji}</div>
+      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(200,40,40,0.5))" }}><EIcon name={event.icon} size={46} /></div>
       <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
       <div style={{ fontSize: 14, color: "#a89878", marginBottom: 14, fontStyle: "italic" }}>
         Z cienia wyskakują bandyci! Walcz lub stracisz monety!
@@ -157,7 +164,7 @@ function AmbushView({ event, onResolve }) {
           </div>
 
           <div style={{ fontSize: 13, color: "#cc6040", marginBottom: 10, fontWeight: "bold" }}>
-            ⏱️ {(timeLeft / 1000).toFixed(1)}s
+            <EIcon name="hourglass" size={13} /> {(timeLeft / 1000).toFixed(1)}s
           </div>
 
           <button
@@ -170,18 +177,18 @@ function AmbushView({ event, onResolve }) {
             }}
             onMouseDown={e => { e.target.style.transform = "scale(0.95)"; }}
             onMouseUp={e => { e.target.style.transform = "scale(1)"; }}
-          >⚔️ WALCZ!</button>
+          ><EIcon name="swords" size={18} /> WALCZ!</button>
         </>
       )}
 
       {result === "win" && (
         <div style={{ fontSize: 22, fontWeight: "bold", color: "#40e060", animation: "eventAppear 0.3s ease-out", textShadow: "0 0 12px rgba(60,200,80,0.4)" }}>
-          Zwycięstwo! +10 🪙
+          Zwycięstwo! +10 <EIcon name="coin" size={22} />
         </div>
       )}
       {result === "lose" && (
         <div style={{ fontSize: 22, fontWeight: "bold", color: "#cc3030", animation: "eventAppear 0.3s ease-out", textShadow: "0 0 12px rgba(200,40,40,0.4)" }}>
-          Porażka! -{event.moneyLoss.copper} 🪙
+          Porażka! -{event.moneyLoss.copper} <EIcon name="coin" size={22} />
         </div>
       )}
     </div>
@@ -209,7 +216,7 @@ function RiddleView({ event, onResolve }) {
   return (
     <div>
       <SectionHeader event={event} />
-      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(60,100,200,0.4))" }}>{event.emoji}</div>
+      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(60,100,200,0.4))" }}><EIcon name={event.icon} size={46} /></div>
       <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
       <div style={{
         fontSize: 15, color: "#c0d0f0", marginBottom: 18, fontStyle: "italic",
@@ -244,12 +251,12 @@ function RiddleView({ event, onResolve }) {
 
       {result === "correct" && (
         <div style={{ fontSize: 18, fontWeight: "bold", color: "#40e060", animation: "eventAppear 0.3s ease-out", textShadow: "0 0 10px rgba(60,200,80,0.4)" }}>
-          Poprawna odpowiedź! +{event.reward.copper} 🪙
+          Poprawna odpowiedź! +{event.reward.copper} <EIcon name="coin" size={18} />
         </div>
       )}
       {result === "wrong" && (
         <div style={{ fontSize: 18, fontWeight: "bold", color: "#cc3030", animation: "eventAppear 0.3s ease-out", textShadow: "0 0 10px rgba(200,40,40,0.4)" }}>
-          Błędna odpowiedź! -{event.penalty.copper} 🪙
+          Błędna odpowiedź! -{event.penalty.copper} <EIcon name="coin" size={18} />
         </div>
       )}
     </div>
@@ -268,7 +275,7 @@ function AltarView({ event, onResolve }) {
   return (
     <div>
       <SectionHeader event={event} />
-      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 12px rgba(128,64,200,0.5))" }}>{event.emoji}</div>
+      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 12px rgba(128,64,200,0.5))" }}><EIcon name={event.icon} size={46} /></div>
       <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
       <div style={{ fontSize: 14, color: "#a89878", marginBottom: 18, fontStyle: "italic" }}>
         Starożytny ołtarz emanuje mocą. Złożyć ofiarę?
@@ -295,12 +302,12 @@ function AltarView({ event, onResolve }) {
 
       {!revealed ? (
         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <Btn label="🙏 Módl się" color={event.themeColor} onClick={handlePray} />
+          <Btn label="Módl się" color={event.themeColor} onClick={handlePray} />
           <Btn label="Odejdź" color="#888" onClick={() => onResolve({ type: "altarSkip" })} />
         </div>
       ) : (
         <div style={{ animation: "eventAppear 0.4s ease-out" }}>
-          <div style={{ fontSize: 40, marginBottom: 6, filter: `drop-shadow(0 0 10px ${event.altarEffect.type === "buff" ? "rgba(200,180,60,0.5)" : "rgba(200,40,40,0.5)"})` }}>{event.altarEffect.emoji}</div>
+          <div style={{ marginBottom: 6, filter: `drop-shadow(0 0 10px ${event.altarEffect.type === "buff" ? "rgba(200,180,60,0.5)" : "rgba(200,40,40,0.5)"})` }}><EIcon name={event.altarEffect.icon} size={40} /></div>
           <div style={{
             fontSize: 19, fontWeight: "bold", marginBottom: 4,
             color: event.altarEffect.type === "buff" ? "#40e060" : "#cc3030",
@@ -326,7 +333,7 @@ function WoundedView({ event, onResolve }) {
   return (
     <div>
       <SectionHeader event={event} />
-      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(200,100,40,0.4))" }}>{event.emoji}</div>
+      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(200,100,40,0.4))" }}><EIcon name={event.icon} size={46} /></div>
       <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
       <div style={{ fontSize: 14, color: "#a89878", marginBottom: 18, fontStyle: "italic" }}>
         Przy drodze leży ranny wojownik. Prosi o pomoc...
@@ -340,7 +347,7 @@ function WoundedView({ event, onResolve }) {
         marginBottom: 18,
         boxShadow: `0 0 12px ${event.themeColor}22, inset 0 0 10px rgba(0,0,0,0.4)`,
       }}>
-        <div style={{ fontSize: 36, filter: `drop-shadow(0 0 8px ${merc.color}66)` }}>{merc.emoji}</div>
+        <div style={{ filter: `drop-shadow(0 0 8px ${merc.color}66)` }}><EIcon name={merc.icon} size={36} /></div>
         <div style={{ fontSize: 16, fontWeight: "bold", color: merc.color, textShadow: `0 0 6px ${merc.color}33` }}>{merc.name}</div>
         <div style={{ fontSize: 12, color: "#a89878" }}>{merc.desc}</div>
         <div style={{ fontSize: 12, color: "#cc8040", marginTop: 4, fontWeight: "bold" }}>
@@ -351,12 +358,12 @@ function WoundedView({ event, onResolve }) {
 
       {!helped ? (
         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <Btn label="🤝 Pomóż mu" color={event.themeColor} onClick={handleHelp} />
+          <Btn label="Pomóż mu" color={event.themeColor} onClick={handleHelp} />
           <Btn label="Zostaw" color="#888" onClick={() => onResolve({ type: "woundedSkip" })} />
         </div>
       ) : (
         <div style={{ fontSize: 19, fontWeight: "bold", color: "#40e060", animation: "eventAppear 0.3s ease-out", textShadow: "0 0 12px rgba(60,200,80,0.4)" }}>
-          {merc.emoji} {merc.name} dołączył do drużyny!
+          <EIcon name={merc.icon} size={19} /> {merc.name} dołączył do drużyny!
         </div>
       )}
     </div>

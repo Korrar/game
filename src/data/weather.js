@@ -2,7 +2,7 @@
 
 export const WEATHER_TYPES = {
   storm: {
-    id: "storm", name: "Burza", emoji: "⛈️",
+    id: "storm", name: "Burza", icon: "storm",
     description: "Pioruny +50%, strzały -30% celności",
     damageMult: { lightning: 1.5 },
     accuracyMult: { arrow: 0.7 },
@@ -11,7 +11,7 @@ export const WEATHER_TYPES = {
     weight: 1,
   },
   fog: {
-    id: "fog", name: "Mgła", emoji: "🌫️",
+    id: "fog", name: "Mgła", icon: "fog",
     description: "Wrogowie niewidoczni z daleka",
     damageMult: {},
     accuracyMult: {},
@@ -21,7 +21,7 @@ export const WEATHER_TYPES = {
     weight: 1,
   },
   rain: {
-    id: "rain", name: "Deszcz", emoji: "🌧️",
+    id: "rain", name: "Deszcz", icon: "rain",
     description: "Ogień -50% obrażeń",
     damageMult: { fire: 0.5 },
     accuracyMult: {},
@@ -30,7 +30,7 @@ export const WEATHER_TYPES = {
     weight: 1,
   },
   gale: {
-    id: "gale", name: "Wichura", emoji: "💨",
+    id: "gale", name: "Wichura", icon: "wind",
     description: "Pociski znoszone wiatrem",
     damageMult: {},
     accuracyMult: {},

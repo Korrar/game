@@ -15,6 +15,7 @@ import {
   HEAD_RADIUS, QUAD_HEAD_RADIUS,
 } from "./npcBody";
 import { CombatEffects } from "./combatEffects";
+import { getIconImage } from "../rendering/icons.js";
 
 const { Engine, World, Bodies, Body } = Matter;
 
@@ -622,14 +623,11 @@ export class PhysicsWorld {
       this._renderSymbolText(ctx, tx, ty, sym, c, entry);
     }
 
-    // Small emoji above
+    // Small icon above head
     if (parts.head) {
       const hx = parts.head.position.x, hy = parts.head.position.y;
-      ctx.font = "14px serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "bottom";
-      ctx.fillText(npcData.emoji, hx, hy - 12);
-      ctx.textAlign = "start";
+      const npcIcon = getIconImage(npcData.icon, 14);
+      if (npcIcon) ctx.drawImage(npcIcon, hx - 7, hy - 19, 14, 14);
     }
 
     // Glow ring

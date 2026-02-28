@@ -1,4 +1,11 @@
 import { RARITY_C } from "../data/treasures";
+import { getIconUrl } from "../rendering/icons";
+
+function SIcon({ name, size = 26 }) {
+  const url = getIconUrl(name, size);
+  if (!url) return null;
+  return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block" }} alt={name} />;
+}
 
 const RARITY_GLOW = {
   common: "rarityGlow-common 3s ease-in-out infinite",
@@ -32,7 +39,7 @@ export default function ItemSlot({ item, selected, onClick, size = 50, locked })
           backgroundSize: "200% 100%", animation: "shimmer 3s ease-in-out infinite",
         }} />
       )}
-      {item ? item.icon : locked ? <span style={{ fontSize: 10, opacity: 0.3 }}>🔒</span> : null}
+      {item ? <SIcon name={item.icon} size={size * 0.52} /> : locked ? <span style={{ opacity: 0.3 }}><SIcon name="shield" size={10} /></span> : null}
       {item && (
         <span style={{
           position: "absolute", bottom: 1, right: 2, fontSize: 6, color: RARITY_C[item.rarity],

@@ -1,3 +1,11 @@
+import { getIconUrl } from "../rendering/icons";
+
+function WIcon({ name, size = 13 }) {
+  const url = getIconUrl(name, size);
+  if (!url) return null;
+  return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block" }} alt={name} />;
+}
+
 export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxHp, relicChoices, boss }) {
   if (!defense) return null;
 
@@ -39,14 +47,14 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
             </div>
             <div style={{ fontSize: 24, color: "#d4a030", fontWeight: "bold", textShadow: "0 0 10px rgba(212,160,48,0.3)" }}>
               {isBossRoom && boss ? (
-                <>⚔️ {boss.emoji} {boss.name} nadchodzi!</>
+                <><WIcon name="swords" size={24} /> <WIcon name={boss.icon} size={24} /> {boss.name} nadchodzi!</>
               ) : (
-                <>Przygotuj się! ⏱️ {timer}s</>
+                <>Przygotuj się! <WIcon name="hourglass" size={24} /> {timer}s</>
               )}
             </div>
             {isBossRoom ? (
               <div style={{ fontSize: 13, color: "#cc8888", marginTop: 4 }}>
-                ⏱️ {timer}s
+                <WIcon name="hourglass" /> {timer}s
               </div>
             ) : (
               <div style={{ fontSize: 13, color: "#888", marginTop: 4 }}>
@@ -60,13 +68,13 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
           <>
             {isBossRoom && boss ? (
               <div style={{ fontSize: 13, color: "#cc3030", fontWeight: "bold", letterSpacing: 3, marginBottom: 4, textShadow: "0 0 8px rgba(200,40,40,0.4)" }}>
-                ⚔️ {boss.emoji} {boss.name}
+                <WIcon name="swords" /> <WIcon name={boss.icon} /> {boss.name}
                 {boss.phase > 1 && <span style={{ color: "#ff6020" }}> — Faza {boss.phase}</span>}
               </div>
             ) : (
               <>
                 <div style={{ fontSize: 13, color: "#cc3030", fontWeight: "bold", letterSpacing: 3, marginBottom: 4, textShadow: "0 0 8px rgba(200,40,40,0.4)" }}>
-                  ⚔️ FALA {currentWave}/{totalWaves}
+                  <WIcon name="swords" /> FALA {currentWave}/{totalWaves}
                 </div>
                 <div style={{ fontSize: 21, color: "#e05040", fontWeight: "bold", textShadow: "0 0 8px rgba(200,60,40,0.3)" }}>
                   Wrogowie: {enemiesRemaining}
@@ -82,10 +90,10 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
               Fala {currentWave - 1} pokonana!
             </div>
             <div style={{ fontSize: 21, color: "#d4a030", fontWeight: "bold", textShadow: "0 0 10px rgba(212,160,48,0.3)" }}>
-              Następna fala za ⏱️ {timer}s
+              Następna fala za <WIcon name="hourglass" size={21} /> {timer}s
             </div>
             <div style={{ fontSize: 12, color: "#6a9a6a", marginTop: 4 }}>
-              💚 Najemnicy uleczeni
+              <WIcon name="bandage" size={12} /> Najemnicy uleczeni
             </div>
           </>
         )}
@@ -94,7 +102,7 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
         {showCaravanHp && (
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 12, color: chColor, fontWeight: "bold", marginBottom: 3, textShadow: `0 0 6px ${chColor}33` }}>
-              🐴 {caravanHp}/{caravanMaxHp}
+              <WIcon name="convoy" size={12} /> {caravanHp}/{caravanMaxHp}
             </div>
             <div style={{
               width: "100%", height: 8, background: "rgba(0,0,0,0.7)",
@@ -121,7 +129,7 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
               filter: "drop-shadow(0 0 8px rgba(60,200,80,0.3))",
             }}>
               {isBossRoom && boss ? (
-                <>{boss.emoji} {boss.name} pokonany!</>
+                <><WIcon name={boss.icon} size={21} /> {boss.name} pokonany!</>
               ) : (
                 <>OBRONA WYGRANA!</>
               )}

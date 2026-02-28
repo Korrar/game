@@ -1,5 +1,6 @@
 // Particle-based biome animation system
 // Runs on an overlay canvas with requestAnimationFrame
+import { getIconImage } from "../rendering/icons.js";
 
 const MAX_PARTICLES = 300;
 
@@ -563,10 +564,10 @@ export class BiomeAnimator {
       ctx.fillStyle = g;
       ctx.fillRect(x - 14, y - 14, 28, 28);
       // Skull hint
-      ctx.fillStyle = `rgba(200,150,255,${0.4 + Math.sin(pt * 20) * 0.2})`;
-      ctx.font = "14px serif"; ctx.textAlign = "center";
-      ctx.fillText("💀", x, y + 4);
-      ctx.textAlign = "start";
+      ctx.globalAlpha = 0.4 + Math.sin(pt * 20) * 0.2;
+      const skullImg = getIconImage("skull", 14);
+      if (skullImg) ctx.drawImage(skullImg, x - 7, y - 3, 14, 14);
+      ctx.globalAlpha = 1;
     } else {
       const et = (t - 0.4) / 0.6;
       const alpha = 1 - et;

@@ -40,6 +40,18 @@ import RelicPicker from "./components/RelicPicker";
 import { RELICS } from "./data/relics";
 import { getBossForRoom } from "./data/bosses";
 import BossHpBar from "./components/BossHpBar";
+import { getIconUrl, getNpcIconUrl } from "./rendering/icons";
+
+function Icon({ name, size = 16, style: st }) {
+  const url = getIconUrl(name, size);
+  if (!url) return null;
+  return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block", ...st }} alt={name} />;
+}
+function NpcIcon({ bodyType, bodyColor, armorColor, size = 24, style: st }) {
+  const url = getNpcIconUrl(bodyType, bodyColor || "#6a4a30", armorColor || "#4a3a28", size);
+  if (!url) return null;
+  return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block", ...st }} alt={bodyType} />;
+}
 
 const appStyle = { background: "#08050a", color: "#d8c8a8", fontFamily: "'Segoe UI', monospace", width: "100vw", height: "100vh", overflow: "hidden", position: "relative", display: "flex", justifyContent: "center", alignItems: "center" };
 const scanlinesStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.04) 3px,rgba(0,0,0,0.04) 6px)", pointerEvents: "none", zIndex: 9999 };
@@ -131,7 +143,7 @@ export default function App() {
 
   // POIs: fruit tree, mine nuggets, waterfall, merc camp, wizard
   const [fruitTree, setFruitTree] = useState(null);     // { x, fruits, biomeId, crown, trunk, label }
-  const [mineNugget, setMineNugget] = useState(null);   // { x, nuggets, progress, activeId, biomeId, rockCol, oreEmoji }
+  const [mineNugget, setMineNugget] = useState(null);   // { x, nuggets, progress, activeId, biomeId, rockCol, oreIcon }
   const [waterfall, setWaterfall] = useState(null);      // { x, opened, biomeId, rgb, frozen, label }
   const [mercCamp, setMercCamp] = useState(null);        // { x, biomeId }
   const [wizardPoi, setWizardPoi] = useState(null);      // { x, spellId, cost }
@@ -376,7 +388,7 @@ export default function App() {
     }));
     setKnowledge(k => k + card.knowledge);
     setCardDrop({
-      emoji: npcData.emoji,
+      icon: npcData.icon,
       name: npcData.name,
       rarity: card.rarity,
       rarityLabel: card.rarityLabel,
@@ -412,7 +424,7 @@ export default function App() {
         const absorbed = Math.min(actualDamage, activeBossRef.current.manaShieldHp);
         activeBossRef.current.manaShieldHp -= absorbed;
         actualDamage -= absorbed;
-        if (absorbed > 0) spawnDmgPopup(enemyId, `${absorbed} 🛡️`, "#4060ff");
+        if (absorbed > 0) spawnDmgPopup(enemyId, `${absorbed} BLOK`, "#4060ff");
         setActiveBoss(prev => prev ? { ...prev, manaShieldHp: activeBossRef.current.manaShieldHp } : null);
       }
     }
@@ -436,11 +448,11 @@ export default function App() {
             const sx = walkDataRef.current[enemyId]?.x || 50;
             const nHp = Math.round(mt.hp * 0.7);
             const nDmg = Math.round(mt.damage * 0.7);
-            const nd = { emoji: mt.emoji, name: `${mt.name} 💀`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
+            const nd = { icon: mt.icon, name: `${mt.name}`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
             setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
             walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
             if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
-            showMessage(`💀 Nekromancja! ${mt.name} przywołany!`, "#a050e0");
+            showMessage(`Nekromancja! ${mt.name} przywołany!`, "#a050e0");
             setTimeout(() => {
               if (walkDataRef.current[nid]) walkDataRef.current[nid].alive = false;
               if (physicsRef.current) physicsRef.current.removeNpc(nid);
@@ -449,14 +461,14 @@ export default function App() {
           }, 300);
         }
         if (w.npcData.biomeId === "meteor" && Math.random() < 0.08) {
-          const sword = { icon: "🌙", name: "Miecz Pełni Księżyca", desc: "Legendarny miecz wykuty w blasku pełni księżyca", rarity: "legendary", value: { gold: 15 }, id: Date.now() + Math.random(), biome: "Meteoryt", room };
+          const sword = { icon: "moon", name: "Miecz Pełni Księżyca", desc: "Legendarny miecz wykuty w blasku pełni księżyca", rarity: "legendary", value: { gold: 15 }, id: Date.now() + Math.random(), biome: "Meteoryt", room };
           setInventory(prev => [...prev, sword]);
           setLoot(sword);
-          showMessage("🌙 Miecz Pełni Księżyca!", "#d4a030");
+          showMessage("Miecz Pełni Księżyca!", "#d4a030");
         }
         const friendlyW = prev.find(ww => ww.id === friendlyId);
         const mercName = friendlyW ? friendlyW.npcData.name : "najemnik";
-        showMessage(`💀 ${w.npcData.name} pokonany przez ${mercName}! +${formatLootText(w.npcData.loot)}`, "#40e060");
+        showMessage(`${w.npcData.name} pokonany przez ${mercName}! +${formatLootText(w.npcData.loot)}`, "#40e060");
         setTimeout(() => setWalkers(pr => pr.map(ww => ww.id === enemyId ? { ...ww, alive: false } : ww)), 2500);
         return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
       }
@@ -487,7 +499,7 @@ export default function App() {
       if (newHp <= 0) {
         if (walkDataRef.current[friendlyId]) walkDataRef.current[friendlyId].alive = false;
         if (physicsRef.current) physicsRef.current.triggerRagdoll(friendlyId, "melee", meleeDirX);
-        showMessage(`💀 ${w.npcData.name} poległ w walce!`, "#cc4040");
+        showMessage(`${w.npcData.name} poległ w walce!`, "#cc4040");
         setTimeout(() => setWalkers(pr => pr.map(ww => ww.id === friendlyId ? { ...ww, alive: false } : ww)), 2500);
         return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
       }
@@ -500,7 +512,7 @@ export default function App() {
   attackCaravanRef.current = (enemyId, damage) => {
     // ice_core: 25% chance to fully block
     if (hasRelic("ice_core") && Math.random() < 0.25) {
-      spawnDmgPopup(enemyId, "BLOK! 🧊", "#40a8b8");
+      spawnDmgPopup(enemyId, "BLOK!", "#40a8b8");
       const ew = walkDataRef.current[enemyId];
       if (ew) { ew.lungeFrames = 8; ew.lungeOffset = 12; }
       return;
@@ -531,7 +543,7 @@ export default function App() {
       if (newHp <= 0) {
         if (walkDataRef.current[friendlyId]) walkDataRef.current[friendlyId].alive = false;
         if (physicsRef.current) physicsRef.current.triggerRagdoll(friendlyId, element || "melee", dirX);
-        showMessage(`💀 ${w.npcData.name} poległ w walce!`, "#cc4040");
+        showMessage(`${w.npcData.name} poległ w walce!`, "#cc4040");
         setTimeout(() => setWalkers(pr => pr.map(ww => ww.id === friendlyId ? { ...ww, alive: false } : ww)), 2500);
         return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
       }
@@ -808,7 +820,7 @@ export default function App() {
                             const newHp = t.hp - hitDmg;
                             if (newHp <= 0) {
                               sfxNpcDeath();
-                              showMessage("🏗️ Wieża zniszczona!", "#e0a040");
+                              showMessage("Wieża zniszczona!", "#e0a040");
                               return { ...t, hp: 0, active: false };
                             }
                             return { ...t, hp: newHp };
@@ -839,7 +851,7 @@ export default function App() {
                       const newHp = t.hp - dmg;
                       if (newHp <= 0) {
                         sfxNpcDeath();
-                        showMessage("🏗️ Wieża zniszczona!", "#e0a040");
+                        showMessage("Wieża zniszczona!", "#e0a040");
                         return { ...t, hp: 0, active: false };
                       }
                       return { ...t, hp: newHp };
@@ -1145,14 +1157,14 @@ export default function App() {
                 const dmg = 8 + Math.floor(Math.random() * 6);
                 if (enemyAttackFriendlyRef.current) {
                   // Use a fake enemy ID (negative) for trap damage
-                  spawnDmgPopup(parseInt(id), `${dmg} 🔺`, "#cc4040");
+                  spawnDmgPopup(parseInt(id), `${dmg}`, "#cc4040");
                   setWalkers(prev => prev.map(ww => {
                     if (ww.id !== parseInt(id) || !ww.alive || !ww.friendly) return ww;
                     const newHp = Math.max(0, ww.hp - dmg);
                     if (newHp <= 0) {
                       if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
                       if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "melee", 1);
-                      showMessage(`💀 ${ww.npcData.name} zginął na kolcach!`, "#cc4040");
+                      showMessage(`${ww.npcData.name} zginął na kolcach!`, "#cc4040");
                       return { ...ww, hp: 0, dying: true, dyingAt: trapNow };
                     }
                     if (physicsRef.current) physicsRef.current.applyHit(parseInt(id), "melee", Math.sign(w.x - trap.x) || 1);
@@ -1173,8 +1185,8 @@ export default function App() {
               trap._explodeAt = trapNow;
               const dmg = 15 + Math.floor(Math.random() * 10);
               sfxMeteorImpact();
-              spawnDmgPopup(parseInt(id), `${dmg} 💥`, "#ff6020");
-              showMessage("💥 Mina eksplodowała!", "#ff6020");
+              spawnDmgPopup(parseInt(id), `${dmg}`, "#ff6020");
+              showMessage("Mina eksplodowała!", "#ff6020");
               if (animatorRef.current) {
                 const ex = npcElsRef.current[id];
                 let px = GAME_W * (trap.x / 100), py = GAME_H * 0.25;
@@ -1196,7 +1208,7 @@ export default function App() {
                 if (newHp <= 0) {
                   if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
                   if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "fire", Math.sign(wwd.x - trap.x) || 1);
-                  showMessage(`💀 ${ww.npcData.name} zginął od wybuchu!`, "#cc4040");
+                  showMessage(`${ww.npcData.name} zginął od wybuchu!`, "#cc4040");
                   return { ...ww, hp: 0, dying: true, dyingAt: trapNow };
                 }
                 if (physicsRef.current) physicsRef.current.applyHit(ww.id, "fire", Math.sign(wwd.x - trap.x) || 1);
@@ -1264,7 +1276,7 @@ export default function App() {
     // Weather (40% chance, biome-filtered)
     const roomWeather = isDefenseRoom ? null : rollWeather(b.id);
     setWeather(roomWeather);
-    if (roomWeather) { sfxWeather(roomWeather.id); showMessage(`${roomWeather.emoji} ${roomWeather.name}!`, "#80a0cc"); }
+    if (roomWeather) { sfxWeather(roomWeather.id); showMessage(`${roomWeather.name}!`, "#80a0cc"); }
     // Stop any active mining
     if (miningRef.current.intervalId) clearInterval(miningRef.current.intervalId);
     miningRef.current = { active: false, intervalId: null };
@@ -1305,19 +1317,19 @@ export default function App() {
     nuggetRef.current = { active: false, intervalId: null };
 
     const TREE_VARIANTS = {
-      jungle:   { crown: ["#1a6a0a","#0e4a04","#063002"], trunk: "#5a3a18", fruits: ["🥥","🍌","🥭","🍍"], label: "Dżunglowe Drzewo" },
-      island:   { crown: ["#1a7a10","#0e5a08","#064004"], trunk: "#7a5a30", fruits: ["🥥","🍌","🍊"], label: "Palma" },
+      jungle:   { crown: ["#1a6a0a","#0e4a04","#063002"], trunk: "#5a3a18", fruits: ["coin","coin","gem","gold"], label: "Dżunglowe Drzewo" },
+      island:   { crown: ["#1a7a10","#0e5a08","#064004"], trunk: "#7a5a30", fruits: ["coin","coin","gold"], label: "Palma" },
       winter:   { crown: ["#506880","#3a5060","#2a3a48"], trunk: "#4a3a2a", fruits: [], label: "Ośnieżone Drzewo" },
-      summer:   { crown: ["#2a8a1a","#1a6a10","#0e4a06"], trunk: "#6a4a20", fruits: ["🍎","🍐","🍒","🫐","🍑"], label: "Owocowe Drzewo" },
-      autumn:   { crown: ["#a06020","#c07030","#804010"], trunk: "#5a3a18", fruits: ["🍎","🍐","🌰"], label: "Jesienny Dąb" },
-      spring:   { crown: ["#30a020","#20801a","#106010"], trunk: "#6a4a22", fruits: ["🍒","🍓","🫐","🍑"], label: "Kwitnące Drzewo" },
-      mushroom: { crown: ["#6040a0","#4a3080","#302060"], trunk: "#6a5a40", fruits: ["🍄","🍄","🍄"], label: "Grzyborost" },
-      swamp:    { crown: ["#2a5a1a","#1a4010","#0e3008"], trunk: "#3a3018", fruits: ["🫐","🍐"], label: "Bagienny Dąb" },
+      summer:   { crown: ["#2a8a1a","#1a6a10","#0e4a06"], trunk: "#6a4a20", fruits: ["coin","coin","gem","gold","star"], label: "Owocowe Drzewo" },
+      autumn:   { crown: ["#a06020","#c07030","#804010"], trunk: "#5a3a18", fruits: ["coin","coin","rock"], label: "Jesienny Dąb" },
+      spring:   { crown: ["#30a020","#20801a","#106010"], trunk: "#6a4a22", fruits: ["coin","gem","gold","star"], label: "Kwitnące Drzewo" },
+      mushroom: { crown: ["#6040a0","#4a3080","#302060"], trunk: "#6a5a40", fruits: ["mushroom","mushroom","mushroom"], label: "Grzyborost" },
+      swamp:    { crown: ["#2a5a1a","#1a4010","#0e3008"], trunk: "#3a3018", fruits: ["coin","coin"], label: "Bagienny Dąb" },
     };
     const MINE_VARIANTS = {
-      desert:  { rockCol: ["#8a7a60","#6a6050","#5a5040"], oreEmoji: "💎", label: "Piaskowa Skała" },
-      city:    { rockCol: ["#5a5550","#4a4540","#3a3530"], oreEmoji: "⚙️", label: "Ruiny Kopalni" },
-      volcano: { rockCol: ["#4a2a1a","#3a2010","#2a1808"], oreEmoji: "🔥", label: "Wulkaniczna Żyła" },
+      desert:  { rockCol: ["#8a7a60","#6a6050","#5a5040"], oreIcon: "gem", label: "Piaskowa Skała" },
+      city:    { rockCol: ["#5a5550","#4a4540","#3a3530"], oreIcon: "rock", label: "Ruiny Kopalni" },
+      volcano: { rockCol: ["#4a2a1a","#3a2010","#2a1808"], oreIcon: "fire", label: "Wulkaniczna Żyła" },
     };
     const WATER_VARIANTS = {
       jungle:  { rgb: [40,180,100], label: "Leśny Wodospad", frozen: false },
@@ -1350,7 +1362,7 @@ export default function App() {
         if (tv.fruits.length > 0) {
           const count = 2 + Math.floor(Math.random() * 3);
           for (let i = 0; i < count; i++) {
-            fruits.push({ id: i, emoji: tv.fruits[Math.floor(Math.random() * tv.fruits.length)], x: 15 + Math.random() * 70, y: 10 + Math.random() * 40, picked: false });
+            fruits.push({ id: i, icon: tv.fruits[Math.floor(Math.random() * tv.fruits.length)], x: 15 + Math.random() * 70, y: 10 + Math.random() * 40, picked: false });
           }
         }
         newTree = { x: tx, fruits, biomeId: bid, crown: tv.crown, trunk: tv.trunk, label: tv.label };
@@ -1366,7 +1378,7 @@ export default function App() {
         for (let i = 0; i < nuggetCount; i++) {
           nuggets.push({ id: i, x: 10 + Math.random() * 70, y: 15 + Math.random() * 50, dug: false });
         }
-        newMine = { x: nx, nuggets, progress: 0, activeId: null, biomeId: bid, rockCol: mv.rockCol, oreEmoji: mv.oreEmoji, label: mv.label };
+        newMine = { x: nx, nuggets, progress: 0, activeId: null, biomeId: bid, rockCol: mv.rockCol, oreIcon: mv.oreIcon, label: mv.label };
       }
     }
 
@@ -1537,10 +1549,10 @@ export default function App() {
           roomScale,
         };
         setActiveBoss(scaledBoss);
-        showMessage(`⚔️ ${bossData.emoji} ${bossData.name} nadchodzi!`, "#ff2020");
+        showMessage(`${bossData.name} nadchodzi!`, "#ff2020");
       } else {
         setActiveBoss(null);
-        showMessage("⚔️ Etap Obronny!", "#ff6020");
+        showMessage("Etap Obronny!", "#ff6020");
       }
 
       // Spawn caravan defenses: barricade, tower, dog
@@ -1548,7 +1560,7 @@ export default function App() {
       if (cl.barricade) {
         const bId = ++walkerIdCounter;
         const bHp = cl.barricade.hp;
-        const bNpc = { emoji: "🪵", name: "Barykada", hp: bHp, resist: null, loot: {}, bodyColor: "#6a4a20", armorColor: "#4a3010", bodyType: "barricade" };
+        const bNpc = { icon: "wood", name: "Barykada", hp: bHp, resist: null, loot: {}, bodyColor: "#6a4a20", armorColor: "#4a3010", bodyType: "barricade" };
         setWalkers(prev => [...prev, { id: bId, npcData: bNpc, alive: true, dying: false, hp: bHp, maxHp: bHp, friendly: true, isBarricade: true }]);
         walkDataRef.current[bId] = {
           x: 50, y: 75, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
@@ -1562,7 +1574,7 @@ export default function App() {
       if (cl.tower) {
         const tId = ++walkerIdCounter;
         const towerHp = cl.tower.hp || 200;
-        const tNpc = { emoji: "🗼", name: "Wieża karawany", hp: towerHp, resist: null, loot: {}, bodyColor: "#5a5a5a", armorColor: "#3a3a3a", bodyType: "tower" };
+        const tNpc = { icon: "swords", name: "Wieża karawany", hp: towerHp, resist: null, loot: {}, bodyColor: "#5a5a5a", armorColor: "#3a3a3a", bodyType: "tower" };
         setWalkers(prev => [...prev, { id: tId, npcData: tNpc, alive: true, dying: false, hp: towerHp, maxHp: towerHp, friendly: true, isTower: true }]);
         walkDataRef.current[tId] = {
           x: 40, y: 73, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
@@ -1581,7 +1593,7 @@ export default function App() {
         const existingDog = keptWalkerState.find(w => w.isDog);
         if (!existingDog) {
           const dId = ++walkerIdCounter;
-          const dNpc = { emoji: "🐕", name: "Ogar bojowy", hp: 80, resist: null, loot: {}, bodyColor: "#8a6030", armorColor: "#5a4020", bodyType: "quadruped" };
+          const dNpc = { icon: "dog", name: "Ogar bojowy", hp: 80, resist: null, loot: {}, bodyColor: "#8a6030", armorColor: "#5a4020", bodyType: "quadruped" };
           setWalkers(prev => [...prev, { id: dId, npcData: dNpc, alive: true, dying: false, hp: 80, maxHp: 80, friendly: true, isDog: true }]);
           walkDataRef.current[dId] = {
             x: 45, y: 85, dir: 1, yDir: Math.random() < 0.5 ? 1 : -1,
@@ -1779,7 +1791,7 @@ export default function App() {
         cooldown: boss.abilityCd,
       } : null;
       const bossNpc = {
-        emoji: boss.emoji, name: boss.name, hp: boss.maxHp,
+        icon: boss.icon, name: boss.name, hp: boss.maxHp,
         resist: null, loot: {}, bodyColor: "#8a2020", armorColor: "#4a1010",
         bodyType: boss.bodyType, ability: bossAbilityObj,
       };
@@ -1873,7 +1885,7 @@ export default function App() {
         const minionHp = Math.round(m.hp * roomScale);
         const minionDmg = Math.round(m.damage * roomScale);
         const minionNpc = {
-          emoji: m.emoji || "👹", name: m.type, hp: minionHp,
+          icon: m.icon || "skull", name: m.type, hp: minionHp,
           resist: null, loot: { copper: 2 },
           bodyColor: "#6a3030", armorColor: "#3a1818", bodyType: m.bodyType || "humanoid",
         };
@@ -2032,7 +2044,7 @@ export default function App() {
   const selectRelic = useCallback((relic) => {
     setActiveRelics(prev => [...prev, relic]);
     setRelicChoices(null);
-    showMessage(`${relic.emoji} ${relic.name} aktywowany!`, "#a050e0");
+    showMessage(`${relic.name} aktywowany!`, "#a050e0");
   }, [showMessage]);
 
   const handleToggleMusic = () => { setMusicOn(toggleMusic()); };
@@ -2074,7 +2086,7 @@ export default function App() {
     };
     try {
       localStorage.setItem("wrota_save", JSON.stringify(saveData));
-      showMessage("💾 Gra zapisana!", "#40c040");
+      showMessage("Gra zapisana!", "#40c040");
     } catch (e) {
       showMessage("Błąd zapisu!", "#e04040");
     }
@@ -2109,7 +2121,7 @@ export default function App() {
       setScreen("game");
       enterRoom(s.room || 1, s.ownedTools || []);
       startMusic();
-      showMessage("💾 Gra wczytana!", "#40c040");
+      showMessage("Gra wczytana!", "#40c040");
       return true;
     } catch (e) {
       showMessage("Błąd wczytywania!", "#e04040");
@@ -2142,7 +2154,7 @@ export default function App() {
       showMessage("Nie możesz podróżować podczas obrony!", "#cc4040"); return;
     }
     if (initiative < CARAVAN_COST) {
-      showMessage("⏳ Za mało inicjatywy!", "#cc8040");
+      showMessage("Za mało inicjatywy!", "#cc8040");
       return;
     }
     setInitiative(prev => prev - CARAVAN_COST);
@@ -2170,7 +2182,7 @@ export default function App() {
     const maxHp = Math.round(mercType.hp * mult) + stoneBonus;
     const finalDmg = Math.round(mercType.damage * mult);
     const npcData = {
-      emoji: mercType.emoji, name: mercType.name,
+      icon: mercType.icon, name: mercType.name,
       hp: maxHp, resist: null, loot: {},
       bodyColor: mercType.bodyColor, armorColor: mercType.armorColor,
       weapon: mercType.weapon,
@@ -2219,7 +2231,7 @@ export default function App() {
       case "ambushWin":
         sfxEventSuccess();
         addMoneyFn(outcome.reward);
-        showMessage(`Bandyci pokonani! +${outcome.reward.copper} 🪙`, "#40e060");
+        showMessage(`Bandyci pokonani! +${outcome.reward.copper} Cu`, "#40e060");
         break;
       case "ambushLose": {
         sfxEventFail();
@@ -2227,13 +2239,13 @@ export default function App() {
         const current = totalCopper(money);
         const actual = Math.min(loss, current);
         setMoney(copperToMoney(current - actual));
-        showMessage(`Bandyci okradli cię! -${actual} 🪙`, "#cc3030");
+        showMessage(`Bandyci okradli cię! -${actual} Cu`, "#cc3030");
         break;
       }
       case "riddleCorrect":
         sfxEventSuccess();
         addMoneyFn(outcome.reward);
-        showMessage(`Poprawna odpowiedź! +${outcome.reward.copper} 🪙`, "#40e060");
+        showMessage(`Poprawna odpowiedź! +${outcome.reward.copper} Cu`, "#40e060");
         break;
       case "riddleWrong": {
         sfxEventFail();
@@ -2241,7 +2253,7 @@ export default function App() {
         const cur = totalCopper(money);
         const actual = Math.min(pen, cur);
         setMoney(copperToMoney(cur - actual));
-        showMessage(`Błędna odpowiedź! -${actual} 🪙`, "#cc3030");
+        showMessage(`Błędna odpowiedź! -${actual} Cu`, "#cc3030");
         break;
       }
       case "altar": {
@@ -2267,7 +2279,7 @@ export default function App() {
             setMana(prev => Math.max(0, prev - eff.value));
           }
         }
-        showMessage(`${eff.emoji} ${eff.text}`, eff.type === "buff" ? "#40e060" : "#cc3030");
+        showMessage(`${eff.text}`, eff.type === "buff" ? "#40e060" : "#cc3030");
         break;
       }
       case "altarSkip": break;
@@ -2276,7 +2288,7 @@ export default function App() {
         const mt = MERCENARY_TYPES[outcome.mercIndex] || MERCENARY_TYPES[0];
         // Spawn with 50% HP after room loads
         setTimeout(() => spawnFreeMerc(mt, 0.5), 600);
-        showMessage(`${mt.emoji} ${mt.name} dołączył do drużyny!`, "#40e060");
+        showMessage(`${mt.name} dołączył do drużyny!`, "#40e060");
         break;
       }
       case "woundedSkip": break;
@@ -2310,7 +2322,7 @@ export default function App() {
     setScreenShake(true);
     setTimeout(() => setScreenShake(false), 400);
     setMeteorite(prev => ({ ...prev, phase: "opened" }));
-    showMessage("☄️ Meteoryt się otwiera!", "#ff6020");
+    showMessage("Meteoryt się otwiera!", "#ff6020");
     // Spawn 2-3 meteor monsters after short delay
     setTimeout(() => {
       const count = 2 + (Math.random() < 0.4 ? 1 : 0);
@@ -2383,7 +2395,7 @@ export default function App() {
     sfxChest();
     const value = 3 + Math.floor(Math.random() * 8); // 3-10 copper
     setMoney(prev => copperToMoney(totalCopper(prev) + value));
-    showMessage(`${fruit.emoji} +${value} Cu`, "#40c040");
+    showMessage(`+${value} Cu`, "#40c040");
     setFruitTree(prev => prev ? { ...prev, fruits: prev.fruits.map(f => f.id === fruitId ? { ...f, picked: true } : f) } : null);
   };
 
@@ -2410,7 +2422,7 @@ export default function App() {
         const reward = roll < 0.15 ? rewards[0] : roll < 0.45 ? rewards[1] : rewards[2];
         const nv = totalCopper(reward.value);
         setMoney(prev => copperToMoney(totalCopper(prev) + nv));
-        showMessage(`⛏️ ${reward.name}! +${nv} Cu`, "#d4a030");
+        showMessage(`${reward.name}! +${nv} Cu`, "#d4a030");
         // Mark this nugget as dug, check if all dug
         setMineNugget(prev => {
           if (!prev) return null;
@@ -2439,7 +2451,7 @@ export default function App() {
     else if (roll < 0.5) { value = { silver: 1 }; text = "Znaleziono srebrną monetę!"; }
     else { value = { copper: 15 + Math.floor(Math.random() * 20) }; text = "Garść miedzianych monet!"; }
     setMoney(prev => copperToMoney(totalCopper(prev) + totalCopper(value)));
-    showMessage(`🌊 ${text}`, "#40a0ff");
+    showMessage(`${text}`, "#40a0ff");
   };
 
   const recruitFromCamp = (mercType) => {
@@ -2457,7 +2469,7 @@ export default function App() {
     const finalHp = Math.round(mercType.hp * mult) + stoneBonus;
     const finalDmg = Math.round(mercType.damage * mult);
     const npcData = {
-      emoji: mercType.emoji, name: mercType.name,
+      icon: mercType.icon, name: mercType.name,
       hp: finalHp, resist: null, loot: {},
       bodyColor: mercType.bodyColor, armorColor: mercType.armorColor,
       weapon: mercType.weapon,
@@ -2485,7 +2497,7 @@ export default function App() {
       critMult: mercType.critMult || 1,
     };
     if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, true);
-    showMessage(`${mercType.emoji} ${mercType.name} zrekrutowany! (${lvl.name})`, "#40e060");
+    showMessage(`${mercType.name} zrekrutowany! (${lvl.name})`, "#40e060");
     setMercCamp(null); // camp disappears after recruiting
   };
 
@@ -2498,7 +2510,7 @@ export default function App() {
     setMoney(copperToMoney(tc - wizardPoi.cost));
     setLearnedSpells(prev => [...prev, wizardPoi.spellId]);
     sfxChest();
-    showMessage(`📖 Nauczono się: ${spell.icon} ${spell.name}!`, spell.color);
+    showMessage(`Nauczono się: ${spell.icon} ${spell.name}!`, spell.color);
     setWizardPoi(null);
   };
 
@@ -2545,7 +2557,7 @@ export default function App() {
       const finalHp = Math.round(mercType.hp * mult) + stoneBonus;
       const finalDmg = Math.round(mercType.damage * mult);
       const npcData = {
-        emoji: mercType.emoji, name: mercType.name,
+        icon: mercType.icon, name: mercType.name,
         hp: finalHp, resist: null, loot: {},
         bodyColor: mercType.bodyColor, armorColor: mercType.armorColor,
         weapon: mercType.weapon,
@@ -2579,7 +2591,7 @@ export default function App() {
         critMult: mercType.critMult || 1,
       };
       if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, true);
-      showMessage(`${mercType.emoji} ${mercType.name} przyzwany! (${lvl.name})`, "#40e060");
+      showMessage(`${mercType.name} przyzwany! (${lvl.name})`, "#40e060");
     }, 500);
   }, [money, cooldowns, knightLevel, showMessage]);
 
@@ -2644,14 +2656,14 @@ export default function App() {
 
       if (resistant) {
         const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
-        showMessage(`🛡️ ${npcData.name} odporny na ${resistLabel}! (-70% obrażeń)`, "#6688aa");
+        showMessage(`${npcData.name} odporny na ${resistLabel}! (-70% obrażeń)`, "#6688aa");
       }
       if (comboText) {
-        showMessage(`✨ COMBO: ${comboText.name}! (x${(comboText.mult).toFixed(1)})`, comboText.color);
+        showMessage(`COMBO: ${comboText.name}! (x${(comboText.mult).toFixed(1)})`, comboText.color);
       }
 
       // Show damage popup
-      const dmgLabel = comboText ? `${damage} ✨` : weatherBoosted ? `${damage} ⛈️` : weatherNerfed ? `${damage} 🌧️` : resistant ? `${damage} 🛡️` : `${damage}`;
+      const dmgLabel = comboText ? `${damage}` : weatherBoosted ? `${damage}` : weatherNerfed ? `${damage}` : resistant ? `${damage} BLOK` : `${damage}`;
       spawnDmgPopup(wid, dmgLabel, resistant ? "#6688aa" : spell.color);
 
       // blood_weapon: heal random friendly for 15% of damage dealt
@@ -2661,7 +2673,7 @@ export default function App() {
           const target = friendlies[Math.floor(Math.random() * friendlies.length)];
           const healAmt = Math.round(damage * 0.15);
           setWalkers(prev => prev.map(w => w.id === target.id ? { ...w, hp: Math.min(w.maxHp, w.hp + healAmt) } : w));
-          spawnDmgPopup(target.id, `+${healAmt} 🩸`, "#40e060");
+          spawnDmgPopup(target.id, `+${healAmt}`, "#40e060");
         }
       }
 
@@ -2671,7 +2683,7 @@ export default function App() {
         if (otherEnemies.length > 0) {
           const chain = otherEnemies[Math.floor(Math.random() * otherEnemies.length)];
           const chainDmg = Math.round(damage * 0.60);
-          spawnDmgPopup(chain.id, `${chainDmg} ⚡`, "#60c0ff");
+          spawnDmgPopup(chain.id, `${chainDmg}`, "#60c0ff");
           setWalkers(prev => prev.map(w => {
             if (w.id !== chain.id) return w;
             const nhp = Math.max(0, w.hp - chainDmg);
@@ -2693,7 +2705,7 @@ export default function App() {
       if (spell.id === "drain") {
         const healAmount = Math.round(damage * 0.5);
         setMana(m => Math.min(MAX_MANA, m + healAmount));
-        showMessage(`🩸 Zrabowano ${healAmount} prochu!`, "#c02060");
+        showMessage(`Zrabowano ${healAmount} prochu!`, "#c02060");
       }
 
       setWalkers(prev => prev.map(w => {
@@ -2716,11 +2728,11 @@ export default function App() {
               const sx = walkDataRef.current[wid]?.x || 50;
               const nHp = Math.round(mt.hp * 0.7);
               const nDmg = Math.round(mt.damage * 0.7);
-              const nd = { emoji: mt.emoji, name: `${mt.name} 💀`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
+              const nd = { icon: mt.icon, name: `${mt.name}`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
               setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
               walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
               if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
-              showMessage(`💀 Nekromancja! ${mt.name} przywołany!`, "#a050e0");
+              showMessage(`Nekromancja! ${mt.name} przywołany!`, "#a050e0");
               setTimeout(() => {
                 if (walkDataRef.current[nid]) walkDataRef.current[nid].alive = false;
                 if (physicsRef.current) physicsRef.current.removeNpc(nid);
@@ -2729,13 +2741,13 @@ export default function App() {
             }, 300);
           }
           if (npcData.biomeId === "meteor" && Math.random() < 0.08) {
-            const sword = { icon: "🌙", name: "Miecz Pełni Księżyca", desc: "Legendarny miecz wykuty w blasku pełni księżyca", rarity: "legendary", value: { gold: 15 }, id: Date.now() + Math.random(), biome: "Meteoryt", room };
+            const sword = { icon: "moon", name: "Miecz Pełni Księżyca", desc: "Legendarny miecz wykuty w blasku pełni księżyca", rarity: "legendary", value: { gold: 15 }, id: Date.now() + Math.random(), biome: "Meteoryt", room };
             setInventory(prev => [...prev, sword]);
             setLoot(sword);
-            showMessage("🌙 Miecz Pełni Księżyca!", "#d4a030");
+            showMessage("Miecz Pełni Księżyca!", "#d4a030");
           }
-          if (!resistant) showMessage(`💀 ${npcData.name} pokonany! +${formatLootText(npcData.loot)}`, "#e05040");
-          else setTimeout(() => showMessage(`💀 ${npcData.name} pokonany! +${formatLootText(npcData.loot)}`, "#e05040"), 800);
+          if (!resistant) showMessage(`${npcData.name} pokonany! +${formatLootText(npcData.loot)}`, "#e05040");
+          else setTimeout(() => showMessage(`${npcData.name} pokonany! +${formatLootText(npcData.loot)}`, "#e05040"), 800);
           setTimeout(() => {
             setWalkers(pr => pr.map(ww => ww.id === wid ? { ...ww, alive: false } : ww));
           }, 2500);
@@ -2822,10 +2834,10 @@ export default function App() {
 
         if (resistant) {
           const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
-          showMessage(`🛡️ ${npcData.name} odporny na ${resistLabel}!`, "#6688aa");
+          showMessage(`${npcData.name} odporny na ${resistLabel}!`, "#6688aa");
         }
 
-        const dmgLabel = comboText ? `${damage} ✨` : weatherBoosted ? `${damage} ⛈️` : weatherNerfed ? `${damage} 🌧️` : resistant ? `${damage} 🛡️` : `${damage}`;
+        const dmgLabel = comboText ? `${damage}` : weatherBoosted ? `${damage}` : weatherNerfed ? `${damage}` : resistant ? `${damage} BLOK` : `${damage}`;
         spawnDmgPopup(w.id, dmgLabel, resistant ? "#6688aa" : spell.color);
 
         // blood_weapon: heal random friendly for 15% of damage
@@ -2837,7 +2849,7 @@ export default function App() {
             // Apply heal in a separate setState to avoid conflicts
             setTimeout(() => {
               setWalkers(pr => pr.map(ww => ww.id === target.id ? { ...ww, hp: Math.min(ww.maxHp, ww.hp + healAmt) } : ww));
-              spawnDmgPopup(target.id, `+${healAmt} 🩸`, "#40e060");
+              spawnDmgPopup(target.id, `+${healAmt}`, "#40e060");
             }, 50);
           }
         }
@@ -2860,11 +2872,11 @@ export default function App() {
               const sx = walkDataRef.current[w.id]?.x || 50;
               const nHp = Math.round(mt.hp * 0.7);
               const nDmg = Math.round(mt.damage * 0.7);
-              const nd = { emoji: mt.emoji, name: `${mt.name} 💀`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
+              const nd = { icon: mt.icon, name: `${mt.name}`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
               setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
               walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
               if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
-              showMessage(`💀 Nekromancja! ${mt.name} przywołany!`, "#a050e0");
+              showMessage(`Nekromancja! ${mt.name} przywołany!`, "#a050e0");
               setTimeout(() => {
                 if (walkDataRef.current[nid]) walkDataRef.current[nid].alive = false;
                 if (physicsRef.current) physicsRef.current.removeNpc(nid);
@@ -2872,7 +2884,7 @@ export default function App() {
               }, 15000);
             }, 300);
           }
-          showMessage(`💀 ${npcData.name} pokonany! +${formatLootText(npcData.loot)}`, "#e05040");
+          showMessage(`${npcData.name} pokonany! +${formatLootText(npcData.loot)}`, "#e05040");
           setTimeout(() => {
             setWalkers(pr => pr.map(ww => ww.id === w.id ? { ...ww, alive: false } : ww));
           }, 2500);
@@ -2888,7 +2900,7 @@ export default function App() {
         const newHp = t.hp - spell.damage;
         if (newHp <= 0) {
           sfxNpcDeath();
-          showMessage("🏗️ Wieża zniszczona!", "#e0a040");
+          showMessage("Wieża zniszczona!", "#e0a040");
           return { ...t, hp: 0, active: false };
         }
         return { ...t, hp: newHp };
@@ -2916,13 +2928,13 @@ export default function App() {
     if (!selectedSpell) {
       // Inspect NPC – show info in bottom-left
       setInspectedNpc({
-        emoji: walker.npcData.emoji,
+        icon: walker.npcData.icon,
         name: walker.npcData.name,
         hp: walker.hp,
         maxHp: walker.maxHp,
         resist: walker.npcData.resist,
         rarity: walker.npcData.rarity,
-        biomeEmoji: biome?.emoji || "",
+        biomeIcon: biome?.icon || "",
         biomeName: biome?.name || "",
       });
       setTimeout(() => setInspectedNpc(null), 4000);
@@ -3051,10 +3063,10 @@ export default function App() {
         const newHp = t.hp - spell.damage;
         if (newHp <= 0) {
           sfxNpcDeath();
-          showMessage("🏗️ Wieża zniszczona!", "#e0a040");
+          showMessage("Wieża zniszczona!", "#e0a040");
           return { ...t, hp: 0, active: false };
         }
-        showMessage(`🏗️ Wieża: ${newHp}/${t.maxHp} HP`, "#cc8040");
+        showMessage(`Wieża: ${newHp}/${t.maxHp} HP`, "#cc8040");
         return { ...t, hp: newHp };
       }));
     }, 450);
@@ -3111,7 +3123,7 @@ export default function App() {
     if (tc < need) { showMessage("Za mało monet!", "#b83030"); return; }
     sfxDrinkMana(); setMoney(copperToMoney(tc - need));
     setMana(prev => Math.min(MAX_MANA, prev + potion.mana));
-    showMessage(`+${potion.mana} prochu! 🪖`, "#c0a060");
+    showMessage(`+${potion.mana} prochu!`, "#c0a060");
   };
 
   const storeItem = (idx) => {
@@ -3148,7 +3160,7 @@ export default function App() {
     sfxUpgrade();
     setMoney(copperToMoney(tc - need));
     setKnightLevel(l => l + 1);
-    showMessage(`${next.emoji} Najemnicy ulepszeni: ${next.name}! (x${next.mult})`, "#40e060");
+    showMessage(`Najemnicy ulepszeni: ${next.name}! (x${next.mult})`, "#40e060");
   };
 
   const upgradeCaravan = () => {
@@ -3161,7 +3173,7 @@ export default function App() {
     setMoney(copperToMoney(tc - need));
     setCaravanLevel(l => l + 1);
     setCaravanHp(next.hp);
-    showMessage(`🐴 Konwój → ${next.name}! (HP:${next.hp}, Armor:${next.armor})`, "#d4a030");
+    showMessage(`Konwój → ${next.name}! (HP:${next.hp}, Armor:${next.armor})`, "#d4a030");
   };
 
   const buyKnowledgeUpgrade = (upgradeId) => {
@@ -3175,7 +3187,7 @@ export default function App() {
     setKnowledgeUpgrades(prev => ({ ...prev, [upgradeId]: currentLevel + 1 }));
     sfxUpgrade();
     const names = { manaPool: "Zapas Prochu", spellPower: "Siła Strzału", manaRegen: "Regeneracja Prochu" };
-    showMessage(`📖 Ulepszono ${names[upgradeId]}!`, "#60a0ff");
+    showMessage(`Ulepszono ${names[upgradeId]}!`, "#60a0ff");
   };
 
   const togglePanel = (p) => setPanel(prev => prev === p ? null : p);
@@ -3189,20 +3201,20 @@ export default function App() {
     return (
       <div style={{ ...appStyle, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
         <div style={scanlinesStyle} /><div style={vignetteStyle} />
-        <div style={{ color: "#3a2a1a", fontSize: 26, letterSpacing: 8, marginBottom: 10 }}>⚜ ─── ⚜ ─── ⚜</div>
-        <div style={{ fontSize: 60, marginBottom: 16, filter: "drop-shadow(0 0 16px rgba(212,160,48,0.25))" }}>🏴‍☠️⚓🏴‍☠️</div>
+        <div style={{ color: "#3a2a1a", letterSpacing: 8, marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Icon name="star" size={20} /> ─── <Icon name="star" size={20} /> ─── <Icon name="star" size={20} /></div>
+        <div style={{ fontSize: 60, marginBottom: 16, filter: "drop-shadow(0 0 16px rgba(212,160,48,0.25))", display: "flex", gap: 8, justifyContent: "center" }}><Icon name="skull" size={60} /><Icon name="anchor" size={60} /><Icon name="skull" size={60} /></div>
         <h1 style={{ fontSize: 32, fontWeight: "bold", color: "#d4a030", textShadow: "3px 3px 0 #000, 0 0 25px rgba(212,160,48,0.25)", marginBottom: 8, textAlign: "center" }}>Szlak Fortuny</h1>
         <p style={{ fontSize: 18, color: "#6a5a4a", marginBottom: 36 }}>Eskortuj konwój • Pokonaj bandytów • Zdobądź skarby</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
           <button onClick={startGame} style={{
             fontWeight: "bold", fontSize: 20, background: "none", border: "3px solid #d4a030", color: "#d4a030",
             padding: "12px 36px", cursor: "pointer", textShadow: "1px 1px 0 #000", animation: "pulse 2s infinite",
-          }}>❖ Nowa Gra ❖</button>
+          }}><Icon name="star" size={16} /> Nowa Gra <Icon name="star" size={16} /></button>
           {hasSaveGame() && (
             <button onClick={loadGame} style={{
               fontWeight: "bold", fontSize: 16, background: "none", border: "2px solid #4080cc", color: "#60a0ff",
               padding: "8px 28px", cursor: "pointer", textShadow: "1px 1px 0 #000",
-            }}>💾 Kontynuuj</button>
+            }}><Icon name="save" size={14} /> Kontynuuj</button>
           )}
         </div>
         <style>{`@keyframes pulse{0%,100%{box-shadow:0 0 8px rgba(212,160,48,0.2)}50%{box-shadow:0 0 22px rgba(212,160,48,0.45)}}`}</style>
@@ -3227,7 +3239,7 @@ export default function App() {
           animation: "fadeIn 0.6s ease-out",
         }}>
           <div style={{ fontSize: isMobile ? 36 : 48, marginBottom: 8, filter: "drop-shadow(0 0 12px rgba(200,40,40,0.4))" }}>
-            💀
+            <Icon name="skull" size={isMobile ? 36 : 48} />
           </div>
           <div style={{ fontSize: isMobile ? 11 : 13, color: "#8c4040", letterSpacing: 3, marginBottom: 4, fontWeight: "bold" }}>
             KONWÓJ ZNISZCZONY
@@ -3246,20 +3258,20 @@ export default function App() {
               PODSUMOWANIE
             </div>
             {[
-              ["🚪", "Komnaty", s.room],
-              ["💀", "Pokonani wrogowie", s.kills],
-              ["🐉", "Pokonani bossowie", s.bossesDefeated],
-              ["🔑", "Otwarte wrota", s.doors],
-              ["📖", "Lista Gończa", `${s.bestiary} wrogów`],
-              ["🏅", "Relikty", s.relics],
-              ["🐴", "Poziom karawany", CARAVAN_LEVELS[s.caravanLevel]?.name || `Lv.${s.caravanLevel}`],
-            ].map(([emoji, label, val], i) => (
+              ["doors", "Komnaty", s.room],
+              ["skull", "Pokonani wrogowie", s.kills],
+              ["skull", "Pokonani bossowie", s.bossesDefeated],
+              ["doors", "Otwarte wrota", s.doors],
+              ["scroll", "Lista Gończa", `${s.bestiary} wrogów`],
+              ["star", "Relikty", s.relics],
+              ["convoy", "Poziom karawany", CARAVAN_LEVELS[s.caravanLevel]?.name || `Lv.${s.caravanLevel}`],
+            ].map(([iconName, label, val], i) => (
               <div key={i} style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
                 padding: "5px 0", borderBottom: i < 6 ? "1px solid #1a1010" : "none",
                 fontSize: isMobile ? 12 : 14,
               }}>
-                <span style={{ color: "#998877" }}>{emoji} {label}</span>
+                <span style={{ color: "#998877" }}><Icon name={iconName} size={14} /> {label}</span>
                 <span style={{ color: "#d4a030", fontWeight: "bold" }}>{val}</span>
               </div>
             ))}
@@ -3346,7 +3358,7 @@ export default function App() {
           boxShadow: "inset 0 0 10px rgba(0,0,0,0.4)", whiteSpace: "nowrap",
           opacity: transitioning ? 0 : 1, transition: "opacity 0.5s",
         }}>
-          Etap #{room} — {biome.emoji} {biome.name}{isNight ? " 🌙" : ""}{weather ? ` ${weather.emoji}` : ""}{defenseMode ? " ⚔️ OBRONA" : ""}
+          Etap #{room} — <Icon name={biome.icon} size={14} /> {biome.name}{isNight ? <>{" "}<Icon name="moon" size={14} /></> : ""}{weather ? <>{" "}<Icon name={weather.icon} size={14} /></> : ""}{defenseMode ? <>{" "}<Icon name="swords" size={14} /> OBRONA</> : ""}
         </div>
       )}
 
@@ -3389,7 +3401,7 @@ export default function App() {
         }}>
           <div style={{
             filter: "drop-shadow(0 0 24px rgba(255,80,0,0.9)) drop-shadow(0 0 48px rgba(255,40,0,0.6))",
-          }}>☄️</div>
+          }}><Icon name="meteor" size={48} /></div>
           {/* Fire trail behind meteor */}
           <div style={{
             position: "absolute", left: "50%", top: "100%",
@@ -3467,7 +3479,7 @@ export default function App() {
                 ? `mineShake ${Math.max(0.06, 0.14 - miningProgress * 0.06)}s infinite alternate`
                 : "resNode 2.5s ease-in-out infinite",
             }}>
-              {resourceNode.terrain === "forest" ? "🪵" : "⛏️"}
+              <Icon name={resourceNode.terrain === "forest" ? "wood" : "pickaxe"} size={34} />
               {/* Crack overlay */}
               {isMining && (
                 <div style={{
@@ -3553,11 +3565,11 @@ export default function App() {
                 filter: "drop-shadow(0 0 4px rgba(255,200,60,0.5))",
                 animation: "keyF 2.5s ease-in-out infinite",
                 animationDelay: `${f.id * 0.3}s`,
-              }}>{f.emoji}</div>
+              }}><Icon name={f.icon} size={16} /></div>
             ))}
           </div>
           <div style={{ textAlign: "center", marginTop: 2, fontSize: 9, color: "#8a8", textShadow: "1px 1px 0 #000" }}>
-            🌳 {fruitTree.label}
+            <Icon name="leaf" size={9} /> {fruitTree.label}
           </div>
         </div>
       )}
@@ -3595,7 +3607,7 @@ export default function App() {
                     ? `mineShake ${Math.max(0.06, 0.12 - mineNugget.progress * 0.06)}s infinite alternate`
                     : "resNode 3s ease-in-out infinite",
                   animationDelay: `${n.id * 0.4}s`,
-                }}>{mineNugget.oreEmoji}</div>
+                }}><Icon name={mineNugget.oreIcon} size={16} /></div>
             ))}
           </div>
           {mineNugget.progress > 0 && (
@@ -3611,7 +3623,7 @@ export default function App() {
             </div>
           )}
           <div style={{ textAlign: "center", marginTop: 2, fontSize: 9, color: "#8a8", textShadow: "1px 1px 0 #000" }}>
-            ⛏️ {mineNugget.label}
+            <Icon name="pickaxe" size={9} /> {mineNugget.label}
           </div>
         </div>
       )}
@@ -3682,7 +3694,7 @@ export default function App() {
               textShadow: "1px 1px 0 #000",
               animation: "doorGlow 2s ease-in-out infinite",
             }}>
-              {waterfall.frozen ? "🧊 Rozbij lód" : "🌊 Sprawdź"}
+              {waterfall.frozen ? <><Icon name="ice" size={10} /> Rozbij lód</> : <><Icon name="water" size={10} /> Sprawdź</>}
             </div>
           ) : (
             <div style={{ textAlign: "center", marginTop: 3, fontSize: 9, color: "#666", textShadow: "1px 1px 0 #000" }}>
@@ -3737,11 +3749,11 @@ export default function App() {
             <div style={{
               position: "absolute", bottom: -2, left: -10,
               fontSize: 14, animation: "resNode 1.5s ease-in-out infinite",
-            }}>🔥</div>
+            }}><Icon name="fire" size={14} /></div>
             {/* Weapon rack */}
             <div style={{
               position: "absolute", bottom: 0, right: -8, fontSize: 12,
-            }}>⚔️</div>
+            }}><Icon name="swords" size={12} /></div>
           </div>
           {/* Recruit buttons */}
           <div style={{ display: "flex", gap: 3, justifyContent: "center", marginTop: 3 }}>
@@ -3757,12 +3769,12 @@ export default function App() {
                     filter: canAfford ? "drop-shadow(0 0 4px rgba(212,160,48,0.5))" : "none",
                     animation: canAfford ? "keyF 2.5s ease-in-out infinite" : "none",
                     animationDelay: `${MERCENARY_TYPES.indexOf(m) * 0.2}s`,
-                  }}>{m.emoji}</div>
+                  }}><Icon name={m.icon} size={20} /></div>
               );
             })}
           </div>
           <div style={{ textAlign: "center", marginTop: 1, fontSize: 9, color: "#d4a030", textShadow: "1px 1px 0 #000" }}>
-            ⛺ Obóz Najemników
+            <Icon name="recruit" size={9} /> Obóz Najemników
           </div>
         </div>
       )}
@@ -3792,9 +3804,9 @@ export default function App() {
                 borderRadius: "0 0 3px 3px",
               }} />
               {/* Stars on tent */}
-              <div style={{ position: "absolute", top: 18, left: 12, fontSize: 7, opacity: 0.8 }}>✨</div>
-              <div style={{ position: "absolute", top: 28, right: 14, fontSize: 6, opacity: 0.7 }}>⭐</div>
-              <div style={{ position: "absolute", top: 12, right: 20, fontSize: 5, opacity: 0.6 }}>✨</div>
+              <div style={{ position: "absolute", top: 18, left: 12, opacity: 0.8 }}><Icon name="star" size={7} /></div>
+              <div style={{ position: "absolute", top: 28, right: 14, opacity: 0.7 }}><Icon name="star" size={6} /></div>
+              <div style={{ position: "absolute", top: 12, right: 20, opacity: 0.6 }}><Icon name="star" size={5} /></div>
               {/* Tent opening */}
               <div style={{
                 position: "absolute", top: 26, left: "50%", transform: "translateX(-50%)",
@@ -3818,7 +3830,7 @@ export default function App() {
               <div style={{
                 position: "absolute", bottom: -2, left: "50%", transform: "translateX(-50%)",
                 fontSize: 12, animation: "keyF 3s ease-in-out infinite",
-              }}>🔮</div>
+              }}><Icon name="gem" size={12} /></div>
             </div>
             {/* Spell offer – icon button like merc camp */}
             <div style={{ display: "flex", justifyContent: "center", marginTop: 4 }}>
@@ -3830,14 +3842,14 @@ export default function App() {
                   filter: canAfford ? `drop-shadow(0 0 6px ${spell.color})` : "none",
                   animation: canAfford ? "keyF 2.5s ease-in-out infinite" : "none",
                 }}>
-                {spell.icon}
+                <Icon name={spell.icon} size={20} />
               </div>
             </div>
             <div style={{ fontSize: 8, color: canAfford ? "#d4a030" : "#666", marginTop: 1 }}>
-              💰 {wizardPoi.cost} Cu
+              <Icon name="coin" size={8} /> {wizardPoi.cost} Cu
             </div>
             <div style={{ fontSize: 9, color: "#8080c0", textShadow: "1px 1px 0 #000", marginTop: 1 }}>
-              🔫 Zbrojmistrz
+              <Icon name="gunner" size={9} /> Zbrojmistrz
             </div>
           </div>
         );
@@ -3876,7 +3888,7 @@ export default function App() {
               </div>
               {spikesUp && (
                 <div style={{ fontSize: 8, color: "#cc4040", textAlign: "center", marginTop: 1, textShadow: "1px 1px 0 #000" }}>
-                  ⚠️ Kolce!
+                  <Icon name="skull" size={8} /> Kolce!
                 </div>
               )}
             </div>
@@ -3891,7 +3903,7 @@ export default function App() {
                 position: "absolute", left: `${trap.x}%`, bottom: "12%", zIndex: 13,
                 transform: "translateX(-50%)", pointerEvents: "none",
                 fontSize: 28, animation: "dmgFloat 1.5s ease-out forwards",
-              }}>💥</div>
+              }}><Icon name="fire" size={28} /></div>
             );
           }
           return (
@@ -3963,7 +3975,7 @@ export default function App() {
                 <div style={{
                   position: "absolute", bottom: 50, left: "50%", transform: "translateX(-50%)",
                   fontSize: 14,
-                }}>🏹</div>
+                }}><Icon name="gunner" size={14} /></div>
                 {/* Damage glow when low HP */}
                 {hpPct < 0.5 && (
                   <div style={{
@@ -3985,7 +3997,7 @@ export default function App() {
                 }} />
               </div>
               <div style={{ fontSize: 8, color: "#aa6040", textShadow: "1px 1px 0 #000", marginTop: 1 }}>
-                🏗️ Wieża
+                <Icon name="swords" size={8} /> Wieża
               </div>
             </div>
           );
@@ -4060,14 +4072,14 @@ export default function App() {
                 animation: "gemPulse 1s ease-in-out infinite",
                 pointerEvents: "none", zIndex: 20,
                 textShadow: "0 0 8px rgba(255,170,0,0.6)",
-              }}>⚔️ AUTO</div>
+              }}><Icon name="swords" size={12} /> AUTO</div>
             )}
             {/* Attack telegraph – shows when enemy is lunging */}
             {w.alive && !w.dying && !isFriendly && walkDataRef.current[w.id]?.lungeFrames > 0 && (
               <div style={{
                 fontSize: 14, animation: "dmgFloat 0.5s ease-out",
                 color: "#ff4040", fontWeight: "bold", pointerEvents: "none",
-              }}>⚠️</div>
+              }}><Icon name="skull" size={14} /></div>
             )}
             {/* HP Bar — skip for boss (uses BossHpBar at top) */}
             {w.alive && !w.dying && !isBossWalker && (
@@ -4114,7 +4126,7 @@ export default function App() {
                 fontSize: 10, marginBottom: -2, pointerEvents: "none",
                 opacity: 0.7,
               }}>
-                {w.npcData.resist === "fire" ? "🔥" : "🧊"}
+                <Icon name={w.npcData.resist === "fire" ? "fire" : "ice"} size={10} />
               </div>
             )}
             {/* Invisible click area (stick figure rendered on physics canvas) */}
@@ -4163,17 +4175,17 @@ export default function App() {
           opacity: transitioning ? 0 : 0.85,
           transition: "opacity 0.5s",
         }}>
-          <div style={{ fontWeight: "bold", color: "#d4a030", marginBottom: 2, fontSize: isMobile ? 9 : 12 }}>🔭 Zwiad</div>
-          <div>Etap #{nextRoomPreview.room}: {nextRoomPreview.biome.emoji} {nextRoomPreview.biome.name}</div>
-          {nextRoomPreview.isDefense && <div style={{ color: "#e05040", fontWeight: "bold" }}>⚔️ Obrona karawany!</div>}
-          {nextRoomPreview.isBoss && <div style={{ color: "#ff4040", fontWeight: "bold" }}>💀 Boss!</div>}
+          <div style={{ fontWeight: "bold", color: "#d4a030", marginBottom: 2, fontSize: isMobile ? 9 : 12 }}><Icon name="spyglass" size={isMobile ? 9 : 12} /> Zwiad</div>
+          <div>Etap #{nextRoomPreview.room}: <Icon name={nextRoomPreview.biome.icon} size={12} /> {nextRoomPreview.biome.name}</div>
+          {nextRoomPreview.isDefense && <div style={{ color: "#e05040", fontWeight: "bold" }}><Icon name="swords" size={11} /> Obrona karawany!</div>}
+          {nextRoomPreview.isBoss && <div style={{ color: "#ff4040", fontWeight: "bold" }}><Icon name="skull" size={11} /> Boss!</div>}
         </div>
       )}
 
       {/* Kill counter */}
       {kills > 0 && (
         <div style={{ position: "absolute", top: isMobile ? 38 : 58, left: isMobile ? 4 : 12, fontSize: isMobile ? 10 : 13, color: "#e05040", fontWeight: "bold", zIndex: 20, textShadow: "1px 1px 0 #000" }}>
-          💀 {kills}
+          <Icon name="skull" size={isMobile ? 10 : 13} /> {kills}
         </div>
       )}
 
@@ -4182,7 +4194,7 @@ export default function App() {
         <div style={{ position: "absolute", top: isMobile ? 50 : 78, left: isMobile ? 4 : 12, display: "flex", gap: isMobile ? 2 : 4, zIndex: 20 }}>
           {ownedTools.map(tid => {
             const tool = SHOP_TOOLS.find(t => t.id === tid);
-            return tool ? <span key={tid} title={tool.name} style={{ fontSize: isMobile ? 12 : 18, opacity: 0.7 }}>{tool.icon}</span> : null;
+            return tool ? <span key={tid} title={tool.name} style={{ opacity: 0.7 }}><Icon name={tool.icon} size={isMobile ? 12 : 18} /></span> : null;
           })}
         </div>
       )}
@@ -4192,7 +4204,7 @@ export default function App() {
         <div style={{ position: "absolute", bottom: isMobile ? 8 : 10, left: isMobile ? 4 : 10, zIndex: 50, display: "flex", gap: isMobile ? 3 : 6 }}>
           {activeRelics.map(r => (
             <div key={r.id} title={`${r.name}: ${r.desc}`} style={{ fontSize: isMobile ? 14 : 22, filter: "drop-shadow(0 0 6px rgba(160,80,220,0.5))" }}>
-              {r.emoji}
+              <Icon name={r.icon} size={isMobile ? 14 : 22} />
             </div>
           ))}
         </div>
@@ -4208,10 +4220,10 @@ export default function App() {
           animation: "fadeIn 0.3s ease-out",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <span style={{ fontSize: 32 }}>{inspectedNpc.emoji}</span>
+            <span style={{ fontSize: 32 }}><NpcIcon bodyType={inspectedNpc.bodyType} bodyColor={inspectedNpc.bodyColor} armorColor={inspectedNpc.armorColor} size={32} /></span>
             <div>
               <div style={{ fontWeight: "bold", fontSize: 14, color: "#e05040" }}>{inspectedNpc.name}</div>
-              <div style={{ fontSize: 11, color: "#888" }}>{inspectedNpc.biomeEmoji} {inspectedNpc.biomeName}</div>
+              <div style={{ fontSize: 11, color: "#888" }}><Icon name={inspectedNpc.biomeIcon} size={11} /> {inspectedNpc.biomeName}</div>
             </div>
             {inspectedNpc.rarity && (
               <span style={{ fontSize: 10, fontWeight: "bold", color: RARITY_C[inspectedNpc.rarity], border: `1px solid ${RARITY_C[inspectedNpc.rarity]}40`, padding: "1px 5px" }}>
@@ -4224,7 +4236,7 @@ export default function App() {
           </div>
           {inspectedNpc.resist && (
             <div style={{ fontSize: 12, color: "#6688aa", marginTop: 2 }}>
-              Odporność: {inspectedNpc.resist === "fire" ? "🔥 Ogień" : "🧊 Lód"}
+              Odporność: {inspectedNpc.resist === "fire" ? <><Icon name="fire" size={12} /> Ogień</> : <><Icon name="ice" size={12} /> Lód</>}
             </div>
           )}
         </div>
@@ -4272,17 +4284,17 @@ export default function App() {
                 onMouseEnter={!isMobile ? (e => { if (canSummon) { e.currentTarget.style.borderColor = merc.color; e.currentTarget.style.background = `${merc.color}20`; } }) : undefined}
                 onMouseLeave={!isMobile ? (e => { e.currentTarget.style.borderColor = canSummon ? merc.color + "80" : "#333"; e.currentTarget.style.background = canSummon ? `${merc.color}10` : "rgba(0,0,0,0.3)"; }) : undefined}
               >
-                <span style={{ fontSize: isMobile ? 22 : 28, opacity: canSummon ? 1 : 0.35 }}>{merc.emoji}</span>
+                <span style={{ opacity: canSummon ? 1 : 0.35 }}><Icon name={merc.icon} size={isMobile ? 22 : 28} /></span>
                 <div style={{ fontSize: isMobile ? 9 : 11, fontWeight: "bold", color: canSummon ? merc.color : "#555", whiteSpace: "nowrap" }}>{merc.name}</div>
                 <div style={{ fontSize: isMobile ? 8 : 9, color: "#888", whiteSpace: "nowrap" }}>HP:{finalHp} ATK:{finalDmg}</div>
                 <div style={{ fontSize: isMobile ? 8 : 9, color: canAfford ? "#6a9a6a" : "#804040" }}>
-                  💰{merc.cost.silver ? `${merc.cost.silver}Ag` : `${merc.cost.copper}Cu`}
+                  <Icon name="coin" size={9} />{merc.cost.silver ? `${merc.cost.silver}Ag` : `${merc.cost.copper}Cu`}
                 </div>
               </div>
             );
           })}
           <div style={{ position: "absolute", top: -18, left: "50%", transform: "translateX(-50%)", fontSize: isMobile ? 8 : 10, color: "#6a9a6a", whiteSpace: "nowrap", fontWeight: "bold" }}>
-            {KNIGHT_LEVELS[knightLevel].emoji} {KNIGHT_LEVELS[knightLevel].name} — {KNIGHT_LEVELS[knightLevel].desc}
+            <Icon name={KNIGHT_LEVELS[knightLevel].icon} size={10} /> {KNIGHT_LEVELS[knightLevel].name} — {KNIGHT_LEVELS[knightLevel].desc}
           </div>
         </div>
       )}
@@ -4329,29 +4341,29 @@ export default function App() {
           }}>
             <div style={{ fontSize: 13, color: "#888", marginBottom: 8, letterSpacing: 2 }}>PRZEWODNIK ({tutorialStep + 1}/5)</div>
             {tutorialStep === 0 && <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🐴</div>
+              <div style={{ marginBottom: 8 }}><Icon name="convoy" size={32} /></div>
               <div style={{ fontSize: 16, fontWeight: "bold", color: "#d4a030", marginBottom: 8 }}>Konwój</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Kliknij konwój aby podróżować do następnego etapu. Potrzebujesz ⏳ inicjatywy (regeneruje się z czasem). Chroń konwój przed bandytami!</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Kliknij konwój aby podróżować do następnego etapu. Potrzebujesz inicjatywy (regeneruje się z czasem). Chroń konwój przed bandytami!</div>
             </>}
             {tutorialStep === 1 && <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🪖</div>
+              <div style={{ marginBottom: 8 }}><Icon name="gunpowder" size={32} /></div>
               <div style={{ fontSize: 16, fontWeight: "bold", color: "#c0a060", marginBottom: 8 }}>Akcje i Walka</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>{isMobile ? "Wybierz akcję z paska na dole, a potem dotknij wroga. Akcje kosztują proch 🪖 i mają czas odnowienia. Łącz typy (dynamit+harpun, harpun+strzał) dla bonusów COMBO!" : "Wybierz akcję z paska na dole, a potem kliknij na wroga. Możesz też przeciągnąć akcję na cel. Akcje kosztują proch 🪖 i mają czas odnowienia. Łącz typy (dynamit+harpun, harpun+strzał) dla bonusów COMBO!"}</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>{isMobile ? "Wybierz akcję z paska na dole, a potem dotknij wroga. Akcje kosztują proch i mają czas odnowienia. Łącz typy (dynamit+harpun, harpun+strzał) dla bonusów COMBO!" : "Wybierz akcję z paska na dole, a potem kliknij na wroga. Możesz też przeciągnąć akcję na cel. Akcje kosztują proch i mają czas odnowienia. Łącz typy (dynamit+harpun, harpun+strzał) dla bonusów COMBO!"}</div>
             </>}
             {tutorialStep === 2 && <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🤠</div>
+              <div style={{ marginBottom: 8 }}><Icon name="recruit" size={32} /></div>
               <div style={{ fontSize: 16, fontWeight: "bold", color: "#40e060", marginBottom: 8 }}>Najemnicy</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Werbuj najemników akcją 🤠 Werbowanie. Szeryf jest wytrzymały, Pirat szybki z ciosami krytycznymi, Alchemik rzuca bomby, Strzelec strzela z karabinu. Ulepszaj ich w Bazie 🏚️!</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Werbuj najemników akcją Werbowanie. Szeryf jest wytrzymały, Pirat szybki z ciosami krytycznymi, Alchemik rzuca bomby, Strzelec strzela z karabinu. Ulepszaj ich w Bazie!</div>
             </>}
             {tutorialStep === 3 && <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📖</div>
+              <div style={{ marginBottom: 8 }}><Icon name="scroll" size={32} /></div>
               <div style={{ fontSize: 16, fontWeight: "bold", color: "#e0c040", marginBottom: 8 }}>Lista Gończa i Sława</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Pokonani wrogowie mogą upuścić karty do Listy Gończej. Odkryci wrogowie dają +5% obrażeń przeciwko nim. Zbieraj Sławę ⭐ na bonusy kamieni milowych!</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Pokonani wrogowie mogą upuścić karty do Listy Gończej. Odkryci wrogowie dają +5% obrażeń przeciwko nim. Zbieraj Sławę na bonusy kamieni milowych!</div>
             </>}
             {tutorialStep === 4 && <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🏪🏚️</div>
+              <div style={{ marginBottom: 8, display: "flex", gap: 4, justifyContent: "center" }}><Icon name="shop" size={32} /><Icon name="base" size={32} /></div>
               <div style={{ fontSize: 16, fontWeight: "bold", color: "#d4a030", marginBottom: 8 }}>Bazar i Baza</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Na Bazarze Portowym 🏪 kupuj narzędzia i zapasy prochu. W Bazie 🏚️ ulepszaj konwój, najemników i przechowuj skarby. Co 5 etapów czeka obrona konwoju, co 10 - boss!</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Na Bazarze Portowym kupuj narzędzia i zapasy prochu. W Bazie ulepszaj konwój, najemników i przechowuj skarby. Co 5 etapów czeka obrona konwoju, co 10 - boss!</div>
             </>}
             <div style={{ marginTop: 12, fontSize: 11, color: "#666" }}>Kliknij aby kontynuować →</div>
           </div>
@@ -4378,7 +4390,7 @@ export default function App() {
           animation: "cardDrop 0.5s ease-out",
         }}>
           <div style={{ fontSize: 11, color: "#888", marginBottom: 4, letterSpacing: 2 }}>KARTA POTWORA</div>
-          <div style={{ fontSize: 52 }}>{cardDrop.emoji}</div>
+          <div><NpcIcon bodyType={cardDrop.bodyType} bodyColor={cardDrop.bodyColor} armorColor={cardDrop.armorColor} size={52} /></div>
           <div style={{ fontWeight: "bold", fontSize: 17, color: cardDrop.rarityColor, marginBottom: 4 }}>
             {cardDrop.name}
           </div>
@@ -4386,13 +4398,13 @@ export default function App() {
             {cardDrop.rarityLabel}
           </div>
           <div style={{ fontSize: 13, color: "#60a0ff", marginTop: 6 }}>
-            📖 +{cardDrop.knowledge} Wiedza
+            <Icon name="scroll" size={13} /> +{cardDrop.knowledge} Wiedza
           </div>
         </div>
       )}
 
       {/* INVENTORY PANEL */}
-      <SidePanel open={panel === "inv"} side="right" width={400} onClose={() => { setPanel(null); setSelectedInv(-1); }} title="📜 Ekwipunek" isMobile={isMobile}>
+      <SidePanel open={panel === "inv"} side="right" width={400} onClose={() => { setPanel(null); setSelectedInv(-1); }} title="Ekwipunek" isMobile={isMobile}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
           {[...Array(Math.max(20, Math.ceil(inventory.length / 5) * 5 + 5))].map((_, i) => (
             <ItemSlot key={i} item={inventory[i]} selected={i === selectedInv} onClick={() => setSelectedInv(i)} />
@@ -4405,17 +4417,17 @@ export default function App() {
       </SidePanel>
 
       {/* SHOP PANEL */}
-      <SidePanel open={panel === "shop"} side="left" width={430} onClose={() => setPanel(null)} title="🏪 Bazar Portowy" isMobile={isMobile}>
-        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#c0a060", marginBottom: 8, borderBottom: "1px solid #3a2a18", paddingBottom: 4 }}>🪖 Zapasy Prochu</h3>
+      <SidePanel open={panel === "shop"} side="left" width={430} onClose={() => setPanel(null)} title="Bazar Portowy" isMobile={isMobile}>
+        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#c0a060", marginBottom: 8, borderBottom: "1px solid #3a2a18", paddingBottom: 4 }}><Icon name="gunpowder" size={15} /> Zapasy Prochu</h3>
         {MANA_POTIONS.map(potion => {
           const canAfford = totalCopper(money) >= totalCopper(potion.cost);
           return (
             <div key={potion.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: "2px solid #1a2a3a", marginBottom: 6, background: "rgba(60,100,200,0.04)" }}>
-              <span style={{ fontSize: 28 }}>{potion.icon}</span>
+              <span><Icon name={potion.icon} size={28} /></span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: "bold", fontSize: 14, color: "#80b0ff" }}>{potion.name}</div>
                 <div style={{ fontSize: 12, color: "#5577aa" }}>{potion.desc}</div>
-                <div style={{ fontSize: 13, color: "#888" }}>💰 {formatValHTML(potion.cost)}</div>
+                <div style={{ fontSize: 13, color: "#888" }}><Icon name="coin" size={13} /> {formatValHTML(potion.cost)}</div>
               </div>
               <button onClick={() => buyMana(potion.id)} disabled={!canAfford}
                 style={{ background: "none", border: `2px solid ${canAfford ? "#4080cc" : "#333"}`, color: canAfford ? "#60a0ff" : "#555", fontSize: 14, padding: "3px 12px", cursor: canAfford ? "pointer" : "not-allowed", fontWeight: "bold" }}>Kup</button>
@@ -4423,17 +4435,17 @@ export default function App() {
           );
         })}
 
-        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#d4a030", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}>🛠️ Narzędzia do kupienia</h3>
+        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#d4a030", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="pickaxe" size={15} /> Narzędzia do kupienia</h3>
         {SHOP_TOOLS.map(tool => {
           const owned = ownedTools.includes(tool.id);
           const canAfford = totalCopper(money) >= totalCopper(tool.cost);
           return (
             <div key={tool.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: `2px solid ${owned ? "#2a3a1a" : "#2a1e14"}`, marginBottom: 6, background: owned ? "rgba(40,80,20,0.08)" : "rgba(255,255,255,0.02)" }}>
-              <span style={{ fontSize: 28 }}>{tool.icon}</span>
+              <span><Icon name={tool.icon} size={28} /></span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: "bold", fontSize: 14, color: owned ? "#50a850" : "#d8c8a8" }}>{tool.name}</div>
                 <div style={{ fontSize: 12, color: "#777" }}>{tool.desc}</div>
-                <div style={{ fontSize: 13, color: "#888" }}>💰 {formatValHTML(tool.cost)}</div>
+                <div style={{ fontSize: 13, color: "#888" }}><Icon name="coin" size={13} /> {formatValHTML(tool.cost)}</div>
               </div>
               {owned ? (
                 <span style={{ color: "#50a850", fontWeight: "bold", fontSize: 13 }}>Posiadasz</span>
@@ -4444,14 +4456,14 @@ export default function App() {
             </div>
           );
         })}
-        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#d4a030", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}>💰 Sprzedaż skarbów</h3>
+        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#d4a030", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="coin" size={15} /> Sprzedaż skarbów</h3>
         {inventory.length > 0 && (
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
             <button onClick={sellAll} style={{ flex: 1, background: "none", border: "2px solid #8a6018", color: "#d4a030", fontSize: 13, fontWeight: "bold", padding: "6px 12px", cursor: "pointer" }}>
-              💰 Sprzedaj wszystko ({inventory.length})
+              <Icon name="coin" size={13} /> Sprzedaj wszystko ({inventory.length})
             </button>
             <button onClick={storeAll} disabled={hideoutItems.length >= HIDEOUT_LEVELS[hideoutLevel].slots} style={{ flex: 1, background: "none", border: "2px solid #2a6a6a", color: "#40a8b8", fontSize: 13, fontWeight: "bold", padding: "6px 12px", cursor: hideoutItems.length >= HIDEOUT_LEVELS[hideoutLevel].slots ? "not-allowed" : "pointer", opacity: hideoutItems.length >= HIDEOUT_LEVELS[hideoutLevel].slots ? 0.4 : 1 }}>
-              📦 Schowaj wszystko
+              <Icon name="treasure" size={13} /> Schowaj wszystko
             </button>
           </div>
         )}
@@ -4459,11 +4471,11 @@ export default function App() {
           <div style={{ color: "#444", fontSize: 16, textAlign: "center", marginTop: 30 }}>Brak przedmiotów do sprzedaży.<br/>Otwieraj skrzynie!</div>
         ) : inventory.map((it, idx) => (
           <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: "2px solid #2a1e14", marginBottom: 6, background: "rgba(255,255,255,0.02)" }}>
-            <span style={{ fontSize: 28 }}>{it.icon}</span>
+            <span><Icon name={it.icon} size={28} /></span>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: "bold", fontSize: 14, color: RARITY_C[it.rarity] }}>{it.name}</div>
               <div style={{ fontSize: 12, color: RARITY_C[it.rarity] }}>{RARITY_L[it.rarity]}</div>
-              <div style={{ fontSize: 13, color: "#888" }}>💰 {formatValHTML(it.value)}</div>
+              <div style={{ fontSize: 13, color: "#888" }}><Icon name="coin" size={13} /> {formatValHTML(it.value)}</div>
             </div>
             <button onClick={() => sellItem(idx)} style={{ background: "none", border: "2px solid #4a3a28", color: "#d8c8a8", fontSize: 15, padding: "3px 12px", cursor: "pointer", fontWeight: "bold" }}>Sprzedaj</button>
           </div>
@@ -4471,8 +4483,8 @@ export default function App() {
       </SidePanel>
 
       {/* HIDEOUT PANEL */}
-      <SidePanel open={panel === "hideout"} side="right" width={460} onClose={() => setPanel(null)} title="🏚️ Moja Baza" isMobile={isMobile}>
-        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}>💰 Skarbiec</h3>
+      <SidePanel open={panel === "hideout"} side="right" width={460} onClose={() => setPanel(null)} title="Moja Baza" isMobile={isMobile}>
+        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="coin" size={16} /> Skarbiec</h3>
         <canvas ref={vaultRef} width={420} height={200} style={{ width: "100%", height: 200, border: "2px solid #3a2818", background: "#0a0604", marginBottom: 12, display: "block" }} />
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 8, background: "rgba(0,0,0,0.3)", border: "1px solid #2a2018", marginBottom: 10 }}>
@@ -4490,7 +4502,7 @@ export default function App() {
         </button>
 
         {/* Mercenary upgrade section */}
-        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#40e060", marginBottom: 8, borderBottom: "1px solid #1a3a1a", paddingBottom: 4 }}>⚔️ Najemnicy</h3>
+        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#40e060", marginBottom: 8, borderBottom: "1px solid #1a3a1a", paddingBottom: 4 }}><Icon name="swords" size={16} /> Najemnicy</h3>
         {(() => {
           const kn = KNIGHT_LEVELS[knightLevel];
           const nextKn = knightLevel < KNIGHT_LEVELS.length - 1 ? KNIGHT_LEVELS[knightLevel + 1] : null;
@@ -4498,7 +4510,7 @@ export default function App() {
           return (
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "rgba(40,120,40,0.08)", border: "2px solid #1a3a1a", marginBottom: 6 }}>
-                <span style={{ fontSize: 36 }}>{kn.emoji}</span>
+                <span><Icon name={kn.icon} size={36} /></span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: "bold", fontSize: 15, color: "#40e060" }}>Poz. {kn.level} — {kn.name}</div>
                   <div style={{ fontSize: 12, color: "#6a9a6a" }}>{kn.desc} (x{kn.mult} HP/ATK)</div>
@@ -4508,7 +4520,7 @@ export default function App() {
               <div style={{ display: "flex", gap: 4, marginBottom: 6, justifyContent: "center" }}>
                 {MERCENARY_TYPES.map(m => (
                   <div key={m.id} style={{ textAlign: "center", padding: "3px 6px", border: `1px solid ${m.color}30`, borderRadius: 4 }}>
-                    <div style={{ fontSize: 20 }}>{m.emoji}</div>
+                    <div><Icon name={m.icon} size={20} /></div>
                     <div style={{ fontSize: 9, color: m.color }}>{m.name}</div>
                     <div style={{ fontSize: 8, color: "#666" }}>HP:{Math.round(m.hp * kn.mult)} ATK:{Math.round(m.damage * kn.mult)}</div>
                   </div>
@@ -4520,7 +4532,7 @@ export default function App() {
                   <span key={i} style={{
                     fontSize: 22, opacity: i <= knightLevel ? 1 : 0.3,
                     filter: i === knightLevel ? "drop-shadow(0 0 6px rgba(60,220,80,0.8))" : "none",
-                  }}>{kl.emoji}</span>
+                  }}><Icon name={kl.icon} size={16} /></span>
                 ))}
               </div>
               <button onClick={upgradeKnight} disabled={!canAffordKnight || !nextKn}
@@ -4529,14 +4541,14 @@ export default function App() {
                   color: canAffordKnight ? "#40e060" : "#555", fontWeight: "bold", fontSize: 14, padding: "6px 16px",
                   cursor: canAffordKnight ? "pointer" : "not-allowed", display: "block", width: "100%", textAlign: "center",
                 }}>
-                {nextKn ? <>⬆ {nextKn.emoji} {nextKn.name} (x{nextKn.mult}) — {formatValHTML(nextKn.cost)}</> : "⬆ Maksymalny poziom!"}
+                {nextKn ? <><Icon name="star" size={12} /> <Icon name={nextKn.icon} size={12} /> {nextKn.name} (x{nextKn.mult}) — {formatValHTML(nextKn.cost)}</> : "Maksymalny poziom!"}
               </button>
             </div>
           );
         })()}
 
         {/* Caravan upgrade section */}
-        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}>🐴 Konwój</h3>
+        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="convoy" size={16} /> Konwój</h3>
         {(() => {
           const cl = CARAVAN_LEVELS[caravanLevel];
           const nextCl = caravanLevel < CARAVAN_LEVELS.length - 1 ? CARAVAN_LEVELS[caravanLevel + 1] : null;
@@ -4544,14 +4556,14 @@ export default function App() {
           return (
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "rgba(160,120,40,0.08)", border: "2px solid #3a2a18", marginBottom: 6 }}>
-                <span style={{ fontSize: 36 }}>🐴</span>
+                <span><Icon name="convoy" size={36} /></span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: "bold", fontSize: 15, color: "#d4a030" }}>Poz. {caravanLevel + 1} — {cl.name}</div>
                   <div style={{ fontSize: 12, color: "#a08a60" }}>
                     HP: {cl.hp} | Armor: {cl.armor}
-                    {cl.barricade && <> | 🪵 Barykada ({cl.barricade.hp} HP)</>}
-                    {cl.tower && <> | 🗼 Wieża ({cl.tower.damage} dmg)</>}
-                    {cl.dog && <> | 🐕 Ogar</>}
+                    {cl.barricade && <> | <Icon name="wood" size={12} /> Barykada ({cl.barricade.hp} HP)</>}
+                    {cl.tower && <> | <Icon name="swords" size={12} /> Wieża ({cl.tower.damage} dmg)</>}
+                    {cl.dog && <> | <Icon name="dog" size={12} /> Ogar</>}
                   </div>
                 </div>
               </div>
@@ -4561,13 +4573,13 @@ export default function App() {
                   color: canAffordCaravan ? "#d4a030" : "#555", fontWeight: "bold", fontSize: 14, padding: "6px 16px",
                   cursor: canAffordCaravan ? "pointer" : "not-allowed", display: "block", width: "100%", textAlign: "center", marginBottom: 12,
                 }}>
-                {nextCl ? <>⬆ {nextCl.name} (HP:{nextCl.hp}, Armor:{nextCl.armor}{nextCl.barricade && !cl.barricade ? ", +🪵" : ""}{nextCl.tower && !cl.tower ? ", +🗼" : ""}{nextCl.dog && !cl.dog ? ", +🐕" : ""}) — {formatValHTML(nextCl.cost)}</> : "⬆ Maksymalny poziom!"}
+                {nextCl ? <>{nextCl.name} (HP:{nextCl.hp}, Armor:{nextCl.armor}{nextCl.barricade && !cl.barricade ? ", +Barykada" : ""}{nextCl.tower && !cl.tower ? ", +Wieża" : ""}{nextCl.dog && !cl.dog ? ", +Ogar" : ""}) — {formatValHTML(nextCl.cost)}</> : "Maksymalny poziom!"}
               </button>
             </div>
           );
         })()}
 
-        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}>📦 Schowek <span style={{ color: "#888", fontSize: 13 }}>(kliknij by zabrać)</span></h3>
+        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="treasure" size={16} /> Schowek <span style={{ color: "#888", fontSize: 13 }}>(kliknij by zabrać)</span></h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
           {[...Array(hlvl.slots)].map((_, i) => (
             <ItemSlot key={i} item={hideoutItems[i]} onClick={() => retrieveItem(i)} size={48} />
@@ -4576,25 +4588,25 @@ export default function App() {
       </SidePanel>
 
       {/* BESTIARY PANEL */}
-      <SidePanel open={panel === "bestiary"} side="left" width={460} onClose={() => setPanel(null)} title="📖 Lista Gończa" isMobile={isMobile}>
+      <SidePanel open={panel === "bestiary"} side="left" width={460} onClose={() => setPanel(null)} title="Lista Gończa" isMobile={isMobile}>
         <div style={{ fontSize: 14, color: "#e0c040", marginBottom: 8, fontWeight: "bold" }}>
-          ⭐ Sława: {knowledge} | Odkryto: {Object.keys(bestiary).length}/{ALL_NPCS.length}
+          <Icon name="star" size={14} /> Sława: {knowledge} | Odkryto: {Object.keys(bestiary).length}/{ALL_NPCS.length}
         </div>
         <div style={{ fontSize: 12, color: "#aaa", marginBottom: 12, padding: "6px 8px", background: "rgba(200,160,60,0.06)", border: "1px solid #3a2a18" }}>
           <div style={{ color: "#e0c040", fontWeight: "bold", marginBottom: 4 }}>Bonusy Sławy:</div>
-          <div>📖 Odkryty wróg: <span style={{ color: "#40c040" }}>+5% obrażeń</span> przeciwko niemu</div>
-          <div style={{ opacity: knowledge >= 50 ? 1 : 0.4 }}>⭐ 50 Sławy: <span style={{ color: knowledge >= 50 ? "#40c040" : "#666" }}>+5% do wszystkich obrażeń</span> {knowledge >= 50 ? "✓" : `(${knowledge}/50)`}</div>
-          <div style={{ opacity: knowledge >= 100 ? 1 : 0.4 }}>⭐ 100 Sławy: <span style={{ color: knowledge >= 100 ? "#40c040" : "#666" }}>+10% do wszystkich obrażeń</span> {knowledge >= 100 ? "✓" : `(${knowledge}/100)`}</div>
-          <div style={{ opacity: knowledge >= 200 ? 1 : 0.4 }}>⭐ 200 Sławy: <span style={{ color: knowledge >= 200 ? "#40c040" : "#666" }}>+15% do wszystkich obrażeń</span> {knowledge >= 200 ? "✓" : `(${knowledge}/200)`}</div>
+          <div><Icon name="scroll" size={12} /> Odkryty wróg: <span style={{ color: "#40c040" }}>+5% obrażeń</span> przeciwko niemu</div>
+          <div style={{ opacity: knowledge >= 50 ? 1 : 0.4 }}><Icon name="star" size={12} /> 50 Sławy: <span style={{ color: knowledge >= 50 ? "#40c040" : "#666" }}>+5% do wszystkich obrażeń</span> {knowledge >= 50 ? "✓" : `(${knowledge}/50)`}</div>
+          <div style={{ opacity: knowledge >= 100 ? 1 : 0.4 }}><Icon name="star" size={12} /> 100 Sławy: <span style={{ color: knowledge >= 100 ? "#40c040" : "#666" }}>+10% do wszystkich obrażeń</span> {knowledge >= 100 ? "✓" : `(${knowledge}/100)`}</div>
+          <div style={{ opacity: knowledge >= 200 ? 1 : 0.4 }}><Icon name="star" size={12} /> 200 Sławy: <span style={{ color: knowledge >= 200 ? "#40c040" : "#666" }}>+15% do wszystkich obrażeń</span> {knowledge >= 200 ? "✓" : `(${knowledge}/200)`}</div>
         </div>
 
         {/* Knowledge Shop */}
         <div style={{ marginBottom: 12, padding: "8px", background: "rgba(200,160,60,0.04)", border: "1px solid #3a2a18" }}>
-          <div style={{ color: "#d4a030", fontWeight: "bold", marginBottom: 6, fontSize: 13 }}>🏛️ Sklep Sławy <span style={{ color: "#e0c040", fontSize: 11 }}>(⭐ {knowledge})</span></div>
+          <div style={{ color: "#d4a030", fontWeight: "bold", marginBottom: 6, fontSize: 13 }}><Icon name="fame" size={13} /> Sklep Sławy <span style={{ color: "#e0c040", fontSize: 11 }}>(<Icon name="star" size={11} /> {knowledge})</span></div>
           {[
-            { id: "manaPool", name: "Zapas Prochu", desc: "+10 max prochu", icon: "🪖", maxLvl: 3, costs: [30, 60, 100] },
-            { id: "spellPower", name: "Siła Strzału", desc: "+5% obrażeń akcji", icon: "⚡", maxLvl: 5, costs: [20, 40, 60, 80, 100] },
-            { id: "manaRegen", name: "Regeneracja Prochu", desc: "+0.5 prochu/sek", icon: "🪖", maxLvl: 3, costs: [25, 50, 80] },
+            { id: "manaPool", name: "Zapas Prochu", desc: "+10 max prochu", icon: "gunpowder", maxLvl: 3, costs: [30, 60, 100] },
+            { id: "spellPower", name: "Siła Strzału", desc: "+5% obrażeń akcji", icon: "lightning", maxLvl: 5, costs: [20, 40, 60, 80, 100] },
+            { id: "manaRegen", name: "Regeneracja Prochu", desc: "+0.5 prochu/sek", icon: "gunpowder", maxLvl: 3, costs: [25, 50, 80] },
           ].map(upg => {
             const lvl = knowledgeUpgrades[upg.id] || 0;
             const maxed = lvl >= upg.maxLvl;
@@ -4602,7 +4614,7 @@ export default function App() {
             const canAfford = knowledge >= cost;
             return (
               <div key={upg.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px", marginBottom: 4, border: `1px solid ${maxed ? "#2a6a2a" : "#1a1a2a"}` }}>
-                <span style={{ fontSize: 20 }}>{upg.icon}</span>
+                <span><Icon name={upg.icon} size={20} /></span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: "bold", fontSize: 12, color: maxed ? "#40c040" : "#aaa" }}>{upg.name} (Poz. {lvl}/{upg.maxLvl})</div>
                   <div style={{ fontSize: 10, color: "#666" }}>{upg.desc}</div>
@@ -4612,7 +4624,7 @@ export default function App() {
                 ) : (
                   <button onClick={() => buyKnowledgeUpgrade(upg.id)} disabled={!canAfford}
                     style={{ background: "none", border: `1px solid ${canAfford ? "#4060cc" : "#333"}`, color: canAfford ? "#60a0ff" : "#555", fontSize: 11, padding: "2px 8px", cursor: canAfford ? "pointer" : "not-allowed", fontWeight: "bold" }}>
-                    📖 {cost}
+                    <Icon name="scroll" size={11} /> {cost}
                   </button>
                 )}
               </div>
@@ -4645,7 +4657,7 @@ export default function App() {
                   opacity: discovered ? 1 : 0.4,
                   filter: discovered ? "none" : "grayscale(100%)",
                 }}>
-                  <span style={{ fontSize: 28 }}>{discovered ? npc.emoji : "❓"}</span>
+                  <span>{discovered ? <NpcIcon bodyType={npc.bodyType} bodyColor={npc.bodyColor} armorColor={npc.armorColor} size={28} /> : <Icon name="question" size={28} />}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{
                       fontWeight: "bold", fontSize: 14,
@@ -4656,7 +4668,7 @@ export default function App() {
                     {discovered && (
                       <div style={{ fontSize: 11, color: "#888" }}>
                         HP: {npc.hp}
-                        {npc.resist && <> | Odporność: {npc.resist === "fire" ? "🔥" : "🧊"}</>}
+                        {npc.resist && <> | Odporność: <Icon name={npc.resist === "fire" ? "fire" : "ice"} size={11} /></>}
                         {npc.loot && <> | Łup: {formatLootText(npc.loot)}</>}
                       </div>
                     )}

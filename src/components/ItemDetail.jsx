@@ -1,5 +1,12 @@
 import { RARITY_C, RARITY_L } from "../data/treasures";
 import { formatValHTML } from "../utils/helpers";
+import { getIconUrl } from "../rendering/icons";
+
+function IIcon({ name, size = 16 }) {
+  const url = getIconUrl(name, size);
+  if (!url) return null;
+  return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block" }} alt={name} />;
+}
 
 export default function ItemDetail({ item, onSell, onStore, canStore }) {
   if (!item) return null;
@@ -13,7 +20,7 @@ export default function ItemDetail({ item, onSell, onStore, canStore }) {
       textAlign: "center", position: "relative",
       boxShadow: `inset 0 0 15px rgba(0,0,0,0.4), 0 0 12px ${rc}22`,
     }}>
-      <div style={{ fontSize: 44, filter: `drop-shadow(0 0 8px ${rc}44)` }}>{item.icon}</div>
+      <div style={{ filter: `drop-shadow(0 0 8px ${rc}44)` }}><IIcon name={item.icon} size={44} /></div>
       <div style={{
         fontWeight: "bold", fontSize: 17, color: rc,
         textShadow: `0 0 8px ${rc}44`,
@@ -28,13 +35,13 @@ export default function ItemDetail({ item, onSell, onStore, canStore }) {
           background: "linear-gradient(180deg, rgba(60,35,15,0.8), rgba(30,18,8,0.8))",
           border: "1px solid #cd7f32", color: "#cd7f32", fontWeight: "bold", fontSize: 14, padding: "6px 16px",
           cursor: "pointer", borderRadius: 4, boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-        }}>💰 Sprzedaj</button>
+        }}><IIcon name="coin" size={14} /> Sprzedaj</button>
         <button onClick={onStore} disabled={!canStore} style={{
           background: canStore ? "linear-gradient(180deg, rgba(15,35,45,0.8), rgba(8,18,25,0.8))" : "rgba(20,15,10,0.5)",
           border: `1px solid ${canStore ? "#40a8b8" : "#333"}`, color: canStore ? "#40a8b8" : "#555",
           fontWeight: "bold", fontSize: 14, padding: "6px 16px",
           cursor: canStore ? "pointer" : "not-allowed", borderRadius: 4,
-        }}>🏰 Do Kryjówki</button>
+        }}><IIcon name="base" size={14} /> Do Kryjówki</button>
       </div>
     </div>
   );

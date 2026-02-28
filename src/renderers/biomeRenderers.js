@@ -1,4 +1,5 @@
 import { seedRng } from "../utils/helpers";
+import { getIconImage } from "../rendering/icons.js";
 
 export function renderBiome(ctx, biome, room, W, H, isNight) {
   const GY = H * 0.25;
@@ -66,15 +67,17 @@ export function renderBiome(ctx, biome, room, W, H, isNight) {
 }
 
 function drawScatter(ctx, W, H, GY, r, items) {
-  ctx.textAlign = "center";
   for (let i = 0; i < 9; i++) {
-    const it = items[Math.floor(r() * items.length)];
+    const iconName = items[Math.floor(r() * items.length)];
     const x = r() * (W - 50) + 25, y = GY + 12 + r() * (H - GY - 45);
     ctx.globalAlpha = 0.35 + r() * 0.5;
-    ctx.font = `${16 + r() * 20}px serif`;
-    ctx.fillText(it, x, y);
+    const sz = Math.round(16 + r() * 20);
+    const img = getIconImage(iconName, sz);
+    if (img) {
+      ctx.drawImage(img, x - sz / 2, y - sz / 2, sz, sz);
+    }
   }
-  ctx.globalAlpha = 1; ctx.textAlign = "start";
+  ctx.globalAlpha = 1;
 }
 
 function drawJungle(ctx, W, H, GY, r) {
@@ -187,7 +190,7 @@ function drawCity(ctx, W, H, GY, r) {
     const g = ctx.createRadialGradient(lx, GY - 20, 2, lx, GY - 10, 28);
     g.addColorStop(0, "rgba(255,160,40,0.35)"); g.addColorStop(1, "transparent");
     ctx.fillStyle = g; ctx.fillRect(lx - 28, GY - 38, 56, 48);
-    ctx.font = "13px serif"; ctx.fillText("🔥", lx, GY - 18);
+    const fireImg = getIconImage("fire", 13); if (fireImg) ctx.drawImage(fireImg, lx - 6, GY - 24, 13, 13);
   }
   ctx.textAlign = "start";
 }

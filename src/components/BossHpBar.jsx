@@ -1,16 +1,24 @@
+import { getIconUrl } from "../rendering/icons";
+
+function BIcon({ name, size = 10 }) {
+  const url = getIconUrl(name, size);
+  if (!url) return null;
+  return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block" }} alt={name} />;
+}
+
 const ABILITY_NAMES = {
-  charge: { name: "Szarża", icon: "🐗", desc: "Szarżuje na karawanę" },
-  fireBreath: { name: "Ognisty Oddech", icon: "🔥", desc: "Zadaje obrażenia ognia" },
-  iceShot: { name: "Lodowy Strzał", icon: "🧊", desc: "Zamraża i zadaje obrażenia lodu" },
-  shadowBolt: { name: "Mroczna Kula", icon: "🌑", desc: "Atak ciemnością" },
-  drain: { name: "Wyssanie", icon: "🩸", desc: "Leczy się zadanymi obrażeniami" },
-  poisonSpit: { name: "Trujący Plwocina", icon: "🐍", desc: "Zadaje obrażenia trucizną" },
+  charge: { name: "Szarża", icon: "bull", desc: "Szarżuje na karawanę" },
+  fireBreath: { name: "Ognisty Oddech", icon: "fire", desc: "Zadaje obrażenia ognia" },
+  iceShot: { name: "Lodowy Strzał", icon: "ice", desc: "Zamraża i zadaje obrażenia lodu" },
+  shadowBolt: { name: "Mroczna Kula", icon: "moon", desc: "Atak ciemnością" },
+  drain: { name: "Wyssanie", icon: "poison", desc: "Leczy się zadanymi obrażeniami" },
+  poisonSpit: { name: "Trujący Plwocina", icon: "poison", desc: "Zadaje obrażenia trucizną" },
 };
 
 const RESIST_NAMES = {
-  fire: { name: "Ogień", icon: "🔥" },
-  ice: { name: "Lód", icon: "🧊" },
-  shadow: { name: "Cień", icon: "🌑" },
+  fire: { name: "Ogień", icon: "fire" },
+  ice: { name: "Lód", icon: "ice" },
+  shadow: { name: "Cień", icon: "moon" },
 };
 
 export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp, manaShieldMaxHp }) {
@@ -29,7 +37,7 @@ export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp,
     }}>
       {/* Boss name + phase */}
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 4 }}>
-        <span style={{ fontSize: 24, filter: "drop-shadow(0 0 8px rgba(200,40,20,0.5))" }}>{boss.emoji}</span>
+        <span style={{ filter: "drop-shadow(0 0 8px rgba(200,40,20,0.5))" }}><BIcon name={boss.icon} size={24} /></span>
         <span style={{
           fontSize: 17, fontWeight: "bold",
           background: "linear-gradient(90deg, #e8d0a0, #ffe0b0, #e8d0a0)",
@@ -60,7 +68,7 @@ export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp,
             border: "1px solid #5a4020", borderRadius: 4,
             boxShadow: "0 0 4px rgba(200,120,20,0.15)",
           }}>
-            {ability.icon} {ability.name}
+            <BIcon name={ability.icon} size={10} /> {ability.name}
           </span>
         )}
         {resist && (
@@ -69,7 +77,7 @@ export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp,
             border: "1px solid #2a4060", borderRadius: 4,
             boxShadow: "0 0 4px rgba(60,100,160,0.15)",
           }}>
-            🛡️ Odporność: {resist.icon} {resist.name}
+            <BIcon name="shield" size={10} /> Odporność: <BIcon name={resist.icon} size={10} /> {resist.name}
           </span>
         )}
         {boss.phase2 && (
@@ -78,7 +86,7 @@ export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp,
             border: "1px solid #4a2818", borderRadius: 4,
             boxShadow: "0 0 4px rgba(200,80,40,0.1)",
           }}>
-            ⚠️ Faza 2 przy {Math.round((boss.phase2.hpThreshold || 0.5) * 100)}% HP
+            <BIcon name="skull" size={10} /> Faza 2 przy {Math.round((boss.phase2.hpThreshold || 0.5) * 100)}% HP
           </span>
         )}
       </div>

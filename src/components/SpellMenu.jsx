@@ -1,6 +1,6 @@
 import { SPELLS } from "../data/npcs";
 import GameIcon from "./GameIcon";
-import { SPELL_ICON_MAP } from "../rendering/icons";
+import { SPELL_ICON_MAP, getIconUrl } from "../rendering/icons";
 
 const overlayStyle = {
   position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200,
@@ -34,7 +34,8 @@ export default function SpellMenu({ target, onCast, onClose }) {
   if (!target) return null;
   const isNpc = target.type === "npc";
   const label = isNpc ? target.data.name : target.data.shelter.name;
-  const emoji = isNpc ? target.data.emoji : target.data.shelter.emoji;
+  const iconName = isNpc ? target.data.icon : target.data.shelter.icon;
+  const iconUrl = getIconUrl(iconName, 52);
 
   return (
     <div style={overlayStyle} onClick={onClose}>
@@ -45,7 +46,7 @@ export default function SpellMenu({ target, onCast, onClose }) {
         <div style={{ position: "absolute", top: 4, left: 8, fontSize: 8, color: "#d4a030", opacity: 0.5 }}>◆</div>
         <div style={{ position: "absolute", top: 4, right: 8, fontSize: 8, color: "#d4a030", opacity: 0.5 }}>◆</div>
 
-        <div style={{ fontSize: 52, marginBottom: 4, filter: "drop-shadow(0 0 12px rgba(200,150,50,0.3))" }}>{emoji}</div>
+        <div style={{ marginBottom: 4, filter: "drop-shadow(0 0 12px rgba(200,150,50,0.3))" }}>{iconUrl ? <img src={iconUrl} width={52} height={52} style={{ verticalAlign: "middle" }} alt="" /> : null}</div>
         <div style={{
           fontWeight: "bold", fontSize: 19, color: "#e8d0a0", marginBottom: 2,
           textShadow: "0 0 8px rgba(200,150,50,0.3)",
