@@ -6,7 +6,7 @@ function WIcon({ name, size = 13 }) {
   return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block" }} alt={name} />;
 }
 
-export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxHp, relicChoices, boss }) {
+export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxHp, relicChoices, boss, killStreak, powerSpikeWarning }) {
   if (!defense) return null;
 
   const { phase, currentWave, totalWaves, enemiesRemaining, timer, isBossRoom } = defense;
@@ -206,6 +206,49 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
           })}
         </div>
       )}
+
+      {/* Kill streak badge */}
+      {killStreak >= 3 && (phase === "wave_active" || phase === "inter_wave") && (
+        <div style={{
+          marginTop: 6, textAlign: "center",
+          animation: "streakPulse 1.5s ease-in-out infinite",
+        }}>
+          <span style={{
+            display: "inline-block", padding: "2px 12px", borderRadius: 10,
+            background: "linear-gradient(90deg, rgba(255,120,20,0.15), rgba(255,180,40,0.2), rgba(255,120,20,0.15))",
+            border: "1px solid #cc6020",
+            color: "#ffa040", fontWeight: "bold", fontSize: 12,
+            textShadow: "0 0 8px rgba(255,120,20,0.4)",
+            boxShadow: "0 0 8px rgba(255,120,20,0.2)",
+          }}>
+            <WIcon name="fire" size={12} /> Seria x{killStreak}!
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Power spike warning — rendered separately (outside defense overlay)
+export function PowerSpikeWarning({ show }) {
+  if (!show) return null;
+  return (
+    <div style={{
+      position: "absolute", top: 60, left: "50%",
+      transform: "translateX(-50%)",
+      zIndex: 99, textAlign: "center", pointerEvents: "none",
+      animation: "bossWarningPulse 2s ease-in-out infinite",
+    }}>
+      <span style={{
+        display: "inline-block", padding: "4px 16px", borderRadius: 6,
+        background: "linear-gradient(180deg, rgba(200,30,30,0.2), rgba(100,15,15,0.15))",
+        border: "1px solid #cc3030",
+        color: "#ff4040", fontWeight: "bold", fontSize: 14, letterSpacing: 2,
+        textShadow: "0 0 10px rgba(255,40,40,0.5)",
+        boxShadow: "0 0 12px rgba(200,30,30,0.3)",
+      }}>
+        <WIcon name="swords" size={14} /> BOSS WKRÓTCE!
+      </span>
     </div>
   );
 }

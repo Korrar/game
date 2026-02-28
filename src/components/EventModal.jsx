@@ -266,11 +266,25 @@ function RiddleView({ event, onResolve }) {
 // ─── ALTAR ───
 function AltarView({ event, onResolve }) {
   const [revealed, setRevealed] = useState(false);
+  const eff = event.altarEffect;
+  const isRisky = eff.type === "risky";
 
   const handlePray = () => {
+    if (isRisky) return; // risky effects use separate buttons
     setRevealed(true);
-    setTimeout(() => onResolve({ type: "altar", effect: event.altarEffect }), 2000);
+    setTimeout(() => onResolve({ type: "altar", effect: eff }), 2000);
   };
+
+  const handleRiskyAccept = () => {
+    setRevealed(true);
+    setTimeout(() => onResolve({ type: "altarRisky", effect: eff, accepted: true }), 1500);
+  };
+
+  const handleRiskyDecline = () => {
+    onResolve({ type: "altarSkip" });
+  };
+
+  const effectColor = eff.type === "buff" ? "#40e060" : eff.type === "risky" ? "#e0a040" : "#cc3030";
 
   return (
     <div>
@@ -278,7 +292,7 @@ function AltarView({ event, onResolve }) {
       <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 12px rgba(128,64,200,0.5))" }}><EIcon name={event.icon} size={46} /></div>
       <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
       <div style={{ fontSize: 14, color: "#a89878", marginBottom: 18, fontStyle: "italic" }}>
-        Starożytny ołtarz emanuje mocą. Złożyć ofiarę?
+        {isRisky ? "Ołtarz oferuje mroczny pakt. Ryzyko i nagroda w jednym..." : "Starożytny ołtarz emanuje mocą. Złożyć ofiarę?"}
       </div>
 
       {/* Altar visual */}
@@ -293,27 +307,88 @@ function AltarView({ event, onResolve }) {
           position: "absolute", top: 5, left: "50%", transform: "translateX(-50%)",
           width: 22, height: 22, borderRadius: "50%",
           background: revealed
-            ? (event.altarEffect.type === "buff" ? "radial-gradient(#ffe080,#a050e0)" : "radial-gradient(#ff4040,#600020)")
-            : "radial-gradient(#c080ff,#4020a0)",
-          boxShadow: `0 0 ${revealed ? 24 : 12}px ${revealed ? (event.altarEffect.type === "buff" ? "#ffe080" : "#ff4040") : "#8040c0"}`,
+            ? `radial-gradient(${effectColor}, #2a0a2a)`
+            : isRisky ? "radial-gradient(#e0a040,#604020)" : "radial-gradient(#c080ff,#4020a0)",
+          boxShadow: `0 0 ${revealed ? 24 : 12}px ${revealed ? effectColor : isRisky ? "#e0a040" : "#8040c0"}`,
           transition: "all 0.5s",
         }} />
       </div>
 
       {!revealed ? (
+        isRisky ? (
+          <div>
+            <div style={{ fontSize: 15, color: "#e0a040", fontWeight: "bold", marginBottom: 12 }}>
+              <EIcon name={eff.icon} size={18} /> {eff.text}
+            </div>
+            <div style={{ fontSize: 13, color: "#c09060", marginBottom: 14 }}>{eff.desc}</div>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+              <Btn label="Akceptuj" color="#e0a040" onClick={handleRiskyAccept} />
+              <Btn label="Odrzuć" color="#888" onClick={handleRiskyDecline} />
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+            <Btn label="Módl się" color={event.themeColor} onClick={handlePray} />
+            <Btn label="Odejdź" color="#888" onClick={() => onResolve({ type: "altarSkip" })} />
+          </div>
+        )
+      ) : (
+        <div style={{ animation: "eventAppear 0.4s ease-out" }}>
+          <div style={{ marginBottom: 6, filter: `drop-shadow(0 0 10px ${effectColor}88)` }}><EIcon name={eff.icon} size={40} /></div>
+          <div style={{
+            fontSize: 19, fontWeight: "bold", marginBottom: 4, color: effectColor,
+            textShadow: `0 0 10px ${effectColor}66`,
+          }}>{eff.text}</div>
+          <div style={{ fontSize: 14, color: "#a89878" }}>{eff.desc}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CURSED CHEST ───
+function CursedChestView({ event, onResolve }) {
+  const [opened, setOpened] = useState(false);
+  const outcome = event.chestOutcome;
+
+  const handleOpen = () => {
+    setOpened(true);
+    setTimeout(() => onResolve({ type: "cursedChestAccept", outcome }), 2000);
+  };
+
+  return (
+    <div>
+      <SectionHeader event={event} />
+      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 12px rgba(144,64,192,0.6))" }}><EIcon name={event.icon} size={46} /></div>
+      <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
+      <div style={{ fontSize: 14, color: "#a89878", marginBottom: 18, fontStyle: "italic" }}>
+        Mroczna skrzynia otoczona fioletową aurą. Kto wie, co kryje w środku...
+      </div>
+
+      {/* Chest visual */}
+      <div style={{
+        margin: "0 auto 18px", width: 60, height: 50, position: "relative",
+        background: "linear-gradient(180deg, #4a2060, #2a1040)",
+        border: "2px solid #9040c0", borderRadius: 6,
+        boxShadow: "0 0 20px rgba(144,64,192,0.4), inset 0 0 10px rgba(0,0,0,0.5)",
+        animation: opened ? "none" : "meteorPulse 2s ease-in-out infinite",
+      }}>
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 10, color: "#c080ff" }}>?</div>
+      </div>
+
+      {!opened ? (
         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <Btn label="Módl się" color={event.themeColor} onClick={handlePray} />
-          <Btn label="Odejdź" color="#888" onClick={() => onResolve({ type: "altarSkip" })} />
+          <Btn label="Otwórz" color="#9040c0" onClick={handleOpen} />
+          <Btn label="Omiń" color="#888" onClick={() => onResolve({ type: "cursedChestSkip" })} />
         </div>
       ) : (
         <div style={{ animation: "eventAppear 0.4s ease-out" }}>
-          <div style={{ marginBottom: 6, filter: `drop-shadow(0 0 10px ${event.altarEffect.type === "buff" ? "rgba(200,180,60,0.5)" : "rgba(200,40,40,0.5)"})` }}><EIcon name={event.altarEffect.icon} size={40} /></div>
           <div style={{
             fontSize: 19, fontWeight: "bold", marginBottom: 4,
-            color: event.altarEffect.type === "buff" ? "#40e060" : "#cc3030",
-            textShadow: `0 0 10px ${event.altarEffect.type === "buff" ? "rgba(60,200,80,0.4)" : "rgba(200,40,40,0.4)"}`,
-          }}>{event.altarEffect.text}</div>
-          <div style={{ fontSize: 14, color: "#a89878" }}>{event.altarEffect.desc}</div>
+            color: outcome.type === "good" ? "#40e060" : "#cc3030",
+            textShadow: `0 0 10px ${outcome.type === "good" ? "rgba(60,200,80,0.4)" : "rgba(200,40,40,0.4)"}`,
+          }}>{outcome.text}</div>
+          <div style={{ fontSize: 14, color: "#a89878" }}>{outcome.desc}</div>
         </div>
       )}
     </div>
@@ -382,6 +457,7 @@ export default function EventModal({ event, money, onResolve }) {
         {event.id === "riddle" && <RiddleView event={event} onResolve={onResolve} />}
         {event.id === "altar" && <AltarView event={event} onResolve={onResolve} />}
         {event.id === "wounded" && <WoundedView event={event} onResolve={onResolve} />}
+        {event.id === "cursed_chest" && <CursedChestView event={event} onResolve={onResolve} />}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import GameIcon from "./GameIcon";
 
-export default function TopBar({ doors, initiative, treasures, money, mana, maxMana, onInv, onShop, onHideout, onBestiary, knowledge, musicOn, onToggleMusic, onSave, isMobile, gameW }) {
+export default function TopBar({ doors, initiative, treasures, money, mana, maxMana, onInv, onShop, onHideout, onBestiary, knowledge, musicOn, onToggleMusic, onSave, isMobile, gameW, playerLevel, playerXp, xpNeeded }) {
   const m = isMobile;
 
   // Mobile portrait: render inside game container as absolute-positioned bar
@@ -14,8 +14,14 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
         borderBottom: "2px solid #5a3818",
         boxShadow: "0 2px 12px rgba(0,0,0,0.6), inset 0 -1px 0 rgba(212,160,48,0.15)",
       }}>
-        {/* Stats */}
+        {/* Level + Stats */}
         <div style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 11 }}>
+          {playerLevel > 0 && (
+            <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <GameIcon name="star" size={14} />
+              <b style={{ color: "#ffd700" }}>{playerLevel}</b>
+            </span>
+          )}
           <span><GameIcon name="doors" size={14} /><b style={{ color: "#e0b840" }}>{doors}</b></span>
           <span><GameIcon name="hourglass" size={14} /><b style={{ color: "#e0b840" }}>{initiative}</b></span>
           <span><GameIcon name="gunpowder" size={14} /><b style={{ color: "#c0a060" }}>{Math.floor(mana)}</b></span>
@@ -67,10 +73,11 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
         backgroundSize: "200% 100%",
         animation: "shimmer 4s ease-in-out infinite",
       }}><GameIcon name="pirate" size={22} style={{ marginRight: 6 }} /> Szlak Fortuny</span>
-      <div style={{ display: "flex", gap: 16, fontSize: 18 }}>
+      <div style={{ display: "flex", gap: 16, fontSize: 18, alignItems: "center" }}>
         <StatBadge icon={<GameIcon name="doors" size={20} />} value={doors} />
         <StatBadge icon={<GameIcon name="treasure" size={20} />} value={treasures} />
         <StatBadge icon={<GameIcon name="hourglass" size={20} />} value={initiative} />
+        {playerLevel > 0 && <XpBadge level={playerLevel} xp={playerXp} xpNeeded={xpNeeded} />}
       </div>
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <CurrencyBadge icon={<GameIcon name="copper" size={18} />} value={money.copper} color="#cd7f32" />
@@ -142,6 +149,39 @@ function DesktopBtn({ onClick, children, opacity = 1, title }) {
         e.target.style.boxShadow = "0 1px 4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(212,160,48,0.15)";
       }}
     >{children}</button>
+  );
+}
+
+function XpBadge({ level, xp, xpNeeded }) {
+  const pct = xpNeeded > 0 ? Math.min(100, (xp / xpNeeded) * 100) : 0;
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 4,
+      padding: "2px 8px",
+      background: "rgba(212,160,48,0.06)",
+      border: "1px solid rgba(212,160,48,0.2)",
+      borderRadius: 4, minWidth: 80,
+    }}>
+      <GameIcon name="star" size={16} />
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#d4a030", fontWeight: "bold" }}>
+          <span>Lv.{level}</span>
+          <span style={{ color: "#888", fontWeight: "normal" }}>{xp}/{xpNeeded}</span>
+        </div>
+        <div style={{
+          width: "100%", height: 4, background: "rgba(0,0,0,0.5)",
+          borderRadius: 2, overflow: "hidden", marginTop: 1,
+        }}>
+          <div style={{
+            height: "100%", width: `${pct}%`,
+            background: "linear-gradient(90deg, #d4a030, #ffe080, #d4a030)",
+            backgroundSize: "200% 100%",
+            animation: "xpFill 3s linear infinite",
+            borderRadius: 2, transition: "width 0.3s",
+          }} />
+        </div>
+      </div>
+    </div>
   );
 }
 

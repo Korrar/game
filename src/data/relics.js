@@ -18,3 +18,55 @@ export const RELIC_RARITY_COLOR = {
   rare: "#40a8b8",
   epic: "#a050e0",
 };
+
+// Relic synergies – bonus effects when player owns both relics in a pair
+export const RELIC_SYNERGIES = [
+  {
+    id: "desperacka_krew",
+    relics: ["blood_weapon", "berserker"],
+    name: "Desperacka Krew",
+    desc: "Lifesteal x2 gdy sojusznik poniżej 30% HP",
+    color: "#cc3030",
+    icon: "pirateRaid",
+  },
+  {
+    id: "burzowy_szal",
+    relics: ["chaos_blade", "storm_echo"],
+    name: "Burzowy Szał",
+    desc: "Szansa na rykoszet wzrasta do 50%",
+    color: "#60c0ff",
+    icon: "lightning",
+  },
+  {
+    id: "piracki_monopol",
+    relics: ["golden_reaper", "greedy_merchant"],
+    name: "Piracki Monopol",
+    desc: "20% szans na dodatkowy skarb przy zabiciu wroga",
+    color: "#d4a030",
+    icon: "gold",
+  },
+  {
+    id: "twierdza",
+    relics: ["stone_skin", "faith_shield"],
+    name: "Twierdza",
+    desc: "Najemnicy +30 HP bonus, konwój +2 pancerza",
+    color: "#888",
+    icon: "shield",
+  },
+  {
+    id: "wampiryczny_pakt",
+    relics: ["necromancer", "blood_weapon"],
+    name: "Wampiryczny Pakt",
+    desc: "Przywołani sojusznicy leczą się przy trafieniu",
+    color: "#a050e0",
+    icon: "skull",
+  },
+  {
+    id: "prochowy_baron",
+    relics: ["mana_spring", "chaos_blade"],
+    name: "Prochowy Baron",
+    desc: "Szaleństwo Kapitana nie zwiększa kosztu prochu",
+    color: "#c0a060",
+    icon: "gunpowder",
+  },
+];

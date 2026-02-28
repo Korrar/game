@@ -33,12 +33,19 @@ import LootPopup from "./components/LootPopup";
 import SpellBar from "./components/SpellBar";
 import Caravan from "./components/Caravan";
 import EventModal from "./components/EventModal";
-import WaveOverlay from "./components/WaveOverlay";
+import WaveOverlay, { PowerSpikeWarning } from "./components/WaveOverlay";
 import WeatherOverlay from "./components/WeatherOverlay";
 import Chest from "./components/Chest";
 import RelicPicker from "./components/RelicPicker";
-import { RELICS } from "./data/relics";
+import { RELICS, RELIC_SYNERGIES } from "./data/relics";
 import { getBossForRoom } from "./data/bosses";
+import { COMBOS, COMBO_STREAK_BONUS, COMBO_STREAK_CAP, COMBO_STREAK_TIMEOUT } from "./data/combos";
+import { LEVEL_PERKS, xpForLevel, rollLevelPerks } from "./data/levelPerks";
+import { rollUpgradeChoices, getUpgradedSpellStats, MAX_UPGRADES_PER_SPELL } from "./data/spellUpgrades";
+import { isEliteRoom, rollEliteModifier } from "./data/eliteEnemies";
+import ComboOverlay from "./components/ComboOverlay";
+import LevelUpPicker from "./components/LevelUpPicker";
+import SpellUpgradePicker from "./components/SpellUpgradePicker";
 import BossHpBar from "./components/BossHpBar";
 import { getIconUrl, getNpcIconUrl } from "./rendering/icons";
 
@@ -231,7 +238,7 @@ export default function App() {
     manaRegen: 0,    // +0.5 mana/sec per level (max 3)
   });
   // MAX_MANA computed from base + knowledge upgrades
-  const MAX_MANA = BASE_MAX_MANA + (knowledgeUpgrades.manaPool || 0) * 10;
+  const MAX_MANA = BASE_MAX_MANA + (knowledgeUpgrades.manaPool || 0) * 10 + perkMaxMana;
 
   // Meteorite event: phases: pending → falling → landed → opened
   const [meteorite, setMeteorite] = useState(null);
@@ -251,6 +258,60 @@ export default function App() {
   activeRelicsRef.current = activeRelics;
   const [relicChoices, setRelicChoices] = useState(null);
   const hasRelic = (id) => activeRelicsRef.current.some(r => r.id === id);
+
+  // ─── FEATURE: Relic Synergies ───
+  const [activeSynergies, setActiveSynergies] = useState([]);
+  const activeSynergiesRef = useRef([]);
+  activeSynergiesRef.current = activeSynergies;
+  const hasSynergy = (id) => activeSynergiesRef.current.some(s => s.id === id);
+
+  // ─── FEATURE: Combo Visual Feedback ───
+  const [comboCounter, setComboCounter] = useState(0);
+  const [activeCombo, setActiveCombo] = useState(null);
+  const comboTimerRef = useRef(null);
+
+  // ─── FEATURE: XP & Level System ───
+  const [playerXp, setPlayerXp] = useState(0);
+  const [playerLevel, setPlayerLevel] = useState(1);
+  const [levelPerks, setLevelPerks] = useState([]);
+  const [levelUpChoices, setLevelUpChoices] = useState(null);
+  const playerXpRef = useRef(0);
+  playerXpRef.current = playerXp;
+  const playerLevelRef = useRef(1);
+  playerLevelRef.current = playerLevel;
+  const levelPerksRef = useRef([]);
+  levelPerksRef.current = levelPerks;
+
+  // Perk computed multipliers
+  const getPerkCount = (id) => levelPerksRef.current.filter(p => p === id).length;
+  const perkSpellDmgMult = 1 + getPerkCount("spell_dmg") * 0.10;
+  const perkMaxMana = getPerkCount("max_mana") * 15;
+  const perkMercHpBonus = getPerkCount("merc_hp") * 5;
+  const perkCooldownMult = Math.pow(0.90, getPerkCount("cooldown"));
+  const perkLootMult = 1 + getPerkCount("loot_value") * 0.20;
+  const perkCaravanArmor = getPerkCount("caravan_armor");
+  const perkMercCritBonus = getPerkCount("merc_crit") * 0.10;
+
+  // ─── FEATURE: Spell Upgrades ───
+  const [spellUpgrades, setSpellUpgrades] = useState({});
+  const [upgradeChoices, setUpgradeChoices] = useState(null);
+  const spellUpgradesRef = useRef({});
+  spellUpgradesRef.current = spellUpgrades;
+
+  // ─── FEATURE: Difficulty Progression ───
+  const [killStreak, setKillStreak] = useState(0);
+  const killStreakRef = useRef(0);
+  killStreakRef.current = killStreak;
+  const [powerSpikeWarning, setPowerSpikeWarning] = useState(false);
+
+  // ─── FEATURE: Risk vs Reward Events ───
+  const [enemyBuffRooms, setEnemyBuffRooms] = useState(0);
+  const enemyBuffRoomsRef = useRef(0);
+  enemyBuffRoomsRef.current = enemyBuffRooms;
+  const [playerDoubleDmgRooms, setPlayerDoubleDmgRooms] = useState(0);
+  const playerDoubleDmgRoomsRef = useRef(0);
+  playerDoubleDmgRoomsRef.current = playerDoubleDmgRooms;
+
   // Knowledge bonus: +5% damage per discovered NPC type (max +50%)
   const getKnowledgeBonus = (npcId) => {
     const entry = bestiaryRef.current[npcId];
@@ -268,6 +329,48 @@ export default function App() {
     bonus += (knowledgeUpgrades.spellPower || 0) * 0.05;
     return bonus;
   };
+
+  // ─── XP & Level helpers ───
+  const grantXp = useCallback((amount) => {
+    setPlayerXp(prev => {
+      const newXp = prev + amount;
+      const needed = xpForLevel(playerLevelRef.current);
+      if (newXp >= needed) {
+        setPlayerLevel(l => l + 1);
+        setLevelUpChoices(rollLevelPerks());
+        return newXp - needed;
+      }
+      return newXp;
+    });
+  }, []);
+
+  const selectPerk = useCallback((perk) => {
+    setLevelPerks(prev => [...prev, perk.id]);
+    setLevelUpChoices(null);
+    showMessage(`${perk.name} aktywowany!`, perk.color || "#40e060");
+  }, [showMessage]);
+
+  // ─── Spell Upgrade helpers ───
+  const selectUpgrade = useCallback((choice) => {
+    setSpellUpgrades(prev => {
+      const ups = prev[choice.spellId] || [];
+      return { ...prev, [choice.spellId]: [...ups, choice.upgrade.id] };
+    });
+    setUpgradeChoices(null);
+    showMessage(`${choice.spell.name}: ${choice.upgrade.name}!`, choice.upgrade.color || "#60c0ff");
+  }, [showMessage]);
+
+  // ─── Kill streak helpers ───
+  const processKillStreak = useCallback(() => {
+    setKillStreak(prev => {
+      const newStreak = prev + 1;
+      if (newStreak === 5) { addMoneyFn({ copper: 10 }); showMessage("Seria 5! +10 Cu", "#d4a030"); grantXp(5); }
+      else if (newStreak === 10) { addMoneyFn({ copper: 25 }); showMessage("Seria 10! +25 Cu", "#d4a030"); grantXp(10); }
+      else if (newStreak === 15) { addMoneyFn({ copper: 50 }); showMessage("Seria 15! +50 Cu", "#d4a030"); grantXp(20); }
+      return newStreak;
+    });
+  }, [addMoneyFn, showMessage, grantXp]);
+
   const [activeBoss, setActiveBoss] = useState(null);
   const activeBossRef = useRef(null);
   const [gameScale, setGameScale] = useState(1);
@@ -419,6 +522,17 @@ export default function App() {
         animatorRef.current.playMeleeClash(((r.left + r.width / 2) - gr.left) / gameScale, ((r.top + r.height / 2) - gr.top) / gameScale);
       }
     }
+    // wampiryczny_pakt: summoned allies heal on hit
+    if (hasSynergy("wampiryczny_pakt")) {
+      const attacker = walkersRef.current.find(ww => ww.id === friendlyId && ww.alive);
+      if (attacker && attacker.hp < attacker.maxHp) {
+        const healAmt = Math.round(damage * 0.10);
+        if (healAmt > 0) {
+          setWalkers(pr => pr.map(ww => ww.id === friendlyId ? { ...ww, hp: Math.min(ww.maxHp, ww.hp + healAmt) } : ww));
+          spawnDmgPopup(friendlyId, `+${healAmt}`, "#a050e0");
+        }
+      }
+    }
     // Boss mana shield absorption
     let actualDamage = damage;
     if (activeBossRef.current?.manaShieldHp > 0) {
@@ -441,9 +555,20 @@ export default function App() {
         addMoneyFn(w.npcData.loot || {});
         // golden_reaper: double loot
         if (hasRelic("golden_reaper")) addMoneyFn(w.npcData.loot || {});
+        // piracki_monopol synergy
+        if (hasSynergy("piracki_monopol") && Math.random() < 0.20) {
+          const bt = pickTreasure(roomRef.current);
+          bt.biome = "Monopol"; bt.room = roomRef.current;
+          setInventory(prev2 => [...prev2, bt]);
+          showMessage("Piracki Monopol! Bonus skarb!", "#d4a030");
+        }
         setKills(k => k + 1);
         handleCardDrop(w.npcData);
         rollAmmoDrop();
+        // XP + streak on merc kill
+        const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
+        grantXp(xpAmt);
+        processKillStreak();
         // necromancer: 10% chance to spawn temp friendly
         if (hasRelic("necromancer") && Math.random() < 0.10) {
           const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
@@ -524,7 +649,13 @@ export default function App() {
     let armor = CARAVAN_LEVELS[caravanLevelRef.current].armor;
     // faith_shield: +3 armor
     if (hasRelic("faith_shield")) armor += 3;
+    // twierdza synergy: +2 armor
+    if (hasSynergy("twierdza")) armor += 2;
+    // Perk: caravan armor
+    armor += perkCaravanArmor;
     const actualDmg = Math.max(1, damage - armor);
+    // Kill streak reset on caravan damage
+    setKillStreak(0);
     sfxCaravanHit();
     setCaravanHp(prev => Math.max(0, prev - actualDmg));
     // Screen shake on caravan hit
@@ -760,8 +891,9 @@ export default function App() {
                 if (!atkCds[id] || now - atkCds[id] > atkCdMs) {
                   atkCds[id] = now;
                   let knightDmg = w.damage || 5;
-                  // Rogue crit: chance for double damage
-                  if (w.mercType === "rogue" && Math.random() < (w.critChance || 0.25)) {
+                  // Rogue crit: chance for double damage (+perk bonus)
+                  const mercCritBonus = getPerkCount("merc_crit") * 0.10;
+                  if (w.mercType === "rogue" && Math.random() < ((w.critChance || 0.25) + mercCritBonus)) {
                     knightDmg = Math.round(knightDmg * (w.critMult || 2.0));
                     spawnDmgPopup(parseInt(nearId), `KRYT! ${knightDmg}`, "#ff8020");
                   }
@@ -1273,6 +1405,18 @@ export default function App() {
 
     // Reset caravan HP in defense rooms
     if (isDefenseRoom) setCaravanHp(CARAVAN_LEVELS[caravanLevelRef.current].hp);
+
+    // Power spike warning: boss coming next room
+    if (newRoom % 10 === 9) {
+      setPowerSpikeWarning(true);
+      setTimeout(() => setPowerSpikeWarning(false), 4000);
+    } else {
+      setPowerSpikeWarning(false);
+    }
+
+    // Decrement risk event room counters
+    if (enemyBuffRoomsRef.current > 0) setEnemyBuffRooms(prev => prev - 1);
+    if (playerDoubleDmgRoomsRef.current > 0) setPlayerDoubleDmgRooms(prev => prev - 1);
 
     // Night mode (30% chance)
     const night = Math.random() < 0.3;
@@ -1834,14 +1978,51 @@ export default function App() {
     let hpMult = 1 + roomDiff * 1.2 + waveDiff * 0.8;
     // greedy_merchant: enemies +30% HP (nerfed from +20%)
     if (hasRelic("greedy_merchant")) hpMult *= 1.30;
+    // Risk event: enemy buff rooms
+    if (enemyBuffRoomsRef.current > 0) hpMult *= 1.50;
     const dmgMult = 1 + roomDiff * 0.7 + waveDiff * 0.5;
     const biomeId = biome?.id || "summer";
 
-    setDefenseMode(prev => prev ? { ...prev, enemiesRemaining: enemyCount, enemiesSpawned: enemyCount } : null);
+    // Elite room check
+    const isElite = isEliteRoom(roomNum);
+    const eliteMod = isElite ? rollEliteModifier() : null;
+
+    setDefenseMode(prev => prev ? { ...prev, enemiesRemaining: enemyCount + (isElite ? 1 : 0), enemiesSpawned: enemyCount + (isElite ? 1 : 0) } : null);
 
     const timers = [];
+    // Spawn elite enemy first on elite rooms
+    if (isElite && eliteMod) {
+      const tid = setTimeout(() => {
+        const npcData = pickNpc(biomeId);
+        if (!npcData) return;
+        npcData.hp = Math.round(npcData.hp * hpMult * eliteMod.hpMult);
+        npcData.name = `${eliteMod.name} ${npcData.name}`;
+        if (eliteMod.resist) npcData.resist = eliteMod.resist;
+        const wid = ++walkerIdCounter;
+        const spawnX = 50;
+        const spawnY = 8;
+        setWalkers(prev => [...prev, {
+          id: wid, npcData, alive: true, dying: false, hp: npcData.hp, maxHp: npcData.hp, isElite: true,
+        }]);
+        walkDataRef.current[wid] = {
+          x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
+          yDir: 1, speed: 0.015, ySpeed: 0.012,
+          minX: 5, maxX: 98, minY: 25, maxY: 92,
+          bouncePhase: 0, alive: true, friendly: false,
+          damage: Math.ceil(npcData.hp / 6 * dmgMult * (eliteMod.damageMult || 1)),
+          lungeFrames: 0, lungeOffset: 0,
+          ability: npcData.ability || null,
+          attackCd: Math.round(3000 * (eliteMod.attackSpeedMult || 1)),
+          isElite: true,
+        };
+        if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, false);
+        showMessage(`Elite: ${eliteMod.name}! ${eliteMod.desc}`, eliteMod.color);
+      }, 500);
+      timers.push(tid);
+    }
+
     for (let i = 0; i < enemyCount; i++) {
-      const delay = i * (800 + Math.random() * 400);
+      const delay = (isElite ? 1500 : 0) + i * (800 + Math.random() * 400);
       const tid = setTimeout(() => {
         const npcData = pickNpc(biomeId);
         if (!npcData) return;
@@ -2027,12 +2208,21 @@ export default function App() {
         const shuffled = pool.sort(() => Math.random() - 0.5);
         setRelicChoices(shuffled.slice(0, 3));
       }
+
+      // Spell upgrade picker after boss fights
+      if (isBoss) {
+        const upgChoices = rollUpgradeChoices(learnedSpellsRef.current, SPELLS, spellUpgradesRef.current);
+        if (upgChoices.length > 0) {
+          setTimeout(() => setUpgradeChoices(upgChoices), 500);
+        }
+      }
     }
     // Note: "failed" defense no longer exists — caravan destruction triggers game over
   }, [defenseMode?.phase]);
 
   const dismissDefense = useCallback(() => {
     setRelicChoices(null);
+    setUpgradeChoices(null);
     setActiveBoss(null);
     // Clean up remaining enemies + barricade/tower (not dog — dog persists)
     for (const [id, w] of Object.entries(walkDataRef.current)) {
@@ -2046,7 +2236,18 @@ export default function App() {
   }, []);
 
   const selectRelic = useCallback((relic) => {
-    setActiveRelics(prev => [...prev, relic]);
+    setActiveRelics(prev => {
+      const newRelics = [...prev, relic];
+      // Check for new synergies
+      const ownedIds = newRelics.map(r => r.id);
+      for (const syn of RELIC_SYNERGIES) {
+        if (syn.relics.every(rid => ownedIds.includes(rid)) && !activeSynergiesRef.current.some(s => s.id === syn.id)) {
+          setActiveSynergies(ps => [...ps, syn]);
+          setTimeout(() => showMessage(`SYNERGIA: ${syn.name}! ${syn.desc}`, syn.color), 800);
+        }
+      }
+      return newRelics;
+    });
     setRelicChoices(null);
     showMessage(`${relic.name} aktywowany!`, "#a050e0");
   }, [showMessage]);
@@ -2065,6 +2266,12 @@ export default function App() {
     setLearnedSpells(SPELLS.filter(s => s.learned).map(s => s.id));
     setActiveRelics([]); setRelicChoices(null); setKnowledgeUpgrades({ manaPool: 0, spellPower: 0, manaRegen: 0 });
     setDefenseMode(null); setActiveBoss(null); setWalkers([]);
+    // Reset new systems
+    setActiveSynergies([]); setComboCounter(0); setActiveCombo(null);
+    setPlayerXp(0); setPlayerLevel(1); setLevelPerks([]); setLevelUpChoices(null);
+    setSpellUpgrades({}); setUpgradeChoices(null);
+    setKillStreak(0); setPowerSpikeWarning(false);
+    setEnemyBuffRooms(0); setPlayerDoubleDmgRooms(0);
     walkDataRef.current = {};
     setGameOverStats(null);
     localStorage.removeItem("wrota_save");
@@ -2086,6 +2293,12 @@ export default function App() {
       ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp,
       bestiary, knowledge, learnedSpells, activeRelics: activeRelics.map(r => r.id),
       knowledgeUpgrades, bossesDefeated,
+      // New systems
+      activeSynergies: activeSynergies.map(s => s.id),
+      playerXp, playerLevel, levelPerks,
+      spellUpgrades,
+      killStreak,
+      enemyBuffRooms, playerDoubleDmgRooms,
       savedAt: Date.now(),
     };
     try {
@@ -2123,6 +2336,18 @@ export default function App() {
       setBossesDefeated(s.bossesDefeated || 0);
       setAmmo(s.ammo || { dynamite: 5, harpoon: 5, cannonball: 3 });
       setMana(s.mana || 20);
+      // New systems
+      if (s.activeSynergies) {
+        const synObjs = s.activeSynergies.map(id => RELIC_SYNERGIES.find(syn => syn.id === id)).filter(Boolean);
+        setActiveSynergies(synObjs);
+      }
+      setPlayerXp(s.playerXp || 0);
+      setPlayerLevel(s.playerLevel || 1);
+      setLevelPerks(s.levelPerks || []);
+      setSpellUpgrades(s.spellUpgrades || {});
+      setKillStreak(s.killStreak || 0);
+      setEnemyBuffRooms(s.enemyBuffRooms || 0);
+      setPlayerDoubleDmgRooms(s.playerDoubleDmgRooms || 0);
       setScreen("game");
       enterRoom(s.room || 1, s.ownedTools || []);
       startMusic();
@@ -2147,12 +2372,16 @@ export default function App() {
         ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp,
         bestiary, knowledge, learnedSpells, activeRelics: activeRelics.map(r => r.id),
         knowledgeUpgrades, bossesDefeated,
+        activeSynergies: activeSynergies.map(s => s.id),
+        playerXp, playerLevel, levelPerks,
+        spellUpgrades, killStreak,
+        enemyBuffRooms, playerDoubleDmgRooms,
         savedAt: Date.now(),
       };
       try { localStorage.setItem("wrota_save", JSON.stringify(saveData)); } catch {}
     }, 60000);
     return () => clearInterval(iv);
-  }, [screen, room, money, mana, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades]);
+  }, [screen, room, money, mana, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades, activeSynergies, playerXp, playerLevel, levelPerks, spellUpgrades, killStreak, enemyBuffRooms, playerDoubleDmgRooms]);
 
   const travelCaravan = () => {
     if (defenseMode && defenseMode.phase !== "complete") {
@@ -2182,7 +2411,7 @@ export default function App() {
     const spawnX = inDefense ? 35 + Math.random() * 30 : 5 + Math.random() * 8;
     const lvl = KNIGHT_LEVELS[knightLevel];
     const mult = lvl.mult || 1;
-    const stoneBonus = hasRelic("stone_skin") ? 30 : 0;
+    const stoneBonus = (hasRelic("stone_skin") ? 30 : 0) + (hasSynergy("twierdza") ? 30 : 0) + perkMercHpBonus;
     const finalHp = Math.round(mercType.hp * mult * hpFraction) + stoneBonus;
     const maxHp = Math.round(mercType.hp * mult) + stoneBonus;
     const finalDmg = Math.round(mercType.damage * mult);
@@ -2288,6 +2517,30 @@ export default function App() {
         break;
       }
       case "altarSkip": break;
+      case "altarRisky": {
+        const rEff = outcome.effect;
+        if (outcome.accepted) {
+          sfxEventSuccess();
+          if (rEff.effect === "caravanSacrifice") {
+            // Lose 50% caravan HP, gain 3 treasures
+            setCaravanHp(prev => Math.max(1, Math.round(prev * 0.5)));
+            const newTreasures = [];
+            for (let i = 0; i < 3; i++) {
+              const t = pickTreasure(room);
+              t.biome = "Ołtarz"; t.room = room;
+              newTreasures.push(t);
+            }
+            setInventory(prev => [...prev, ...newTreasures]);
+            setLoot(newTreasures[0]);
+            showMessage("Ofiara przyjęta! 3 skarby za krew konwoju!", "#e0a040");
+          } else if (rEff.effect === "doubleDamage") {
+            setPlayerDoubleDmgRooms(2);
+            setEnemyBuffRooms(prev => prev + 2);
+            showMessage("Podwójna moc! Ale wrogowie też silniejsi!", "#e0a040");
+          }
+        }
+        break;
+      }
       case "woundedRecruit": {
         sfxRecruit();
         const mt = MERCENARY_TYPES[outcome.mercIndex] || MERCENARY_TYPES[0];
@@ -2297,6 +2550,33 @@ export default function App() {
         break;
       }
       case "woundedSkip": break;
+      case "cursedChestAccept": {
+        const co = outcome.outcome;
+        if (co.type === "good") {
+          sfxEventSuccess();
+          if (co.reward.copper || co.reward.silver) addMoneyFn(co.reward);
+          if (co.reward.mana) setMana(prev => Math.min(MAX_MANA, prev + co.reward.mana));
+          if (co.reward.treasure) {
+            const t = pickTreasure(room + 10); // higher tier treasure
+            t.biome = "Przeklęta"; t.room = room;
+            setInventory(prev => [...prev, t]);
+            setLoot(t);
+          }
+          showMessage(co.text, "#40e060");
+        } else {
+          sfxEventFail();
+          if (co.penalty.enemyBuff) setEnemyBuffRooms(prev => prev + co.penalty.enemyBuff);
+          if (co.penalty.moneyLoss) {
+            const ml = co.penalty.moneyLoss;
+            const mc = totalCopper(money);
+            setMoney(copperToMoney(mc - Math.min(ml, mc)));
+          }
+          if (co.penalty.manaLoss) setMana(prev => Math.max(0, prev - co.penalty.manaLoss));
+          showMessage(co.text, "#cc3030");
+        }
+        break;
+      }
+      case "cursedChestSkip": break;
     }
     // Complete the room transition
     setRandomEvent(null);
@@ -2470,7 +2750,7 @@ export default function App() {
     const spawnX = (mercCamp.x / 100) * 100; // percentage, near camp
     const lvl = KNIGHT_LEVELS[knightLevel];
     const mult = lvl.mult || 1;
-    const stoneBonus = hasRelic("stone_skin") ? 30 : 0;
+    const stoneBonus = (hasRelic("stone_skin") ? 30 : 0) + (hasSynergy("twierdza") ? 30 : 0) + perkMercHpBonus;
     const finalHp = Math.round(mercType.hp * mult) + stoneBonus;
     const finalDmg = Math.round(mercType.damage * mult);
     const npcData = {
@@ -2523,7 +2803,8 @@ export default function App() {
 
   const getSpellManaCost = (spell) => {
     let cost = spell.manaCost;
-    if (hasRelic("chaos_blade")) cost = Math.ceil(cost * 1.25);
+    // chaos_blade: +25% mana cost (negated by prochowy_baron synergy)
+    if (hasRelic("chaos_blade") && !hasSynergy("prochowy_baron")) cost = Math.ceil(cost * 1.25);
     return cost;
   };
 
@@ -2559,7 +2840,7 @@ export default function App() {
       const spawnX = inDef ? 35 + Math.random() * 30 : 5 + Math.random() * 8;
       const lvl = KNIGHT_LEVELS[knightLevel];
       const mult = lvl.mult || 1;
-      const stoneBonus = hasRelic("stone_skin") ? 30 : 0;
+      const stoneBonus = (hasRelic("stone_skin") ? 30 : 0) + (hasSynergy("twierdza") ? 30 : 0) + perkMercHpBonus;
       const finalHp = Math.round(mercType.hp * mult) + stoneBonus;
       const finalDmg = Math.round(mercType.damage * mult);
       const npcData = {
@@ -2613,8 +2894,20 @@ export default function App() {
 
     // Spend mana & set cooldown (chaos_blade: +25% mana cost)
     setMana(m => m - getSpellManaCost(spell));
-    if (spell.ammoCost) setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - spell.ammoCost.amount }));
-    setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + spell.cooldown }));
+    // Ammo cost with upgrade reduction
+    if (spell.ammoCost) {
+      const spellUps = spellUpgradesRef.current[spell.id] || [];
+      const uStats = getUpgradedSpellStats(spell, spellUps);
+      const ammoCost = Math.max(1, spell.ammoCost.amount - uStats.ammoCostReduction);
+      setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
+    }
+    // Cooldown with upgrades + perk
+    {
+      const spellUps = spellUpgradesRef.current[spell.id] || [];
+      const uStats = getUpgradedSpellStats(spell, spellUps);
+      const finalCd = Math.round(uStats.cooldown * perkCooldownMult);
+      setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
+    }
 
     const sfxFn = SPELL_SFX[spell.id];
     if (sfxFn) sfxFn();
@@ -2639,22 +2932,35 @@ export default function App() {
 
     setTimeout(() => {
       const resistant = npcData.resist && npcData.resist === spell.element;
-      let damage = Math.round(spell.damage * (resistant ? RESIST_MULT : 1));
+      // Spell upgrade: use upgraded damage
+      const spellUps = spellUpgradesRef.current[spell.id] || [];
+      const upgradedStats = getUpgradedSpellStats(spell, spellUps);
+      let damage = Math.round(upgradedStats.damage * (resistant ? RESIST_MULT : 1));
       damage = applyWeatherDamage(damage, spell.element, weatherRef.current);
       // chaos_blade: +40% spell damage
       if (hasRelic("chaos_blade")) damage = Math.round(damage * 1.40);
       // Knowledge bonus: extra damage for discovered NPCs + milestone bonus
       damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
-      // Element combo system
+      // Perk: spell damage multiplier
+      damage = Math.round(damage * perkSpellDmgMult);
+      // Risk event: player double damage
+      if (playerDoubleDmgRoomsRef.current > 0) damage = Math.round(damage * 2);
+      // Element combo system (uses imported COMBOS from combos.js)
       let comboText = null;
       const prevDebuff = elementDebuffs.current[wid];
       if (prevDebuff && spell.element && prevDebuff.element !== spell.element && Date.now() - prevDebuff.timestamp < 5000) {
         const comboKey = [prevDebuff.element, spell.element].sort().join("+");
-        const COMBOS = { "fire+ice": { name: "Parowy Wybuch", mult: 1.5, color: "#e0e0e0" }, "fire+lightning": { name: "Przeładowanie", mult: 1.4, color: "#ffaa20" }, "ice+lightning": { name: "Roztrzaskanie", mult: 1.6, color: "#80d0ff" }, "fire+shadow": { name: "Mroczny Płomień", mult: 1.35, color: "#a040a0" }, "ice+shadow": { name: "Lodowe Przekleństwo", mult: 1.45, color: "#6040a0" } };
         const combo = COMBOS[comboKey];
         if (combo) {
-          damage = Math.round(damage * combo.mult);
+          // Combo streak bonus: +5% per consecutive combo (cap 25%)
+          const streakBonus = Math.min(COMBO_STREAK_CAP, comboCounter * COMBO_STREAK_BONUS);
+          damage = Math.round(damage * (combo.mult + streakBonus));
           comboText = combo;
+          // Update combo visual state
+          setComboCounter(prev => prev + 1);
+          setActiveCombo(combo);
+          if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+          comboTimerRef.current = setTimeout(() => { setComboCounter(0); setActiveCombo(null); }, COMBO_STREAK_TIMEOUT);
         }
       }
       if (spell.element) elementDebuffs.current[wid] = { element: spell.element, timestamp: Date.now() };
@@ -2672,23 +2978,26 @@ export default function App() {
         showMessage(`COMBO: ${comboText.name}! (x${(comboText.mult).toFixed(1)})`, comboText.color);
       }
 
-      // Show damage popup
-      const dmgLabel = comboText ? `${damage}` : weatherBoosted ? `${damage}` : weatherNerfed ? `${damage}` : resistant ? `${damage} BLOK` : `${damage}`;
-      spawnDmgPopup(wid, dmgLabel, resistant ? "#6688aa" : spell.color);
+      // Show damage popup (with combo label)
+      const dmgLabel = comboText ? `COMBO x${comboCounter}! ${damage}` : resistant ? `${damage} BLOK` : `${damage}`;
+      spawnDmgPopup(wid, dmgLabel, resistant ? "#6688aa" : comboText ? comboText.color : spell.color);
 
       // blood_weapon: heal random friendly for 15% of damage dealt
       if (hasRelic("blood_weapon")) {
         const friendlies = walkersRef.current.filter(w => w.alive && !w.dying && w.friendly && w.hp < w.maxHp);
         if (friendlies.length > 0) {
           const target = friendlies[Math.floor(Math.random() * friendlies.length)];
-          const healAmt = Math.round(damage * 0.15);
+          // desperacka_krew synergy: double heal when target below 30% HP
+          const healMult = hasSynergy("desperacka_krew") && target.hp / target.maxHp < 0.30 ? 0.30 : 0.15;
+          const healAmt = Math.round(damage * healMult);
           setWalkers(prev => prev.map(w => w.id === target.id ? { ...w, hp: Math.min(w.maxHp, w.hp + healAmt) } : w));
           spawnDmgPopup(target.id, `+${healAmt}`, "#40e060");
         }
       }
 
-      // storm_echo: lightning 30% chain to second enemy (60% dmg)
-      if (hasRelic("storm_echo") && spell.element === "lightning" && Math.random() < 0.30) {
+      // storm_echo: lightning chain to second enemy (burzowy_szal synergy: 50% chance)
+      const chainChance = hasSynergy("burzowy_szal") ? 0.50 : 0.30;
+      if (hasRelic("storm_echo") && spell.element === "lightning" && Math.random() < chainChance) {
         const otherEnemies = walkersRef.current.filter(w => w.alive && !w.dying && !w.friendly && w.id !== wid);
         if (otherEnemies.length > 0) {
           const chain = otherEnemies[Math.floor(Math.random() * otherEnemies.length)];
@@ -2728,9 +3037,26 @@ export default function App() {
           addMoneyFn(npcData.loot);
           // golden_reaper: double loot
           if (hasRelic("golden_reaper")) addMoneyFn(npcData.loot);
+          // piracki_monopol synergy: 20% chance bonus treasure on kill
+          if (hasSynergy("piracki_monopol") && Math.random() < 0.20) {
+            const bt = pickTreasure(roomRef.current);
+            bt.biome = "Monopol"; bt.room = roomRef.current;
+            setInventory(prev => [...prev, bt]);
+            showMessage("Piracki Monopol! Bonus skarb!", "#d4a030");
+          }
+          // Perk: loot value multiplier
+          if (perkLootMult > 1 && npcData.loot) {
+            const bonusCu = Math.round((npcData.loot.copper || 0) * (perkLootMult - 1));
+            if (bonusCu > 0) addMoneyFn({ copper: bonusCu });
+          }
           setKills(k => k + 1);
           handleCardDrop(npcData);
           rollAmmoDrop();
+          // XP grant on kill
+          const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
+          grantXp(xpAmt);
+          // Kill streak
+          processKillStreak();
           // necromancer: 10% chance to spawn temp friendly
           if (hasRelic("necromancer") && Math.random() < 0.10) {
             const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
@@ -2785,8 +3111,18 @@ export default function App() {
     }
 
     setMana(m => m - getSpellManaCost(spell));
-    if (spell.ammoCost) setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - spell.ammoCost.amount }));
-    setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + spell.cooldown }));
+    if (spell.ammoCost) {
+      const spellUps = spellUpgradesRef.current[spell.id] || [];
+      const uStats = getUpgradedSpellStats(spell, spellUps);
+      const ammoCost = Math.max(1, spell.ammoCost.amount - uStats.ammoCostReduction);
+      setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
+    }
+    {
+      const spellUps = spellUpgradesRef.current[spell.id] || [];
+      const uStats = getUpgradedSpellStats(spell, spellUps);
+      const finalCd = Math.round(uStats.cooldown * perkCooldownMult);
+      setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
+    }
 
     const sfxFn = SPELL_SFX[spell.id];
     if (sfxFn) sfxFn();
@@ -2825,43 +3161,49 @@ export default function App() {
         if (w.friendly || !w.alive || w.dying) return w;
         const npcData = w.npcData;
         const resistant = npcData.resist && npcData.resist === spell.element;
-        let damage = Math.round(spell.damage * (resistant ? RESIST_MULT : 1));
+        const aoeSpellUps = spellUpgradesRef.current[spell.id] || [];
+        const aoeUpgradedStats = getUpgradedSpellStats(spell, aoeSpellUps);
+        let damage = Math.round(aoeUpgradedStats.damage * (resistant ? RESIST_MULT : 1));
         damage = applyWeatherDamage(damage, spell.element, weatherRef.current);
-        // chaos_blade: +40% spell damage
         if (hasRelic("chaos_blade")) damage = Math.round(damage * 1.40);
-        // Knowledge bonus
         damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
-        // Element combo for AoE
+        damage = Math.round(damage * perkSpellDmgMult);
+        if (playerDoubleDmgRoomsRef.current > 0) damage = Math.round(damage * 2);
+        // Element combo for AoE (uses imported COMBOS)
         const prevDebuff = elementDebuffs.current[w.id];
         let comboText = null;
         if (prevDebuff && spell.element && prevDebuff.element !== spell.element && Date.now() - prevDebuff.timestamp < 5000) {
           const comboKey = [prevDebuff.element, spell.element].sort().join("+");
-          const COMBOS = { "fire+ice": { name: "Parowy Wybuch", mult: 1.5 }, "fire+lightning": { name: "Przeładowanie", mult: 1.4 }, "ice+lightning": { name: "Roztrzaskanie", mult: 1.6 }, "fire+shadow": { name: "Mroczny Płomień", mult: 1.35 }, "ice+shadow": { name: "Lodowe Przekleństwo", mult: 1.45 } };
           const combo = COMBOS[comboKey];
-          if (combo) { damage = Math.round(damage * combo.mult); comboText = combo; }
+          if (combo) {
+            const streakBonus = Math.min(COMBO_STREAK_CAP, comboCounter * COMBO_STREAK_BONUS);
+            damage = Math.round(damage * (combo.mult + streakBonus));
+            comboText = combo;
+            setComboCounter(prev => prev + 1);
+            setActiveCombo(combo);
+            if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+            comboTimerRef.current = setTimeout(() => { setComboCounter(0); setActiveCombo(null); }, COMBO_STREAK_TIMEOUT);
+          }
         }
         if (spell.element) elementDebuffs.current[w.id] = { element: spell.element, timestamp: Date.now() };
         const wd = walkDataRef.current[w.id];
         const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
-
-        const weatherBoosted = weatherRef.current?.damageMult?.[spell.element] > 1;
-        const weatherNerfed = weatherRef.current?.damageMult?.[spell.element] < 1;
 
         if (resistant) {
           const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
           showMessage(`${npcData.name} odporny na ${resistLabel}!`, "#6688aa");
         }
 
-        const dmgLabel = comboText ? `${damage}` : weatherBoosted ? `${damage}` : weatherNerfed ? `${damage}` : resistant ? `${damage} BLOK` : `${damage}`;
-        spawnDmgPopup(w.id, dmgLabel, resistant ? "#6688aa" : spell.color);
+        const dmgLabel = comboText ? `COMBO x${comboCounter}! ${damage}` : resistant ? `${damage} BLOK` : `${damage}`;
+        spawnDmgPopup(w.id, dmgLabel, resistant ? "#6688aa" : comboText ? comboText.color : spell.color);
 
         // blood_weapon: heal random friendly for 15% of damage
         if (hasRelic("blood_weapon")) {
           const friendlies = prev.filter(ww => ww.alive && !ww.dying && ww.friendly && ww.hp < ww.maxHp);
           if (friendlies.length > 0) {
             const target = friendlies[Math.floor(Math.random() * friendlies.length)];
-            const healAmt = Math.round(damage * 0.15);
-            // Apply heal in a separate setState to avoid conflicts
+            const healMult = hasSynergy("desperacka_krew") && target.hp / target.maxHp < 0.30 ? 0.30 : 0.15;
+            const healAmt = Math.round(damage * healMult);
             setTimeout(() => {
               setWalkers(pr => pr.map(ww => ww.id === target.id ? { ...ww, hp: Math.min(ww.maxHp, ww.hp + healAmt) } : ww));
               spawnDmgPopup(target.id, `+${healAmt}`, "#40e060");
@@ -2875,11 +3217,22 @@ export default function App() {
           if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
           if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, spell.element, spellDirX);
           addMoneyFn(npcData.loot);
-          // golden_reaper: double loot
           if (hasRelic("golden_reaper")) addMoneyFn(npcData.loot);
+          if (hasSynergy("piracki_monopol") && Math.random() < 0.20) {
+            const bt = pickTreasure(roomRef.current);
+            bt.biome = "Monopol"; bt.room = roomRef.current;
+            setInventory(prev2 => [...prev2, bt]);
+          }
+          if (perkLootMult > 1 && npcData.loot) {
+            const bonusCu = Math.round((npcData.loot.copper || 0) * (perkLootMult - 1));
+            if (bonusCu > 0) addMoneyFn({ copper: bonusCu });
+          }
           setKills(k => k + 1);
           handleCardDrop(npcData);
           rollAmmoDrop();
+          const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
+          grantXp(xpAmt);
+          processKillStreak();
           // necromancer: 10% chance to spawn temp friendly
           if (hasRelic("necromancer") && Math.random() < 0.10) {
             const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
@@ -2936,6 +3289,9 @@ export default function App() {
     const spell = SPELLS.find(s => s.id === spellId);
     if (!spell) return;
     if (spell.aoe) { castAoeSpell(spell); return; }
+    // AoE upgrade: redirect single-target to AoE
+    const spUps = spellUpgradesRef.current[spell.id] || [];
+    if (spUps.includes("aoe")) { castAoeSpell(spell); return; }
     castSpellOnTarget(spell, walker);
   };
 
@@ -2959,6 +3315,9 @@ export default function App() {
     const spell = SPELLS.find(s => s.id === selectedSpell);
     if (!spell) return;
     if (spell.aoe) { castAoeSpell(spell); return; }
+    // AoE upgrade redirect
+    const spUps = spellUpgradesRef.current[spell.id] || [];
+    if (spUps.includes("aoe")) { castAoeSpell(spell); return; }
 
     // First cast immediately
     castSpellOnTarget(spell, walker);
@@ -2985,7 +3344,8 @@ export default function App() {
       if (!target) { setAutoAttackTarget(null); return; }
 
       // Try to cast (checks mana + cooldown internally)
-      if (spell.aoe) {
+      const spUps = spellUpgradesRef.current[spell.id] || [];
+      if (spell.aoe || spUps.includes("aoe")) {
         castAoeSpell(spell);
       } else {
         castSpellOnTarget(spell, target);
@@ -3062,8 +3422,18 @@ export default function App() {
       return;
     }
     setMana(m => m - getSpellManaCost(spell));
-    if (spell.ammoCost) setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - spell.ammoCost.amount }));
-    setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + spell.cooldown }));
+    if (spell.ammoCost) {
+      const spellUps = spellUpgradesRef.current[spell.id] || [];
+      const uStats = getUpgradedSpellStats(spell, spellUps);
+      const ammoCost = Math.max(1, spell.ammoCost.amount - uStats.ammoCostReduction);
+      setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
+    }
+    {
+      const spellUps = spellUpgradesRef.current[spell.id] || [];
+      const uStats = getUpgradedSpellStats(spell, spellUps);
+      const finalCd = Math.round(uStats.cooldown * perkCooldownMult);
+      setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
+    }
     const sfxFn = SPELL_SFX[spell.id];
     if (sfxFn) sfxFn();
 
@@ -3370,7 +3740,8 @@ export default function App() {
         <TopBar doors={doors} initiative={initiative} treasures={inventory.length} money={money} mana={mana} maxMana={MAX_MANA}
           onInv={() => togglePanel("inv")} onShop={() => togglePanel("shop")} onHideout={() => togglePanel("hideout")}
           onBestiary={() => togglePanel("bestiary")} knowledge={knowledge}
-          musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} isMobile={false} />
+          musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} isMobile={false}
+          playerLevel={playerLevel} playerXp={playerXp} xpNeeded={xpForLevel(playerLevel)} />
       )}
 
       {/* Scaled game container – fills entire screen on mobile */}
@@ -3390,7 +3761,8 @@ export default function App() {
         <TopBar doors={doors} initiative={initiative} treasures={inventory.length} money={money} mana={mana} maxMana={MAX_MANA}
           onInv={() => togglePanel("inv")} onShop={() => togglePanel("shop")} onHideout={() => togglePanel("hideout")}
           onBestiary={() => togglePanel("bestiary")} knowledge={knowledge}
-          musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} isMobile={true} gameW={GAME_W} />
+          musicOn={musicOn} onToggleMusic={handleToggleMusic} onSave={saveGame} isMobile={true} gameW={GAME_W}
+          playerLevel={playerLevel} playerXp={playerXp} xpNeeded={xpForLevel(playerLevel)} />
       )}
       <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H }} />
       <canvas ref={animCanvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none" }} />
@@ -3411,7 +3783,8 @@ export default function App() {
 
       <WaveOverlay defense={defenseMode} onDismiss={dismissDefense}
         caravanHp={caravanHp} caravanMaxHp={CARAVAN_LEVELS[caravanLevel].hp}
-        relicChoices={relicChoices} boss={activeBoss} />
+        relicChoices={relicChoices} boss={activeBoss}
+        killStreak={killStreak} powerSpikeWarning={powerSpikeWarning} />
       {activeBoss && (
         <BossHpBar
           boss={activeBoss}
@@ -3422,7 +3795,11 @@ export default function App() {
           manaShieldMaxHp={activeBoss.manaShieldMaxHp || 0}
         />
       )}
+      <ComboOverlay combo={activeCombo} comboCounter={comboCounter} />
+      {!defenseMode && <PowerSpikeWarning show={powerSpikeWarning} />}
       <RelicPicker choices={relicChoices} onSelect={selectRelic} />
+      <SpellUpgradePicker choices={upgradeChoices} onSelect={selectUpgrade} />
+      <LevelUpPicker choices={levelUpChoices} onSelect={selectPerk} playerLevel={playerLevel} />
       <WeatherOverlay weather={weather} />
 
       <Caravan
@@ -4373,6 +4750,7 @@ export default function App() {
         isMobile={isMobile}
         gameW={GAME_W}
         gameH={GAME_H}
+        spellUpgrades={spellUpgrades}
       />
 
       {/* Tutorial overlay – shows on first few rooms */}
@@ -4775,6 +5153,11 @@ export default function App() {
         @keyframes meteorFlash{0%{opacity:1}100%{opacity:0}}
         @keyframes cardDrop{0%{opacity:0;transform:translate(-50%,-50%) scale(0.5) rotateY(90deg)}50%{transform:translate(-50%,-50%) scale(1.1) rotateY(0)}100%{opacity:1;transform:translate(-50%,-50%) scale(1) rotateY(0)}}
         @keyframes eventAppear{0%{opacity:0;transform:scale(0.85) translateY(20px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes comboFlash{0%{opacity:0.5}100%{opacity:0}}
+        @keyframes comboAppear{0%{opacity:0;transform:translateX(-50%) scale(0.7) translateY(20px)}40%{opacity:1;transform:translateX(-50%) scale(1.05) translateY(0)}100%{opacity:1;transform:translateX(-50%) scale(1) translateY(0)}}
+        @keyframes xpFill{0%{background-position:200% 0}100%{background-position:-200% 0}}
+        @keyframes streakPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+        @keyframes bossWarningPulse{0%,100%{opacity:0.6;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.05)}}
       `}</style>
     </div>
   );
