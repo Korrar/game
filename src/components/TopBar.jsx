@@ -1,3 +1,5 @@
+import GameIcon from "./GameIcon";
+
 export default function TopBar({ doors, initiative, treasures, money, mana, maxMana, onInv, onShop, onHideout, onBestiary, knowledge, musicOn, onToggleMusic, onSave, isMobile, gameW }) {
   const m = isMobile;
 
@@ -14,28 +16,28 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
       }}>
         {/* Stats */}
         <div style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 11 }}>
-          <span>🏕️<b style={{ color: "#e0b840" }}>{doors}</b></span>
-          <span>⏳<b style={{ color: "#e0b840" }}>{initiative}</b></span>
-          <span>🪖<b style={{ color: "#c0a060" }}>{Math.floor(mana)}</b></span>
+          <span><GameIcon name="doors" size={14} /><b style={{ color: "#e0b840" }}>{doors}</b></span>
+          <span><GameIcon name="hourglass" size={14} /><b style={{ color: "#e0b840" }}>{initiative}</b></span>
+          <span><GameIcon name="gunpowder" size={14} /><b style={{ color: "#c0a060" }}>{Math.floor(mana)}</b></span>
         </div>
         {/* Currency */}
         <div style={{ display: "flex", gap: 3, alignItems: "center", fontSize: 10 }}>
-          <span style={{ color: "#cd7f32" }}>🟤<b>{money.copper}</b></span>
-          <span style={{ color: "#c0c0c8" }}>⚪<b>{money.silver}</b></span>
-          <span style={{ color: "#ffd700" }}>🟡<b>{money.gold}</b></span>
+          <span style={{ color: "#cd7f32" }}><GameIcon name="copper" size={12} /><b>{money.copper}</b></span>
+          <span style={{ color: "#c0c0c8" }}><GameIcon name="silver" size={12} /><b>{money.silver}</b></span>
+          <span style={{ color: "#ffd700" }}><GameIcon name="gold" size={12} /><b>{money.gold}</b></span>
         </div>
         {/* Buttons */}
         <div style={{ display: "flex", gap: 2 }}>
           {onToggleMusic && (
             <button onClick={onToggleMusic} style={mobileBtnStyle(musicOn ? 1 : 0.5)}>
-              {musicOn ? "🔊" : "🔇"}
+              <GameIcon name={musicOn ? "soundOn" : "soundOff"} size={16} />
             </button>
           )}
-          {onSave && <button onClick={onSave} style={mobileBtnStyle(1)}>💾</button>}
-          {onBestiary && <button onClick={onBestiary} style={mobileBtnStyle(1)}>📖</button>}
-          <button onClick={onShop} style={mobileBtnStyle(1)}>🏪</button>
-          <button onClick={onHideout} style={mobileBtnStyle(1)}>🏰</button>
-          <button onClick={onInv} style={mobileBtnStyle(1)}>📜</button>
+          {onSave && <button onClick={onSave} style={mobileBtnStyle(1)}><GameIcon name="save" size={16} /></button>}
+          {onBestiary && <button onClick={onBestiary} style={mobileBtnStyle(1)}><GameIcon name="wantedList" size={16} /></button>}
+          <button onClick={onShop} style={mobileBtnStyle(1)}><GameIcon name="shop" size={16} /></button>
+          <button onClick={onHideout} style={mobileBtnStyle(1)}><GameIcon name="base" size={16} /></button>
+          <button onClick={onInv} style={mobileBtnStyle(1)}><GameIcon name="scroll" size={16} /></button>
         </div>
       </div>
     );
@@ -64,30 +66,30 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
         WebkitTextFillColor: "transparent",
         backgroundSize: "200% 100%",
         animation: "shimmer 4s ease-in-out infinite",
-      }}>🏴‍☠️ Szlak Fortuny</span>
+      }}><GameIcon name="pirate" size={22} style={{ marginRight: 6 }} /> Szlak Fortuny</span>
       <div style={{ display: "flex", gap: 16, fontSize: 18 }}>
-        <StatBadge icon="🏕️" value={doors} />
-        <StatBadge icon="💎" value={treasures} />
-        <StatBadge icon="⏳" value={initiative} />
+        <StatBadge icon={<GameIcon name="doors" size={20} />} value={doors} />
+        <StatBadge icon={<GameIcon name="treasure" size={20} />} value={treasures} />
+        <StatBadge icon={<GameIcon name="hourglass" size={20} />} value={initiative} />
       </div>
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <CurrencyBadge icon="🟤" value={money.copper} color="#cd7f32" />
-        <CurrencyBadge icon="⚪" value={money.silver} color="#c0c0c8" />
-        <CurrencyBadge icon="🟡" value={money.gold} color="#ffd700" />
-        {mana !== undefined && <CurrencyBadge icon="🪖" value={`${Math.floor(mana)}/${maxMana || 100}`} color="#c0a060" />}
-        {knowledge > 0 && <CurrencyBadge icon="⭐" value={knowledge} color="#e0c040" />}
+        <CurrencyBadge icon={<GameIcon name="copper" size={18} />} value={money.copper} color="#cd7f32" />
+        <CurrencyBadge icon={<GameIcon name="silver" size={18} />} value={money.silver} color="#c0c0c8" />
+        <CurrencyBadge icon={<GameIcon name="gold" size={18} />} value={money.gold} color="#ffd700" />
+        {mana !== undefined && <CurrencyBadge icon={<GameIcon name="gunpowder" size={18} />} value={`${Math.floor(mana)}/${maxMana || 100}`} color="#c0a060" />}
+        {knowledge > 0 && <CurrencyBadge icon={<GameIcon name="fame" size={18} />} value={knowledge} color="#e0c040" />}
       </div>
       <div style={{ display: "flex", gap: 6 }}>
         {onToggleMusic && (
           <DesktopBtn onClick={onToggleMusic} opacity={musicOn ? 1 : 0.5} title={musicOn ? "Wycisz" : "Włącz dźwięk"}>
-            {musicOn ? "🔊" : "🔇"}
+            <GameIcon name={musicOn ? "soundOn" : "soundOff"} size={16} />
           </DesktopBtn>
         )}
-        {onSave && <DesktopBtn onClick={onSave} title="Zapisz grę">💾</DesktopBtn>}
-        {onBestiary && <DesktopBtn onClick={onBestiary}>📖 Lista Gończa</DesktopBtn>}
-        <DesktopBtn onClick={onShop}>🏪 Bazar Portowy</DesktopBtn>
-        <DesktopBtn onClick={onHideout}>🏚️ Baza</DesktopBtn>
-        <DesktopBtn onClick={onInv}>📜 Ekwipunek</DesktopBtn>
+        {onSave && <DesktopBtn onClick={onSave} title="Zapisz grę"><GameIcon name="save" size={16} style={{ marginRight: 4 }} />Zapisz</DesktopBtn>}
+        {onBestiary && <DesktopBtn onClick={onBestiary}><GameIcon name="wantedList" size={16} style={{ marginRight: 4 }} />Lista Gończa</DesktopBtn>}
+        <DesktopBtn onClick={onShop}><GameIcon name="shop" size={16} style={{ marginRight: 4 }} />Bazar Portowy</DesktopBtn>
+        <DesktopBtn onClick={onHideout}><GameIcon name="base" size={16} style={{ marginRight: 4 }} />Baza</DesktopBtn>
+        <DesktopBtn onClick={onInv}><GameIcon name="scroll" size={16} style={{ marginRight: 4 }} />Ekwipunek</DesktopBtn>
       </div>
     </div>
   );

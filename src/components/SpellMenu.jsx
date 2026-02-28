@@ -1,4 +1,6 @@
 import { SPELLS } from "../data/npcs";
+import GameIcon from "./GameIcon";
+import { SPELL_ICON_MAP } from "../rendering/icons";
 
 const overlayStyle = {
   position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200,
@@ -68,7 +70,9 @@ export default function SpellMenu({ target, onCast, onClose }) {
             }}
             onClick={() => onCast(spell, target)}
           >
-            <span style={{ fontSize: 28, filter: `drop-shadow(0 0 6px ${spell.color}66)` }}>{spell.icon}</span>
+            <span style={{ fontSize: 28, filter: `drop-shadow(0 0 6px ${spell.color}66)` }}>
+              {SPELL_ICON_MAP[spell.id] ? <GameIcon name={SPELL_ICON_MAP[spell.id]} size={30} /> : spell.icon}
+            </span>
             <div>
               <div style={{ fontWeight: "bold", color: spell.color, textShadow: `0 0 6px ${spell.color}33` }}>{spell.name}</div>
               <div style={{ fontSize: 12, color: "#777" }}>{spell.desc}</div>

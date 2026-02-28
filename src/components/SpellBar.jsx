@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { SPELLS } from "../data/npcs";
+import GameIcon from "./GameIcon";
+import { SPELL_ICON_MAP } from "../rendering/icons";
 
 const SPELLS_PER_PAGE = 6;
 
@@ -54,7 +56,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
         boxShadow: "0 -3px 12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(212,160,48,0.1)",
       }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 5px", borderRight: "1px solid #2a1808" }}>
-          <div style={{ fontSize: 15 }}>🪖</div>
+          <GameIcon name="gunpowder" size={18} />
           <div style={{ fontWeight: "bold", fontSize: 11, color: "#c0a060", textShadow: "0 0 6px rgba(192,160,96,0.3)" }}>{Math.floor(mana)}</div>
         </div>
         <div onClick={() => hasPrev && setPage(p => p - 1)} style={{ padding: "0 4px", fontSize: 16, color: "#e0b840", opacity: hasPrev ? 0.8 : 0.2, WebkitTapHighlightColor: "transparent" }}>◀</div>
@@ -82,7 +84,9 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
                   {SPELLS.indexOf(spell) + 1}
                 </div>
               )}
-              <span style={{ fontSize: 20, zIndex: 3, opacity: canCast ? 1 : 0.3, filter: canCast ? `drop-shadow(0 0 4px ${spell.color}66)` : "none" }}>{spell.icon}</span>
+              <span style={{ fontSize: 20, zIndex: 3, opacity: canCast ? 1 : 0.3, filter: canCast ? `drop-shadow(0 0 4px ${spell.color}66)` : "none" }}>
+                {SPELL_ICON_MAP[spell.id] ? <GameIcon name={SPELL_ICON_MAP[spell.id]} size={20} /> : spell.icon}
+              </span>
               <div style={{ fontSize: 8, fontWeight: "bold", zIndex: 3, color: isSelected ? spell.color : spell.color + "99", whiteSpace: "nowrap" }}>{spell.name}</div>
               {onCooldown && <div style={{ fontSize: 9, fontWeight: "bold", color: "#ff9040", zIndex: 3 }}>{Math.ceil((cdEnd - now) / 1000)}s</div>}
             </div>
@@ -111,7 +115,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         padding: "4px 12px", marginRight: 4, borderRight: "1px solid #2a1808",
       }}>
-        <div style={{ fontSize: 24, filter: "drop-shadow(0 0 6px rgba(192,160,96,0.4))" }}>🪖</div>
+        <GameIcon name="gunpowder" size={28} style={{ filter: "drop-shadow(0 0 6px rgba(192,160,96,0.4))" }} />
         <div style={{ fontWeight: "bold", fontSize: 14, color: "#c0a060", textShadow: "0 0 10px rgba(192,160,96,0.4)" }}>
           {Math.floor(mana)}/100
         </div>
@@ -158,10 +162,12 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
             >
               {onCooldown && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${cdPct * 100}%`, background: "rgba(0,0,0,0.6)", pointerEvents: "none", zIndex: 2, transition: "height 0.1s linear" }} />}
               <div style={{ position: "absolute", top: 1, left: 3, fontSize: 9, color: "#d4a030", fontWeight: "bold", zIndex: 4, opacity: 0.8, textShadow: "0 0 4px rgba(212,160,48,0.3)" }}>{page * SPELLS_PER_PAGE + idx + 1}</div>
-              <span style={{ fontSize: 26, position: "relative", zIndex: 3, opacity: canCast ? 1 : 0.35, filter: canCast ? `drop-shadow(0 0 6px ${spell.color}88)` : "none" }}>{spell.icon}</span>
+              <span style={{ fontSize: 26, position: "relative", zIndex: 3, opacity: canCast ? 1 : 0.35, filter: canCast ? `drop-shadow(0 0 6px ${spell.color}88)` : "none" }}>
+                {SPELL_ICON_MAP[spell.id] ? <GameIcon name={SPELL_ICON_MAP[spell.id]} size={28} /> : spell.icon}
+              </span>
               <div style={{ fontSize: 10, fontWeight: "bold", color: isSelected ? spell.color : spell.color + "aa", zIndex: 3, whiteSpace: "nowrap", textShadow: isSelected ? `0 0 6px ${spell.color}44` : "none" }}>{spell.name}</div>
               <div style={{ fontSize: 9, color: canCast ? "#6090cc" : "#804040", zIndex: 3 }}>
-                {isSummon ? <>💰 Wybierz</> : `🪖${spell.manaCost}`}
+                {isSummon ? <><GameIcon name="gold" size={12} /> Wybierz</> : <><GameIcon name="gunpowder" size={12} />{spell.manaCost}</>}
                 {isAoe && <span style={{ color: "#e0a040", marginLeft: 3 }}>⚡AoE</span>}
               </div>
               {onCooldown && <div style={{ fontSize: 11, fontWeight: "bold", color: "#ff9040", zIndex: 3 }}>{Math.ceil((cdEnd - now) / 1000)}s</div>}
@@ -178,7 +184,9 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
             boxShadow: "0 4px 16px rgba(0,0,0,0.7), inset 0 0 12px rgba(0,0,0,0.3)",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <span style={{ fontSize: 24, filter: `drop-shadow(0 0 6px ${hoveredSpell.color}88)` }}>{hoveredSpell.icon}</span>
+              <span style={{ fontSize: 24, filter: `drop-shadow(0 0 6px ${hoveredSpell.color}88)` }}>
+                {SPELL_ICON_MAP[hoveredSpell.id] ? <GameIcon name={SPELL_ICON_MAP[hoveredSpell.id]} size={26} /> : hoveredSpell.icon}
+              </span>
               <div>
                 <div style={{ fontWeight: "bold", fontSize: 13, color: hoveredSpell.color, textShadow: `0 0 6px ${hoveredSpell.color}44` }}>{hoveredSpell.name}</div>
                 <div style={{ fontSize: 10, color: "#888" }}>{hoveredSpell.element || "Neutralny"} {hoveredSpell.aoe ? "• Obszarowy" : "• Cel"}</div>
