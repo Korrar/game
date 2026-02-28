@@ -54,8 +54,8 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
         boxShadow: "0 -3px 12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(212,160,48,0.1)",
       }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 5px", borderRight: "1px solid #2a1808" }}>
-          <div style={{ fontSize: 15 }}>🔮</div>
-          <div style={{ fontWeight: "bold", fontSize: 11, color: "#60a0ff", textShadow: "0 0 6px rgba(60,120,255,0.3)" }}>{Math.floor(mana)}</div>
+          <div style={{ fontSize: 15 }}>🪖</div>
+          <div style={{ fontWeight: "bold", fontSize: 11, color: "#c0a060", textShadow: "0 0 6px rgba(192,160,96,0.3)" }}>{Math.floor(mana)}</div>
         </div>
         <div onClick={() => hasPrev && setPage(p => p - 1)} style={{ padding: "0 4px", fontSize: 16, color: "#e0b840", opacity: hasPrev ? 0.8 : 0.2, WebkitTapHighlightColor: "transparent" }}>◀</div>
         {pageSpells.map((spell) => {
@@ -111,11 +111,11 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         padding: "4px 12px", marginRight: 4, borderRight: "1px solid #2a1808",
       }}>
-        <div style={{ fontSize: 24, filter: "drop-shadow(0 0 6px rgba(60,120,255,0.4))" }}>🔮</div>
-        <div style={{ fontWeight: "bold", fontSize: 14, color: "#60a0ff", textShadow: "0 0 10px rgba(60,120,255,0.4)" }}>
+        <div style={{ fontSize: 24, filter: "drop-shadow(0 0 6px rgba(192,160,96,0.4))" }}>🪖</div>
+        <div style={{ fontWeight: "bold", fontSize: 14, color: "#c0a060", textShadow: "0 0 10px rgba(192,160,96,0.4)" }}>
           {Math.floor(mana)}/100
         </div>
-        <div style={{ fontSize: 9, color: "#4466aa", letterSpacing: 1 }}>MANA</div>
+        <div style={{ fontSize: 9, color: "#8a7040", letterSpacing: 1 }}>PROCH</div>
       </div>
 
       <div onClick={() => hasPrev && setPage(p => p - 1)} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 22, cursor: hasPrev ? "pointer" : "default", opacity: hasPrev ? 0.8 : 0.2, color: "#e0b840", fontSize: 18, fontWeight: "bold" }}>◀</div>
@@ -161,7 +161,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
               <span style={{ fontSize: 26, position: "relative", zIndex: 3, opacity: canCast ? 1 : 0.35, filter: canCast ? `drop-shadow(0 0 6px ${spell.color}88)` : "none" }}>{spell.icon}</span>
               <div style={{ fontSize: 10, fontWeight: "bold", color: isSelected ? spell.color : spell.color + "aa", zIndex: 3, whiteSpace: "nowrap", textShadow: isSelected ? `0 0 6px ${spell.color}44` : "none" }}>{spell.name}</div>
               <div style={{ fontSize: 9, color: canCast ? "#6090cc" : "#804040", zIndex: 3 }}>
-                {isSummon ? <>💰 Wybierz</> : `🔮${spell.manaCost}`}
+                {isSummon ? <>💰 Wybierz</> : `🪖${spell.manaCost}`}
                 {isAoe && <span style={{ color: "#e0a040", marginLeft: 3 }}>⚡AoE</span>}
               </div>
               {onCooldown && <div style={{ fontSize: 11, fontWeight: "bold", color: "#ff9040", zIndex: 3 }}>{Math.ceil((cdEnd - now) / 1000)}s</div>}
@@ -186,7 +186,7 @@ export default function SpellBar({ mana, selectedSpell, cooldowns, learnedSpells
             </div>
             {hoveredSpell.id !== "summon" && (
               <div style={{ fontSize: 11, color: "#aaa" }}>
-                <span style={{ color: "#e05040" }}>Obrażenia: {hoveredSpell.damage}</span> | <span style={{ color: "#60a0ff" }}>Mana: {hoveredSpell.manaCost}</span> | <span style={{ color: "#cc9040" }}>CD: {(hoveredSpell.cooldown / 1000).toFixed(1)}s</span>
+                <span style={{ color: "#e05040" }}>Obrażenia: {hoveredSpell.damage}</span> | <span style={{ color: "#c0a060" }}>Proch: {hoveredSpell.manaCost}</span> | <span style={{ color: "#cc9040" }}>CD: {(hoveredSpell.cooldown / 1000).toFixed(1)}s</span>
               </div>
             )}
           </div>

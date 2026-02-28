@@ -35,7 +35,7 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
               fontSize: 13, color: isBossRoom ? "#ff3030" : "#ff8040", fontWeight: "bold", letterSpacing: 3, marginBottom: 4,
               textShadow: isBossRoom ? "0 0 8px rgba(255,30,30,0.4)" : "0 0 8px rgba(255,120,40,0.3)",
             }}>
-              {isBossRoom ? "WALKA Z BOSSEM" : "KOMNATA OBRONNA"}
+              {isBossRoom ? "WALKA Z BOSSEM" : "ETAP OBRONNY"}
             </div>
             <div style={{ fontSize: 24, color: "#d4a030", fontWeight: "bold", textShadow: "0 0 10px rgba(212,160,48,0.3)" }}>
               {isBossRoom && boss ? (
@@ -156,7 +156,7 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
               textShadow: "0 0 10px rgba(200,40,40,0.4)",
             }}>
               {isBossRoom && boss ? (
-                <>Karawana zniszczona przez {boss.name}!</>
+                <>Konwój zniszczony przez {boss.name}!</>
               ) : (
                 <>OBRONA PRZEGRANA</>
               )}

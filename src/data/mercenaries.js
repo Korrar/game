@@ -1,11 +1,10 @@
-// Mercenary types for the summon system
+// Mercenary types for the recruit system
 // Each type has unique stats, cost, and combat style
-// Knight level applies a multiplier to hp and damage
 
 export const MERCENARY_TYPES = [
   {
-    id: "knight", emoji: "⚔️", name: "Rycerz",
-    desc: "Wytrzymały zbrojny wojownik",
+    id: "knight", emoji: "🤠", name: "Szeryf",
+    desc: "Wytrzymały stróż prawa z rewolwerem",
     hp: 45, damage: 7, speed: 0.04, attackCd: 2800,
     cost: { copper: 25 },
     bodyColor: "#7a7a8a", armorColor: "#4a4a5a",
@@ -13,7 +12,7 @@ export const MERCENARY_TYPES = [
     weapon: "sword", combatStyle: "melee",
   },
   {
-    id: "rogue", emoji: "🗡️", name: "Łotrzyk",
+    id: "rogue", emoji: "🏴‍☠️", name: "Pirat",
     desc: "Szybki zabójca, cios krytyczny przy niskim HP wroga",
     hp: 38, damage: 6, speed: 0.09, attackCd: 1200,
     cost: { copper: 20 },
@@ -23,8 +22,8 @@ export const MERCENARY_TYPES = [
     critChance: 0.25, critMult: 2.0,
   },
   {
-    id: "mage", emoji: "🔮", name: "Mag Bojowy",
-    desc: "Potężne zaklęcia obszarowe",
+    id: "mage", emoji: "🧪", name: "Alchemik",
+    desc: "Potężne bomby i mikstury",
     hp: 35, damage: 4, speed: 0.03, attackCd: 3000,
     cost: { copper: 30 },
     bodyColor: "#4a3a6a", armorColor: "#2a1a4a",
@@ -34,8 +33,8 @@ export const MERCENARY_TYPES = [
     spellCd: 2800, spellElement: "fire", meleeDamage: 4,
   },
   {
-    id: "archer", emoji: "🏹", name: "Łucznik",
-    desc: "Celne i szybkie strzały z daleka",
+    id: "archer", emoji: "🔫", name: "Strzelec",
+    desc: "Celne i szybkie strzały z karabinu",
     hp: 40, damage: 6, speed: 0.035, attackCd: 1800,
     cost: { copper: 22 },
     bodyColor: "#5a6a3a", armorColor: "#3a4a1a",
@@ -45,5 +44,5 @@ export const MERCENARY_TYPES = [
   },
 ];
 
-// Knight level multipliers for mercenary stats
+// Rank multipliers for mercenary stats
 export const LEVEL_MULTIPLIERS = [1.0, 1.3, 1.6, 2.0, 2.5];
