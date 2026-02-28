@@ -34,12 +34,15 @@ export class PixiRenderer {
     this.GY = height * 0.25;
 
     this.app = new Application();
+    // Cap resolution on mobile to reduce GPU workload
+    const isMobile = ("ontouchstart" in window || navigator.maxTouchPoints > 0) && window.innerWidth < 900;
+    const resolution = isMobile ? 1 : (window.devicePixelRatio || 1);
     await this.app.init({
       width,
       height,
       backgroundAlpha: 0,
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
+      antialias: !isMobile,
+      resolution,
       autoDensity: true,
     });
 

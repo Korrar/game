@@ -413,7 +413,8 @@ export default function App() {
       setGameDims(prev => (prev.w === dims.w && prev.h === dims.h) ? prev : dims);
       const vw = window.visualViewport?.width || window.innerWidth;
       const vh = (window.visualViewport?.height || window.innerHeight) - (mobile ? MOBILE_SPELLBAR_H : 0);
-      setGameScale(Math.min(vw / dims.w, vh / dims.h));
+      // On mobile: force full-width scale (height matches by aspect ratio)
+      setGameScale(mobile ? (vw / dims.w) : Math.min(vw / dims.w, vh / dims.h));
     };
     calc();
     window.addEventListener("resize", calc);
@@ -464,14 +465,7 @@ export default function App() {
 
   // Spawn a floating damage popup at walker's current position
   const spawnDmgPopup = useCallback((wid, text, color, element) => {
-    const wd = walkDataRef.current[wid];
-    const xPct = wd ? wd.x : 50;
-    const yPct = wd && wd.y != null ? wd.y : 65;
-    const pid = ++dmgPopupIdCounter;
-    setDmgPopups(prev => [...prev, { id: pid, x: xPct, y: yPct, text, color }]);
-    setTimeout(() => setDmgPopups(prev => prev.filter(p => p.id !== pid)), 1100);
-
-    // Also spawn PixiJS damage number for more precise positioning
+    // Spawn PixiJS damage number (GPU-rendered, no React re-renders)
     if (pixiRef.current && physicsRef.current) {
       const entry = physicsRef.current.bodies[wid];
       if (entry && entry.limbBodies && entry.limbBodies.torso) {
@@ -480,8 +474,16 @@ export default function App() {
         if (amount > 0) {
           pixiRef.current.spawnDamageNumber(pos.x, pos.y - 20, amount, element || "default", amount >= 40);
         }
+        return;
       }
     }
+    // Fallback: React popup only if PixiJS unavailable
+    const wd = walkDataRef.current[wid];
+    const xPct = wd ? wd.x : 50;
+    const yPct = wd && wd.y != null ? wd.y : 65;
+    const pid = ++dmgPopupIdCounter;
+    setDmgPopups(prev => [...prev, { id: pid, x: xPct, y: yPct, text, color }]);
+    setTimeout(() => setDmgPopups(prev => prev.filter(p => p.id !== pid)), 1100);
   }, []);
 
   // Card drop handler – called on every NPC kill
@@ -964,9 +966,6 @@ export default function App() {
                             }
                             return { ...t, hp: newHp };
                           }));
-                          const pid = ++dmgPopupIdCounter;
-                          setDmgPopups(prev => [...prev, { id: pid, x: nearTower.x, y: 60, text: `${hitDmg}`, color: "#40e060" }]);
-                          setTimeout(() => setDmgPopups(prev => prev.filter(p => p.id !== pid)), 1100);
                         }
                       );
                       // Set targetPos on the last added projectile so it hits the tower
@@ -995,9 +994,6 @@ export default function App() {
                       }
                       return { ...t, hp: newHp };
                     }));
-                    const pid = ++dmgPopupIdCounter;
-                    setDmgPopups(prev => [...prev, { id: pid, x: nearTower.x, y: 60, text: `${dmg}`, color: "#40e060" }]);
-                    setTimeout(() => setDmgPopups(prev => prev.filter(p => p.id !== pid)), 1100);
                   }
                 }
               }
@@ -3792,8 +3788,10 @@ export default function App() {
       <div ref={gameContainerRef} style={{
         width: GAME_W, height: GAME_H,
         transform: `scale(${gameScale})`,
-        transformOrigin: isMobile ? "top center" : "center center",
-        position: "relative",
+        transformOrigin: isMobile ? "top left" : "center center",
+        position: isMobile ? "absolute" : "relative",
+        top: isMobile ? 0 : undefined,
+        left: isMobile ? 0 : undefined,
         overflow: "hidden",
         animation: screenShake ? "screenShake 0.08s infinite alternate" : "none",
         touchAction: "manipulation",

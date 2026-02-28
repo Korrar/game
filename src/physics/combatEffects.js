@@ -1,7 +1,8 @@
 // Combat visual effects – blood, fire, ice, shadow, holy, melee sparks
 // Pool-based particle system rendered on the physics canvas
 
-const MAX_PARTICLES = 250;
+const _isMobile = ("ontouchstart" in window || navigator.maxTouchPoints > 0) && window.innerWidth < 900;
+const MAX_PARTICLES = _isMobile ? 100 : 250;
 
 class Particle {
   constructor() { this.alive = false; }
@@ -10,7 +11,13 @@ class Particle {
 export class CombatEffects {
   constructor() {
     this.particles = [];
+    this.mobile = _isMobile;
     for (let i = 0; i < MAX_PARTICLES; i++) this.particles.push(new Particle());
+  }
+
+  // Scale particle counts for mobile
+  _c(count) {
+    return this.mobile ? Math.ceil(count * 0.5) : count;
   }
 
   _spawn(props) {
@@ -27,7 +34,7 @@ export class CombatEffects {
 
   // ─── BLOOD ───
   spawnBlood(x, y, dirX, intensity = 1) {
-    const count = Math.floor(12 + intensity * 18);
+    const count = this._c(Math.floor(12 + intensity * 18));
     for (let i = 0; i < count; i++) {
       const angle = (dirX > 0 ? 0.3 : Math.PI - 0.3) + (Math.random() - 0.5) * 1.5;
       const speed = 2 + Math.random() * 5 * intensity;
@@ -48,7 +55,8 @@ export class CombatEffects {
 
   // ─── FIRE ───
   spawnFire(x, y) {
-    for (let i = 0; i < 20; i++) {
+    const count = this._c(20);
+    for (let i = 0; i < count; i++) {
       this._spawn({
         type: "fire",
         x: x + (Math.random() - 0.5) * 16,
@@ -64,7 +72,8 @@ export class CombatEffects {
 
   // ─── ICE SHARDS ───
   spawnIceShards(x, y, dirX) {
-    for (let i = 0; i < 14; i++) {
+    const count = this._c(14);
+    for (let i = 0; i < count; i++) {
       const angle = (dirX > 0 ? 0 : Math.PI) + (Math.random() - 0.5) * 2;
       const speed = 2 + Math.random() * 4;
       this._spawn({
@@ -83,7 +92,8 @@ export class CombatEffects {
 
   // ─── SHADOW MIST ───
   spawnShadowMist(x, y) {
-    for (let i = 0; i < 16; i++) {
+    const count = this._c(16);
+    for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 0.5 + Math.random() * 2;
       this._spawn({
@@ -101,8 +111,9 @@ export class CombatEffects {
 
   // ─── HOLY LIGHT ───
   spawnHolyLight(x, y) {
-    for (let i = 0; i < 12; i++) {
-      const angle = (i / 12) * Math.PI * 2;
+    const count = this._c(12);
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
       const speed = 2 + Math.random() * 3;
       this._spawn({
         type: "holy",
@@ -117,7 +128,8 @@ export class CombatEffects {
 
   // ─── MELEE SPARKS ───
   spawnMeleeSparks(x, y, dirX) {
-    for (let i = 0; i < 10; i++) {
+    const count = this._c(10);
+    for (let i = 0; i < count; i++) {
       const angle = (dirX > 0 ? -0.3 : Math.PI + 0.3) + (Math.random() - 0.5) * 1.8;
       const speed = 3 + Math.random() * 5;
       this._spawn({
@@ -133,7 +145,8 @@ export class CombatEffects {
 
   // ─── FIRE BREATH (cone of fire) ───
   spawnFireBreath(x, y, dirX) {
-    for (let i = 0; i < 18; i++) {
+    const count = this._c(18);
+    for (let i = 0; i < count; i++) {
       const spread = (Math.random() - 0.5) * 1.2;
       const speed = 3 + Math.random() * 5;
       this._spawn({
@@ -151,7 +164,8 @@ export class CombatEffects {
 
   // ─── POISON CLOUD ───
   spawnPoisonCloud(x, y) {
-    for (let i = 0; i < 12; i++) {
+    const count = this._c(12);
+    for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 0.3 + Math.random() * 1.5;
       this._spawn({
@@ -169,7 +183,8 @@ export class CombatEffects {
 
   // ─── ARROW TRAIL ───
   spawnArrowTrail(x, y, vx, vy) {
-    for (let i = 0; i < 4; i++) {
+    const count = this.mobile ? 2 : 4;
+    for (let i = 0; i < count; i++) {
       this._spawn({
         type: "arrowTrail",
         x: x + (Math.random() - 0.5) * 3,
@@ -184,7 +199,8 @@ export class CombatEffects {
 
   // ─── WATER/ICE SPLASH (ocean biome) ───
   spawnWaterSplash(x, y) {
-    for (let i = 0; i < 10; i++) {
+    const count = this._c(10);
+    for (let i = 0; i < count; i++) {
       this._spawn({
         type: "water",
         x: x + (Math.random() - 0.5) * 8,

@@ -2,7 +2,8 @@
 // Runs on an overlay canvas with requestAnimationFrame
 import { getIconImage } from "../rendering/icons.js";
 
-const MAX_PARTICLES = 300;
+const _isMobile = ("ontouchstart" in window || navigator.maxTouchPoints > 0) && window.innerWidth < 900;
+const MAX_PARTICLES = _isMobile ? 120 : 300;
 
 class Particle {
   constructor() { this.alive = false; }

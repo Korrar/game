@@ -24,6 +24,23 @@ const CRIT_STYLE = new TextStyle({
   },
 });
 
+// Cache normal styles per element color to avoid allocations per spawn
+const _styleCache = {};
+function getNormalStyle(color) {
+  if (_styleCache[color]) return _styleCache[color];
+  const style = new TextStyle({
+    fontSize: 15,
+    fontWeight: "bold",
+    fontFamily: "'Segoe UI', monospace",
+    fill: color,
+    stroke: { color: "#000000", width: 2 },
+  });
+  _styleCache[color] = style;
+  return style;
+}
+
+const MAX_DAMAGE_NUMBERS = 30;
+
 export class DamageNumbers {
   constructor(layer) {
     this.layer = layer;
@@ -31,16 +48,16 @@ export class DamageNumbers {
   }
 
   spawn(x, y, amount, element, isCrit = false) {
+    // Cap active damage numbers to prevent accumulation
+    if (this.numbers.length >= MAX_DAMAGE_NUMBERS) {
+      const oldest = this.numbers.shift();
+      this.layer.removeChild(oldest.text);
+      oldest.text.destroy();
+    }
+
     const color = ELEMENT_COLORS[element] || ELEMENT_COLORS.default;
     const text = isCrit ? `${amount}!` : `${amount}`;
-
-    const style = isCrit ? CRIT_STYLE : new TextStyle({
-      fontSize: isCrit ? 20 : 15,
-      fontWeight: "bold",
-      fontFamily: "'Segoe UI', monospace",
-      fill: color,
-      stroke: { color: "#000000", width: 2 },
-    });
+    const style = isCrit ? CRIT_STYLE : getNormalStyle(color);
 
     const textObj = new Text({ text, style });
     textObj.anchor.set(0.5, 0.5);
