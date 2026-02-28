@@ -8,6 +8,7 @@ import { KNIGHT_LEVELS } from "./data/knightLevels";
 import { MERCENARY_TYPES } from "./data/mercenaries";
 import { SHOP_TOOLS, MANA_POTIONS, AMMO_ITEMS, pickResource, MINE_TIMES } from "./data/shopItems";
 import { pickNpc, SPELLS, RESIST_NAMES } from "./data/npcs";
+import { SKILLSHOT_TYPES, ACCURACY_COMBO_THRESHOLD, ACCURACY_COMBO_BONUS, HEADSHOT_BONUS, DODGE_ROLL_COOLDOWN, DODGE_ROLL_DURATION, BARREL_HP, BARREL_SPLASH_RADIUS, BARREL_DAMAGE } from "./data/skillshots";
 import { totalCopper, copperToMoney, pickTreasure, formatValHTML } from "./utils/helpers";
 import { rollRandomEvent } from "./data/randomEvents";
 import { rollWeather, applyWeatherDamage } from "./data/weather";
@@ -267,6 +268,27 @@ export default function App() {
   const [comboCounter, setComboCounter] = useState(0);
   const [activeCombo, setActiveCombo] = useState(null);
   const comboTimerRef = useRef(null);
+
+  // ─── FEATURE: Skillshot Aiming System ───
+  const [skillshotMode, setSkillshotMode] = useState(false); // true when player is aiming
+  const [skillshotSpell, setSkillshotSpell] = useState(null); // spell being aimed
+  const [accuracy, setAccuracy] = useState({ hits: 0, misses: 0, headshots: 0 });
+  const [accuracyStreak, setAccuracyStreak] = useState(0); // consecutive hits without miss
+  const accuracyStreakRef = useRef(0);
+  accuracyStreakRef.current = accuracyStreak;
+  const [slowMotion, setSlowMotion] = useState(false);
+  const slowMotionRef = useRef(false);
+  slowMotionRef.current = slowMotion;
+
+  // ─── FEATURE: Dodge Roll ───
+  const [dodgeRollCooldown, setDodgeRollCooldown] = useState(0);
+  const [isDodging, setIsDodging] = useState(false);
+  const dodgeRollRef = useRef({ cooldown: 0, active: false });
+
+  // ─── FEATURE: Interactive Environment (Barrels) ───
+  const [barrels, setBarrels] = useState([]); // [{id, x, y, hp, exploded}]
+  const barrelsRef = useRef([]);
+  barrelsRef.current = barrels;
 
   // ─── FEATURE: XP & Level System ───
   const [playerXp, setPlayerXp] = useState(0);
@@ -644,6 +666,11 @@ export default function App() {
 
   // Enemy attacks caravan (called from RAF loop via ref)
   attackCaravanRef.current = (enemyId, damage) => {
+    // Dodge roll: player is invulnerable during dodge
+    if (dodgeRollRef.current.active) {
+      spawnDmgPopup(enemyId, "UNIK!", "#40c0ff");
+      return;
+    }
     // ice_core: 25% chance to fully block
     if (hasRelic("ice_core") && Math.random() < 0.25) {
       spawnDmgPopup(enemyId, "BLOK!", "#40a8b8");
@@ -1245,6 +1272,15 @@ export default function App() {
           if (Math.random() < 0.003) w.yDir *= -1;
         }
 
+        // ─── Enemy Dodge: react to incoming skillshots ───
+        if (!w.friendly && physicsRef.current) {
+          const physEntry = physicsRef.current.bodies[id];
+          if (physEntry && physEntry._dodging && physEntry._dodgeDir && w.y != null) {
+            w.y += physEntry._dodgeDir * 0.5; // dodge sideways in Y
+            w.y = Math.max(w.minY || 25, Math.min(w.maxY || 90, w.y));
+          }
+        }
+
         // ─── Elite: Dark – HP regen (regenPct % of maxHp per second) ───
         if (w.isElite && w.eliteMod?.regenPct) {
           const walkerState = walkersRef.current.find(ww => ww.id === parseInt(id));
@@ -1698,6 +1734,26 @@ export default function App() {
     setDmgPopups([]);
     setInspectedNpc(null);
     setSummonPicker(false);
+    setSkillshotMode(false);
+    setSkillshotSpell(null);
+
+    // Spawn interactive barrels (30% chance per room, 1-3 barrels)
+    if (Math.random() < 0.30) {
+      const numBarrels = 1 + Math.floor(Math.random() * 3);
+      const newBarrels = [];
+      for (let i = 0; i < numBarrels; i++) {
+        newBarrels.push({
+          id: Date.now() + i,
+          x: 25 + Math.random() * 55,
+          y: 55 + Math.random() * 30,
+          hp: BARREL_HP,
+          exploded: false,
+        });
+      }
+      setBarrels(newBarrels);
+    } else {
+      setBarrels([]);
+    }
 
     // Spawn physics NPCs
     if (physicsRef.current) {
@@ -2922,6 +2978,278 @@ export default function App() {
     }, 500);
   }, [money, cooldowns, knightLevel, showMessage]);
 
+  // ─── SKILLSHOT: Process damage when a player skillshot projectile hits an enemy ───
+  const processSkillshotHit = useCallback((spell, walkerId, damage, element, isHeadshot) => {
+    setWalkers(prev => prev.map(w => {
+      if (w.id !== walkerId || !w.alive || w.dying) return w;
+      const npcData = w.npcData;
+      const resistant = npcData.resist && npcData.resist === element;
+      const spellUps = spellUpgradesRef.current[spell.id] || [];
+      const upgradedStats = getUpgradedSpellStats(spell, spellUps);
+      let dmg = Math.round(upgradedStats.damage * (resistant ? RESIST_MULT : 1));
+      dmg = applyWeatherDamage(dmg, element, weatherRef.current);
+      if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
+      dmg = Math.round(dmg * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
+      dmg = Math.round(dmg * perkSpellDmgMult);
+      if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
+
+      // Headshot bonus: +50% damage
+      if (isHeadshot) dmg = Math.round(dmg * (1 + HEADSHOT_BONUS));
+
+      // Accuracy streak bonus
+      if (accuracyStreakRef.current >= ACCURACY_COMBO_THRESHOLD) {
+        dmg = Math.round(dmg * (1 + ACCURACY_COMBO_BONUS));
+      }
+
+      // Element combo system
+      let comboText = null;
+      const prevDebuff = elementDebuffs.current[walkerId];
+      if (prevDebuff && element && prevDebuff.element !== element && Date.now() - prevDebuff.timestamp < 5000) {
+        const comboKey = [prevDebuff.element, element].sort().join("+");
+        const combo = COMBOS[comboKey];
+        if (combo) {
+          const streakBonus = Math.min(COMBO_STREAK_CAP, comboCounter * COMBO_STREAK_BONUS);
+          dmg = Math.round(dmg * (combo.mult + streakBonus));
+          comboText = combo;
+          setComboCounter(prev => prev + 1);
+          setActiveCombo(combo);
+          if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+          comboTimerRef.current = setTimeout(() => { setComboCounter(0); setActiveCombo(null); }, COMBO_STREAK_TIMEOUT);
+        }
+      }
+      if (element) elementDebuffs.current[walkerId] = { element, timestamp: Date.now() };
+      const wd = walkDataRef.current[walkerId];
+      const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
+
+      if (resistant) {
+        const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
+        showMessage(`${npcData.name} odporny na ${resistLabel}! (-70% obrażeń)`, "#6688aa");
+      }
+      if (comboText) {
+        showMessage(`COMBO: ${comboText.name}! (x${comboText.mult.toFixed(1)})`, comboText.color);
+      }
+
+      // Show damage popup
+      let dmgLabel = `${dmg}`;
+      let dmgColor = spell.color;
+      if (isHeadshot) { dmgLabel = `HEADSHOT! ${dmg}`; dmgColor = "#ff4040"; }
+      else if (comboText) { dmgLabel = `COMBO x${comboCounter}! ${dmg}`; dmgColor = comboText.color; }
+      else if (resistant) { dmgLabel = `${dmg} BLOK`; dmgColor = "#6688aa"; }
+      spawnDmgPopup(walkerId, dmgLabel, dmgColor);
+
+      // blood_weapon relic
+      if (hasRelic("blood_weapon")) {
+        const friendlies = prev.filter(ww => ww.alive && !ww.dying && ww.friendly && ww.hp < ww.maxHp);
+        if (friendlies.length > 0) {
+          const target = friendlies[Math.floor(Math.random() * friendlies.length)];
+          const healMult = hasSynergy("desperacka_krew") && target.hp / target.maxHp < 0.30 ? 0.30 : 0.15;
+          const healAmt = Math.round(dmg * healMult);
+          setTimeout(() => {
+            setWalkers(pr => pr.map(ww => ww.id === target.id ? { ...ww, hp: Math.min(ww.maxHp, ww.hp + healAmt) } : ww));
+            spawnDmgPopup(target.id, `+${healAmt}`, "#40e060");
+          }, 50);
+        }
+      }
+
+      // storm_echo chain
+      const chainChance = hasSynergy("burzowy_szal") ? 0.50 : 0.30;
+      if (hasRelic("storm_echo") && element === "lightning" && Math.random() < chainChance) {
+        const otherEnemies = prev.filter(ww => ww.alive && !ww.dying && !ww.friendly && ww.id !== walkerId);
+        if (otherEnemies.length > 0) {
+          const chain = otherEnemies[Math.floor(Math.random() * otherEnemies.length)];
+          const chainDmg = Math.round(dmg * 0.60);
+          spawnDmgPopup(chain.id, `${chainDmg}`, "#60c0ff");
+          setTimeout(() => {
+            setWalkers(pr => pr.map(ww => {
+              if (ww.id !== chain.id) return ww;
+              const nhp = Math.max(0, ww.hp - chainDmg);
+              if (nhp <= 0) {
+                sfxNpcDeath();
+                if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                addMoneyFn(ww.npcData.loot);
+                if (hasRelic("golden_reaper")) addMoneyFn(ww.npcData.loot);
+                setKills(k => k + 1);
+                setTimeout(() => setWalkers(ppr => ppr.filter(www => www.id !== ww.id)), 2500);
+                return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+              }
+              return { ...ww, hp: nhp };
+            }));
+          }, 100);
+        }
+      }
+
+      // Drain: heal mana
+      if (spell.id === "drain") {
+        const healAmount = Math.round(dmg * 0.5);
+        setMana(m => Math.min(MAX_MANA, m + healAmount));
+        showMessage(`Zrabowano ${healAmount} prochu!`, "#c02060");
+      }
+
+      const newHp = Math.max(0, w.hp - dmg);
+      if (newHp <= 0) {
+        sfxNpcDeath();
+        if (walkDataRef.current[walkerId]) walkDataRef.current[walkerId].alive = false;
+        if (physicsRef.current) physicsRef.current.triggerRagdoll(walkerId, element, spellDirX);
+        addMoneyFn(npcData.loot);
+        if (hasRelic("golden_reaper")) addMoneyFn(npcData.loot);
+        if (hasSynergy("piracki_monopol") && Math.random() < 0.20) {
+          const bt = pickTreasure(roomRef.current);
+          bt.biome = "Monopol"; bt.room = room;
+          setInventory(prev2 => [...prev2, bt]);
+        }
+        if (perkLootMult > 1 && npcData.loot) {
+          const bonusCu = Math.round((npcData.loot.copper || 0) * (perkLootMult - 1));
+          if (bonusCu > 0) addMoneyFn({ copper: bonusCu });
+        }
+        setKills(k => k + 1);
+        handleCardDrop(npcData);
+        rollAmmoDrop();
+        const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
+        grantXp(xpAmt);
+        processKillStreak();
+
+        // Check if last enemy in wave → slow motion effect
+        const aliveEnemies = prev.filter(ww => ww.alive && !ww.dying && !ww.friendly && ww.id !== walkerId);
+        if (aliveEnemies.length === 0) {
+          setSlowMotion(true);
+          setTimeout(() => setSlowMotion(false), 1000);
+        }
+
+        showMessage(`${npcData.name} pokonany! +${formatLootText(npcData.loot)}`, "#e05040");
+        setTimeout(() => setWalkers(pr => pr.map(ww => ww.id === walkerId ? { ...ww, alive: false } : ww)), 2500);
+        return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
+      }
+      if (physicsRef.current) physicsRef.current.applyHit(walkerId, element, spellDirX);
+      return { ...w, hp: newHp };
+    }));
+  }, [mana, addMoneyFn, showMessage, spawnDmgPopup]);
+
+  // ─── SKILLSHOT: Fire a skillshot projectile toward target coordinates ───
+  const castSkillshot = useCallback((spell, targetPx, targetPy) => {
+    if (!canCastSpell(spell)) {
+      if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
+        const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
+        showMessage(`Brak ${ammoNames[spell.ammoCost.type] || "amunicji"}!`, "#c04040");
+      } else if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
+      else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
+      return;
+    }
+
+    // Spend mana & set cooldown
+    setMana(m => m - getSpellManaCost(spell));
+    if (spell.ammoCost) {
+      const spellUps = spellUpgradesRef.current[spell.id] || [];
+      const uStats = getUpgradedSpellStats(spell, spellUps);
+      const ammoCost = Math.max(1, spell.ammoCost.amount - uStats.ammoCostReduction);
+      setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
+    }
+    {
+      const spellUps = spellUpgradesRef.current[spell.id] || [];
+      const uStats = getUpgradedSpellStats(spell, spellUps);
+      const finalCd = Math.round(uStats.cooldown * perkCooldownMult);
+      setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
+    }
+
+    const sfxFn = SPELL_SFX[spell.id];
+    if (sfxFn) sfxFn();
+
+    // Screen shake for AoE spells
+    const cfg = SKILLSHOT_TYPES[spell.id];
+    if (cfg && (cfg.type === "area" || spell.id === "earthquake")) {
+      setScreenShake(true);
+      setTimeout(() => setScreenShake(false), cfg.type === "area" ? 600 : 800);
+    }
+
+    // Spawn skillshot projectile in physics
+    if (physicsRef.current) {
+      const spellUps = spellUpgradesRef.current[spell.id] || [];
+      const uStats = getUpgradedSpellStats(spell, spellUps);
+
+      physicsRef.current.spawnPlayerSkillshot(
+        spell.id, targetPx, targetPy,
+        uStats.damage, spell.element,
+        // onHit callback
+        (hitId, damage, element, isHeadshot) => {
+          // Track accuracy
+          setAccuracy(prev => ({
+            ...prev,
+            hits: prev.hits + 1,
+            headshots: isHeadshot ? prev.headshots + 1 : prev.headshots,
+          }));
+          setAccuracyStreak(prev => prev + 1);
+
+          if (isHeadshot) {
+            showMessage("HEADSHOT! +50% obrażeń!", "#ff4040");
+          }
+
+          // Accuracy combo notification
+          if (accuracyStreakRef.current + 1 >= ACCURACY_COMBO_THRESHOLD && (accuracyStreakRef.current + 1) % ACCURACY_COMBO_THRESHOLD === 0) {
+            showMessage(`Celność x${accuracyStreakRef.current + 1}! +25% obrażeń!`, "#ffd700");
+          }
+
+          processSkillshotHit(spell, hitId, damage, element, isHeadshot);
+        },
+        // onMiss callback
+        () => {
+          setAccuracy(prev => ({ ...prev, misses: prev.misses + 1 }));
+          setAccuracyStreak(0);
+          // Visual feedback for miss
+          showMessage("Pudło!", "#888888");
+        },
+        // onHeadshot callback (special headshot handling)
+        (hitId, damage, element) => {
+          setAccuracy(prev => ({ ...prev, hits: prev.hits + 1, headshots: prev.headshots + 1 }));
+          setAccuracyStreak(prev => prev + 1);
+          showMessage("HEADSHOT! +50% obrażeń!", "#ff4040");
+          processSkillshotHit(spell, hitId, damage, element, true);
+        }
+      );
+    }
+
+    // Play spell animation
+    if (animatorRef.current) {
+      if (cfg && cfg.type === "area") {
+        const enemyPositions = [];
+        const curWalkers = walkersRef.current || [];
+        curWalkers.forEach(w => {
+          if (w.friendly || !w.alive || w.dying) return;
+          const el = npcElsRef.current[w.id];
+          if (el && gameContainerRef.current) {
+            const gr = gameContainerRef.current.getBoundingClientRect();
+            const r = el.getBoundingClientRect();
+            enemyPositions.push({
+              x: ((r.left + r.width / 2) - gr.left) / gameScale,
+              y: ((r.top + r.height / 2) - gr.top) / gameScale,
+            });
+          }
+        });
+        animatorRef.current.playAoeSpell(spell.id, spell.color, spell.colorLight, enemyPositions);
+      } else {
+        animatorRef.current.playSpell(spell.id, targetPx, targetPy, spell.color, spell.colorLight);
+      }
+    }
+
+    // Keep spell selected for repeated shots (don't deselect)
+    // setSelectedSpell(null); -- removed: keep spell active for continuous skillshots
+  }, [mana, cooldowns, showMessage, processSkillshotHit, spawnDmgPopup]);
+
+  // ─── SKILLSHOT: Canvas click handler for aiming ───
+  const handleSkillshotClick = useCallback((e) => {
+    if (!selectedSpell || !gameContainerRef.current) return;
+    const spell = SPELLS.find(s => s.id === selectedSpell);
+    if (!spell || !spell.skillshot) return;
+    if (spell.id === "summon") return;
+
+    // Get click position in game coordinates
+    const gr = gameContainerRef.current.getBoundingClientRect();
+    const clickX = (e.clientX - gr.left) / gameScale;
+    const clickY = (e.clientY - gr.top) / gameScale;
+
+    // Convert to physics pixel coordinates
+    // The physics uses GAME_W/GAME_H coordinates
+    castSkillshot(spell, clickX, clickY);
+  }, [selectedSpell, gameScale, castSkillshot]);
+
   const castSpellOnTarget = useCallback((spell, walker) => {
     if (!canCastSpell(spell)) {
       if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
@@ -3354,12 +3682,26 @@ export default function App() {
     }
     const spell = SPELLS.find(s => s.id === selectedSpell);
     if (!spell) return;
+
+    // Skillshot spells: clicking on NPC fires a skillshot aimed at the NPC's position
+    if (spell.skillshot) {
+      const el = npcElsRef.current[walker.id];
+      if (el && gameContainerRef.current) {
+        const gr = gameContainerRef.current.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        const tx = ((r.left + r.width / 2) - gr.left) / gameScale;
+        const ty = ((r.top + r.height / 2) - gr.top) / gameScale;
+        castSkillshot(spell, tx, ty);
+      }
+      return;
+    }
+
     if (spell.aoe) { castAoeSpell(spell); return; }
     // AoE upgrade redirect
     const spUps = spellUpgradesRef.current[spell.id] || [];
     if (spUps.includes("aoe")) { castAoeSpell(spell); return; }
 
-    // First cast immediately
+    // First cast immediately (legacy non-skillshot)
     castSpellOnTarget(spell, walker);
 
     // Enable auto-attack on this target with the selected spell
@@ -3404,12 +3746,31 @@ export default function App() {
     if (spellId === "summon") {
       setSummonPicker(prev => !prev);
       setSelectedSpell(null);
+      setSkillshotMode(false);
+      setSkillshotSpell(null);
       return;
     }
     setSummonPicker(false);
-    // AoE spells cast immediately on selection (no target needed)
+
     const spell = SPELLS.find(s => s.id === spellId);
-    if (spell && spell.aoe) {
+
+    // Skillshot spells: select and enter aiming mode (even AoE ones)
+    if (spell && spell.skillshot) {
+      if (selectedSpell === spellId) {
+        // Deselect
+        setSelectedSpell(null);
+        setSkillshotMode(false);
+        setSkillshotSpell(null);
+      } else {
+        setSelectedSpell(spellId);
+        setSkillshotMode(true);
+        setSkillshotSpell(spell);
+      }
+      return;
+    }
+
+    // Non-skillshot AoE spells cast immediately (legacy support)
+    if (spell && spell.aoe && !spell.skillshot) {
       castAoeSpell(spell);
       return;
     }
@@ -3431,16 +3792,39 @@ export default function App() {
         if (spell) handleSelectSpellRef.current(spell.id);
         return;
       }
-      // Escape to cancel selection + auto-attack
+      // Escape to cancel selection + auto-attack + skillshot mode
       if (e.key === "Escape") {
         setSelectedSpell(null);
         setAutoAttackTarget(null);
+        setSkillshotMode(false);
+        setSkillshotSpell(null);
         return;
       }
       // Q to toggle auto-attack off
       if (e.key === "q" || e.key === "Q") {
         setAutoAttackTarget(null);
         showMessage("Auto-atak wyłączony", "#888");
+        return;
+      }
+      // SPACE — dodge roll
+      if (e.key === " " || e.code === "Space") {
+        e.preventDefault();
+        const now = Date.now();
+        if (dodgeRollRef.current.cooldown && now < dodgeRollRef.current.cooldown) {
+          const remaining = Math.ceil((dodgeRollRef.current.cooldown - now) / 1000);
+          showMessage(`Unik: ${remaining}s...`, "#888");
+          return;
+        }
+        dodgeRollRef.current.cooldown = now + DODGE_ROLL_COOLDOWN;
+        dodgeRollRef.current.active = true;
+        setIsDodging(true);
+        setDodgeRollCooldown(now + DODGE_ROLL_COOLDOWN);
+        showMessage("Unik!", "#40c0ff");
+        // During dodge, player is invulnerable to enemy attacks
+        setTimeout(() => {
+          dodgeRollRef.current.active = false;
+          setIsDodging(false);
+        }, DODGE_ROLL_DURATION);
         return;
       }
     };
@@ -3785,7 +4169,7 @@ export default function App() {
       )}
 
       {/* Scaled game container – fills entire screen on mobile */}
-      <div ref={gameContainerRef} style={{
+      <div ref={gameContainerRef} onClick={skillshotMode ? handleSkillshotClick : undefined} style={{
         width: GAME_W, height: GAME_H,
         transform: `scale(${gameScale})`,
         transformOrigin: isMobile ? "top left" : "center center",
@@ -3793,7 +4177,10 @@ export default function App() {
         top: isMobile ? 0 : undefined,
         left: isMobile ? 0 : undefined,
         overflow: "hidden",
-        animation: screenShake ? "screenShake 0.08s infinite alternate" : "none",
+        cursor: skillshotMode ? "crosshair" : "default",
+        animation: slowMotion
+          ? "slowMoFlash 1s ease-out forwards"
+          : screenShake ? "screenShake 0.08s infinite alternate" : "none",
         touchAction: "manipulation",
         WebkitTouchCallout: "none",
       }}>
@@ -3838,6 +4225,74 @@ export default function App() {
         />
       )}
       <ComboOverlay combo={activeCombo} comboCounter={comboCounter} />
+
+      {/* Skillshot Mode Indicator */}
+      {skillshotMode && skillshotSpell && (
+        <div style={{
+          position: "absolute", bottom: isMobile ? 70 : 90, left: "50%", transform: "translateX(-50%)",
+          background: "rgba(0,0,0,0.8)", border: `2px solid ${skillshotSpell.color}`,
+          padding: "4px 16px", borderRadius: 6, zIndex: 25,
+          color: skillshotSpell.color, fontWeight: "bold", fontSize: isMobile ? 11 : 14,
+          textShadow: `0 0 8px ${skillshotSpell.color}88`,
+          animation: "gemPulse 1.5s ease-in-out infinite",
+          pointerEvents: "none",
+        }}>
+          <Icon name={skillshotSpell.icon} size={16} style={{ marginRight: 6 }} />
+          CELUJ: {skillshotSpell.name}
+          <span style={{ color: "#888", fontSize: 10, marginLeft: 8 }}>[ESC] anuluj</span>
+        </div>
+      )}
+
+      {/* Accuracy Display */}
+      {(accuracy.hits > 0 || accuracy.misses > 0) && (
+        <div style={{
+          position: "absolute", top: isMobile ? 42 : 60, right: 8,
+          background: "rgba(0,0,0,0.75)", border: "1px solid #555",
+          padding: "3px 8px", borderRadius: 4, zIndex: 20,
+          fontSize: isMobile ? 9 : 11, color: "#ccc",
+          pointerEvents: "none",
+        }}>
+          <span style={{ color: "#40c040" }}>{accuracy.hits}</span>
+          <span style={{ color: "#666" }}>/</span>
+          <span style={{ color: "#c04040" }}>{accuracy.misses}</span>
+          {" "}
+          <span style={{ color: accuracy.hits / (accuracy.hits + accuracy.misses) > 0.7 ? "#ffd700" : "#888" }}>
+            {accuracy.hits + accuracy.misses > 0 ? Math.round(accuracy.hits / (accuracy.hits + accuracy.misses) * 100) : 0}%
+          </span>
+          {accuracy.headshots > 0 && (
+            <span style={{ color: "#ff4040", marginLeft: 4 }}>HS:{accuracy.headshots}</span>
+          )}
+          {accuracyStreak >= ACCURACY_COMBO_THRESHOLD && (
+            <span style={{ color: "#ffd700", marginLeft: 4, animation: "gemPulse 1s infinite" }}>x{accuracyStreak}</span>
+          )}
+        </div>
+      )}
+
+      {/* Dodge Roll Cooldown Indicator */}
+      {isDodging && (
+        <div style={{
+          position: "absolute", bottom: isMobile ? 130 : 150, left: "50%", transform: "translateX(-50%)",
+          background: "rgba(64,192,255,0.2)", border: "2px solid #40c0ff",
+          padding: "4px 16px", borderRadius: 20, zIndex: 25,
+          color: "#40c0ff", fontWeight: "bold", fontSize: 16,
+          textShadow: "0 0 12px rgba(64,192,255,0.8)",
+          animation: "gemPulse 0.2s infinite",
+          pointerEvents: "none",
+        }}>
+          UNIK!
+        </div>
+      )}
+
+      {/* Slow Motion Effect Overlay */}
+      {slowMotion && (
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          background: "radial-gradient(ellipse at center, rgba(255,220,100,0.1) 0%, rgba(0,0,0,0.2) 100%)",
+          pointerEvents: "none", zIndex: 16,
+          animation: "slowMoFlash 1s ease-out forwards",
+        }} />
+      )}
+
       {!defenseMode && <PowerSpikeWarning show={powerSpikeWarning} />}
       <RelicPicker choices={relicChoices} onSelect={selectRelic} isMobile={isMobile} />
       <SpellUpgradePicker choices={upgradeChoices} onSelect={selectUpgrade} isMobile={isMobile} />
@@ -4491,6 +4946,92 @@ export default function App() {
 
         return null;
       })}
+
+      {/* ─── INTERACTIVE BARRELS ─── */}
+      {barrels.map(barrel => !barrel.exploded && (
+        <div
+          key={barrel.id}
+          onClick={() => {
+            if (!selectedSpell || !skillshotMode) return;
+            // Clicking barrel directly fires a skillshot at it
+            const spell = SPELLS.find(s => s.id === selectedSpell);
+            if (!spell) return;
+            const bx = GAME_W * (barrel.x / 100);
+            const by = GAME_H * (barrel.y / 100);
+            castSkillshot(spell, bx, by);
+            // Explode barrel on any hit near it
+            setTimeout(() => {
+              setBarrels(prev => prev.map(b => {
+                if (b.id !== barrel.id || b.exploded) return b;
+                // Barrel explosion: damage all enemies in range
+                const curWalkers = walkersRef.current;
+                curWalkers.forEach(w => {
+                  if (w.friendly || !w.alive || w.dying) return;
+                  const wd = walkDataRef.current[w.id];
+                  if (!wd) return;
+                  const dx = wd.x - barrel.x;
+                  const dy = ((wd.y || 50) - barrel.y) * 0.5;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  if (dist < 20) { // close enough
+                    const dmg = BARREL_DAMAGE + Math.floor(Math.random() * 15);
+                    spawnDmgPopup(w.id, `${dmg}`, "#ff6020");
+                    setWalkers(pr => pr.map(ww => {
+                      if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
+                      const newHp = Math.max(0, ww.hp - dmg);
+                      if (newHp <= 0) {
+                        sfxNpcDeath();
+                        if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                        if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "fire", Math.sign(dx) || 1);
+                        addMoneyFn(ww.npcData.loot);
+                        setKills(k => k + 1);
+                        processKillStreak();
+                        showMessage(`${ww.npcData.name} pokonany eksplozją!`, "#ff6020");
+                        setTimeout(() => setWalkers(ppr => ppr.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                        return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                      }
+                      if (physicsRef.current) physicsRef.current.applyHit(ww.id, "fire", Math.sign(dx) || 1);
+                      return { ...ww, hp: newHp };
+                    }));
+                  }
+                });
+                if (animatorRef.current) {
+                  animatorRef.current.playMeteorImpact(GAME_W * (barrel.x / 100), GAME_H * (barrel.y / 100));
+                }
+                sfxMeteorImpact();
+                showMessage("Beczka eksplodowała!", "#ff6020");
+                return { ...b, exploded: true };
+              }));
+            }, 500);
+          }}
+          style={{
+            position: "absolute",
+            left: `${barrel.x}%`,
+            top: `${barrel.y}%`,
+            transform: "translate(-50%, -50%)",
+            zIndex: 10,
+            cursor: skillshotMode ? "crosshair" : "pointer",
+            userSelect: "none",
+          }}
+        >
+          <div style={{
+            width: 24, height: 30,
+            background: "linear-gradient(135deg, #6a4020, #4a2810)",
+            border: "2px solid #8a5a30",
+            borderRadius: "4px 4px 6px 6px",
+            position: "relative",
+            boxShadow: "inset 0 -4px 8px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.5)",
+          }}>
+            {/* Metal bands */}
+            <div style={{ position: "absolute", top: 5, left: 0, right: 0, height: 3, background: "#808080", opacity: 0.6 }} />
+            <div style={{ position: "absolute", top: 18, left: 0, right: 0, height: 3, background: "#808080", opacity: 0.6 }} />
+            {/* Warning symbol */}
+            <div style={{
+              position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
+              fontSize: 10, color: "#ff4020", fontWeight: "bold",
+            }}>!</div>
+          </div>
+        </div>
+      ))}
 
       {/* ─── WALKING NPCs (DOM hitboxes – visual rendering on physics canvas) ─── */}
       {walkers.map(w => {
@@ -5229,6 +5770,7 @@ export default function App() {
         @keyframes xpFill{0%{background-position:200% 0}100%{background-position:-200% 0}}
         @keyframes streakPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
         @keyframes bossWarningPulse{0%,100%{opacity:0.6;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.05)}}
+        @keyframes slowMoFlash{0%{filter:saturate(1.5) brightness(1.2)}50%{filter:saturate(0.7) brightness(0.9)}100%{filter:saturate(1) brightness(1)}}
       `}</style>
     </div>
   );

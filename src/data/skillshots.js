@@ -1,0 +1,119 @@
+// Skillshot configuration — defines projectile behavior for each spell type
+// Each spell gets a skillshot type that determines how the projectile travels
+
+export const SKILLSHOT_TYPES = {
+  // Dynamit — arc trajectory (parabola), explodes on ground or enemy hit, splash damage
+  fireball: {
+    type: "arc",
+    speed: 5,
+    gravity: 0.15,
+    size: 12,          // projectile visual radius
+    hitRadius: 20,     // collision radius (pixels)
+    splashRadius: 50,  // AoE splash radius (pixels)
+    splashDamageMult: 0.5, // splash damage = 50% of direct hit
+    trail: "fire",
+    explodeOnGround: true,
+  },
+  // Strzał Snajpera — fast straight line, narrow hitbox
+  lightning: {
+    type: "linear",
+    speed: 14,
+    gravity: 0,
+    size: 4,
+    hitRadius: 10,
+    splashRadius: 0,
+    trail: "spark",
+    pierce: false,
+  },
+  // Harpun — medium speed, pierces first enemy
+  icelance: {
+    type: "linear",
+    speed: 8,
+    gravity: 0,
+    size: 8,
+    hitRadius: 14,
+    splashRadius: 0,
+    trail: "ice",
+    pierce: true,
+    maxPierce: 1,
+  },
+  // Strzał z Armaty — slow, large projectile with splash damage
+  holybeam: {
+    type: "linear",
+    speed: 4,
+    gravity: 0.03,
+    size: 16,
+    hitRadius: 24,
+    splashRadius: 60,
+    splashDamageMult: 0.6,
+    trail: "fire",
+    explodeOnGround: true,
+  },
+  // Salwa Armatnia — player marks area, after 1s bombardment falls
+  meteor: {
+    type: "area",
+    delay: 1000,       // ms before impact
+    splashRadius: 80,  // large AoE
+    indicatorColor: "#ff4020",
+  },
+  // Grad Kul — rain of bullets in targeted area
+  blizzard: {
+    type: "area",
+    delay: 800,
+    splashRadius: 70,
+    indicatorColor: "#80d0ff",
+  },
+  // Piracki Haracz — medium speed shadow bolt
+  drain: {
+    type: "linear",
+    speed: 7,
+    gravity: 0,
+    size: 10,
+    hitRadius: 16,
+    splashRadius: 0,
+    trail: "shadow",
+    pierce: false,
+  },
+  // Rykoszet — bouncing projectile (hits first, then chains)
+  chainlightning: {
+    type: "linear",
+    speed: 10,
+    gravity: 0,
+    size: 6,
+    hitRadius: 14,
+    splashRadius: 0,
+    trail: "spark",
+    pierce: false,
+    chainOnHit: true,
+    maxChains: 3,
+    chainDamageMult: 0.6,
+  },
+  // Mina Wybuchowa — player places mine, explodes when enemy steps on it
+  earthquake: {
+    type: "mine",
+    triggerRadius: 30,  // pixels proximity to trigger
+    splashRadius: 70,
+    armDelay: 500,      // ms before mine is armed
+  },
+};
+
+// Accuracy tracking constants
+export const ACCURACY_COMBO_THRESHOLD = 3;    // hits without miss for combo
+export const ACCURACY_COMBO_BONUS = 0.25;     // +25% damage bonus on accuracy combo
+export const HEADSHOT_BONUS = 0.5;            // +50% damage for center hits
+export const HEADSHOT_RADIUS_MULT = 0.3;      // headshot = within 30% of body center
+
+// Dodge roll constants
+export const DODGE_ROLL_COOLDOWN = 3000;   // ms
+export const DODGE_ROLL_DURATION = 400;    // ms of invulnerability
+export const DODGE_ROLL_SPEED = 6;         // pixels per frame during roll
+
+// Enemy dodge constants
+export const ENEMY_DODGE_CHANCE = 0.15;    // base chance to dodge incoming projectile
+export const ENEMY_DODGE_SPEED = 3;        // pixels offset when dodging
+export const ENEMY_DODGE_REACT_DIST = 80;  // pixel distance at which enemies react
+
+// Interactive environment
+export const BARREL_HP = 1;
+export const BARREL_SPLASH_RADIUS = 60;
+export const BARREL_DAMAGE = 30;
