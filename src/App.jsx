@@ -237,8 +237,6 @@ export default function App() {
     spellPower: 0,   // +5% spell damage per level (max 5)
     manaRegen: 0,    // +0.5 mana/sec per level (max 3)
   });
-  // MAX_MANA computed from base + knowledge upgrades
-  const MAX_MANA = BASE_MAX_MANA + (knowledgeUpgrades.manaPool || 0) * 10 + perkMaxMana;
 
   // Meteorite event: phases: pending → falling → landed → opened
   const [meteorite, setMeteorite] = useState(null);
@@ -291,6 +289,9 @@ export default function App() {
   const perkLootMult = 1 + getPerkCount("loot_value") * 0.20;
   const perkCaravanArmor = getPerkCount("caravan_armor");
   const perkMercCritBonus = getPerkCount("merc_crit") * 0.10;
+
+  // MAX_MANA computed from base + knowledge upgrades + perks
+  const MAX_MANA = BASE_MAX_MANA + (knowledgeUpgrades.manaPool || 0) * 10 + perkMaxMana;
 
   // ─── FEATURE: Spell Upgrades ───
   const [spellUpgrades, setSpellUpgrades] = useState({});
@@ -1246,6 +1247,46 @@ export default function App() {
           if (Math.random() < 0.003) w.yDir *= -1;
         }
 
+        // ─── Elite: Dark – HP regen (regenPct % of maxHp per second) ───
+        if (w.isElite && w.eliteMod?.regenPct) {
+          const walkerState = walkersRef.current.find(ww => ww.id === parseInt(id));
+          if (walkerState && walkerState.alive && !walkerState.dying && walkerState.hp < walkerState.maxHp) {
+            const healPerSec = walkerState.maxHp * w.eliteMod.regenPct;
+            const healAmt = healPerSec * dt;
+            if (!w._regenAccum) w._regenAccum = 0;
+            w._regenAccum += healAmt;
+            if (w._regenAccum >= 1) {
+              const heal = Math.floor(w._regenAccum);
+              w._regenAccum -= heal;
+              setWalkers(prev => prev.map(ww =>
+                ww.id === parseInt(id) ? { ...ww, hp: Math.min(ww.maxHp, ww.hp + heal) } : ww
+              ));
+            }
+          }
+        }
+
+        // ─── Elite: Frozen – slow aura (reduce nearby friendly merc speed) ───
+        if (w.isElite && w.eliteMod?.slowAura) {
+          for (const fid of Object.keys(wd)) {
+            const f = wd[fid];
+            if (!f || !f.alive || !f.friendly) continue;
+            const dx = f.x - w.x;
+            const dy = ((f.y || 50) - (w.y || 50)) * 0.5;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 30) {
+              // Apply slow: store original speed once, then halve
+              if (!f._origSpeed) f._origSpeed = f.speed;
+              f.speed = f._origSpeed * 0.5;
+              f._slowedUntil = now + 500; // refresh slow for 500ms
+            } else if (f._slowedUntil && now > f._slowedUntil && f._origSpeed) {
+              // Restore speed when out of range
+              f.speed = f._origSpeed;
+              delete f._origSpeed;
+              delete f._slowedUntil;
+            }
+          }
+        }
+
         // Lunge animation decay
         if (w.lungeFrames > 0) {
           w.lungeFrames--;
@@ -2002,7 +2043,7 @@ export default function App() {
         const spawnX = 50;
         const spawnY = 8;
         setWalkers(prev => [...prev, {
-          id: wid, npcData, alive: true, dying: false, hp: npcData.hp, maxHp: npcData.hp, isElite: true,
+          id: wid, npcData, alive: true, dying: false, hp: npcData.hp, maxHp: npcData.hp, isElite: true, eliteMod: eliteMod,
         }]);
         walkDataRef.current[wid] = {
           x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
@@ -2014,6 +2055,7 @@ export default function App() {
           ability: npcData.ability || null,
           attackCd: Math.round(3000 * (eliteMod.attackSpeedMult || 1)),
           isElite: true,
+          eliteMod: eliteMod,
         };
         if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, false);
         showMessage(`Elite: ${eliteMod.name}! ${eliteMod.desc}`, eliteMod.color);
@@ -4498,6 +4540,27 @@ export default function App() {
                 textShadow: "0 0 8px rgba(255,170,0,0.6)",
               }}><Icon name="swords" size={12} /> AUTO</div>
             )}
+            {/* Elite enemy aura indicator */}
+            {w.alive && !w.dying && w.isElite && w.eliteMod && (
+              <div style={{
+                position: "absolute", top: -4, left: "50%", transform: "translateX(-50%)",
+                width: 56, height: 56, borderRadius: "50%",
+                background: `radial-gradient(circle, ${w.eliteMod.color}44 0%, transparent 70%)`,
+                boxShadow: `0 0 12px ${w.eliteMod.color}88, 0 0 24px ${w.eliteMod.color}44`,
+                animation: "gemPulse 2s ease-in-out infinite",
+                pointerEvents: "none", zIndex: -1,
+              }} />
+            )}
+            {/* Elite label */}
+            {w.alive && !w.dying && w.isElite && w.eliteMod && (
+              <div style={{
+                fontSize: 9, fontWeight: "bold",
+                color: w.eliteMod.color,
+                textShadow: `0 0 6px ${w.eliteMod.color}88, 1px 1px 0 #000`,
+                letterSpacing: 1, textTransform: "uppercase",
+                pointerEvents: "none",
+              }}>ELITE</div>
+            )}
             {/* Attack telegraph – shows when enemy is lunging */}
             {w.alive && !w.dying && !isFriendly && walkDataRef.current[w.id]?.lungeFrames > 0 && (
               <div style={{
@@ -4510,7 +4573,7 @@ export default function App() {
               <div style={{
                 width: 52, height: 6,
                 background: "rgba(0,0,0,0.7)",
-                border: `1px solid ${isFriendly ? "#2a6a2a" : "#555"}`,
+                border: `1px solid ${isFriendly ? "#2a6a2a" : w.isElite && w.eliteMod ? w.eliteMod.color : "#555"}`,
                 marginBottom: 2,
                 borderRadius: 2,
                 overflow: "hidden",
@@ -4544,13 +4607,21 @@ export default function App() {
                 }} />
               </div>
             )}
+            {/* Frozen slow aura indicator on affected mercs */}
+            {w.alive && !w.dying && isFriendly && walkDataRef.current[w.id]?._slowedUntil && (
+              <div style={{
+                fontSize: 10, color: "#80d0ff", pointerEvents: "none",
+                textShadow: "0 0 4px #80d0ff88",
+                animation: "gemPulse 1.5s ease-in-out infinite",
+              }}><Icon name="anchor" size={10} /> spowolniony</div>
+            )}
             {/* Resist icon */}
             {w.alive && !w.dying && !isFriendly && w.npcData.resist && (
               <div style={{
                 fontSize: 10, marginBottom: -2, pointerEvents: "none",
                 opacity: 0.7,
               }}>
-                <Icon name={w.npcData.resist === "fire" ? "fire" : "ice"} size={10} />
+                <Icon name={w.npcData.resist === "fire" ? "fire" : w.npcData.resist === "shadow" ? "skull" : "ice"} size={10} />
               </div>
             )}
             {/* Invisible click area (stick figure rendered on physics canvas) */}
