@@ -41,16 +41,16 @@ import RelicPicker from "./components/RelicPicker";
 import { RELICS, RELIC_SYNERGIES } from "./data/relics";
 import { getBossForRoom } from "./data/bosses";
 import { COMBOS, COMBO_STREAK_BONUS, COMBO_STREAK_CAP, COMBO_STREAK_TIMEOUT } from "./data/combos";
-import { LEVEL_PERKS, xpForLevel, rollLevelPerks } from "./data/levelPerks";
+import { xpForLevel, rollLevelPerks } from "./data/levelPerks";
 import { rollUpgradeChoices, getUpgradedSpellStats, MAX_UPGRADES_PER_SPELL } from "./data/spellUpgrades";
 import { isEliteRoom, rollEliteModifier } from "./data/eliteEnemies";
 import { rollChallenge } from "./data/challenges";
-import { CREW_ROLES, CREW_RELATIONS, getLoyaltyLevel, rollCrewRecruit } from "./data/crew";
+import { CREW_ROLES, CREW_RELATIONS, getLoyaltyLevel } from "./data/crew";
 import { STORY_ARCS, MORAL_DILEMMAS, rollStoryStep, rollNewStoryArc, rollMoralDilemma } from "./data/storyEvents";
-import { SHIP_UPGRADES, SEA_EVENTS, rollSeaEvent, rollIslandDiscovery, getSeaEventCount } from "./data/sailing";
-import { FORTIFICATION_TREE, TRAP_COMBOS, FORTIFICATION_PHASE, getAvailableFortifications, checkTrapCombo } from "./data/advancedTraps";
+import { SHIP_UPGRADES, rollSeaEvent, rollIslandDiscovery } from "./data/sailing";
+import { FORTIFICATION_TREE, TRAP_COMBOS } from "./data/advancedTraps";
 import { FACTIONS, getFactionBonus, getFactionHostility, rollFactionQuest, rollFactionEvent } from "./data/factions";
-import { ARTIFACT_SETS, SECRET_ROOMS, DISCOVERY_MILESTONES, JOURNAL_CATEGORIES, getDiscoveryMilestone, rollSecretRoom, getCompletedSetBonuses } from "./data/discovery";
+import { ARTIFACT_SETS, DISCOVERY_MILESTONES, JOURNAL_CATEGORIES, getDiscoveryMilestone, rollSecretRoom, getCompletedSetBonuses } from "./data/discovery";
 import ComboOverlay from "./components/ComboOverlay";
 import LevelUpPicker from "./components/LevelUpPicker";
 import SpellUpgradePicker from "./components/SpellUpgradePicker";
@@ -119,6 +119,13 @@ function getGameDimensions() {
   }
   return { w: DESKTOP_W, h: DESKTOP_H };
 }
+
+// Ammo drop table — rolled on each monster kill
+const AMMO_DROP_TABLE = [
+  { type: "dynamite", chance: 0.12, amount: 1 },
+  { type: "harpoon", chance: 0.10, amount: 1 },
+  { type: "cannonball", chance: 0.06, amount: 1 },
+];
 
 export default function App() {
   const [screen, setScreen] = useState("intro");
@@ -245,6 +252,8 @@ export default function App() {
     spellPower: 0,   // +5% spell damage per level (max 5)
     manaRegen: 0,    // +0.5 mana/sec per level (max 3)
   });
+  const knowledgeUpgradesRef = useRef({ manaPool: 0, spellPower: 0, manaRegen: 0 });
+  knowledgeUpgradesRef.current = knowledgeUpgrades;
 
   // Meteorite event: phases: pending → falling → landed → opened
   const [meteorite, setMeteorite] = useState(null);
@@ -273,6 +282,8 @@ export default function App() {
 
   // ─── FEATURE: Combo Visual Feedback ───
   const [comboCounter, setComboCounter] = useState(0);
+  const comboCounterRef = useRef(0);
+  comboCounterRef.current = comboCounter;
   const [activeCombo, setActiveCombo] = useState(null);
   const comboTimerRef = useRef(null);
 
@@ -370,8 +381,14 @@ export default function App() {
 
   // ─── FEATURE: Story Events ───
   const [activeStory, setActiveStory] = useState(null);     // {id, currentStep}
+  const activeStoryRef = useRef(null);
+  activeStoryRef.current = activeStory;
   const [completedStories, setCompletedStories] = useState([]);
+  const completedStoriesRef = useRef([]);
+  completedStoriesRef.current = completedStories;
   const [storyEvent, setStoryEvent] = useState(null);       // current step event display
+  const storyEventRef = useRef(null);
+  storyEventRef.current = storyEvent;
   const [moralDilemma, setMoralDilemma] = useState(null);
 
   // ─── FEATURE: Sailing / Naval ───
@@ -391,6 +408,8 @@ export default function App() {
   const factionRepRef = useRef({ merchants_guild: 0, treasure_hunters: 0, shadow_council: 0, royal_navy: 0 });
   factionRepRef.current = factionRep;
   const [activeFactionQuest, setActiveFactionQuest] = useState(null);
+  const activeFactionQuestRef = useRef(null);
+  activeFactionQuestRef.current = activeFactionQuest;
   const [factionEvent, setFactionEvent] = useState(null);
 
   // ─── FEATURE: Discovery & Collecting ───
@@ -414,7 +433,7 @@ export default function App() {
     else if (k >= 100) bonus = 1.10;
     else if (k >= 50) bonus = 1.05;
     // Knowledge shop spell power: +5% per level
-    bonus += (knowledgeUpgrades.spellPower || 0) * 0.05;
+    bonus += (knowledgeUpgradesRef.current.spellPower || 0) * 0.05;
     return bonus;
   };
 
@@ -2085,31 +2104,37 @@ export default function App() {
     updateCrewLoyalty(Math.random() < 0.7 ? 1 : -1);
 
     // ─── NEW: Story arc progression ───
+    // Only one modal per room to prevent overlap
+    let modalShown = false;
     if (!isDefenseRoom) {
-      if (!activeStory) {
-        const newArc = rollNewStoryArc(completedStories);
+      if (!activeStoryRef.current) {
+        const newArc = rollNewStoryArc(completedStoriesRef.current);
         if (newArc) {
           setActiveStory(newArc);
           const arcDef = STORY_ARCS.find(a => a.id === newArc.id);
           if (arcDef) showMessage(`Nowa przygoda: ${arcDef.name}!`, arcDef.themeColor);
         }
       } else {
-        const step = rollStoryStep(activeStory, newRoom);
-        if (step) setStoryEvent(step);
+        const step = rollStoryStep(activeStoryRef.current, newRoom);
+        if (step) { setStoryEvent(step); modalShown = true; }
       }
-      // Moral dilemma (12% chance)
-      const dilemma = rollMoralDilemma();
-      if (dilemma && !storyEvent) setMoralDilemma(dilemma);
+      // Moral dilemma (12% chance) — only if no other modal
+      if (!modalShown) {
+        const dilemma = rollMoralDilemma();
+        if (dilemma && !storyEventRef.current) { setMoralDilemma(dilemma); modalShown = true; }
+      }
     }
 
     // ─── NEW: Faction events ───
     if (!isDefenseRoom) {
-      const fEvt = rollFactionEvent();
-      if (fEvt) setFactionEvent(fEvt);
+      if (!modalShown) {
+        const fEvt = rollFactionEvent();
+        if (fEvt) { setFactionEvent(fEvt); modalShown = true; }
+      }
       // Check faction quests
       for (const faction of FACTIONS) {
         const rep = factionRepRef.current[faction.id] || 0;
-        if (!activeFactionQuest) {
+        if (!activeFactionQuestRef.current) {
           const quest = rollFactionQuest(faction.id, rep);
           if (quest) {
             setActiveFactionQuest({ ...quest, startRoom: newRoom, progress: 0 });
@@ -2120,7 +2145,7 @@ export default function App() {
     }
 
     // ─── NEW: Secret room (5-10% chance) ───
-    if (!isDefenseRoom) {
+    if (!isDefenseRoom && !modalShown) {
       const sr = rollSecretRoom(newRoom);
       if (sr) {
         setSecretRoom(sr);
@@ -2140,10 +2165,10 @@ export default function App() {
     if (!isDefenseRoom && Math.random() < 0.70) {
       const count = Math.random() < 0.55 ? 1 : 2;
       for (let i = 0; i < count; i++) {
-        const npcData = pickNpc(b.id);
+        let npcData = pickNpc(b.id);
         if (!npcData) continue;
         const roomScale = 1 + Math.min(newRoom / 25, 1.5);
-        npcData.hp = Math.round(npcData.hp * roomScale);
+        npcData = { ...npcData, hp: Math.round(npcData.hp * roomScale) };
         const wid = ++walkerIdCounter;
         const spawnX = 20 + Math.random() * 55;
         const walkRange = 12 + Math.random() * 10;
@@ -2818,6 +2843,7 @@ export default function App() {
         t.biome = biome?.name || "Obrona"; t.room = rn;
         if (hasRelic("greedy_merchant")) {
           if (t.value) {
+            t.value = { ...t.value };
             if (t.value.copper) t.value.copper = Math.round(t.value.copper * 1.5);
             if (t.value.silver) t.value.silver = Math.round(t.value.silver * 1.5);
             if (t.value.gold) t.value.gold = Math.round(t.value.gold * 1.5);
@@ -3027,7 +3053,7 @@ export default function App() {
     if (screen !== "game") return;
     const iv = setInterval(() => {
       const saveData = {
-        room, money, mana, kills, doors, initiative, inventory, hideoutItems,
+        room, money, mana, ammo, kills, doors, initiative, inventory, hideoutItems,
         ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp,
         bestiary, knowledge, learnedSpells, activeRelics: activeRelics.map(r => r.id),
         knowledgeUpgrades, bossesDefeated,
@@ -3044,7 +3070,7 @@ export default function App() {
       try { localStorage.setItem("wrota_save", JSON.stringify(saveData)); } catch {}
     }, 60000);
     return () => clearInterval(iv);
-  }, [screen, room, money, mana, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades, activeSynergies, playerXp, playerLevel, levelPerks, spellUpgrades, killStreak, enemyBuffRooms, playerDoubleDmgRooms, crew, activeStory, completedStories, shipUpgrades, discoveredIslands, unlockedFortifications, factionRep, journal, ownedArtifacts, totalDiscoveries]);
+  }, [screen, room, money, mana, ammo, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades, activeSynergies, playerXp, playerLevel, levelPerks, spellUpgrades, killStreak, enemyBuffRooms, playerDoubleDmgRooms, crew, activeStory, completedStories, shipUpgrades, discoveredIslands, unlockedFortifications, factionRep, journal, ownedArtifacts, totalDiscoveries]);
 
   const travelCaravan = () => {
     if (defenseMode && defenseMode.phase !== "complete") {
@@ -3271,6 +3297,7 @@ export default function App() {
     const t = pickTreasure(room); t.biome = biome.name; t.room = room;
     // greedy_merchant: x1.5 treasure value (nerfed from x2)
     if (hasRelic("greedy_merchant") && t.value) {
+      t.value = { ...t.value };
       if (t.value.copper) t.value.copper = Math.round(t.value.copper * 1.5);
       if (t.value.silver) t.value.silver = Math.round(t.value.silver * 1.5);
       if (t.value.gold) t.value.gold = Math.round(t.value.gold * 1.5);
@@ -3608,7 +3635,7 @@ export default function App() {
         const comboKey = [prevDebuff.element, element].sort().join("+");
         const combo = COMBOS[comboKey];
         if (combo) {
-          const streakBonus = Math.min(COMBO_STREAK_CAP, comboCounter * COMBO_STREAK_BONUS);
+          const streakBonus = Math.min(COMBO_STREAK_CAP, comboCounterRef.current * COMBO_STREAK_BONUS);
           dmg = Math.round(dmg * (combo.mult + streakBonus));
           comboText = combo;
           setComboCounter(prev => prev + 1);
@@ -4026,7 +4053,7 @@ export default function App() {
         const combo = COMBOS[comboKey];
         if (combo) {
           // Combo streak bonus: +5% per consecutive combo (cap 25%)
-          const streakBonus = Math.min(COMBO_STREAK_CAP, comboCounter * COMBO_STREAK_BONUS);
+          const streakBonus = Math.min(COMBO_STREAK_CAP, comboCounterRef.current * COMBO_STREAK_BONUS);
           damage = Math.round(damage * (combo.mult + streakBonus));
           comboText = combo;
           // Update combo visual state
@@ -4052,7 +4079,7 @@ export default function App() {
       }
 
       // Show damage popup (with combo label)
-      const dmgLabel = comboText ? `COMBO x${comboCounter}! ${damage}` : resistant ? `${damage} BLOK` : `${damage}`;
+      const dmgLabel = comboText ? `COMBO x${comboCounterRef.current + 1}! ${damage}` : resistant ? `${damage} BLOK` : `${damage}`;
       spawnDmgPopup(wid, dmgLabel, resistant ? "#6688aa" : comboText ? comboText.color : spell.color);
 
       // blood_weapon: heal random friendly for 15% of damage dealt
@@ -4151,7 +4178,7 @@ export default function App() {
             }, 300);
           }
           if (npcData.biomeId === "meteor" && Math.random() < 0.08) {
-            const sword = { icon: "moon", name: "Miecz Pełni Księżyca", desc: "Legendarny miecz wykuty w blasku pełni księżyca", rarity: "legendary", value: { gold: 15 }, id: Date.now() + Math.random(), biome: "Meteoryt", room };
+            const sword = { icon: "moon", name: "Miecz Pełni Księżyca", desc: "Legendarny miecz wykuty w blasku pełni księżyca", rarity: "legendary", value: { gold: 15 }, id: Date.now() + Math.random(), biome: "Meteoryt", room: roomRef.current };
             setInventory(prev => [...prev, sword]);
             setLoot(sword);
             showMessage("Miecz Pełni Księżyca!", "#d4a030");
@@ -4249,7 +4276,7 @@ export default function App() {
           const comboKey = [prevDebuff.element, spell.element].sort().join("+");
           const combo = COMBOS[comboKey];
           if (combo) {
-            const streakBonus = Math.min(COMBO_STREAK_CAP, comboCounter * COMBO_STREAK_BONUS);
+            const streakBonus = Math.min(COMBO_STREAK_CAP, comboCounterRef.current * COMBO_STREAK_BONUS);
             damage = Math.round(damage * (combo.mult + streakBonus));
             comboText = combo;
             setComboCounter(prev => prev + 1);
@@ -4267,7 +4294,7 @@ export default function App() {
           showMessage(`${npcData.name} odporny na ${resistLabel}!`, "#6688aa");
         }
 
-        const dmgLabel = comboText ? `COMBO x${comboCounter}! ${damage}` : resistant ? `${damage} BLOK` : `${damage}`;
+        const dmgLabel = comboText ? `COMBO x${comboCounterRef.current + 1}! ${damage}` : resistant ? `${damage} BLOK` : `${damage}`;
         spawnDmgPopup(w.id, dmgLabel, resistant ? "#6688aa" : comboText ? comboText.color : spell.color);
 
         // blood_weapon: heal random friendly for 15% of damage
@@ -4656,12 +4683,6 @@ export default function App() {
     showMessage(`+${item.amount} ${item.name}!`, "#e0a040");
   };
 
-  // Ammo drop table — rolled on each monster kill
-  const AMMO_DROP_TABLE = [
-    { type: "dynamite", chance: 0.12, amount: 1 },
-    { type: "harpoon", chance: 0.10, amount: 1 },
-    { type: "cannonball", chance: 0.06, amount: 1 },
-  ];
   const rollAmmoDrop = () => {
     for (const drop of AMMO_DROP_TABLE) {
       if (Math.random() < drop.chance) {
@@ -6980,7 +7001,7 @@ export default function App() {
                 if (storyEvent.reward.copper) addMoneyFn({ copper: storyEvent.reward.copper });
                 if (storyEvent.reward.silver) addMoneyFn({ silver: storyEvent.reward.silver });
                 if (storyEvent.reward.gold) addMoneyFn({ gold: storyEvent.reward.gold });
-                if (storyEvent.reward.mana) setMana(prev => Math.min(prev + storyEvent.reward.mana, 200));
+                if (storyEvent.reward.mana) setMana(prev => Math.min(prev + storyEvent.reward.mana, MAX_MANA));
                 if (storyEvent.reward.dynamite) setAmmo(prev => ({ ...prev, dynamite: prev.dynamite + storyEvent.reward.dynamite }));
                 if (storyEvent.reward.harpoon) setAmmo(prev => ({ ...prev, harpoon: prev.harpoon + storyEvent.reward.harpoon }));
               }
@@ -7139,7 +7160,7 @@ export default function App() {
               }
               if (eff.type === "loot") addMoneyFn({ copper: 40 + Math.floor(Math.random() * 40) });
               if (eff.type === "buff") {
-                if (eff.manaRestore) setMana(prev => Math.min(prev + eff.manaRestore, 200));
+                if (eff.manaRestore) setMana(prev => Math.min(prev + eff.manaRestore, MAX_MANA));
                 if (eff.initiativeBoost) setInitiative(prev => Math.min(MAX_INITIATIVE, prev + eff.initiativeBoost));
               }
               showMessage(seaEvent.resultText, seaEvent.themeColor);
