@@ -781,7 +781,9 @@ export class PhysicsWorld {
 
     // Player fires from left side of screen (caravan position ~10%)
     const sx = this.W * 0.10;
-    const sy = this.GY;
+    // Start projectile ABOVE ground line (NPC torso height) so it doesn't
+    // immediately trigger ground-explosion checks
+    const sy = this.GY - FIGURE_HALF_HEIGHT;
 
     if (cfg.type === "mine") {
       // Place mine at target location
@@ -817,16 +819,27 @@ export class PhysicsWorld {
     const dx = targetPx - sx, dy = targetPy - sy;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
+    // Total flight time = distance / speed (in frames)
+    const tFlight = Math.max(15, dist / cfg.speed);
+
     let vx, vy;
     if (cfg.type === "arc") {
-      const speed = cfg.speed;
-      vx = (dx / dist) * speed;
-      // Calculate arc trajectory
-      const tFlight = Math.abs(dx / vx) || 20;
-      vy = (dy / tFlight) - 0.5 * cfg.gravity * tFlight;
+      // Arc: calculate vx/vy so projectile arrives at target in tFlight frames
+      // accounting for gravity: y(t) = sy + vy*t + 0.5*g*t^2 = targetPy
+      // vy = (dy - 0.5*g*t^2) / t
+      vx = dx / tFlight;
+      vy = (dy - 0.5 * cfg.gravity * tFlight * tFlight) / tFlight;
     } else {
-      vx = (dx / dist) * cfg.speed;
-      vy = (dy / dist) * cfg.speed;
+      // Linear: aim directly, gravity (if any) is compensated by arc-like formula
+      if (cfg.gravity > 0) {
+        // Heavy projectile with gravity — use arc formula so it actually reaches target
+        vx = dx / tFlight;
+        vy = (dy - 0.5 * cfg.gravity * tFlight * tFlight) / tFlight;
+      } else {
+        // Pure linear — direct aim
+        vx = (dx / dist) * cfg.speed;
+        vy = (dy / dist) * cfg.speed;
+      }
     }
 
     this.playerSkillshots.push({
@@ -962,8 +975,10 @@ export class PhysicsWorld {
         }
       }
 
-      // Check if hit ground (for arc projectiles)
-      if (!hit && proj.explodeOnGround && proj.y >= this.GY) {
+      // Check if hit ground (for arc/heavy projectiles)
+      // Only trigger when: 1) projectile is descending (vy > 0), 2) past initial launch phase (age > 10),
+      // 3) projectile is at or below the NPC ground line
+      if (!hit && proj.explodeOnGround && proj.age > 10 && proj.vy > 0 && proj.y >= this.GY) {
         hit = true;
         // Ground explosion
         fx.spawnFire(proj.x, proj.y);

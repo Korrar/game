@@ -5,10 +5,10 @@ export const SKILLSHOT_TYPES = {
   // Dynamit — arc trajectory (parabola), explodes on ground or enemy hit, splash damage
   fireball: {
     type: "arc",
-    speed: 5,
-    gravity: 0.15,
+    speed: 6,
+    gravity: 0.10,
     size: 12,          // projectile visual radius
-    hitRadius: 20,     // collision radius (pixels)
+    hitRadius: 22,     // collision radius (pixels)
     splashRadius: 50,  // AoE splash radius (pixels)
     splashDamageMult: 0.5, // splash damage = 50% of direct hit
     trail: "fire",
@@ -37,13 +37,13 @@ export const SKILLSHOT_TYPES = {
     pierce: true,
     maxPierce: 1,
   },
-  // Strzał z Armaty — slow, large projectile with splash damage
+  // Strzał z Armaty — slow arc, large projectile with splash damage
   holybeam: {
-    type: "linear",
-    speed: 4,
-    gravity: 0.03,
+    type: "arc",
+    speed: 5,
+    gravity: 0.08,
     size: 16,
-    hitRadius: 24,
+    hitRadius: 26,
     splashRadius: 60,
     splashDamageMult: 0.6,
     trail: "fire",
