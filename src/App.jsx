@@ -295,6 +295,8 @@ export default function App() {
   const [playerLevel, setPlayerLevel] = useState(1);
   const [levelPerks, setLevelPerks] = useState([]);
   const [levelUpChoices, setLevelUpChoices] = useState(null);
+  const levelUpChoicesRef = useRef(null);
+  levelUpChoicesRef.current = levelUpChoices;
   const playerXpRef = useRef(0);
   playerXpRef.current = playerXp;
   const playerLevelRef = useRef(1);
@@ -318,6 +320,8 @@ export default function App() {
   // ─── FEATURE: Spell Upgrades ───
   const [spellUpgrades, setSpellUpgrades] = useState({});
   const [upgradeChoices, setUpgradeChoices] = useState(null);
+  const upgradeChoicesRef = useRef(null);
+  upgradeChoicesRef.current = upgradeChoices;
   const spellUpgradesRef = useRef({});
   spellUpgradesRef.current = spellUpgrades;
 
@@ -749,6 +753,13 @@ export default function App() {
     let lastTime = performance.now();
     const loop = () => {
       walkRafRef.current = requestAnimationFrame(loop);
+      // Pause game when upgrade/level-up picker is open
+      if (levelUpChoicesRef.current || upgradeChoicesRef.current) {
+        lastTime = performance.now();
+        // Still render physics (so visuals stay) but skip all logic
+        if (physicsRef.current) physicsRef.current.step();
+        return;
+      }
       const now = performance.now();
       const dt = Math.min((now - lastTime) / 1000, 0.1); // delta seconds, capped at 100ms
       lastTime = now;
@@ -3153,11 +3164,11 @@ export default function App() {
     const sfxFn = SPELL_SFX[spell.id];
     if (sfxFn) sfxFn();
 
-    // Screen shake for AoE spells
+    // Screen shake for area spells (meteor/blizzard), NOT for mine placement
     const cfg = SKILLSHOT_TYPES[spell.id];
-    if (cfg && (cfg.type === "area" || spell.id === "earthquake")) {
+    if (cfg && cfg.type === "area") {
       setScreenShake(true);
-      setTimeout(() => setScreenShake(false), cfg.type === "area" ? 600 : 800);
+      setTimeout(() => setScreenShake(false), 600);
     }
 
     // Spawn skillshot projectile in physics

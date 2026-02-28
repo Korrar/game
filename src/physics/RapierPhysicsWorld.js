@@ -1046,11 +1046,10 @@ export class PhysicsWorld {
 
         if (dist < mine.triggerRadius) {
           mine.triggered = true;
-          // Explosion effects
+          // Explosion effects (no screen shake — mine is subtle)
           fx.spawnFire(mine.x, mine.y);
           fx.spawnFire(mine.x - 15, mine.y);
           fx.spawnFire(mine.x + 15, mine.y);
-          if (this.pixiRenderer) this.pixiRenderer.screenShake(12);
 
           // Damage all enemies in splash radius
           for (const [eid, ee] of Object.entries(this.bodies)) {
