@@ -533,17 +533,7 @@ export class PhysicsWorld {
       }
       if (entry.hitFlash > 0) entry.hitFlash--;
 
-      switch (entry.bodyType) {
-        case "quadruped": this._drawQuadruped(ctx, entry); break;
-        case "floating": this._drawFloating(ctx, entry); break;
-        case "scorpion": this._drawScorpion(ctx, entry); break;
-        case "spider": this._drawSpider(ctx, entry); break;
-        case "frog": this._drawFrog(ctx, entry); break;
-        case "serpent": this._drawSerpent(ctx, entry); break;
-        case "barricade": this._drawBarricade(ctx, entry); break;
-        case "tower": this._drawTower(ctx, entry); break;
-        default: this._drawHumanoid(ctx, entry); break;
-      }
+      this._drawSymbol(ctx, entry);
 
       if (entry.friendly && entry.npcData.weapon && entry.bodyType === "humanoid") {
         this._drawWeapon(ctx, entry);
@@ -556,10 +546,21 @@ export class PhysicsWorld {
 
   // ─── HELPER DRAW UTILS ───
 
+  static BODY_SYMBOLS = {
+    humanoid:  { char: "@", size: 42 },
+    quadruped: { char: "W", size: 36 },
+    floating:  { char: "~", size: 38 },
+    scorpion:  { char: "}", size: 34 },
+    spider:    { char: "X", size: 32 },
+    frog:      { char: "&", size: 30 },
+    serpent:   { char: "S", size: 36 },
+    barricade: { char: "#", size: 44 },
+    tower:     { char: "T", size: 48 },
+  };
+
   _colors(entry) {
     const { npcData, friendly, hitFlash, fadeAlpha } = entry;
     let alpha = fadeAlpha;
-    // Fog weather: enemies fade based on distance from player (left side)
     if (this.fogVisibility && !friendly && !entry.ragdoll) {
       const tx = entry.parts.torso.position.x;
       const playerX = this.W * 0.2;
@@ -577,652 +578,94 @@ export class PhysicsWorld {
     };
   }
 
-  _drawLimb(ctx, from, to, width, color, flash) {
-    ctx.strokeStyle = flash || color;
-    ctx.lineWidth = width;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
-    ctx.stroke();
-  }
-
-  _drawHead(ctx, entry, headR) {
-    const { npcData, friendly, ragdoll } = entry;
+  _drawSymbol(ctx, entry) {
+    const { parts, npcData, friendly, ragdoll } = entry;
     const c = this._colors(entry);
-    const hx = entry.parts.head.position.x, hy = entry.parts.head.position.y;
+    const sym = PhysicsWorld.BODY_SYMBOLS[entry.bodyType] || PhysicsWorld.BODY_SYMBOLS.humanoid;
+    const halfH = entry.bodyType === "quadruped" ? 22 : entry.bodyType === "floating" ? 30 : 35;
 
-    ctx.fillStyle = c.flash || c.body;
+    ctx.save();
+    ctx.globalAlpha = c.alpha;
+
+    const tx = parts.torso.position.x;
+    const ty = parts.torso.position.y;
+
+    // Ground shadow
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
     ctx.beginPath();
-    ctx.arc(hx, hy, headR + 1, 0, Math.PI * 2);
+    ctx.ellipse(tx, ty + halfH + 2, 14, 5, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.font = `${headR * 2}px serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(npcData.emoji, hx, hy + 1);
-    ctx.textAlign = "start";
-
+    // Ground aura
     if (!ragdoll) {
-      const glowColor = friendly ? "rgba(60,220,80," : "rgba(200,60,60,";
-      const blur = friendly ? 12 : 8;
-      const alpha = friendly ? "0.3)" : "0.2)";
-      ctx.shadowColor = glowColor + (friendly ? "0.5)" : "0.3)");
-      ctx.shadowBlur = blur;
-      ctx.strokeStyle = glowColor + alpha;
-      ctx.lineWidth = 1;
+      const auraColor = friendly ? [60, 220, 80] : [200, 60, 60];
+      const pulse = 0.6 + Math.sin(Date.now() * 0.003) * 0.2;
+      ctx.save();
+      ctx.globalAlpha *= pulse * 0.4;
+      const auraGrad = ctx.createRadialGradient(tx, ty + halfH + 4, 4, tx, ty + halfH + 4, 20);
+      auraGrad.addColorStop(0, `rgba(${auraColor.join(",")},0.15)`);
+      auraGrad.addColorStop(1, "transparent");
+      ctx.fillStyle = auraGrad;
       ctx.beginPath();
-      ctx.arc(hx, hy, headR + (friendly ? 4 : 3), 0, Math.PI * 2);
+      ctx.ellipse(tx, ty + halfH + 4, 20, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Ragdoll tilt
+    if (ragdoll) {
+      ctx.translate(tx, ty);
+      const rotAngle = (1 - c.alpha) * (Math.PI / 2);
+      ctx.rotate(rotAngle);
+      this._renderSymbolText(ctx, 0, 0, sym, c, entry);
+    } else {
+      this._renderSymbolText(ctx, tx, ty, sym, c, entry);
+    }
+
+    // Small emoji above
+    if (parts.head) {
+      const hx = parts.head.position.x, hy = parts.head.position.y;
+      ctx.font = "14px serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(npcData.emoji, hx, hy - 12);
+      ctx.textAlign = "start";
+    }
+
+    // Glow ring
+    if (!ragdoll) {
+      const pulse = 0.7 + Math.sin(Date.now() * 0.004) * 0.3;
+      const glowColor = friendly ? "rgba(60,220,80," : "rgba(200,60,60,";
+      const glowAlpha = friendly ? 0.35 * pulse : 0.25 * pulse;
+      const r = sym.size * 0.45;
+      ctx.shadowColor = glowColor + (friendly ? `${0.5 * pulse})` : `${0.3 * pulse})`);
+      ctx.shadowBlur = 10 * pulse;
+      ctx.strokeStyle = glowColor + `${glowAlpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(tx, ty, r, 0, Math.PI * 2);
       ctx.stroke();
       ctx.shadowBlur = 0;
     }
-  }
 
-  // ─── DRAW HUMANOID ───
-
-  _drawHumanoid(ctx, entry) {
-    const { parts } = entry;
-    const c = this._colors(entry);
-    ctx.save();
-    ctx.globalAlpha = c.alpha;
-
-    const lw = 3;
-    const p = parts;
-
-    // Legs
-    this._drawLimb(ctx, p.lUpperLeg.position, p.lLowerLeg.position, lw + 1, c.body, c.flash);
-    this._drawLimb(ctx, p.rUpperLeg.position, p.rLowerLeg.position, lw + 1, c.body, c.flash);
-    // Feet
-    ctx.fillStyle = c.flash || c.armor;
-    for (const leg of [p.lLowerLeg, p.rLowerLeg]) {
-      ctx.beginPath();
-      ctx.ellipse(leg.position.x, leg.position.y + 6, 4, 2, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Torso trapezoid
-    const tx = p.torso.position.x, ty = p.torso.position.y;
-    ctx.fillStyle = c.flash || c.armor;
-    ctx.beginPath();
-    ctx.moveTo(tx - 6, ty - 11); ctx.lineTo(tx + 6, ty - 11);
-    ctx.lineTo(tx + 8, ty + 11); ctx.lineTo(tx - 8, ty + 11);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = c.flash || c.body;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Arms
-    this._drawLimb(ctx, p.lUpperArm.position, p.lLowerArm.position, lw, c.body, c.flash);
-    this._drawLimb(ctx, p.rUpperArm.position, p.rLowerArm.position, lw, c.body, c.flash);
-    // Hands
-    ctx.fillStyle = c.flash || c.body;
-    for (const arm of [p.lLowerArm, p.rLowerArm]) {
-      ctx.beginPath();
-      ctx.arc(arm.position.x, arm.position.y + 5, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    this._drawHead(ctx, entry, HEAD_RADIUS);
     ctx.restore();
   }
 
-  // ─── DRAW QUADRUPED ───
-
-  _drawQuadruped(ctx, entry) {
-    const { parts } = entry;
-    const c = this._colors(entry);
-    const dir = entry._dir || 1;
-    ctx.save();
-    ctx.globalAlpha = c.alpha;
-
-    const tx = parts.torso.position.x, ty = parts.torso.position.y;
-
-    // Legs
-    for (const key of ["fl", "fr", "bl", "br"]) {
-      const leg = parts[key];
-      const attachX = (key[0] === "f") ? tx + dir * 8 : tx - dir * 8;
-      this._drawLimb(ctx, { x: attachX, y: ty + 5 }, leg.position, 3, c.body, c.flash);
-      ctx.fillStyle = c.flash || c.armor;
-      ctx.beginPath();
-      ctx.ellipse(leg.position.x, leg.position.y + 7, 3, 1.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Torso (horizontal rounded rect)
-    ctx.fillStyle = c.flash || c.armor;
-    const tw = 24, th = 10;
-    this._roundRect(ctx, tx - tw / 2, ty - th / 2, tw, th, 3);
-    ctx.fill();
-    ctx.strokeStyle = c.flash || c.body;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Tail
-    if (parts.tail) {
-      ctx.strokeStyle = c.flash || c.body;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(tx - dir * 12, ty);
-      ctx.quadraticCurveTo(parts.tail.position.x, parts.tail.position.y - 4, parts.tail.position.x, parts.tail.position.y + 4);
-      ctx.stroke();
-    }
-
-    // Neck + head
-    ctx.strokeStyle = c.flash || c.body;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(tx + dir * 10, ty - 3);
-    ctx.lineTo(parts.head.position.x, parts.head.position.y);
-    ctx.stroke();
-
-    this._drawHead(ctx, entry, QUAD_HEAD_RADIUS);
-    ctx.restore();
-  }
-
-  // ─── DRAW FLOATING (djinn, fairy) ───
-
-  _drawFloating(ctx, entry) {
-    const { parts } = entry;
-    const c = this._colors(entry);
-    ctx.save();
-    ctx.globalAlpha = c.alpha;
-
-    const tx = parts.torso.position.x, ty = parts.torso.position.y;
-
-    // Wispy trail below
-    if (parts.trail) {
-      const trail = parts.trail.position;
-      ctx.strokeStyle = c.flash || c.body;
-      ctx.lineWidth = 2;
-      ctx.globalAlpha = c.alpha * 0.5;
-      ctx.beginPath();
-      ctx.moveTo(tx, ty + 13);
-      ctx.quadraticCurveTo(tx + Math.sin(Date.now() * 0.003) * 6, (ty + 13 + trail.y) / 2, trail.x, trail.y);
-      ctx.stroke();
-      ctx.globalAlpha = c.alpha;
-      // Wispy fade dots
-      for (let i = 0; i < 3; i++) {
-        const fy = trail.y + i * 4;
-        ctx.fillStyle = `rgba(${entry.friendly ? "60,220,80" : "100,60,200"},${0.3 - i * 0.1})`;
-        ctx.beginPath();
-        ctx.arc(trail.x + Math.sin(Date.now() * 0.004 + i) * 3, fy, 2 - i * 0.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Triangular torso (wide shoulders, narrow bottom)
-    ctx.fillStyle = c.flash || c.armor;
-    ctx.beginPath();
-    ctx.moveTo(tx - 10, ty - 10);
-    ctx.lineTo(tx + 10, ty - 10);
-    ctx.lineTo(tx + 4, ty + 13);
-    ctx.lineTo(tx - 4, ty + 13);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = c.flash || c.body;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Inner glow
-    const glow = ctx.createRadialGradient(tx, ty, 0, tx, ty, 16);
-    glow.addColorStop(0, entry.friendly ? "rgba(60,220,80,0.15)" : "rgba(100,60,200,0.15)");
-    glow.addColorStop(1, "transparent");
-    ctx.fillStyle = glow;
-    ctx.fillRect(tx - 16, ty - 16, 32, 32);
-
-    // Arms
-    if (parts.lArm && parts.rArm) {
-      this._drawLimb(ctx, { x: tx - 10, y: ty - 6 }, parts.lArm.position, 2.5, c.body, c.flash);
-      this._drawLimb(ctx, { x: tx + 10, y: ty - 6 }, parts.rArm.position, 2.5, c.body, c.flash);
-      // Glowing hands
-      ctx.fillStyle = entry.friendly ? "rgba(60,220,80,0.6)" : "rgba(100,60,200,0.6)";
-      ctx.beginPath();
-      ctx.arc(parts.lArm.position.x, parts.lArm.position.y + 6, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(parts.rArm.position.x, parts.rArm.position.y + 6, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    this._drawHead(ctx, entry, 10);
-    ctx.restore();
-  }
-
-  // ─── DRAW SCORPION ───
-
-  _drawScorpion(ctx, entry) {
-    const { parts } = entry;
-    const c = this._colors(entry);
-    const dir = entry._dir || 1;
-    ctx.save();
-    ctx.globalAlpha = c.alpha;
-
-    const tx = parts.torso.position.x, ty = parts.torso.position.y;
-
-    // 6 legs
-    for (const key of ["l1", "l2", "l3", "r1", "r2", "r3"]) {
-      const leg = parts[key];
-      if (!leg) continue;
-      const side = key[0] === "l" ? -1 : 1;
-      const idx = parseInt(key[1]) - 1;
-      const attachX = tx + dir * (6 - idx * 6);
-      ctx.strokeStyle = c.flash || c.body;
-      ctx.lineWidth = 2;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(attachX, ty + 6);
-      // Bent leg: out to side then down
-      ctx.quadraticCurveTo(leg.position.x + side * 4, ty + 4, leg.position.x, leg.position.y + 4);
-      ctx.stroke();
-    }
-
-    // Torso (wide flat oval)
-    ctx.fillStyle = c.flash || c.armor;
-    ctx.beginPath();
-    ctx.ellipse(tx, ty, 14, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = c.flash || c.body;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    // Segmentation lines
-    ctx.strokeStyle = c.flash || c.body;
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(tx - 4, ty - 5); ctx.lineTo(tx - 4, ty + 5);
-    ctx.moveTo(tx + 4, ty - 5); ctx.lineTo(tx + 4, ty + 5);
-    ctx.stroke();
-
-    // Tail chain (curving over head)
-    const t1 = parts.tail1, t2 = parts.tail2, st = parts.stinger;
-    if (t1 && t2 && st) {
-      ctx.strokeStyle = c.flash || c.body;
-      ctx.lineWidth = 3.5;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(tx - dir * 12, ty);
-      ctx.lineTo(t1.position.x, t1.position.y);
-      ctx.lineTo(t2.position.x, t2.position.y);
-      ctx.stroke();
-      // Thinner tip
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(t2.position.x, t2.position.y);
-      ctx.lineTo(st.position.x, st.position.y);
-      ctx.stroke();
-      // Stinger (red tip)
-      ctx.fillStyle = c.flash || "#cc3030";
-      ctx.beginPath();
-      ctx.arc(st.position.x, st.position.y, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Pincers
-    if (parts.lPincer && parts.rPincer) {
-      const hp = parts.head.position;
-      for (const pincer of [parts.lPincer, parts.rPincer]) {
-        ctx.strokeStyle = c.flash || c.body;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(hp.x, hp.y);
-        ctx.lineTo(pincer.position.x, pincer.position.y);
-        ctx.stroke();
-        // Claw tip (V shape)
-        const px = pincer.position.x, py = pincer.position.y;
-        ctx.strokeStyle = c.flash || c.armor;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(px + dir * 4, py - 3);
-        ctx.lineTo(px + dir * 7, py);
-        ctx.lineTo(px + dir * 4, py + 3);
-        ctx.stroke();
-      }
-    }
-
-    this._drawHead(ctx, entry, 6);
-    ctx.restore();
-  }
-
-  // ─── DRAW SPIDER ───
-
-  _drawSpider(ctx, entry) {
-    const { parts } = entry;
-    const c = this._colors(entry);
-    const dir = entry._dir || 1;
-    ctx.save();
-    ctx.globalAlpha = c.alpha;
-
-    const tx = parts.torso.position.x, ty = parts.torso.position.y;
-
-    // 8 legs - long, spindly, bent outward
-    for (let i = 0; i < 4; i++) {
-      for (const side of ["ll", "rl"]) {
-        const leg = parts[`${side}${i}`];
-        if (!leg) continue;
-        const sideDir = side === "ll" ? -1 : 1;
-        const ox = (6 - i * 4) * dir;
-        const kneeX = tx + ox + sideDir * 12;
-        const kneeY = ty - 2;
-        ctx.strokeStyle = c.flash || c.body;
-        ctx.lineWidth = 1.5;
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        ctx.moveTo(tx + ox, ty + 3);
-        ctx.lineTo(kneeX, kneeY); // up to knee
-        ctx.lineTo(leg.position.x + sideDir * 4, leg.position.y + 5); // down to foot
-        ctx.stroke();
-      }
-    }
-
-    // Body segments
-    ctx.fillStyle = c.flash || c.armor;
-    ctx.beginPath();
-    ctx.ellipse(tx, ty, 8, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Abdomen
-    if (parts.abdomen) {
-      const ax = parts.abdomen.position.x, ay = parts.abdomen.position.y;
-      ctx.fillStyle = c.flash || c.body;
-      ctx.beginPath();
-      ctx.ellipse(ax, ay, 9, 7, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Pattern on abdomen
-      ctx.strokeStyle = c.flash || c.armor;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(ax - 3, ay - 3); ctx.lineTo(ax, ay - 5); ctx.lineTo(ax + 3, ay - 3);
-      ctx.stroke();
-    }
-
-    // Eyes (multiple small dots on head)
-    const hx = parts.head.position.x, hy = parts.head.position.y;
-    ctx.fillStyle = c.flash || c.body;
-    ctx.beginPath();
-    ctx.arc(hx, hy, 7, 0, Math.PI * 2);
-    ctx.fill();
-    // 6 red eyes
-    ctx.fillStyle = c.flash || "#cc2020";
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2 - Math.PI / 2;
-      ctx.beginPath();
-      ctx.arc(hx + Math.cos(angle) * 3.5, hy + Math.sin(angle) * 3.5, 1.2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Emoji
-    ctx.font = "12px serif";
+  _renderSymbolText(ctx, x, y, sym, c, entry) {
+    ctx.font = `bold ${sym.size}px monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(entry.npcData.emoji, hx, hy + 1);
+    // Outline
+    ctx.strokeStyle = c.flash || c.armor;
+    ctx.lineWidth = 3;
+    ctx.strokeText(sym.char, x, y);
+    // Fill
+    ctx.fillStyle = c.flash || (entry.friendly ? "#40c060" : c.body);
+    ctx.fillText(sym.char, x, y);
     ctx.textAlign = "start";
-
-    // Glow
-    if (!entry.ragdoll) {
-      ctx.shadowColor = "rgba(200,60,60,0.3)";
-      ctx.shadowBlur = 8;
-      ctx.strokeStyle = "rgba(200,60,60,0.2)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(hx, hy, 9, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    }
-
-    ctx.restore();
   }
 
-  // ─── DRAW FROG ───
-
-  _drawFrog(ctx, entry) {
-    const { parts } = entry;
-    const c = this._colors(entry);
-    const dir = entry._dir || 1;
-    ctx.save();
-    ctx.globalAlpha = c.alpha;
-
-    const tx = parts.torso.position.x, ty = parts.torso.position.y;
-
-    // Hind legs (big, bent)
-    for (const key of ["lHind", "rHind"]) {
-      const leg = parts[key];
-      if (!leg) continue;
-      const side = key === "lHind" ? -1 : 1;
-      ctx.strokeStyle = c.flash || c.body;
-      ctx.lineWidth = 4;
-      ctx.lineCap = "round";
-      // Thigh
-      const kneeX = tx + side * 8, kneeY = ty + 4;
-      ctx.beginPath();
-      ctx.moveTo(tx + side * 4, ty + 3);
-      ctx.lineTo(kneeX, kneeY);
-      ctx.lineTo(leg.position.x + side * 2, leg.position.y + 4);
-      ctx.stroke();
-      // Webbed foot
-      ctx.strokeStyle = c.flash || c.armor;
-      ctx.lineWidth = 1.5;
-      const fx = leg.position.x + side * 2, fy = leg.position.y + 5;
-      ctx.beginPath();
-      ctx.moveTo(fx - 3, fy); ctx.lineTo(fx, fy + 3); ctx.lineTo(fx + 3, fy);
-      ctx.stroke();
-    }
-
-    // Front legs (small)
-    for (const key of ["lFront", "rFront"]) {
-      const leg = parts[key];
-      if (!leg) continue;
-      this._drawLimb(ctx, { x: tx + (key === "lFront" ? -3 : 3), y: ty + 2 }, leg.position, 2, c.body, c.flash);
-    }
-
-    // Body (squat ellipse)
-    ctx.fillStyle = c.flash || c.armor;
-    ctx.beginPath();
-    ctx.ellipse(tx, ty, 8, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = c.flash || c.body;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    // Belly lighter
-    ctx.fillStyle = c.flash || (entry.friendly ? "#60e080" : "#90a060");
-    ctx.beginPath();
-    ctx.ellipse(tx, ty + 2, 5, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Big head
-    this._drawHead(ctx, entry, 8);
-
-    ctx.restore();
-  }
-
-  // ─── DRAW SERPENT ───
-
-  _drawSerpent(ctx, entry) {
-    const { parts } = entry;
-    const c = this._colors(entry);
-    const dir = entry._dir || 1;
-    ctx.save();
-    ctx.globalAlpha = c.alpha;
-
-    const tx = parts.torso.position.x, ty = parts.torso.position.y;
-
-    // Body segments connected by thick bezier curves
-    const segs = [parts.torso, parts.seg2, parts.seg3, parts.tailTip].filter(Boolean);
-    if (segs.length > 1) {
-      // Thick body
-      ctx.strokeStyle = c.flash || c.armor;
-      ctx.lineWidth = 10;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.beginPath();
-      ctx.moveTo(segs[0].position.x, segs[0].position.y);
-      for (let i = 1; i < segs.length; i++) {
-        ctx.lineTo(segs[i].position.x, segs[i].position.y);
-      }
-      ctx.stroke();
-
-      // Lighter belly stripe
-      ctx.strokeStyle = c.flash || c.body;
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(segs[0].position.x, segs[0].position.y + 2);
-      for (let i = 1; i < segs.length; i++) {
-        ctx.lineTo(segs[i].position.x, segs[i].position.y + 2);
-      }
-      ctx.stroke();
-
-      // Scale pattern
-      ctx.strokeStyle = c.flash || c.body;
-      ctx.lineWidth = 0.5;
-      for (let i = 0; i < segs.length - 1; i++) {
-        const sx = segs[i].position.x, sy = segs[i].position.y;
-        ctx.beginPath();
-        ctx.arc(sx, sy - 3, 3, 0, Math.PI, true);
-        ctx.stroke();
-      }
-    }
-
-    // Fins/small legs
-    for (const key of ["lFin", "rFin"]) {
-      const fin = parts[key];
-      if (!fin) continue;
-      const side = key === "lFin" ? -1 : 1;
-      ctx.strokeStyle = c.flash || c.body;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(tx + side * 3, ty + 3);
-      ctx.lineTo(fin.position.x + side * 2, fin.position.y + 3);
-      ctx.stroke();
-    }
-
-    // Tail tip decoration
-    if (parts.tailTip) {
-      const ttp = parts.tailTip.position;
-      ctx.fillStyle = c.flash || c.body;
-      ctx.beginPath();
-      ctx.moveTo(ttp.x - dir * 4, ttp.y - 3);
-      ctx.lineTo(ttp.x - dir * 8, ttp.y);
-      ctx.lineTo(ttp.x - dir * 4, ttp.y + 3);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Head (bigger than normal)
-    this._drawHead(ctx, entry, 9);
-
-    ctx.restore();
-  }
-
-  // ─── DRAW BARRICADE ───
-
-  _drawBarricade(ctx, entry) {
-    const { parts } = entry;
-    const c = this._colors(entry);
-    ctx.save();
-    ctx.globalAlpha = c.alpha;
-
-    const tx = parts.torso.position.x, ty = parts.torso.position.y;
-
-    // Vertical planks
-    const plankColor = c.flash || "#6a4a20";
-    const darkPlank = c.flash || "#4a3010";
-    for (const dx of [-14, -7, 0, 7, 14]) {
-      ctx.fillStyle = dx % 14 === 0 ? darkPlank : plankColor;
-      ctx.fillRect(tx + dx - 3, ty - 20, 6, 40);
-      // Wood grain lines
-      ctx.strokeStyle = "rgba(0,0,0,0.15)";
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(tx + dx - 1, ty - 18);
-      ctx.lineTo(tx + dx - 1, ty + 18);
-      ctx.stroke();
-    }
-
-    // Horizontal crossbars
-    ctx.fillStyle = darkPlank;
-    ctx.fillRect(tx - 18, ty - 12, 36, 4);
-    ctx.fillRect(tx - 18, ty + 6, 36, 4);
-
-    // Pointed tops
-    for (const dx of [-14, -7, 0, 7, 14]) {
-      ctx.fillStyle = plankColor;
-      ctx.beginPath();
-      ctx.moveTo(tx + dx - 3, ty - 20);
-      ctx.lineTo(tx + dx, ty - 26);
-      ctx.lineTo(tx + dx + 3, ty - 20);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Border
-    ctx.strokeStyle = "rgba(0,0,0,0.3)";
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(tx - 17, ty - 20, 34, 40);
-
-    // Emoji label above
-    ctx.font = "14px serif";
-    ctx.textAlign = "center";
-    ctx.fillText("🪵", tx, ty - 30);
-    ctx.textAlign = "start";
-
-    ctx.restore();
-  }
-
-  // ─── DRAW TOWER ───
-
-  _drawTower(ctx, entry) {
-    const { parts } = entry;
-    const c = this._colors(entry);
-    ctx.save();
-    ctx.globalAlpha = c.alpha;
-
-    const tx = parts.torso.position.x, ty = parts.torso.position.y;
-
-    // Base — wider stone foundation
-    ctx.fillStyle = c.flash || "#4a4a4a";
-    ctx.fillRect(tx - 14, ty + 10, 28, 18);
-    // Stone brick pattern on base
-    ctx.strokeStyle = "rgba(0,0,0,0.2)";
-    ctx.lineWidth = 0.7;
-    for (let row = 0; row < 3; row++) {
-      const ry = ty + 12 + row * 6;
-      ctx.beginPath(); ctx.moveTo(tx - 14, ry); ctx.lineTo(tx + 14, ry); ctx.stroke();
-      const off = row % 2 === 0 ? 0 : 7;
-      for (let bx = -14 + off; bx < 14; bx += 14) {
-        ctx.beginPath(); ctx.moveTo(tx + bx, ry); ctx.lineTo(tx + bx, ry + 6); ctx.stroke();
-      }
-    }
-
-    // Main column — stone
-    ctx.fillStyle = c.flash || "#5a5a5a";
-    ctx.fillRect(tx - 10, ty - 22, 20, 32);
-    // Stone brick pattern on column
-    ctx.strokeStyle = "rgba(0,0,0,0.15)";
-    for (let row = 0; row < 5; row++) {
-      const ry = ty - 20 + row * 6;
-      ctx.beginPath(); ctx.moveTo(tx - 10, ry); ctx.lineTo(tx + 10, ry); ctx.stroke();
-      const off = row % 2 === 0 ? 0 : 5;
-      for (let bx = -10 + off; bx < 10; bx += 10) {
-        ctx.beginPath(); ctx.moveTo(tx + bx, ry); ctx.lineTo(tx + bx, ry + 6); ctx.stroke();
-      }
-    }
-
-    // Battlements (crenellations) at top
-    ctx.fillStyle = c.flash || "#5a5a5a";
-    for (const dx of [-10, -4, 2, 8]) {
-      ctx.fillRect(tx + dx, ty - 28, 5, 6);
-    }
-
-    // Roof / platform
-    ctx.fillStyle = c.flash || "#6a5040";
-    ctx.fillRect(tx - 13, ty - 22, 26, 3);
-
-    // Emoji label above
-    ctx.font = "14px serif";
-    ctx.textAlign = "center";
-    ctx.fillText("🗼", tx, ty - 35);
-    ctx.textAlign = "start";
-
-    ctx.restore();
-  }
+  // Old body-specific renderers removed — using unified _drawSymbol
 
   // ─── DRAW WEAPON ───
 
