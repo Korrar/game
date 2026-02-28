@@ -49,7 +49,7 @@ export default function SpellMenu({ target, onCast, onClose }) {
           textShadow: "0 0 8px rgba(200,150,50,0.3)",
         }}>{label}</div>
         <div style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>
-          {isNpc ? "Wybierz czar, aby zaatakować" : "Wybierz czar, aby zniszczyć"}
+          {isNpc ? "Wybierz akcję, aby zaatakować" : "Wybierz akcję, aby zniszczyć"}
         </div>
 
         {SPELLS.map(spell => (

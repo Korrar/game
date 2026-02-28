@@ -388,25 +388,32 @@ export class CharacterSprite {
         break;
       }
       case "bow": {
+        // Rifle / Musket
         if (!lHand) break;
-        const bowX = lHand.x - dir * 2, bowY = lHand.y;
-        // Bow
-        w.setStrokeStyle({ width: 2, color: 0x7a5a30 });
-        w.moveTo(bowX, bowY - 12);
-        w.quadraticCurveTo(bowX - dir * 10, bowY, bowX, bowY + 12);
+        const rifleX = lHand.x, rifleY = lHand.y;
+        const barrelLen = 20;
+        const barrelEndX = rifleX + dir * barrelLen;
+        // Stock — wood
+        w.setStrokeStyle({ width: 4, color: 0x6a4a20, cap: "round" });
+        w.moveTo(rifleX - dir * 6, rifleY + 3);
+        w.lineTo(rifleX, rifleY);
         w.stroke();
-        // String
-        const stringPull = animT > 0 ? animT * 6 : 0;
-        w.setStrokeStyle({ width: 1, color: 0xb0a080 });
-        w.moveTo(bowX, bowY - 12);
-        w.quadraticCurveTo(bowX + dir * stringPull, bowY, bowX, bowY + 12);
+        // Barrel — metallic
+        w.setStrokeStyle({ width: 2.5, color: 0xa0a0a0, cap: "round" });
+        w.moveTo(rifleX, rifleY);
+        w.lineTo(barrelEndX, rifleY - 1);
         w.stroke();
-        // Arrow
-        if (animT <= 0) {
-          w.setStrokeStyle({ width: 1.5, color: 0x8a6a40 });
-          w.moveTo(bowX, bowY);
-          w.lineTo(bowX + dir * 12, bowY);
-          w.stroke();
+        // Barrel highlight
+        w.setStrokeStyle({ width: 1, color: 0xd0d0d0, alpha: 0.3 });
+        w.moveTo(rifleX + dir * 4, rifleY - 1);
+        w.lineTo(barrelEndX - dir * 2, rifleY - 2);
+        w.stroke();
+        // Muzzle flash when firing
+        if (animT > 0) {
+          w.circle(barrelEndX + dir * 2, rifleY - 1, 3 + animT * 3);
+          w.fill({ color: 0xffa040, alpha: animT * 0.7 });
+          w.circle(barrelEndX + dir * 2, rifleY - 1, 1.5);
+          w.fill({ color: 0xffffff, alpha: animT * 0.5 });
         }
         break;
       }

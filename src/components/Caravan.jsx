@@ -190,7 +190,7 @@ export default function Caravan({ initiative, maxInitiative, cost, canTravel, on
         textShadow: canTravel ? "0 0 8px rgba(212,160,48,0.4)" : "1px 1px 0 #000",
         animation: canTravel ? "doorGlow 2s ease-in-out infinite" : "none",
       }}>
-        🐴 Karawana
+        🐴 Konwój
         <span style={{ fontSize: 9, color: "#888", marginLeft: 4 }}>⏳{cost}</span>
       </div>
 

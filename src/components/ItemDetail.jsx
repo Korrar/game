@@ -21,7 +21,7 @@ export default function ItemDetail({ item, onSell, onStore, canStore }) {
       }}>{item.name}</div>
       <div style={{ fontSize: 15, color: "#888" }}>{item.desc}</div>
       <div style={{ fontSize: 14, color: rc, marginTop: 2, letterSpacing: 2 }}>◆ {RARITY_L[item.rarity]} ◆</div>
-      <div style={{ fontSize: 13, color: "#555", marginTop: 2 }}>{item.biome} • Komnata #{item.room}</div>
+      <div style={{ fontSize: 13, color: "#555", marginTop: 2 }}>{item.biome} • Etap #{item.room}</div>
       <div style={{ fontSize: 14, color: "#999", marginTop: 6 }}>Wartość: {formatValHTML(item.value)}</div>
       <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
         <button onClick={onSell} style={{

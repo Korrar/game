@@ -1540,7 +1540,7 @@ export default function App() {
         showMessage(`⚔️ ${bossData.emoji} ${bossData.name} nadchodzi!`, "#ff2020");
       } else {
         setActiveBoss(null);
-        showMessage("⚔️ Komnata Obronna!", "#ff6020");
+        showMessage("⚔️ Etap Obronny!", "#ff6020");
       }
 
       // Spawn caravan defenses: barricade, tower, dog
@@ -2208,10 +2208,10 @@ export default function App() {
         if (tc < need) break;
         setMoney(copperToMoney(tc - need));
         sfxEventSuccess();
-        if (item.effect === "fullMana") { setMana(MAX_MANA); showMessage(`${item.icon} ${item.name} – Pełna mana!`, "#60a0ff"); }
+        if (item.effect === "fullMana") { setMana(MAX_MANA); showMessage(`${item.icon} ${item.name} – Pełny proch!`, "#c0a060"); }
         else if (item.effect === "initiative") { setInitiative(prev => Math.min(MAX_INITIATIVE, prev + item.value)); showMessage(`${item.icon} ${item.name} – +${item.value} inicjatywy!`, "#d4a030"); }
         else if (item.effect === "moneyBack") { addMoneyFn(item.value); showMessage(`${item.icon} ${item.name}!`, "#d4a030"); }
-        else if (item.effect === "soulstone") { setMana(MAX_MANA); addMoneyFn({ copper: item.value }); showMessage(`${item.icon} ${item.name} – Mana + monety!`, "#a050e0"); }
+        else if (item.effect === "soulstone") { setMana(MAX_MANA); addMoneyFn({ copper: item.value }); showMessage(`${item.icon} ${item.name} – Proch + monety!`, "#a050e0"); }
         else if (item.effect === "dmgBuff" || item.effect === "hpBuff") { showMessage(`${item.icon} ${item.name}!`, "#40e060"); }
         break;
       }
@@ -2494,7 +2494,7 @@ export default function App() {
     const spell = SPELLS.find(s => s.id === wizardPoi.spellId);
     if (!spell) return;
     const tc = totalCopper(money);
-    if (tc < wizardPoi.cost) { showMessage("Za mało monet na naukę czaru!", "#b83030"); return; }
+    if (tc < wizardPoi.cost) { showMessage("Za mało monet na naukę akcji!", "#b83030"); return; }
     setMoney(copperToMoney(tc - wizardPoi.cost));
     setLearnedSpells(prev => [...prev, wizardPoi.spellId]);
     sfxChest();
@@ -2524,7 +2524,7 @@ export default function App() {
     setSummonPicker(false);
     // Check cooldown
     const cdEnd = cooldowns[spell.id] || 0;
-    if (Date.now() < cdEnd) { showMessage("Czar jeszcze nie gotowy!", "#cc8040"); return; }
+    if (Date.now() < cdEnd) { showMessage("Akcja jeszcze nie gotowa!", "#cc8040"); return; }
     // Check money cost
     const tc = totalCopper(money);
     const need = totalCopper(mercType.cost);
@@ -2585,8 +2585,8 @@ export default function App() {
 
   const castSpellOnTarget = useCallback((spell, walker) => {
     if (!canCastSpell(spell)) {
-      if (mana < spell.manaCost) showMessage("Za mało many!", "#4060cc");
-      else showMessage("Czar jeszcze nie gotowy!", "#cc8040");
+      if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
+      else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
       return;
     }
 
@@ -2693,7 +2693,7 @@ export default function App() {
       if (spell.id === "drain") {
         const healAmount = Math.round(damage * 0.5);
         setMana(m => Math.min(MAX_MANA, m + healAmount));
-        showMessage(`🩸 Wyssano ${healAmount} many!`, "#c02060");
+        showMessage(`🩸 Zrabowano ${healAmount} prochu!`, "#c02060");
       }
 
       setWalkers(prev => prev.map(w => {
@@ -2753,8 +2753,8 @@ export default function App() {
   // ─── AoE SPELL (hits all enemies) ───
   const castAoeSpell = useCallback((spell) => {
     if (!canCastSpell(spell)) {
-      if (mana < spell.manaCost) showMessage("Za mało many!", "#4060cc");
-      else showMessage("Czar jeszcze nie gotowy!", "#cc8040");
+      if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
+      else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
       return;
     }
 
@@ -3026,8 +3026,8 @@ export default function App() {
     const spell = SPELLS.find(s => s.id === selectedSpell);
     if (!spell || spell.id === "summon") return;
     if (!canCastSpell(spell)) {
-      if (mana < spell.manaCost) showMessage("Za mało many!", "#4060cc");
-      else showMessage("Czar jeszcze nie gotowy!", "#cc8040");
+      if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
+      else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
       return;
     }
     setMana(m => m - spell.manaCost);
@@ -3091,7 +3091,7 @@ export default function App() {
     setHideoutItems(prev => [...prev, ...toStore]);
     setInventory(prev => prev.slice(available));
     setSelectedInv(-1);
-    showMessage(`Przeniesiono ${toStore.length} przedmiotów do kryjówki!`, "#40a8b8");
+    showMessage(`Przeniesiono ${toStore.length} przedmiotów do bazy!`, "#40a8b8");
   };
 
   const buyTool = (toolId) => {
@@ -3106,27 +3106,27 @@ export default function App() {
   const buyMana = (potionId) => {
     const potion = MANA_POTIONS.find(p => p.id === potionId);
     if (!potion) return;
-    if (mana >= MAX_MANA) { showMessage("Mana pełna!", "#60a0ff"); return; }
+    if (mana >= MAX_MANA) { showMessage("Proch pełny!", "#c0a060"); return; }
     const tc = totalCopper(money); const need = totalCopper(potion.cost);
     if (tc < need) { showMessage("Za mało monet!", "#b83030"); return; }
     sfxDrinkMana(); setMoney(copperToMoney(tc - need));
     setMana(prev => Math.min(MAX_MANA, prev + potion.mana));
-    showMessage(`+${potion.mana} many! 🔮`, "#60a0ff");
+    showMessage(`+${potion.mana} prochu! 🪖`, "#c0a060");
   };
 
   const storeItem = (idx) => {
     const hlvl = HIDEOUT_LEVELS[hideoutLevel];
-    if (hideoutItems.length >= hlvl.slots) { showMessage("Kryjówka pełna!", "#b83030"); return; }
+    if (hideoutItems.length >= hlvl.slots) { showMessage("Baza pełna!", "#b83030"); return; }
     sfxStore(); const it = inventory[idx];
     setInventory(prev => prev.filter((_, i) => i !== idx));
     setHideoutItems(prev => [...prev, it]); setSelectedInv(-1);
-    showMessage(`${it.name} → Kryjówka`, "#40a8b8");
+    showMessage(`${it.name} → Baza`, "#40a8b8");
   };
 
   const retrieveItem = (idx) => {
     sfxRetrieve(); const it = hideoutItems[idx];
     setHideoutItems(prev => prev.filter((_, i) => i !== idx));
-    setInventory(prev => [...prev, it]); showMessage(`${it.name} ← z Kryjówki`, "#50a850");
+    setInventory(prev => [...prev, it]); showMessage(`${it.name} ← z Bazy`, "#50a850");
   };
 
   const upgradeHideout = () => {
@@ -3136,7 +3136,7 @@ export default function App() {
     if (tc < need) { showMessage("Za mało monet!", "#b83030"); return; }
     sfxUpgrade(); setMoney(copperToMoney(tc - need));
     setHideoutLevel(l => l + 1);
-    showMessage(`Kryjówka → ${HIDEOUT_LEVELS[hideoutLevel + 1].name}`, "#d4a030");
+    showMessage(`Baza → ${HIDEOUT_LEVELS[hideoutLevel + 1].name}`, "#d4a030");
   };
 
   const upgradeKnight = () => {
@@ -3161,7 +3161,7 @@ export default function App() {
     setMoney(copperToMoney(tc - need));
     setCaravanLevel(l => l + 1);
     setCaravanHp(next.hp);
-    showMessage(`🐴 Karawana → ${next.name}! (HP:${next.hp}, Armor:${next.armor})`, "#d4a030");
+    showMessage(`🐴 Konwój → ${next.name}! (HP:${next.hp}, Armor:${next.armor})`, "#d4a030");
   };
 
   const buyKnowledgeUpgrade = (upgradeId) => {
@@ -3174,7 +3174,7 @@ export default function App() {
     setKnowledge(k => k - cost);
     setKnowledgeUpgrades(prev => ({ ...prev, [upgradeId]: currentLevel + 1 }));
     sfxUpgrade();
-    const names = { manaPool: "Pula Many", spellPower: "Moc Czarów", manaRegen: "Regeneracja Many" };
+    const names = { manaPool: "Zapas Prochu", spellPower: "Siła Strzału", manaRegen: "Regeneracja Prochu" };
     showMessage(`📖 Ulepszono ${names[upgradeId]}!`, "#60a0ff");
   };
 
@@ -3190,9 +3190,9 @@ export default function App() {
       <div style={{ ...appStyle, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
         <div style={scanlinesStyle} /><div style={vignetteStyle} />
         <div style={{ color: "#3a2a1a", fontSize: 26, letterSpacing: 8, marginBottom: 10 }}>⚜ ─── ⚜ ─── ⚜</div>
-        <div style={{ fontSize: 60, marginBottom: 16, filter: "drop-shadow(0 0 16px rgba(212,160,48,0.25))" }}>⚔️🚪⚔️</div>
-        <h1 style={{ fontSize: 32, fontWeight: "bold", color: "#d4a030", textShadow: "3px 3px 0 #000, 0 0 25px rgba(212,160,48,0.25)", marginBottom: 8, textAlign: "center" }}>Wrota Przeznaczenia</h1>
-        <p style={{ fontSize: 18, color: "#6a5a4a", marginBottom: 36 }}>Znajdź klucz • Otwórz wrota • Zdobądź skarby</p>
+        <div style={{ fontSize: 60, marginBottom: 16, filter: "drop-shadow(0 0 16px rgba(212,160,48,0.25))" }}>🏴‍☠️⚓🏴‍☠️</div>
+        <h1 style={{ fontSize: 32, fontWeight: "bold", color: "#d4a030", textShadow: "3px 3px 0 #000, 0 0 25px rgba(212,160,48,0.25)", marginBottom: 8, textAlign: "center" }}>Szlak Fortuny</h1>
+        <p style={{ fontSize: 18, color: "#6a5a4a", marginBottom: 36 }}>Eskortuj konwój • Pokonaj bandytów • Zdobądź skarby</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
           <button onClick={startGame} style={{
             fontWeight: "bold", fontSize: 20, background: "none", border: "3px solid #d4a030", color: "#d4a030",
@@ -3230,7 +3230,7 @@ export default function App() {
             💀
           </div>
           <div style={{ fontSize: isMobile ? 11 : 13, color: "#8c4040", letterSpacing: 3, marginBottom: 4, fontWeight: "bold" }}>
-            KARAWANA ZNISZCZONA
+            KONWÓJ ZNISZCZONY
           </div>
           <h2 style={{
             fontSize: isMobile ? 22 : 28, fontWeight: "bold", color: "#cc3030",
@@ -3250,7 +3250,7 @@ export default function App() {
               ["💀", "Pokonani wrogowie", s.kills],
               ["🐉", "Pokonani bossowie", s.bossesDefeated],
               ["🔑", "Otwarte wrota", s.doors],
-              ["📖", "Bestiariusz", `${s.bestiary} stworzeń`],
+              ["📖", "Lista Gończa", `${s.bestiary} wrogów`],
               ["🏅", "Relikty", s.relics],
               ["🐴", "Poziom karawany", CARAVAN_LEVELS[s.caravanLevel]?.name || `Lv.${s.caravanLevel}`],
             ].map(([emoji, label, val], i) => (
@@ -3346,7 +3346,7 @@ export default function App() {
           boxShadow: "inset 0 0 10px rgba(0,0,0,0.4)", whiteSpace: "nowrap",
           opacity: transitioning ? 0 : 1, transition: "opacity 0.5s",
         }}>
-          Komnata #{room} — {biome.emoji} {biome.name}{isNight ? " 🌙" : ""}{weather ? ` ${weather.emoji}` : ""}{defenseMode ? " ⚔️ OBRONA" : ""}
+          Etap #{room} — {biome.emoji} {biome.name}{isNight ? " 🌙" : ""}{weather ? ` ${weather.emoji}` : ""}{defenseMode ? " ⚔️ OBRONA" : ""}
         </div>
       )}
 
@@ -3837,7 +3837,7 @@ export default function App() {
               💰 {wizardPoi.cost} Cu
             </div>
             <div style={{ fontSize: 9, color: "#8080c0", textShadow: "1px 1px 0 #000", marginTop: 1 }}>
-              🔮 Namiot Czarownika
+              🔫 Zbrojmistrz
             </div>
           </div>
         );
@@ -4164,7 +4164,7 @@ export default function App() {
           transition: "opacity 0.5s",
         }}>
           <div style={{ fontWeight: "bold", color: "#d4a030", marginBottom: 2, fontSize: isMobile ? 9 : 12 }}>🔭 Zwiad</div>
-          <div>Komnata #{nextRoomPreview.room}: {nextRoomPreview.biome.emoji} {nextRoomPreview.biome.name}</div>
+          <div>Etap #{nextRoomPreview.room}: {nextRoomPreview.biome.emoji} {nextRoomPreview.biome.name}</div>
           {nextRoomPreview.isDefense && <div style={{ color: "#e05040", fontWeight: "bold" }}>⚔️ Obrona karawany!</div>}
           {nextRoomPreview.isBoss && <div style={{ color: "#ff4040", fontWeight: "bold" }}>💀 Boss!</div>}
         </div>
@@ -4296,7 +4296,7 @@ export default function App() {
           background: "rgba(0,0,0,0.85)", padding: isMobile ? "4px 10px" : "3px 12px", border: "1px solid #5a4030",
           whiteSpace: "nowrap", borderRadius: 6,
         }}>
-          {isMobile ? "Dotknij wroga" : "Kliknij na cel, by rzucić czar (lub przeciągnij)"}
+          {isMobile ? "Dotknij wroga" : "Kliknij na cel, by wykonać akcję (lub przeciągnij)"}
         </div>
       )}
 
@@ -4330,28 +4330,28 @@ export default function App() {
             <div style={{ fontSize: 13, color: "#888", marginBottom: 8, letterSpacing: 2 }}>PRZEWODNIK ({tutorialStep + 1}/5)</div>
             {tutorialStep === 0 && <>
               <div style={{ fontSize: 32, marginBottom: 8 }}>🐴</div>
-              <div style={{ fontSize: 16, fontWeight: "bold", color: "#d4a030", marginBottom: 8 }}>Karawana</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Kliknij karawanę aby podróżować do następnej komnaty. Potrzebujesz ⏳ inicjatywy (regeneruje się z czasem). Chroń karawanę przed wrogami!</div>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "#d4a030", marginBottom: 8 }}>Konwój</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Kliknij konwój aby podróżować do następnego etapu. Potrzebujesz ⏳ inicjatywy (regeneruje się z czasem). Chroń konwój przed bandytami!</div>
             </>}
             {tutorialStep === 1 && <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🔮</div>
-              <div style={{ fontSize: 16, fontWeight: "bold", color: "#60a0ff", marginBottom: 8 }}>Czary i Walka</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>{isMobile ? "Wybierz czar z paska na dole, a potem dotknij wroga. Czary kosztują manę 🔮 i mają czas odnowienia. Łącz żywioły (ogień+lód, lód+piorun) dla bonusów COMBO!" : "Wybierz czar z paska na dole, a potem kliknij na wroga. Możesz też przeciągnąć czar na cel. Czary kosztują manę 🔮 i mają czas odnowienia. Łącz żywioły (ogień+lód, lód+piorun) dla bonusów COMBO!"}</div>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🪖</div>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "#c0a060", marginBottom: 8 }}>Akcje i Walka</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>{isMobile ? "Wybierz akcję z paska na dole, a potem dotknij wroga. Akcje kosztują proch 🪖 i mają czas odnowienia. Łącz typy (dynamit+harpun, harpun+strzał) dla bonusów COMBO!" : "Wybierz akcję z paska na dole, a potem kliknij na wroga. Możesz też przeciągnąć akcję na cel. Akcje kosztują proch 🪖 i mają czas odnowienia. Łącz typy (dynamit+harpun, harpun+strzał) dla bonusów COMBO!"}</div>
             </>}
             {tutorialStep === 2 && <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>⚔️</div>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🤠</div>
               <div style={{ fontSize: 16, fontWeight: "bold", color: "#40e060", marginBottom: 8 }}>Najemnicy</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Przyzywaj najemników czarem ⚔️ Przywołanie. Rycerz jest wytrzymały, Łotrzyk szybki z ciosami krytycznymi, Mag rzuca zaklęcia, Łucznik strzela z dystansu. Ulepszaj ich w Kryjówce 🏰!</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Werbuj najemników akcją 🤠 Werbowanie. Szeryf jest wytrzymały, Pirat szybki z ciosami krytycznymi, Alchemik rzuca bomby, Strzelec strzela z karabinu. Ulepszaj ich w Bazie 🏚️!</div>
             </>}
             {tutorialStep === 3 && <>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📖</div>
-              <div style={{ fontSize: 16, fontWeight: "bold", color: "#60a0ff", marginBottom: 8 }}>Bestiariusz i Wiedza</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Pokonani wrogowie mogą upuścić karty do Bestiariusza. Odkryte stworzenia dają +5% obrażeń przeciwko nim. Zbieraj Wiedzę 📖 na bonusy kamieni milowych!</div>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "#e0c040", marginBottom: 8 }}>Lista Gończa i Sława</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Pokonani wrogowie mogą upuścić karty do Listy Gończej. Odkryci wrogowie dają +5% obrażeń przeciwko nim. Zbieraj Sławę ⭐ na bonusy kamieni milowych!</div>
             </>}
             {tutorialStep === 4 && <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🏪🏰</div>
-              <div style={{ fontSize: 16, fontWeight: "bold", color: "#d4a030", marginBottom: 8 }}>Targ i Kryjówka</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Na Targu 🏪 kupuj narzędzia i mikstury. W Kryjówce 🏰 ulepszaj karawanę, najemników i przechowuj skarby. Co 5 pokoi czeka obrona karawany, co 10 - boss!</div>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🏪🏚️</div>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "#d4a030", marginBottom: 8 }}>Bazar i Baza</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Na Bazarze Portowym 🏪 kupuj narzędzia i zapasy prochu. W Bazie 🏚️ ulepszaj konwój, najemników i przechowuj skarby. Co 5 etapów czeka obrona konwoju, co 10 - boss!</div>
             </>}
             <div style={{ marginTop: 12, fontSize: 11, color: "#666" }}>Kliknij aby kontynuować →</div>
           </div>
@@ -4405,8 +4405,8 @@ export default function App() {
       </SidePanel>
 
       {/* SHOP PANEL */}
-      <SidePanel open={panel === "shop"} side="left" width={430} onClose={() => setPanel(null)} title="🏪 Targ" isMobile={isMobile}>
-        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#60a0ff", marginBottom: 8, borderBottom: "1px solid #1a2a3a", paddingBottom: 4 }}>🔮 Mikstury Many</h3>
+      <SidePanel open={panel === "shop"} side="left" width={430} onClose={() => setPanel(null)} title="🏪 Bazar Portowy" isMobile={isMobile}>
+        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#c0a060", marginBottom: 8, borderBottom: "1px solid #3a2a18", paddingBottom: 4 }}>🪖 Zapasy Prochu</h3>
         {MANA_POTIONS.map(potion => {
           const canAfford = totalCopper(money) >= totalCopper(potion.cost);
           return (
@@ -4471,7 +4471,7 @@ export default function App() {
       </SidePanel>
 
       {/* HIDEOUT PANEL */}
-      <SidePanel open={panel === "hideout"} side="right" width={460} onClose={() => setPanel(null)} title="🏰 Moja Kryjówka" isMobile={isMobile}>
+      <SidePanel open={panel === "hideout"} side="right" width={460} onClose={() => setPanel(null)} title="🏚️ Moja Baza" isMobile={isMobile}>
         <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}>💰 Skarbiec</h3>
         <canvas ref={vaultRef} width={420} height={200} style={{ width: "100%", height: 200, border: "2px solid #3a2818", background: "#0a0604", marginBottom: 12, display: "block" }} />
 
@@ -4536,7 +4536,7 @@ export default function App() {
         })()}
 
         {/* Caravan upgrade section */}
-        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}>🐴 Karawana</h3>
+        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}>🐴 Konwój</h3>
         {(() => {
           const cl = CARAVAN_LEVELS[caravanLevel];
           const nextCl = caravanLevel < CARAVAN_LEVELS.length - 1 ? CARAVAN_LEVELS[caravanLevel + 1] : null;
@@ -4576,25 +4576,25 @@ export default function App() {
       </SidePanel>
 
       {/* BESTIARY PANEL */}
-      <SidePanel open={panel === "bestiary"} side="left" width={460} onClose={() => setPanel(null)} title="📖 Bestiariusz" isMobile={isMobile}>
-        <div style={{ fontSize: 14, color: "#60a0ff", marginBottom: 8, fontWeight: "bold" }}>
-          📖 Wiedza: {knowledge} | Odkryto: {Object.keys(bestiary).length}/{ALL_NPCS.length}
+      <SidePanel open={panel === "bestiary"} side="left" width={460} onClose={() => setPanel(null)} title="📖 Lista Gończa" isMobile={isMobile}>
+        <div style={{ fontSize: 14, color: "#e0c040", marginBottom: 8, fontWeight: "bold" }}>
+          ⭐ Sława: {knowledge} | Odkryto: {Object.keys(bestiary).length}/{ALL_NPCS.length}
         </div>
-        <div style={{ fontSize: 12, color: "#aaa", marginBottom: 12, padding: "6px 8px", background: "rgba(60,100,200,0.08)", border: "1px solid #1a2a3a" }}>
-          <div style={{ color: "#60a0ff", fontWeight: "bold", marginBottom: 4 }}>Bonusy Wiedzy:</div>
-          <div>📖 Odkryty NPC: <span style={{ color: "#40c040" }}>+5% obrażeń</span> przeciwko niemu</div>
-          <div style={{ opacity: knowledge >= 50 ? 1 : 0.4 }}>📚 50 Wiedzy: <span style={{ color: knowledge >= 50 ? "#40c040" : "#666" }}>+5% do wszystkich obrażeń</span> {knowledge >= 50 ? "✓" : `(${knowledge}/50)`}</div>
-          <div style={{ opacity: knowledge >= 100 ? 1 : 0.4 }}>📚 100 Wiedzy: <span style={{ color: knowledge >= 100 ? "#40c040" : "#666" }}>+10% do wszystkich obrażeń</span> {knowledge >= 100 ? "✓" : `(${knowledge}/100)`}</div>
-          <div style={{ opacity: knowledge >= 200 ? 1 : 0.4 }}>📚 200 Wiedzy: <span style={{ color: knowledge >= 200 ? "#40c040" : "#666" }}>+15% do wszystkich obrażeń</span> {knowledge >= 200 ? "✓" : `(${knowledge}/200)`}</div>
+        <div style={{ fontSize: 12, color: "#aaa", marginBottom: 12, padding: "6px 8px", background: "rgba(200,160,60,0.06)", border: "1px solid #3a2a18" }}>
+          <div style={{ color: "#e0c040", fontWeight: "bold", marginBottom: 4 }}>Bonusy Sławy:</div>
+          <div>📖 Odkryty wróg: <span style={{ color: "#40c040" }}>+5% obrażeń</span> przeciwko niemu</div>
+          <div style={{ opacity: knowledge >= 50 ? 1 : 0.4 }}>⭐ 50 Sławy: <span style={{ color: knowledge >= 50 ? "#40c040" : "#666" }}>+5% do wszystkich obrażeń</span> {knowledge >= 50 ? "✓" : `(${knowledge}/50)`}</div>
+          <div style={{ opacity: knowledge >= 100 ? 1 : 0.4 }}>⭐ 100 Sławy: <span style={{ color: knowledge >= 100 ? "#40c040" : "#666" }}>+10% do wszystkich obrażeń</span> {knowledge >= 100 ? "✓" : `(${knowledge}/100)`}</div>
+          <div style={{ opacity: knowledge >= 200 ? 1 : 0.4 }}>⭐ 200 Sławy: <span style={{ color: knowledge >= 200 ? "#40c040" : "#666" }}>+15% do wszystkich obrażeń</span> {knowledge >= 200 ? "✓" : `(${knowledge}/200)`}</div>
         </div>
 
         {/* Knowledge Shop */}
-        <div style={{ marginBottom: 12, padding: "8px", background: "rgba(60,100,200,0.05)", border: "1px solid #1a2a3a" }}>
-          <div style={{ color: "#d4a030", fontWeight: "bold", marginBottom: 6, fontSize: 13 }}>🏛️ Sklep Wiedzy <span style={{ color: "#60a0ff", fontSize: 11 }}>(📖 {knowledge})</span></div>
+        <div style={{ marginBottom: 12, padding: "8px", background: "rgba(200,160,60,0.04)", border: "1px solid #3a2a18" }}>
+          <div style={{ color: "#d4a030", fontWeight: "bold", marginBottom: 6, fontSize: 13 }}>🏛️ Sklep Sławy <span style={{ color: "#e0c040", fontSize: 11 }}>(⭐ {knowledge})</span></div>
           {[
-            { id: "manaPool", name: "Pula Many", desc: "+10 max many", icon: "🔮", maxLvl: 3, costs: [30, 60, 100] },
-            { id: "spellPower", name: "Moc Czarów", desc: "+5% obrażeń czarów", icon: "⚡", maxLvl: 5, costs: [20, 40, 60, 80, 100] },
-            { id: "manaRegen", name: "Regeneracja Many", desc: "+0.5 many/sek", icon: "💧", maxLvl: 3, costs: [25, 50, 80] },
+            { id: "manaPool", name: "Zapas Prochu", desc: "+10 max prochu", icon: "🪖", maxLvl: 3, costs: [30, 60, 100] },
+            { id: "spellPower", name: "Siła Strzału", desc: "+5% obrażeń akcji", icon: "⚡", maxLvl: 5, costs: [20, 40, 60, 80, 100] },
+            { id: "manaRegen", name: "Regeneracja Prochu", desc: "+0.5 prochu/sek", icon: "🪖", maxLvl: 3, costs: [25, 50, 80] },
           ].map(upg => {
             const lvl = knowledgeUpgrades[upg.id] || 0;
             const maxed = lvl >= upg.maxLvl;

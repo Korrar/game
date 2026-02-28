@@ -34,34 +34,33 @@ export class ProjectileRenderer {
   _drawProjectile(g, proj) {
     const vx = proj.vx || 0;
     const vy = proj.vy || 0;
-    const age = age || 0;
+    const projAge = proj.age || 0;
     const angle = Math.atan2(vy, vx);
 
     switch (proj.type) {
       case "arrow": {
-        // Shaft
+        // Bullet — metallic slug with muzzle flash trail
         const cos = Math.cos(angle), sin = Math.sin(angle);
-        g.setStrokeStyle({ width: 2, color: 0x8a6a40, cap: "round" });
-        g.moveTo(proj.x - cos * 10, proj.y - sin * 10);
-        g.lineTo(proj.x + cos * 6, proj.y + sin * 6);
+        // Smoke trail
+        g.setStrokeStyle({ width: 3, color: 0x808080, alpha: 0.25 });
+        g.moveTo(proj.x - cos * 12, proj.y - sin * 12);
+        g.lineTo(proj.x - cos * 6, proj.y - sin * 6);
         g.stroke();
-        // Arrowhead
-        g.moveTo(proj.x + cos * 8, proj.y + sin * 8);
-        g.lineTo(proj.x + cos * 4 - sin * 3, proj.y + sin * 4 + cos * 3);
-        g.lineTo(proj.x + cos * 4 + sin * 3, proj.y + sin * 4 - cos * 3);
-        g.closePath();
-        g.fill({ color: 0xb0b8c0 });
-        // Fletching
-        g.setStrokeStyle({ width: 1, color: 0xc0a060 });
-        g.moveTo(proj.x - cos * 10, proj.y - sin * 10);
-        g.lineTo(proj.x - cos * 12 - sin * 3, proj.y - sin * 12 + cos * 3);
-        g.moveTo(proj.x - cos * 10, proj.y - sin * 10);
-        g.lineTo(proj.x - cos * 12 + sin * 3, proj.y - sin * 12 - cos * 3);
+        // Bullet body — metallic
+        g.setStrokeStyle({ width: 3.5, color: 0xc0b090, cap: "round" });
+        g.moveTo(proj.x - cos * 4, proj.y - sin * 4);
+        g.lineTo(proj.x + cos * 4, proj.y + sin * 4);
         g.stroke();
+        // Bullet tip — bright
+        g.circle(proj.x + cos * 4, proj.y + sin * 4, 1.5);
+        g.fill({ color: 0xffe0a0 });
+        // Muzzle flash glow
+        g.circle(proj.x, proj.y, 5);
+        g.fill({ color: 0xffa040, alpha: 0.15 });
         break;
       }
       case "fireball_npc": {
-        const r = 5 + Math.sin(age * 0.5) * 1.5;
+        const r = 5 + Math.sin(projAge * 0.5) * 1.5;
         // Outer glow
         g.circle(proj.x, proj.y, r * 3);
         g.fill({ color: 0xff6414, alpha: 0.1 });
@@ -77,8 +76,8 @@ export class ProjectileRenderer {
         break;
       }
       case "iceShard_npc": {
-        const cos = Math.cos(angle + age * 0.2);
-        const sin = Math.sin(angle + age * 0.2);
+        const cos = Math.cos(angle + projAge * 0.2);
+        const sin = Math.sin(angle + projAge * 0.2);
         // Glow
         g.circle(proj.x, proj.y, 8);
         g.fill({ color: 0x80d0ff, alpha: 0.15 });
@@ -122,26 +121,27 @@ export class ProjectileRenderer {
         break;
       }
       case "mageSpell": {
-        const r = 5 + Math.sin(age * 0.4) * 1.5;
-        // Outer glow
+        // Bomb / alchemist grenade
+        const r = 5 + Math.sin(projAge * 0.4) * 1.5;
+        // Outer glow — orange for explosive
         g.circle(proj.x, proj.y, r * 4);
-        g.fill({ color: 0x8c50dc, alpha: 0.1 });
+        g.fill({ color: 0xff8040, alpha: 0.1 });
         // Inner glow
         g.circle(proj.x, proj.y, r * 2.2);
-        g.fill({ color: 0xa064f0, alpha: 0.25 });
-        // Core
+        g.fill({ color: 0xffa050, alpha: 0.25 });
+        // Core — dark bomb shape
         g.circle(proj.x, proj.y, r);
-        g.fill({ color: 0xb482ff, alpha: 0.95 });
-        // Hot center
-        g.circle(proj.x, proj.y, r * 0.4);
-        g.fill({ color: 0xffffff, alpha: 0.35 });
-        // Orbiting sparkles
-        for (let i = 0; i < 4; i++) {
-          const a = Date.now() * 0.005 + i * Math.PI * 0.5;
-          const sx = proj.x + Math.cos(a) * (r * 1.5);
-          const sy = proj.y + Math.sin(a) * (r * 1.5);
+        g.fill({ color: 0x3a3a3a, alpha: 0.95 });
+        // Fuse spark
+        g.circle(proj.x, proj.y - r * 0.8, 2);
+        g.fill({ color: 0xffe040, alpha: 0.7 + Math.sin(projAge * 0.8) * 0.3 });
+        // Orbiting sparks
+        for (let i = 0; i < 3; i++) {
+          const a = Date.now() * 0.005 + i * Math.PI * 0.67;
+          const sx = proj.x + Math.cos(a) * (r * 1.3);
+          const sy = proj.y + Math.sin(a) * (r * 1.3);
           g.circle(sx, sy, 1);
-          g.fill({ color: 0xd0b0ff, alpha: 0.5 });
+          g.fill({ color: 0xffa020, alpha: 0.5 });
         }
         break;
       }

@@ -16,7 +16,7 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
         <div style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 11 }}>
           <span>🏕️<b style={{ color: "#e0b840" }}>{doors}</b></span>
           <span>⏳<b style={{ color: "#e0b840" }}>{initiative}</b></span>
-          <span>🔮<b style={{ color: "#60a0ff" }}>{Math.floor(mana)}</b></span>
+          <span>🪖<b style={{ color: "#c0a060" }}>{Math.floor(mana)}</b></span>
         </div>
         {/* Currency */}
         <div style={{ display: "flex", gap: 3, alignItems: "center", fontSize: 10 }}>
@@ -64,7 +64,7 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
         WebkitTextFillColor: "transparent",
         backgroundSize: "200% 100%",
         animation: "shimmer 4s ease-in-out infinite",
-      }}>⚔️ Wrota Przeznaczenia</span>
+      }}>🏴‍☠️ Szlak Fortuny</span>
       <div style={{ display: "flex", gap: 16, fontSize: 18 }}>
         <StatBadge icon="🏕️" value={doors} />
         <StatBadge icon="💎" value={treasures} />
@@ -74,8 +74,8 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
         <CurrencyBadge icon="🟤" value={money.copper} color="#cd7f32" />
         <CurrencyBadge icon="⚪" value={money.silver} color="#c0c0c8" />
         <CurrencyBadge icon="🟡" value={money.gold} color="#ffd700" />
-        {mana !== undefined && <CurrencyBadge icon="🔮" value={`${Math.floor(mana)}/${maxMana || 100}`} color="#60a0ff" />}
-        {knowledge > 0 && <CurrencyBadge icon="📖" value={knowledge} color="#60a0ff" />}
+        {mana !== undefined && <CurrencyBadge icon="🪖" value={`${Math.floor(mana)}/${maxMana || 100}`} color="#c0a060" />}
+        {knowledge > 0 && <CurrencyBadge icon="⭐" value={knowledge} color="#e0c040" />}
       </div>
       <div style={{ display: "flex", gap: 6 }}>
         {onToggleMusic && (
@@ -84,9 +84,9 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
           </DesktopBtn>
         )}
         {onSave && <DesktopBtn onClick={onSave} title="Zapisz grę">💾</DesktopBtn>}
-        {onBestiary && <DesktopBtn onClick={onBestiary}>📖 Bestiariusz</DesktopBtn>}
-        <DesktopBtn onClick={onShop}>🏪 Targ</DesktopBtn>
-        <DesktopBtn onClick={onHideout}>🏰 Kryjówka</DesktopBtn>
+        {onBestiary && <DesktopBtn onClick={onBestiary}>📖 Lista Gończa</DesktopBtn>}
+        <DesktopBtn onClick={onShop}>🏪 Bazar Portowy</DesktopBtn>
+        <DesktopBtn onClick={onHideout}>🏚️ Baza</DesktopBtn>
         <DesktopBtn onClick={onInv}>📜 Ekwipunek</DesktopBtn>
       </div>
     </div>
