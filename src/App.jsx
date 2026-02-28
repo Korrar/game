@@ -793,6 +793,7 @@ export default function App() {
   useEffect(() => {
     const atkCds = {};
     let lastTime = performance.now();
+    let frameCount = 0;
     const loop = () => {
       walkRafRef.current = requestAnimationFrame(loop);
       // Pause game when upgrade/level-up picker is open
@@ -805,21 +806,34 @@ export default function App() {
       const now = performance.now();
       const dt = Math.min((now - lastTime) / 1000, 0.1); // delta seconds, capped at 100ms
       lastTime = now;
+      frameCount++;
       const wd = walkDataRef.current;
-      for (const id of Object.keys(wd)) {
+
+      // ─── OPTIMIZATION: Pre-compute friendly/enemy arrays once per frame ───
+      const allIds = Object.keys(wd);
+      const friendlyList = []; // [{id, w}]
+      const enemyList = [];    // [{id, w}]
+      for (const id of allIds) {
+        const w = wd[id];
+        if (!w || !w.alive) continue;
+        if (w.friendly) friendlyList.push({ id, w });
+        else enemyList.push({ id, w });
+      }
+
+      for (let wi = 0; wi < allIds.length; wi++) {
+        const id = allIds[wi];
         const w = wd[id];
         if (!w || !w.alive) continue;
 
         if (w.friendly) {
-          // Friendly AI: move toward nearest enemy (using X+Y distance)
+          // Friendly AI: find nearest enemy from pre-computed list
           let nearX = null, nearY = null, nearDist = Infinity, nearId = null;
-          for (const eid of Object.keys(wd)) {
-            const e = wd[eid];
-            if (!e || !e.alive || e.friendly) continue;
+          for (let ei = 0; ei < enemyList.length; ei++) {
+            const e = enemyList[ei].w;
             const dx = e.x - w.x;
-            const dy = ((e.y || 65) - (w.y || 65)) * 0.5; // Y weighted less
+            const dy = ((e.y || 65) - (w.y || 65)) * 0.5;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < nearDist) { nearDist = dist; nearX = e.x; nearY = e.y || 65; nearId = eid; }
+            if (dist < nearDist) { nearDist = dist; nearX = e.x; nearY = e.y || 65; nearId = enemyList[ei].id; }
           }
 
           // Mage mana regen (uses dt for frame-rate independence)
@@ -1120,15 +1134,14 @@ export default function App() {
           }
           } // end !stationary else
         } else {
-          // Enemy AI: look for friendly walkers to attack
+          // Enemy AI: find nearest friendly from pre-computed list
           let friendX = null, friendY = null, friendDist = Infinity, friendId = null;
-          for (const fid of Object.keys(wd)) {
-            const f = wd[fid];
-            if (!f || !f.alive || !f.friendly) continue;
+          for (let fi = 0; fi < friendlyList.length; fi++) {
+            const f = friendlyList[fi].w;
             const dx = f.x - w.x;
             const dy = ((f.y || 50) - (w.y || 50)) * 0.5;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < friendDist) { friendDist = dist; friendX = f.x; friendY = f.y || 50; friendId = fid; }
+            if (dist < friendDist) { friendDist = dist; friendX = f.x; friendY = f.y || 50; friendId = friendlyList[fi].id; }
           }
 
           // NPC ability usage
@@ -1265,6 +1278,41 @@ export default function App() {
           }
 
           if (friendX !== null && friendDist < 25) {
+            // Check if blocked by a player barricade on the path
+            let barricadeBlock = false;
+            const pTrapsCheck = playerTrapsRef.current;
+            for (let bi = 0; bi < pTrapsCheck.length; bi++) {
+              const bt = pTrapsCheck[bi];
+              if (!bt.active || bt.trapType !== "barricade") continue;
+              const bdx = bt.x - w.x;
+              const bdy = ((bt.y || 50) - (w.y || 50)) * 0.5;
+              const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
+              if (bdist < (bt.config.blockRadius || 5)) {
+                barricadeBlock = true;
+                w.dir = bdx > 0 ? 1 : -1;
+                const now3 = Date.now();
+                const cdKey3 = "barr" + id;
+                if (!atkCds[cdKey3] || now3 - atkCds[cdKey3] > 2000) {
+                  atkCds[cdKey3] = now3;
+                  const eDmg2 = w.damage || 5;
+                  bt.currentHp = (bt.currentHp != null ? bt.currentHp : bt.config.hp) - eDmg2;
+                  spawnDmgPopup(parseInt(id), `${eDmg2}`, "#8a6030");
+                  if (bt.currentHp <= 0) {
+                    bt.active = false;
+                    sfxNpcDeath();
+                    showMessage("Barykada zniszczona!", "#cc4040");
+                    setPlayerTraps(prev => prev.map(t => t.id === bt.id ? { ...t, active: false } : t));
+                  } else {
+                    setPlayerTraps(prev => prev.map(t => t.id === bt.id ? { ...t, currentHp: bt.currentHp } : t));
+                  }
+                }
+                break;
+              }
+            }
+            if (barricadeBlock) {
+              // Do nothing — stuck at barricade
+            } else {
+
             if (!w.combatState) w.combatState = "approach";
             if (!w.combatTimer) w.combatTimer = 0;
             if (!w.strafeDir) w.strafeDir = Math.random() < 0.5 ? 1 : -1;
@@ -1315,24 +1363,58 @@ export default function App() {
                 w.strafeDir = Math.random() < 0.5 ? 1 : -1;
               }
             }
+            } // end !barricadeBlock
           } else if (defenseModeRef.current?.phase === "wave_active") {
-            // No friendly target – march toward caravan (center-bottom)
+            // No friendly target – check for player barricades first
             w.combatState = null;
-            const caravanX = 50, caravanY = 92;
-            const dxC = caravanX - w.x;
-            const dyC = caravanY - (w.y || 50);
-            // Move toward caravan
-            if (Math.abs(dxC) > 2) w.x += Math.sign(dxC) * w.speed * 0.6;
-            if (w.y != null && Math.abs(dyC) > 2) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * 2.5;
-            w.dir = dxC > 0 ? 1 : -1;
-            // Attack when close enough to caravan
-            const distToCaravan = Math.sqrt(dxC * dxC + dyC * dyC);
-            if (distToCaravan < 15) {
-              const now = Date.now();
-              const cdKey = "ec" + id;
-              if (!atkCds[cdKey] || now - atkCds[cdKey] > 3000) {
-                atkCds[cdKey] = now;
-                if (attackCaravanRef.current) attackCaravanRef.current(parseInt(id), w.damage || 5);
+            let blockedByBarricade = false;
+            const pTrapsForBlock = playerTrapsRef.current;
+            for (let bi = 0; bi < pTrapsForBlock.length; bi++) {
+              const bt = pTrapsForBlock[bi];
+              if (!bt.active || bt.trapType !== "barricade") continue;
+              const bdx = bt.x - w.x;
+              const bdy = ((bt.y || 50) - (w.y || 50)) * 0.5;
+              const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
+              if (bdist < (bt.config.blockRadius || 5)) {
+                // Blocked — stop and attack the barricade
+                blockedByBarricade = true;
+                w.dir = bdx > 0 ? 1 : -1;
+                const now2 = Date.now();
+                const cdKey2 = "barr" + id;
+                if (!atkCds[cdKey2] || now2 - atkCds[cdKey2] > 2000) {
+                  atkCds[cdKey2] = now2;
+                  const eDmg = w.damage || 5;
+                  bt.currentHp = (bt.currentHp != null ? bt.currentHp : bt.config.hp) - eDmg;
+                  spawnDmgPopup(parseInt(id), `${eDmg}`, "#8a6030");
+                  if (bt.currentHp <= 0) {
+                    bt.active = false;
+                    sfxNpcDeath();
+                    showMessage("Barykada zniszczona!", "#cc4040");
+                    setPlayerTraps(prev => prev.map(t => t.id === bt.id ? { ...t, active: false } : t));
+                  } else {
+                    setPlayerTraps(prev => prev.map(t => t.id === bt.id ? { ...t, currentHp: bt.currentHp } : t));
+                  }
+                }
+                break;
+              }
+            }
+            if (!blockedByBarricade) {
+              // March toward caravan (center-bottom)
+              const caravanX = 50, caravanY = 92;
+              const dxC = caravanX - w.x;
+              const dyC = caravanY - (w.y || 50);
+              if (Math.abs(dxC) > 2) w.x += Math.sign(dxC) * w.speed * 0.6;
+              if (w.y != null && Math.abs(dyC) > 2) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * 2.5;
+              w.dir = dxC > 0 ? 1 : -1;
+              // Attack when close enough to caravan
+              const distToCaravan = Math.sqrt(dxC * dxC + dyC * dyC);
+              if (distToCaravan < 15) {
+                const now = Date.now();
+                const cdKey = "ec" + id;
+                if (!atkCds[cdKey] || now - atkCds[cdKey] > 3000) {
+                  atkCds[cdKey] = now;
+                  if (attackCaravanRef.current) attackCaravanRef.current(parseInt(id), w.damage || 5);
+                }
               }
             }
           } else {
@@ -1388,9 +1470,8 @@ export default function App() {
 
         // ─── Elite: Frozen – slow aura (reduce nearby friendly merc speed) ───
         if (w.isElite && w.eliteMod?.slowAura) {
-          for (const fid of Object.keys(wd)) {
-            const f = wd[fid];
-            if (!f || !f.alive || !f.friendly) continue;
+          for (let fi = 0; fi < friendlyList.length; fi++) {
+            const f = friendlyList[fi].w;
             const dx = f.x - w.x;
             const dy = ((f.y || 50) - (w.y || 50)) * 0.5;
             const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1554,19 +1635,21 @@ export default function App() {
       // Update trapsRef for render
       trapsRef.current = curTraps;
 
-      // ─── PLAYER DEFENSE TRAPS COLLISION ───
+      // ─── PLAYER DEFENSE TRAPS COLLISION (throttled: every 3rd frame) ───
+      if (frameCount % 3 === 0) {
       const pTraps = playerTrapsRef.current;
-      for (const pt of pTraps) {
+      let pTrapsChanged = false;
+      for (let pi = 0; pi < pTraps.length; pi++) {
+        const pt = pTraps[pi];
         if (!pt.active) continue;
-        for (const eid of Object.keys(wd)) {
-          const e = wd[eid];
-          if (!e || !e.alive || e.friendly) continue;
+        for (let ei = 0; ei < enemyList.length; ei++) {
+          const eid = enemyList[ei].id;
+          const e = enemyList[ei].w;
           const dx = e.x - pt.x;
           const dy = ((e.y || 50) - pt.y) * 0.5;
           const dist = Math.sqrt(dx * dx + dy * dy);
 
           if (pt.trapType === "caltrops") {
-            // Slow enemies in radius
             if (dist < (pt.config.radius || 8)) {
               if (!e._caltropOrig) e._caltropOrig = e.speed;
               e.speed = e._caltropOrig * (pt.config.slowMult || 0.6);
@@ -1578,15 +1661,41 @@ export default function App() {
             }
           }
 
+          if (pt.trapType === "fire_pit" && dist < (pt.config.radius || 6)) {
+            // DPS — apply damage every ~1s (every 20 frames at 60fps → check every 3rd = ~18 frames)
+            const cdKey = `fire_${pt.id}_${eid}`;
+            if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > 1000) {
+              atkCds[cdKey] = trapNow;
+              const dmg = pt.config.dps || 5;
+              spawnDmgPopup(parseInt(eid), `${dmg}`, "#ff6020");
+              setWalkers(prev => prev.map(ww => {
+                if (ww.id !== parseInt(eid) || !ww.alive || ww.friendly) return ww;
+                const newHp = Math.max(0, ww.hp - dmg);
+                if (newHp <= 0) {
+                  sfxNpcDeath();
+                  if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                  if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "fire", Math.sign(dx) || 1);
+                  addMoneyFn(ww.npcData.loot || {});
+                  setKills(k => k + 1);
+                  grantXp(10 + roomRef.current * 2);
+                  processKillStreak();
+                  setTimeout(() => setWalkers(pr => pr.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                  return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                }
+                return { ...ww, hp: newHp };
+              }));
+            }
+          }
+
           if (pt.trapType === "powder_barrel" && dist < (pt.config.triggerRadius || 4)) {
             pt.active = false;
+            pTrapsChanged = true;
             sfxMeteorImpact();
             showMessage("Beczka prochu eksplodowała!", "#ff6020");
-            // AoE damage to all enemies nearby
             const splashR = pt.config.splashRadius || 8;
-            for (const eid2 of Object.keys(wd)) {
-              const e2 = wd[eid2];
-              if (!e2 || !e2.alive || e2.friendly) continue;
+            for (let ei2 = 0; ei2 < enemyList.length; ei2++) {
+              const eid2 = enemyList[ei2].id;
+              const e2 = enemyList[ei2].w;
               const dx2 = e2.x - pt.x;
               const dy2 = ((e2.y || 50) - pt.y) * 0.5;
               if (Math.sqrt(dx2 * dx2 + dy2 * dy2) < splashR) {
@@ -1611,12 +1720,12 @@ export default function App() {
                 }));
               }
             }
-            setPlayerTraps(prev => prev.map(t => t.id === pt.id ? { ...t, active: false } : t));
             break;
           }
 
           if (pt.trapType === "net_trap" && dist < (pt.config.triggerRadius || 4)) {
             pt.active = false;
+            pTrapsChanged = true;
             const stunDur = pt.config.stunDuration || 3000;
             e._origSpeed = e._origSpeed || e.speed;
             e.speed = 0;
@@ -1630,11 +1739,19 @@ export default function App() {
                 delete wd[eid]._stunnedUntil;
               }
             }, stunDur);
-            setPlayerTraps(prev => prev.map(t => t.id === pt.id ? { ...t, active: false } : t));
             break;
           }
+
+          // barricade is handled in enemy AI movement, not here
         }
       }
+      if (pTrapsChanged) {
+        setPlayerTraps(prev => prev.map(t => {
+          const live = pTraps.find(pt => pt.id === t.id);
+          return live && !live.active ? { ...t, active: false } : t;
+        }));
+      }
+      } // end throttled trap check
 
       // Step physics simulation
       if (physicsRef.current) physicsRef.current.step();
@@ -1956,7 +2073,7 @@ export default function App() {
     if (isDefenseRoom) {
       const totalWaves = bossData ? 1 : (newRoom <= 15 ? 3 : newRoom <= 30 ? 4 : 5);
       setDefenseMode({ phase: "setup", currentWave: 1, totalWaves,
-        enemiesRemaining: 0, enemiesSpawned: 0, timer: 10, roomNumber: newRoom, isBossRoom: !!bossData });
+        enemiesRemaining: 0, enemiesSpawned: 0, timer: 15, roomNumber: newRoom, isBossRoom: !!bossData });
       setMeteorite(null);
       sfxWaveHorn();
 
@@ -2479,7 +2596,7 @@ export default function App() {
             ));
             setDefenseMode(prev => prev ? {
               ...prev, phase: "inter_wave", currentWave: prev.currentWave + 1,
-              timer: 8, enemiesRemaining: 0, enemiesSpawned: 0,
+              timer: 12, enemiesRemaining: 0, enemiesSpawned: 0,
             } : null);
           }
           return;
@@ -3579,7 +3696,8 @@ export default function App() {
     const costType = Object.keys(trapCfg.cost)[0];
     const costAmt = trapCfg.cost[costType];
     if ((ammoRef.current[costType] || 0) < costAmt) {
-      showMessage(`Brak ${costType === "dynamite" ? "dynamitu" : "harpunów"}!`, "#c04040");
+      const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
+      showMessage(`Brak ${ammoNames[costType] || costType}!`, "#c04040");
       return;
     }
     // Check max count
@@ -3589,7 +3707,7 @@ export default function App() {
       return;
     }
     if (playerTrapsRef.current.length >= MAX_PLAYER_TRAPS) {
-      showMessage("Max 5 pułapek!", "#c08040");
+      showMessage(`Max ${MAX_PLAYER_TRAPS} pułapek!`, "#c08040");
       return;
     }
     // Spend ammo
@@ -3605,6 +3723,7 @@ export default function App() {
       active: true,
       armed: true,
       config: trapCfg,
+      ...(trapCfg.hp ? { currentHp: trapCfg.hp } : {}),
     };
     setPlayerTraps(prev => [...prev, newTrap]);
     showMessage(`${trapCfg.name} postawiona!`, "#40c0a0");
@@ -4666,7 +4785,7 @@ export default function App() {
                 textAlign: "center", minWidth: 70,
               }}>
                 <Icon name={trap.icon} size={12} /> {trap.name}
-                <div style={{ fontSize: 9, color: "#888" }}>{count}/{trap.maxCount} · {costAmt} {costType === "dynamite" ? "dyn" : "harp"}</div>
+                <div style={{ fontSize: 9, color: "#888" }}>{count}/{trap.maxCount} · {costAmt} {costType === "dynamite" ? "dyn" : costType === "cannonball" ? "kula" : "harp"}</div>
               </div>
             );
           })}
@@ -4696,18 +4815,49 @@ export default function App() {
           pointerEvents: "none",
         }}>
           <div style={{
-            width: pt.trapType === "caltrops" ? 30 : 24,
-            height: pt.trapType === "caltrops" ? 30 : 24,
-            borderRadius: pt.trapType === "net_trap" ? "50%" : 4,
+            width: pt.trapType === "barricade" ? 36 : pt.trapType === "caltrops" ? 30 : 24,
+            height: pt.trapType === "barricade" ? 28 : pt.trapType === "caltrops" ? 30 : 24,
+            borderRadius: pt.trapType === "net_trap" ? "50%" : pt.trapType === "fire_pit" ? "50%" : 4,
             background: pt.trapType === "caltrops" ? "rgba(100,80,40,0.3)"
               : pt.trapType === "powder_barrel" ? "rgba(160,60,20,0.3)"
+              : pt.trapType === "barricade" ? "rgba(120,90,50,0.5)"
+              : pt.trapType === "fire_pit" ? "rgba(200,100,20,0.3)"
               : "rgba(40,120,160,0.3)",
-            border: `1px solid ${pt.trapType === "caltrops" ? "#8a7040" : pt.trapType === "powder_barrel" ? "#cc4020" : "#40a0c0"}`,
+            border: `1px solid ${pt.trapType === "caltrops" ? "#8a7040"
+              : pt.trapType === "powder_barrel" ? "#cc4020"
+              : pt.trapType === "barricade" ? "#a08040"
+              : pt.trapType === "fire_pit" ? "#e08020"
+              : "#40a0c0"}`,
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: `0 0 8px ${pt.trapType === "powder_barrel" ? "rgba(200,60,20,0.3)" : "rgba(60,140,180,0.2)"}`,
+            boxShadow: pt.trapType === "powder_barrel" ? "0 0 8px rgba(200,60,20,0.3)"
+              : pt.trapType === "fire_pit" ? "0 0 12px rgba(255,120,20,0.4)"
+              : pt.trapType === "barricade" ? "0 0 6px rgba(160,120,60,0.3)"
+              : "0 0 8px rgba(60,140,180,0.2)",
           }}>
-            <Icon name={pt.config.icon} size={14} />
+            <Icon name={pt.config.icon} size={pt.trapType === "barricade" ? 16 : 14} />
           </div>
+          {/* Barricade HP bar */}
+          {pt.trapType === "barricade" && pt.currentHp != null && (
+            <div style={{
+              position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%)",
+              width: 32, height: 4, background: "rgba(0,0,0,0.6)", borderRadius: 2,
+            }}>
+              <div style={{
+                width: `${Math.max(0, (pt.currentHp / pt.config.hp) * 100)}%`,
+                height: "100%", borderRadius: 2,
+                background: (pt.currentHp / pt.config.hp) > 0.5 ? "#a08040" : "#cc4020",
+                transition: "width 0.2s",
+              }} />
+            </div>
+          )}
+          {/* Fire pit glow animation */}
+          {pt.trapType === "fire_pit" && (
+            <div style={{
+              position: "absolute", inset: -4, borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(255,120,20,0.15) 0%, transparent 70%)",
+              animation: "gemPulse 1.5s infinite",
+            }} />
+          )}
         </div>
       ))}
 
