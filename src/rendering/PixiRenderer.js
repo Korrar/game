@@ -110,7 +110,7 @@ export class PixiRenderer {
 
   // ─── RENDER FRAME ───
 
-  render(bodies, projectiles, fogVisibility) {
+  render(bodies, projectiles, fogVisibility, playerSkillshots, mines, areaIndicators) {
     if (!this.ready) return;
     this.fogVisibility = fogVisibility || 0;
 
@@ -166,8 +166,8 @@ export class PixiRenderer {
       }
     }
 
-    // Update projectiles
-    this.projectileRenderer.update(projectiles);
+    // Update projectiles (NPC + player skillshots)
+    this.projectileRenderer.update(projectiles, playerSkillshots, mines, areaIndicators);
 
     // Update particles
     this.combatParticles.update();

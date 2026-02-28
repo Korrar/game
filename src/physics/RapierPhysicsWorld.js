@@ -15,6 +15,7 @@ import {
 import {
   getColors, drawBody, drawWeapon, drawProjectile,
 } from "./bodies/bodyRenderers.js";
+import { SKILLSHOT_TYPES, HEADSHOT_RADIUS_MULT, ENEMY_DODGE_REACT_DIST, ENEMY_DODGE_SPEED } from "../data/skillshots.js";
 
 // ─── Rapier body/limb builders per body type ───
 
@@ -337,6 +338,9 @@ export class PhysicsWorld {
     this.world = null;
     this.bodies = {};
     this.projectiles = [];
+    this.playerSkillshots = []; // Player-aimed skillshot projectiles
+    this.mines = [];            // Placed mines (earthquake spell)
+    this.areaIndicators = [];   // Area target indicators (meteor/blizzard)
     this.combatEffects = new CombatEffects();
     this.canvas = null;
     this.ctx = null;
@@ -438,6 +442,9 @@ export class PhysicsWorld {
     for (const id of Object.keys(this.bodies)) this.removeNpc(parseInt(id));
     this.bodies = {};
     this.projectiles = [];
+    this.playerSkillshots = [];
+    this.mines = [];
+    this.areaIndicators = [];
   }
 
   _halfH(bt) { return HALF_HEIGHTS[bt] || FIGURE_HALF_HEIGHT; }
@@ -765,6 +772,386 @@ export class PhysicsWorld {
     }
   }
 
+  // ─── PLAYER SKILLSHOT SYSTEM ───
+
+  // Spawn a player-aimed skillshot projectile toward target pixel coordinates
+  spawnPlayerSkillshot(spellId, targetPx, targetPy, damage, element, onHit, onMiss, onHeadshot) {
+    const cfg = SKILLSHOT_TYPES[spellId];
+    if (!cfg) return;
+
+    // Player fires from left side of screen (caravan position ~10%)
+    const sx = this.W * 0.10;
+    const sy = this.GY;
+
+    if (cfg.type === "mine") {
+      // Place mine at target location
+      this.mines.push({
+        x: targetPx, y: targetPy,
+        damage, element, spellId,
+        triggerRadius: cfg.triggerRadius,
+        splashRadius: cfg.splashRadius,
+        armDelay: cfg.armDelay,
+        placedAt: Date.now(),
+        armed: false,
+        triggered: false,
+        onHit,
+      });
+      return;
+    }
+
+    if (cfg.type === "area") {
+      // Area targeting: show indicator, then impact after delay
+      this.areaIndicators.push({
+        x: targetPx, y: targetPy,
+        radius: cfg.splashRadius,
+        color: cfg.indicatorColor,
+        spellId, damage, element,
+        createdAt: Date.now(),
+        delay: cfg.delay,
+        onHit,
+      });
+      return;
+    }
+
+    // Linear or arc projectile
+    const dx = targetPx - sx, dy = targetPy - sy;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    let vx, vy;
+    if (cfg.type === "arc") {
+      const speed = cfg.speed;
+      vx = (dx / dist) * speed;
+      // Calculate arc trajectory
+      const tFlight = Math.abs(dx / vx) || 20;
+      vy = (dy / tFlight) - 0.5 * cfg.gravity * tFlight;
+    } else {
+      vx = (dx / dist) * cfg.speed;
+      vy = (dy / dist) * cfg.speed;
+    }
+
+    this.playerSkillshots.push({
+      x: sx, y: sy, vx, vy,
+      gravity: cfg.gravity || 0,
+      speed: cfg.speed,
+      size: cfg.size,
+      hitRadius: cfg.hitRadius,
+      splashRadius: cfg.splashRadius || 0,
+      splashDamageMult: cfg.splashDamageMult || 0,
+      trail: cfg.trail,
+      pierce: cfg.pierce || false,
+      maxPierce: cfg.maxPierce || 0,
+      pierceCount: 0,
+      chainOnHit: cfg.chainOnHit || false,
+      maxChains: cfg.maxChains || 0,
+      chainDamageMult: cfg.chainDamageMult || 0.6,
+      explodeOnGround: cfg.explodeOnGround || false,
+      type: cfg.type,
+      spellId, damage, element,
+      age: 0, maxAge: 200,
+      onHit, onMiss, onHeadshot,
+      hitIds: [], // track pierced enemies
+    });
+  }
+
+  // Check if a point is near a body's head (for headshot detection)
+  _isHeadshot(entry, px, py) {
+    const head = entry.limbBodies.head;
+    if (!head) return false;
+    const hPos = head.translation();
+    const headR = entry.bodyType === "quadruped" ? QUAD_HEAD_RADIUS : HEAD_RADIUS;
+    const dx = px - hPos.x, dy = py - hPos.y;
+    return (dx * dx + dy * dy) < (headR * headR * 4); // generous headshot zone
+  }
+
+  // Update player skillshot projectiles
+  _updatePlayerSkillshots() {
+    const fx = this.pixiRenderer || this.combatEffects;
+
+    for (let i = this.playerSkillshots.length - 1; i >= 0; i--) {
+      const proj = this.playerSkillshots[i];
+      proj.age++;
+
+      // Apply physics
+      proj.x += proj.vx;
+      proj.y += proj.vy;
+      if (proj.gravity) proj.vy += proj.gravity;
+      if (this.windDeflection) {
+        proj.vx += this.windDeflection * 0.3;
+      }
+
+      // Trail effects
+      if (proj.trail === "fire" && proj.age % 2 === 0) fx.spawnFire(proj.x, proj.y);
+      if (proj.trail === "ice" && proj.age % 3 === 0) fx.spawnIceShards(proj.x, proj.y, Math.sign(proj.vx));
+      if (proj.trail === "spark" && proj.age % 2 === 0) fx.spawnMeleeSparks(proj.x, proj.y, Math.sign(proj.vx));
+      if (proj.trail === "shadow" && proj.age % 3 === 0) fx.spawnPoisonCloud(proj.x, proj.y);
+
+      let hit = false;
+      let hitAnybody = false;
+
+      // Check collision with enemy bodies
+      for (const [id, entry] of Object.entries(this.bodies)) {
+        if (entry.ragdoll || !entry.alive || entry.friendly) continue;
+        if (proj.hitIds.includes(parseInt(id))) continue; // already pierced
+
+        const torso = entry.limbBodies.torso;
+        if (!torso) continue;
+        const ePos = torso.translation();
+        const ddx = proj.x - ePos.x, ddy = proj.y - ePos.y;
+        const hitR = proj.hitRadius * proj.hitRadius;
+
+        if (ddx * ddx + ddy * ddy < hitR) {
+          hitAnybody = true;
+          const isHeadshot = this._isHeadshot(entry, proj.x, proj.y);
+
+          // Spawn hit effects
+          fx.spawnBlood(ePos.x, ePos.y, Math.sign(proj.vx) || 1, isHeadshot ? 1.2 : 0.6);
+          if (proj.element === "fire") fx.spawnFire(ePos.x, ePos.y);
+          else if (proj.element === "ice") fx.spawnIceShards(ePos.x, ePos.y, Math.sign(proj.vx));
+          else if (proj.element === "shadow") fx.spawnPoisonCloud(ePos.x, ePos.y);
+          else fx.spawnMeleeSparks(ePos.x, ePos.y, Math.sign(proj.vx));
+
+          // Screen shake proportional to damage
+          if (this.pixiRenderer) {
+            const shakeIntensity = isHeadshot ? 8 : (proj.splashRadius > 0 ? 10 : 5);
+            this.pixiRenderer.screenShake(shakeIntensity);
+          }
+
+          // Notify hit callback
+          if (isHeadshot && proj.onHeadshot) {
+            proj.onHeadshot(parseInt(id), proj.damage, proj.element);
+          } else if (proj.onHit) {
+            proj.onHit(parseInt(id), proj.damage, proj.element, isHeadshot);
+          }
+
+          // Handle splash damage
+          if (proj.splashRadius > 0) {
+            this._applySplashDamage(proj, ePos.x, ePos.y, parseInt(id));
+          }
+
+          // Handle chain on hit (rykoszet)
+          if (proj.chainOnHit && proj.pierceCount < proj.maxChains) {
+            proj.hitIds.push(parseInt(id));
+            proj.pierceCount++;
+            proj.damage = Math.round(proj.damage * proj.chainDamageMult);
+            // Retarget to nearest unhit enemy
+            let nearId = null, nearDist = Infinity;
+            for (const [eid, ee] of Object.entries(this.bodies)) {
+              if (ee.ragdoll || !ee.alive || ee.friendly || proj.hitIds.includes(parseInt(eid))) continue;
+              const ep = ee.limbBodies.torso?.translation();
+              if (!ep) continue;
+              const d = Math.sqrt((ep.x - proj.x) ** 2 + (ep.y - proj.y) ** 2);
+              if (d < nearDist) { nearDist = d; nearId = eid; }
+            }
+            if (nearId && nearDist < 300) {
+              const ne = this.bodies[nearId].limbBodies.torso.translation();
+              const nd = Math.sqrt((ne.x - proj.x) ** 2 + (ne.y - proj.y) ** 2) || 1;
+              proj.vx = ((ne.x - proj.x) / nd) * proj.speed;
+              proj.vy = ((ne.y - proj.y) / nd) * proj.speed;
+              continue; // Don't remove — continues to next target
+            }
+            hit = true; // No more targets, remove
+          } else if (proj.pierce && proj.pierceCount < proj.maxPierce) {
+            // Pierce: pass through enemy
+            proj.hitIds.push(parseInt(id));
+            proj.pierceCount++;
+            continue;
+          } else {
+            hit = true;
+          }
+          break;
+        }
+      }
+
+      // Check if hit ground (for arc projectiles)
+      if (!hit && proj.explodeOnGround && proj.y >= this.GY) {
+        hit = true;
+        // Ground explosion
+        fx.spawnFire(proj.x, proj.y);
+        fx.spawnFire(proj.x - 10, proj.y);
+        fx.spawnFire(proj.x + 10, proj.y);
+        if (this.pixiRenderer) this.pixiRenderer.screenShake(8);
+        // Splash damage at ground point
+        if (proj.splashRadius > 0) {
+          this._applySplashDamage(proj, proj.x, proj.y, -1);
+        }
+        if (!hitAnybody && proj.onMiss) proj.onMiss();
+      }
+
+      // Remove if hit, expired, or off-screen
+      if (hit || proj.age > proj.maxAge || proj.x < -50 || proj.x > this.W + 50 || proj.y > this.H + 30) {
+        if (!hitAnybody && !hit && proj.onMiss) proj.onMiss();
+        this.playerSkillshots.splice(i, 1);
+      }
+    }
+  }
+
+  // Apply splash/AoE damage to nearby enemies
+  _applySplashDamage(proj, cx, cy, directHitId) {
+    for (const [id, entry] of Object.entries(this.bodies)) {
+      if (entry.ragdoll || !entry.alive || entry.friendly) continue;
+      if (parseInt(id) === directHitId) continue; // already hit directly
+      const torso = entry.limbBodies.torso;
+      if (!torso) continue;
+      const ePos = torso.translation();
+      const dx = cx - ePos.x, dy = cy - ePos.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < proj.splashRadius) {
+        const splashDmg = Math.round(proj.damage * (proj.splashDamageMult || 0.5));
+        const fx = this.pixiRenderer || this.combatEffects;
+        fx.spawnBlood(ePos.x, ePos.y, Math.sign(proj.vx) || 1, 0.3);
+        if (proj.onHit) proj.onHit(parseInt(id), splashDmg, proj.element, false);
+      }
+    }
+  }
+
+  // Update mines
+  _updateMines() {
+    const now = Date.now();
+    const fx = this.pixiRenderer || this.combatEffects;
+
+    for (let i = this.mines.length - 1; i >= 0; i--) {
+      const mine = this.mines[i];
+
+      // Arm delay
+      if (!mine.armed && now - mine.placedAt >= mine.armDelay) {
+        mine.armed = true;
+      }
+
+      if (!mine.armed || mine.triggered) continue;
+
+      // Check if any enemy steps on it
+      for (const [id, entry] of Object.entries(this.bodies)) {
+        if (entry.ragdoll || !entry.alive || entry.friendly) continue;
+        const torso = entry.limbBodies.torso;
+        if (!torso) continue;
+        const ePos = torso.translation();
+        const dx = mine.x - ePos.x, dy = mine.y - ePos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < mine.triggerRadius) {
+          mine.triggered = true;
+          // Explosion effects
+          fx.spawnFire(mine.x, mine.y);
+          fx.spawnFire(mine.x - 15, mine.y);
+          fx.spawnFire(mine.x + 15, mine.y);
+          if (this.pixiRenderer) this.pixiRenderer.screenShake(12);
+
+          // Damage all enemies in splash radius
+          for (const [eid, ee] of Object.entries(this.bodies)) {
+            if (ee.ragdoll || !ee.alive || ee.friendly) continue;
+            const et = ee.limbBodies.torso;
+            if (!et) continue;
+            const ep = et.translation();
+            const ed = Math.sqrt((mine.x - ep.x) ** 2 + (mine.y - ep.y) ** 2);
+            if (ed < mine.splashRadius) {
+              const dmgMult = parseInt(eid) === parseInt(id) ? 1.0 : 0.6;
+              const dmg = Math.round(mine.damage * dmgMult);
+              fx.spawnBlood(ep.x, ep.y, Math.sign(ep.x - mine.x) || 1, 0.5);
+              if (mine.onHit) mine.onHit(parseInt(eid), dmg, mine.element, false);
+            }
+          }
+
+          // Remove mine after explosion
+          setTimeout(() => {
+            const idx = this.mines.indexOf(mine);
+            if (idx >= 0) this.mines.splice(idx, 1);
+          }, 100);
+          break;
+        }
+      }
+    }
+  }
+
+  // Update area indicators (meteor/blizzard)
+  _updateAreaIndicators() {
+    const now = Date.now();
+    const fx = this.pixiRenderer || this.combatEffects;
+
+    for (let i = this.areaIndicators.length - 1; i >= 0; i--) {
+      const ind = this.areaIndicators[i];
+      if (now - ind.createdAt >= ind.delay) {
+        // Impact! Damage all enemies in radius
+        fx.spawnFire(ind.x, ind.y);
+        fx.spawnFire(ind.x - 20, ind.y - 10);
+        fx.spawnFire(ind.x + 20, ind.y + 10);
+        if (this.pixiRenderer) this.pixiRenderer.screenShake(12);
+
+        for (const [id, entry] of Object.entries(this.bodies)) {
+          if (entry.ragdoll || !entry.alive || entry.friendly) continue;
+          const torso = entry.limbBodies.torso;
+          if (!torso) continue;
+          const ePos = torso.translation();
+          const dx = ind.x - ePos.x, dy = ind.y - ePos.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < ind.radius) {
+            const distMult = 1 - (dist / ind.radius) * 0.4; // closer = more damage
+            const dmg = Math.round(ind.damage * distMult);
+            fx.spawnBlood(ePos.x, ePos.y, Math.sign(ePos.x - ind.x) || 1, 0.5);
+            if (ind.onHit) ind.onHit(parseInt(id), dmg, ind.element, false);
+          }
+        }
+
+        this.areaIndicators.splice(i, 1);
+      }
+    }
+  }
+
+  // Enemy dodge: check if any enemy should dodge an incoming skillshot
+  _checkEnemyDodge() {
+    for (const proj of this.playerSkillshots) {
+      for (const [id, entry] of Object.entries(this.bodies)) {
+        if (entry.ragdoll || !entry.alive || entry.friendly) continue;
+        if (entry._dodgeCooldown && Date.now() < entry._dodgeCooldown) continue;
+
+        const torso = entry.limbBodies.torso;
+        if (!torso) continue;
+        const ePos = torso.translation();
+
+        // Predict projectile path
+        const dx = ePos.x - proj.x, dy = ePos.y - proj.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < ENEMY_DODGE_REACT_DIST && dist > 20) {
+          // Check if projectile is heading toward this enemy
+          const dotProduct = (dx * proj.vx + dy * proj.vy) / (dist * Math.sqrt(proj.vx * proj.vx + proj.vy * proj.vy) || 1);
+          if (dotProduct > 0.7) { // heading roughly toward enemy
+            // Some enemies dodge (fast ones)
+            const npcData = entry.npcData;
+            const isQuick = npcData?.bodyType === "quadruped" || npcData?.bodyType === "floating" ||
+                           npcData?.rarity === "rare" || npcData?.rarity === "epic" || npcData?.rarity === "legendary";
+            if (isQuick && Math.random() < 0.20) {
+              // Dodge sideways
+              entry._dodgeOffset = (Math.random() < 0.5 ? 1 : -1) * ENEMY_DODGE_SPEED;
+              entry._dodgeFrames = 15;
+              entry._dodgeCooldown = Date.now() + 3000;
+            }
+          }
+        }
+      }
+    }
+
+    // Apply dodge movement
+    for (const [, entry] of Object.entries(this.bodies)) {
+      if (entry._dodgeFrames > 0) {
+        entry._dodgeFrames--;
+        // Move the entry's walkData Y position (handled in App.jsx via a flag)
+        entry._dodging = true;
+        entry._dodgeDir = entry._dodgeOffset > 0 ? 1 : -1;
+      } else {
+        entry._dodging = false;
+      }
+    }
+  }
+
+  // Get positions of all active mines (for UI rendering)
+  getMines() { return this.mines; }
+
+  // Get positions of all active area indicators (for UI rendering)
+  getAreaIndicators() { return this.areaIndicators; }
+
+  // Get player skillshots (for rendering)
+  getPlayerSkillshots() { return this.playerSkillshots; }
+
   _updateProjectiles() {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const proj = this.projectiles[i];
@@ -869,6 +1256,10 @@ export class PhysicsWorld {
       if (entry.attackAnim > 0) entry.attackAnim--;
     }
     this._updateProjectiles();
+    this._updatePlayerSkillshots();
+    this._updateMines();
+    this._updateAreaIndicators();
+    this._checkEnemyDodge();
 
     if (this.world) {
       this.world.step();
@@ -896,7 +1287,8 @@ export class PhysicsWorld {
           this.removeNpc(parseInt(id));
         }
       }
-      this.pixiRenderer.render(this.bodies, this.projectiles, this.fogVisibility);
+      this.pixiRenderer.render(this.bodies, this.projectiles, this.fogVisibility,
+        this.playerSkillshots, this.mines, this.areaIndicators);
       return;
     }
 
