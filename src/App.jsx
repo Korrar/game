@@ -8,7 +8,7 @@ import { KNIGHT_LEVELS } from "./data/knightLevels";
 import { MERCENARY_TYPES } from "./data/mercenaries";
 import { SHOP_TOOLS, MANA_POTIONS, AMMO_ITEMS, pickResource, MINE_TIMES } from "./data/shopItems";
 import { pickNpc, SPELLS, RESIST_NAMES } from "./data/npcs";
-import { SKILLSHOT_TYPES, ACCURACY_COMBO_THRESHOLD, ACCURACY_COMBO_BONUS, HEADSHOT_BONUS, DODGE_ROLL_COOLDOWN, DODGE_ROLL_DURATION, BARREL_HP, BARREL_SPLASH_RADIUS, BARREL_DAMAGE } from "./data/skillshots";
+import { SKILLSHOT_TYPES, ACCURACY_COMBO_THRESHOLD, ACCURACY_COMBO_BONUS, HEADSHOT_BONUS, DODGE_ROLL_COOLDOWN, DODGE_ROLL_DURATION, BARREL_HP, BARREL_SPLASH_RADIUS, BARREL_DAMAGE, DEFENSE_TRAPS, MAX_PLAYER_TRAPS } from "./data/skillshots";
 import { totalCopper, copperToMoney, pickTreasure, formatValHTML } from "./utils/helpers";
 import { rollRandomEvent } from "./data/randomEvents";
 import { rollWeather, applyWeatherDamage } from "./data/weather";
@@ -44,6 +44,7 @@ import { COMBOS, COMBO_STREAK_BONUS, COMBO_STREAK_CAP, COMBO_STREAK_TIMEOUT } fr
 import { LEVEL_PERKS, xpForLevel, rollLevelPerks } from "./data/levelPerks";
 import { rollUpgradeChoices, getUpgradedSpellStats, MAX_UPGRADES_PER_SPELL } from "./data/spellUpgrades";
 import { isEliteRoom, rollEliteModifier } from "./data/eliteEnemies";
+import { rollChallenge } from "./data/challenges";
 import ComboOverlay from "./components/ComboOverlay";
 import LevelUpPicker from "./components/LevelUpPicker";
 import SpellUpgradePicker from "./components/SpellUpgradePicker";
@@ -289,6 +290,22 @@ export default function App() {
   const [barrels, setBarrels] = useState([]); // [{id, x, y, hp, exploded}]
   const barrelsRef = useRef([]);
   barrelsRef.current = barrels;
+
+  // ─── FEATURE: Player Defense Traps ───
+  const [playerTraps, setPlayerTraps] = useState([]); // [{id, trapType, x, y, active, armed}]
+  const playerTrapsRef = useRef([]);
+  playerTrapsRef.current = playerTraps;
+  const [placingTrap, setPlacingTrap] = useState(null); // trap config being placed
+
+  // ─── FEATURE: Room Challenges ───
+  const [roomChallenge, setRoomChallenge] = useState(null); // {id, desc, target, progress, reward, completed}
+  const roomChallengeRef = useRef(null);
+  roomChallengeRef.current = roomChallenge;
+
+  // ─── FEATURE: Caravan Shield ───
+  const [caravanShield, setCaravanShield] = useState({ active: false, cooldown: 0 });
+  const caravanShieldRef = useRef({ active: false, cooldown: 0 });
+  caravanShieldRef.current = caravanShield;
 
   // ─── FEATURE: XP & Level System ───
   const [playerXp, setPlayerXp] = useState(0);
@@ -544,6 +561,12 @@ export default function App() {
     if (fw) { fw.lungeFrames = 8; fw.lungeOffset = 12; }
     const ew = walkDataRef.current[enemyId];
     const meleeDirX = (fw && ew) ? Math.sign(ew.x - fw.x) || 1 : 1;
+    // Alchemist passive: slow_hit — slow enemy on hit
+    if (fw && fw.mercType === "mage" && ew && ew.alive) {
+      if (!ew._origSpeed) ew._origSpeed = ew.speed;
+      ew.speed = ew._origSpeed * 0.7;
+      ew._slowedUntil = Date.now() + 2000;
+    }
     // Clash effect at enemy position
     if (ew && animatorRef.current) {
       const ex = npcElsRef.current[enemyId];
@@ -596,6 +619,13 @@ export default function App() {
         setKills(k => k + 1);
         handleCardDrop(w.npcData);
         rollAmmoDrop();
+        // Archer passive: ammo_drop — 15% chance for bonus ammo on kill
+        if (fw && fw.mercType === "archer" && Math.random() < 0.15) {
+          const ammoTypes = ["dynamite", "harpoon", "cannonball"];
+          const dropType = ammoTypes[Math.floor(Math.random() * ammoTypes.length)];
+          setAmmo(prev => ({ ...prev, [dropType]: (prev[dropType] || 0) + 1 }));
+          spawnDmgPopup(friendlyId, `+1 ${dropType === "dynamite" ? "dyn" : dropType === "harpoon" ? "harp" : "kula"}`, "#60a050");
+        }
         // XP + streak on merc kill
         const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
         grantXp(xpAmt);
@@ -675,6 +705,14 @@ export default function App() {
       spawnDmgPopup(enemyId, "UNIK!", "#40c0ff");
       return;
     }
+    // Caravan shield: blocks one hit and deactivates
+    if (caravanShieldRef.current.active) {
+      setCaravanShield(prev => ({ ...prev, active: false }));
+      spawnDmgPopup(enemyId, "TARCZA!", "#40a0ff");
+      const ew2 = walkDataRef.current[enemyId];
+      if (ew2) { ew2.lungeFrames = 8; ew2.lungeOffset = 12; }
+      return;
+    }
     // ice_core: 25% chance to fully block
     if (hasRelic("ice_core") && Math.random() < 0.25) {
       spawnDmgPopup(enemyId, "BLOK!", "#40a8b8");
@@ -690,6 +728,10 @@ export default function App() {
     // Perk: caravan armor
     armor += perkCaravanArmor;
     const actualDmg = Math.max(1, damage - armor);
+    // Challenge: no_caravan_dmg fails on caravan damage
+    if (roomChallengeRef.current?.id === "no_caravan_dmg" && !roomChallengeRef.current.completed && !roomChallengeRef.current.failed) {
+      setRoomChallenge(prev => prev ? { ...prev, failed: true } : prev);
+    }
     // Kill streak reset on caravan damage
     setKillStreak(0);
     sfxCaravanHit();
@@ -840,6 +882,18 @@ export default function App() {
               const range = w.range || 35;
               if (nearDist < range) {
                 const now = Date.now();
+                // Sheriff aura: boost ranged merc damage if a knight is nearby
+                let rangedAuraBonus = 1;
+                for (const fid2 of Object.keys(wd)) {
+                  const f2 = wd[fid2];
+                  if (!f2 || !f2.alive || !f2.friendly || fid2 === id) continue;
+                  if (f2.mercType === "knight") {
+                    const adx = f2.x - w.x;
+                    const ady = ((f2.y || 50) - (w.y || 50)) * 0.5;
+                    if (Math.sqrt(adx * adx + ady * ady) < 25) { rangedAuraBonus = 1.15; break; }
+                  }
+                }
+
                 if (w.mercType === "mage") {
                   // Mage ranged spell
                   const spellCd = w.spellCd || 3500;
@@ -852,7 +906,7 @@ export default function App() {
                       const targetWd = wd[nearId];
                       const targetXPct = targetWd ? targetWd.x : nearX;
                       physicsRef.current.spawnProjectile(
-                        parseInt(id), targetXPct, "mageSpell", w.spellDamage || 14, w.spellElement || "fire",
+                        parseInt(id), targetXPct, "mageSpell", Math.round((w.spellDamage || 14) * rangedAuraBonus), w.spellElement || "fire",
                         (hitId, dmg) => { if (summonAttackRef.current) summonAttackRef.current(parseInt(id), hitId, dmg); },
                         parseInt(nearId)
                       );
@@ -880,7 +934,7 @@ export default function App() {
                       if (ww?.accuracyMult?.arrow && Math.random() > ww.accuracyMult.arrow)
                         targetXPct += (Math.random() - 0.5) * 30;
                       physicsRef.current.spawnProjectile(
-                        parseInt(id), targetXPct, "arrow", w.projectileDamage || 6, null,
+                        parseInt(id), targetXPct, "arrow", Math.round((w.projectileDamage || 6) * rangedAuraBonus), null,
                         (hitId, dmg) => { if (summonAttackRef.current) summonAttackRef.current(parseInt(id), hitId, dmg); },
                         parseInt(nearId)
                       );
@@ -939,6 +993,28 @@ export default function App() {
                   if (w.mercType === "rogue" && Math.random() < ((w.critChance || 0.25) + mercCritBonus)) {
                     knightDmg = Math.round(knightDmg * (w.critMult || 2.0));
                     spawnDmgPopup(parseInt(nearId), `KRYT! ${knightDmg}`, "#ff8020");
+                  }
+                  // Pirate passive: combo_strike — every Nth hit deals double damage
+                  if (w.mercType === "rogue" && w._passiveCombo !== undefined) {
+                    w._passiveCombo = (w._passiveCombo || 0) + 1;
+                    if (w._passiveCombo >= 5) {
+                      knightDmg = Math.round(knightDmg * 2.0);
+                      w._passiveCombo = 0;
+                      spawnDmgPopup(parseInt(nearId), `COMBO! ${knightDmg}`, "#ffa040");
+                    }
+                  }
+                  // Sheriff passive: aura — check if nearby knight boosts damage
+                  for (const fid2 of Object.keys(wd)) {
+                    const f2 = wd[fid2];
+                    if (!f2 || !f2.alive || !f2.friendly || fid2 === id) continue;
+                    if (f2.mercType === "knight") {
+                      const adx = f2.x - w.x;
+                      const ady = ((f2.y || 50) - (w.y || 50)) * 0.5;
+                      if (Math.sqrt(adx * adx + ady * ady) < 25) {
+                        knightDmg = Math.round(knightDmg * 1.15);
+                        break;
+                      }
+                    }
                   }
                   // berserker: merc <30% HP → 2x damage
                   if (hasRelic("berserker")) {
@@ -1332,6 +1408,13 @@ export default function App() {
           }
         }
 
+        // Alchemist slow passive: restore speed after slow duration expires
+        if (!w.friendly && w._slowedUntil && w._origSpeed && now > w._slowedUntil) {
+          w.speed = w._origSpeed;
+          delete w._origSpeed;
+          delete w._slowedUntil;
+        }
+
         // Lunge animation decay
         if (w.lungeFrames > 0) {
           w.lungeFrames--;
@@ -1471,6 +1554,88 @@ export default function App() {
       // Update trapsRef for render
       trapsRef.current = curTraps;
 
+      // ─── PLAYER DEFENSE TRAPS COLLISION ───
+      const pTraps = playerTrapsRef.current;
+      for (const pt of pTraps) {
+        if (!pt.active) continue;
+        for (const eid of Object.keys(wd)) {
+          const e = wd[eid];
+          if (!e || !e.alive || e.friendly) continue;
+          const dx = e.x - pt.x;
+          const dy = ((e.y || 50) - pt.y) * 0.5;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (pt.trapType === "caltrops") {
+            // Slow enemies in radius
+            if (dist < (pt.config.radius || 8)) {
+              if (!e._caltropOrig) e._caltropOrig = e.speed;
+              e.speed = e._caltropOrig * (pt.config.slowMult || 0.6);
+              e._caltropUntil = trapNow + 500;
+            } else if (e._caltropUntil && trapNow > e._caltropUntil && e._caltropOrig) {
+              e.speed = e._caltropOrig;
+              delete e._caltropOrig;
+              delete e._caltropUntil;
+            }
+          }
+
+          if (pt.trapType === "powder_barrel" && dist < (pt.config.triggerRadius || 4)) {
+            pt.active = false;
+            sfxMeteorImpact();
+            showMessage("Beczka prochu eksplodowała!", "#ff6020");
+            // AoE damage to all enemies nearby
+            const splashR = pt.config.splashRadius || 8;
+            for (const eid2 of Object.keys(wd)) {
+              const e2 = wd[eid2];
+              if (!e2 || !e2.alive || e2.friendly) continue;
+              const dx2 = e2.x - pt.x;
+              const dy2 = ((e2.y || 50) - pt.y) * 0.5;
+              if (Math.sqrt(dx2 * dx2 + dy2 * dy2) < splashR) {
+                const dmg = pt.config.damage || 35;
+                spawnDmgPopup(parseInt(eid2), `${dmg}`, "#ff6020");
+                setWalkers(prev => prev.map(ww => {
+                  if (ww.id !== parseInt(eid2) || !ww.alive || ww.friendly) return ww;
+                  const newHp = Math.max(0, ww.hp - dmg);
+                  if (newHp <= 0) {
+                    sfxNpcDeath();
+                    if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                    if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "fire", Math.sign(dx2) || 1);
+                    addMoneyFn(ww.npcData.loot || {});
+                    setKills(k => k + 1);
+                    grantXp(10 + roomRef.current * 2);
+                    processKillStreak();
+                    setTimeout(() => setWalkers(pr => pr.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                    return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                  }
+                  if (physicsRef.current) physicsRef.current.applyHit(parseInt(eid2), "fire", Math.sign(dx2) || 1);
+                  return { ...ww, hp: newHp };
+                }));
+              }
+            }
+            setPlayerTraps(prev => prev.map(t => t.id === pt.id ? { ...t, active: false } : t));
+            break;
+          }
+
+          if (pt.trapType === "net_trap" && dist < (pt.config.triggerRadius || 4)) {
+            pt.active = false;
+            const stunDur = pt.config.stunDuration || 3000;
+            e._origSpeed = e._origSpeed || e.speed;
+            e.speed = 0;
+            e._stunnedUntil = trapNow + stunDur;
+            spawnDmgPopup(parseInt(eid), "SIEĆ!", "#40c0a0");
+            showMessage("Wróg złapany w sieć!", "#40c0a0");
+            setTimeout(() => {
+              if (wd[eid] && wd[eid]._stunnedUntil) {
+                wd[eid].speed = wd[eid]._origSpeed || 0.02;
+                delete wd[eid]._origSpeed;
+                delete wd[eid]._stunnedUntil;
+              }
+            }, stunDur);
+            setPlayerTraps(prev => prev.map(t => t.id === pt.id ? { ...t, active: false } : t));
+            break;
+          }
+        }
+      }
+
       // Step physics simulation
       if (physicsRef.current) physicsRef.current.step();
     };
@@ -1507,10 +1672,16 @@ export default function App() {
     // Night mode (30% chance)
     const night = Math.random() < 0.3;
     setIsNight(night);
-    // Weather (40% chance, biome-filtered)
-    const roomWeather = isDefenseRoom ? null : rollWeather(b.id);
+    // Weather (40% chance, biome-filtered) — also applies to defense rooms
+    const roomWeather = rollWeather(b.id);
     setWeather(roomWeather);
     if (roomWeather) { sfxWeather(roomWeather.id); showMessage(`${roomWeather.name}!`, "#80a0cc"); }
+    // Room challenge (40% chance)
+    const challenge = rollChallenge(newRoom, isDefenseRoom);
+    setRoomChallenge(challenge);
+    if (challenge) {
+      setTimeout(() => showMessage(`Wyzwanie: ${challenge.name}!`, "#ffa040"), 500);
+    }
     // Stop any active mining
     if (miningRef.current.intervalId) clearInterval(miningRef.current.intervalId);
     miningRef.current = { active: false, intervalId: null };
@@ -1997,6 +2168,44 @@ export default function App() {
     return () => clearInterval(iv);
   }, []);
 
+  // ─── WEATHER: Storm lightning strikes ───
+  useEffect(() => {
+    if (!weather || weather.skillshotEffect !== "lightning_strikes") return;
+    if (!defenseMode || defenseMode.phase !== "wave_active") return;
+    const interval = weather.lightningInterval || 6000;
+    const iv = setInterval(() => {
+      const enemies = walkersRef.current.filter(w => w.alive && !w.dying && !w.friendly);
+      if (enemies.length === 0) return;
+      const target = enemies[Math.floor(Math.random() * enemies.length)];
+      const wd = walkDataRef.current[target.id];
+      if (!wd) return;
+      const dmg = weather.lightningDamage || 15;
+      spawnDmgPopup(target.id, `⚡${dmg}`, "#60c0ff");
+      setWalkers(prev => prev.map(w => {
+        if (w.id !== target.id || !w.alive) return w;
+        const newHp = Math.max(0, w.hp - dmg);
+        if (newHp <= 0) {
+          sfxNpcDeath();
+          if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
+          if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "lightning", 0);
+          addMoneyFn(w.npcData.loot || {});
+          setKills(k => k + 1);
+          grantXp(10 + roomRef.current * 2);
+          setTimeout(() => setWalkers(pr => pr.map(ww => ww.id === w.id ? { ...ww, alive: false } : ww)), 2500);
+          return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
+        }
+        if (physicsRef.current) physicsRef.current.applyHit(target.id, "lightning", 0);
+        return { ...w, hp: newHp };
+      }));
+      if (animatorRef.current) {
+        const px = (wd.x / 100) * GAME_W;
+        const py = GAME_H * 0.25;
+        animatorRef.current.playMeleeSparks?.(px, py);
+      }
+    }, interval);
+    return () => clearInterval(iv);
+  }, [weather?.id, defenseMode?.phase]);
+
   // Passive mana regen: mana_spring relic + knowledge upgrade
   useEffect(() => {
     const iv = setInterval(() => {
@@ -2234,6 +2443,30 @@ export default function App() {
         // All enemies dead (regular defense)
         if (aliveEnemies.length === 0 && dm.enemiesSpawned > 0) {
           clearInterval(iv);
+          // Challenge completion checks on wave clear
+          const ch = roomChallengeRef.current;
+          if (ch && !ch.completed && !ch.failed) {
+            if (ch.id === "speed_kill" && Date.now() - ch.startTime <= ch.timer) {
+              addMoneyFn(ch.reward);
+              showMessage(`Wyzwanie ukończone: ${ch.name}! ${ch.rewardLabel}`, "#ffd700");
+              setRoomChallenge(prev => prev ? { ...prev, completed: true } : prev);
+            }
+            if (ch.id === "no_mana") {
+              const rewardAmmo = ch.reward;
+              if (rewardAmmo) setAmmo(am => {
+                const upd = { ...am };
+                for (const [k, v] of Object.entries(rewardAmmo)) upd[k] = (upd[k] || 0) + v;
+                return upd;
+              });
+              showMessage(`Wyzwanie ukończone: ${ch.name}! ${ch.rewardLabel}`, "#ffd700");
+              setRoomChallenge(prev => prev ? { ...prev, completed: true } : prev);
+            }
+            if (ch.id === "no_caravan_dmg") {
+              addMoneyFn(ch.reward);
+              showMessage(`Wyzwanie ukończone: ${ch.name}! ${ch.rewardLabel}`, "#ffd700");
+              setRoomChallenge(prev => prev ? { ...prev, completed: true } : prev);
+            }
+          }
           if (dm.currentWave >= dm.totalWaves) {
             sfxVictoryFanfare();
             setDefenseMode(prev => prev ? { ...prev, phase: "complete" } : null);
@@ -2331,6 +2564,8 @@ export default function App() {
     setRelicChoices(null);
     setUpgradeChoices(null);
     setActiveBoss(null);
+    setPlayerTraps([]);
+    setPlacingTrap(null);
     // Clean up remaining enemies + barricade/tower (not dog — dog persists)
     for (const [id, w] of Object.entries(walkDataRef.current)) {
       if (!w.friendly || w.stationary) {
@@ -2379,6 +2614,9 @@ export default function App() {
     setSpellUpgrades({}); setUpgradeChoices(null);
     setKillStreak(0); setPowerSpikeWarning(false);
     setEnemyBuffRooms(0); setPlayerDoubleDmgRooms(0);
+    setPlayerTraps([]); setPlacingTrap(null);
+    setRoomChallenge(null);
+    setCaravanShield({ active: false, cooldown: 0 });
     walkDataRef.current = {};
     setGameOverStats(null);
     localStorage.removeItem("wrota_save");
@@ -2547,6 +2785,7 @@ export default function App() {
       meleeDamage: Math.round((mercType.meleeDamage || mercType.damage) * mult),
       projectileDamage: Math.round((mercType.projectileDamage || 0) * mult),
       projectileCd: mercType.projectileCd || 1800,
+      _passiveCombo: 0,
     };
     if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, true);
   }, [knightLevel]);
@@ -3007,6 +3246,20 @@ export default function App() {
       // Headshot bonus: +50% damage
       if (isHeadshot) dmg = Math.round(dmg * (1 + HEADSHOT_BONUS));
 
+      // Challenge: headshot_streak
+      if (isHeadshot && roomChallengeRef.current?.id === "headshot_streak" && !roomChallengeRef.current.completed) {
+        setRoomChallenge(prev => {
+          if (!prev || prev.completed) return prev;
+          const p = prev.progress + 1;
+          if (p >= prev.target) {
+            addMoneyFn(prev.reward);
+            showMessage(`Wyzwanie ukończone: ${prev.name}! ${prev.rewardLabel}`, "#ffd700");
+            return { ...prev, progress: p, completed: true };
+          }
+          return { ...prev, progress: p };
+        });
+      }
+
       // Accuracy streak bonus
       if (accuracyStreakRef.current >= ACCURACY_COMBO_THRESHOLD) {
         dmg = Math.round(dmg * (1 + ACCURACY_COMBO_BONUS));
@@ -3026,6 +3279,19 @@ export default function App() {
           setActiveCombo(combo);
           if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
           comboTimerRef.current = setTimeout(() => { setComboCounter(0); setActiveCombo(null); }, COMBO_STREAK_TIMEOUT);
+          // Challenge: combo_master
+          if (roomChallengeRef.current?.id === "combo_master" && !roomChallengeRef.current.completed) {
+            setRoomChallenge(prev => {
+              if (!prev || prev.completed) return prev;
+              const p = prev.progress + 1;
+              if (p >= prev.target) {
+                addMoneyFn(prev.reward);
+                showMessage(`Wyzwanie ukończone: ${prev.name}! ${prev.rewardLabel}`, "#ffd700");
+                return { ...prev, progress: p, completed: true };
+              }
+              return { ...prev, progress: p };
+            });
+          }
         }
       }
       if (element) elementDebuffs.current[walkerId] = { element, timestamp: Date.now() };
@@ -3124,6 +3390,25 @@ export default function App() {
         if (aliveEnemies.length === 0) {
           setSlowMotion(true);
           setTimeout(() => setSlowMotion(false), 1000);
+          // Challenge completion for non-defense rooms
+          const ch = roomChallengeRef.current;
+          if (ch && !ch.completed && !ch.failed && !defenseModeRef.current) {
+            if (ch.id === "speed_kill" && Date.now() - ch.startTime <= ch.timer) {
+              addMoneyFn(ch.reward);
+              showMessage(`Wyzwanie ukończone: ${ch.name}! ${ch.rewardLabel}`, "#ffd700");
+              setRoomChallenge(prev2 => prev2 ? { ...prev2, completed: true } : prev2);
+            }
+            if (ch.id === "no_mana") {
+              const rewardAmmo = ch.reward;
+              if (rewardAmmo) setAmmo(am => {
+                const upd = { ...am };
+                for (const [k, v] of Object.entries(rewardAmmo)) upd[k] = (upd[k] || 0) + v;
+                return upd;
+              });
+              showMessage(`Wyzwanie ukończone: ${ch.name}! ${ch.rewardLabel}`, "#ffd700");
+              setRoomChallenge(prev2 => prev2 ? { ...prev2, completed: true } : prev2);
+            }
+          }
         }
 
         showMessage(`${npcData.name} pokonany! +${formatLootText(npcData.loot)}`, "#e05040");
@@ -3146,6 +3431,10 @@ export default function App() {
       return;
     }
 
+    // Challenge: no_mana — fail if mana is used
+    if (roomChallengeRef.current?.id === "no_mana" && !roomChallengeRef.current.completed && !roomChallengeRef.current.failed && getSpellManaCost(spell) > 0) {
+      setRoomChallenge(prev => prev ? { ...prev, failed: true } : prev);
+    }
     // Spend mana & set cooldown
     setMana(m => m - getSpellManaCost(spell));
     if (spell.ammoCost) {
@@ -3193,6 +3482,25 @@ export default function App() {
             showMessage("HEADSHOT! +50% obrażeń!", "#ff4040");
           }
 
+          // Challenge: full_accuracy
+          if (roomChallengeRef.current?.id === "full_accuracy" && !roomChallengeRef.current.completed) {
+            setRoomChallenge(prev => {
+              if (!prev || prev.completed) return prev;
+              const p = prev.progress + 1;
+              if (p >= prev.target) {
+                const rewardAmmo = prev.reward;
+                if (rewardAmmo) setAmmo(am => {
+                  const upd = { ...am };
+                  for (const [k, v] of Object.entries(rewardAmmo)) upd[k] = (upd[k] || 0) + v;
+                  return upd;
+                });
+                showMessage(`Wyzwanie ukończone: ${prev.name}! ${prev.rewardLabel}`, "#ffd700");
+                return { ...prev, progress: p, completed: true };
+              }
+              return { ...prev, progress: p };
+            });
+          }
+
           // Accuracy combo notification
           if (accuracyStreakRef.current + 1 >= ACCURACY_COMBO_THRESHOLD && (accuracyStreakRef.current + 1) % ACCURACY_COMBO_THRESHOLD === 0) {
             showMessage(`Celność x${accuracyStreakRef.current + 1}! +25% obrażeń!`, "#ffd700");
@@ -3204,6 +3512,10 @@ export default function App() {
         () => {
           setAccuracy(prev => ({ ...prev, misses: prev.misses + 1 }));
           setAccuracyStreak(0);
+          // Challenge: full_accuracy fails on miss
+          if (roomChallengeRef.current?.id === "full_accuracy" && !roomChallengeRef.current.completed) {
+            setRoomChallenge(prev => prev ? { ...prev, progress: 0 } : prev);
+          }
           // Visual feedback for miss
           showMessage("Pudło!", "#888888");
         },
@@ -3260,6 +3572,70 @@ export default function App() {
     // The physics uses GAME_W/GAME_H coordinates
     castSkillshot(spell, clickX, clickY);
   }, [selectedSpell, gameScale, castSkillshot]);
+
+  // ─── DEFENSE TRAP: Place a player trap during setup phase ───
+  const placeDefenseTrap = useCallback((trapCfg, clickX, clickY) => {
+    // Check if we can afford it
+    const costType = Object.keys(trapCfg.cost)[0];
+    const costAmt = trapCfg.cost[costType];
+    if ((ammoRef.current[costType] || 0) < costAmt) {
+      showMessage(`Brak ${costType === "dynamite" ? "dynamitu" : "harpunów"}!`, "#c04040");
+      return;
+    }
+    // Check max count
+    const existing = playerTrapsRef.current.filter(t => t.trapType === trapCfg.id);
+    if (existing.length >= trapCfg.maxCount) {
+      showMessage(`Max ${trapCfg.maxCount} ${trapCfg.name}!`, "#c08040");
+      return;
+    }
+    if (playerTrapsRef.current.length >= MAX_PLAYER_TRAPS) {
+      showMessage("Max 5 pułapek!", "#c08040");
+      return;
+    }
+    // Spend ammo
+    setAmmo(prev => ({ ...prev, [costType]: (prev[costType] || 0) - costAmt }));
+    // Convert click position to percentage
+    const xPct = (clickX / GAME_W) * 100;
+    const yPct = (clickY / GAME_H) * 100;
+    const newTrap = {
+      id: Date.now() + Math.random(),
+      trapType: trapCfg.id,
+      x: xPct,
+      y: yPct,
+      active: true,
+      armed: true,
+      config: trapCfg,
+    };
+    setPlayerTraps(prev => [...prev, newTrap]);
+    showMessage(`${trapCfg.name} postawiona!`, "#40c0a0");
+    setPlacingTrap(null);
+  }, [showMessage]);
+
+  // Handle click for trap placement mode
+  const handleTrapPlaceClick = useCallback((e) => {
+    if (!placingTrap || !gameContainerRef.current) return;
+    const gr = gameContainerRef.current.getBoundingClientRect();
+    const clickX = (e.clientX - gr.left) / gameScale;
+    const clickY = (e.clientY - gr.top) / gameScale;
+    placeDefenseTrap(placingTrap, clickX, clickY);
+  }, [placingTrap, gameScale, placeDefenseTrap]);
+
+  // ─── CARAVAN SHIELD: Activate shield to block one hit ───
+  const activateCaravanShield = useCallback(() => {
+    const now = Date.now();
+    if (caravanShieldRef.current.active) { showMessage("Tarcza już aktywna!", "#4080cc"); return; }
+    if (caravanShieldRef.current.cooldown > now) {
+      const rem = Math.ceil((caravanShieldRef.current.cooldown - now) / 1000);
+      showMessage(`Tarcza za ${rem}s!`, "#888");
+      return;
+    }
+    setCaravanShield({ active: true, cooldown: now + 10000 });
+    showMessage("Tarcza aktywowana!", "#40a0ff");
+    // Shield lasts 2.5 seconds
+    setTimeout(() => {
+      setCaravanShield(prev => ({ ...prev, active: false }));
+    }, 2500);
+  }, [showMessage]);
 
   const castSpellOnTarget = useCallback((spell, walker) => {
     if (!canCastSpell(spell)) {
@@ -3803,12 +4179,13 @@ export default function App() {
         if (spell) handleSelectSpellRef.current(spell.id);
         return;
       }
-      // Escape to cancel selection + auto-attack + skillshot mode
+      // Escape to cancel selection + auto-attack + skillshot mode + trap placement
       if (e.key === "Escape") {
         setSelectedSpell(null);
         setAutoAttackTarget(null);
         setSkillshotMode(false);
         setSkillshotSpell(null);
+        setPlacingTrap(null);
         return;
       }
       // Q to toggle auto-attack off
@@ -4180,7 +4557,7 @@ export default function App() {
       )}
 
       {/* Scaled game container – fills entire screen on mobile */}
-      <div ref={gameContainerRef} onClick={skillshotMode ? handleSkillshotClick : undefined} style={{
+      <div ref={gameContainerRef} onClick={placingTrap ? handleTrapPlaceClick : skillshotMode ? handleSkillshotClick : undefined} style={{
         width: GAME_W, height: GAME_H,
         transform: `scale(${gameScale})`,
         transformOrigin: isMobile ? "top left" : "center center",
@@ -4188,7 +4565,7 @@ export default function App() {
         top: isMobile ? 0 : undefined,
         left: isMobile ? 0 : undefined,
         overflow: "hidden",
-        cursor: skillshotMode ? "crosshair" : "default",
+        cursor: placingTrap ? "crosshair" : skillshotMode ? "crosshair" : "default",
         animation: slowMotion
           ? "slowMoFlash 1s ease-out forwards"
           : screenShake ? "screenShake 0.08s infinite alternate" : "none",
@@ -4236,6 +4613,144 @@ export default function App() {
         />
       )}
       <ComboOverlay combo={activeCombo} comboCounter={comboCounter} />
+
+      {/* Room Challenge Banner */}
+      {roomChallenge && !roomChallenge.completed && !roomChallenge.failed && (
+        <div style={{
+          position: "absolute", top: isMobile ? 50 : 76, left: 8, zIndex: 22,
+          background: "rgba(14,8,10,0.9)", border: "1px solid #ffa040",
+          padding: "3px 10px", borderRadius: 6, fontSize: isMobile ? 9 : 11,
+          color: "#ffa040", pointerEvents: "none",
+          boxShadow: "0 0 8px rgba(255,160,60,0.2)",
+        }}>
+          <Icon name={roomChallenge.icon} size={11} /> {roomChallenge.desc}
+          {roomChallenge.type === "counter" && (
+            <span style={{ color: "#fff", marginLeft: 6 }}>{roomChallenge.progress}/{roomChallenge.target}</span>
+          )}
+          {roomChallenge.type === "timer" && (
+            <span style={{ color: "#fff", marginLeft: 6 }}>{Math.max(0, Math.ceil((roomChallenge.timer - (Date.now() - roomChallenge.startTime)) / 1000))}s</span>
+          )}
+          <span style={{ color: "#888", marginLeft: 6 }}>{roomChallenge.rewardLabel}</span>
+        </div>
+      )}
+      {roomChallenge?.completed && (
+        <div style={{
+          position: "absolute", top: isMobile ? 50 : 76, left: 8, zIndex: 22,
+          background: "rgba(14,8,10,0.9)", border: "1px solid #40e060",
+          padding: "3px 10px", borderRadius: 6, fontSize: isMobile ? 9 : 11,
+          color: "#40e060", pointerEvents: "none",
+        }}>
+          <Icon name="star" size={11} /> {roomChallenge.name} — ukończone!
+        </div>
+      )}
+
+      {/* Defense Trap Placement Panel — visible during setup phase */}
+      {defenseMode && (defenseMode.phase === "setup" || defenseMode.phase === "inter_wave") && !placingTrap && (
+        <div style={{
+          position: "absolute", bottom: isMobile ? 70 : 100, left: "50%", transform: "translateX(-50%)",
+          display: "flex", gap: 6, zIndex: 30, pointerEvents: "auto",
+        }}>
+          {DEFENSE_TRAPS.map(trap => {
+            const costType = Object.keys(trap.cost)[0];
+            const costAmt = trap.cost[costType];
+            const hasAmmo = (ammo[costType] || 0) >= costAmt;
+            const count = playerTraps.filter(t => t.trapType === trap.id && t.active).length;
+            const maxed = count >= trap.maxCount || playerTraps.filter(t => t.active).length >= MAX_PLAYER_TRAPS;
+            return (
+              <div key={trap.id} onClick={() => hasAmmo && !maxed ? setPlacingTrap(trap) : null} style={{
+                background: "rgba(14,8,10,0.9)", border: `1px solid ${hasAmmo && !maxed ? "#40c0a0" : "#444"}`,
+                padding: "4px 10px", borderRadius: 6, cursor: hasAmmo && !maxed ? "pointer" : "not-allowed",
+                color: hasAmmo && !maxed ? "#40c0a0" : "#666", fontSize: isMobile ? 10 : 12,
+                opacity: hasAmmo && !maxed ? 1 : 0.5,
+                boxShadow: hasAmmo && !maxed ? "0 0 6px rgba(60,180,140,0.2)" : "none",
+                textAlign: "center", minWidth: 70,
+              }}>
+                <Icon name={trap.icon} size={12} /> {trap.name}
+                <div style={{ fontSize: 9, color: "#888" }}>{count}/{trap.maxCount} · {costAmt} {costType === "dynamite" ? "dyn" : "harp"}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Trap placement mode indicator */}
+      {placingTrap && (
+        <div style={{
+          position: "absolute", bottom: isMobile ? 70 : 100, left: "50%", transform: "translateX(-50%)",
+          background: "rgba(0,0,0,0.85)", border: "2px solid #40c0a0",
+          padding: "6px 20px", borderRadius: 8, zIndex: 30,
+          color: "#40c0a0", fontWeight: "bold", fontSize: isMobile ? 11 : 14,
+          textShadow: "0 0 8px rgba(60,180,140,0.4)",
+          animation: "gemPulse 1.5s ease-in-out infinite",
+        }}>
+          <Icon name={placingTrap.icon} size={16} /> Kliknij aby postawić: {placingTrap.name}
+          <span onClick={() => setPlacingTrap(null)} style={{ color: "#888", fontSize: 10, marginLeft: 8, cursor: "pointer" }}>[ESC]</span>
+        </div>
+      )}
+
+      {/* Player-placed defense trap visuals */}
+      {playerTraps.map(pt => pt.active && (
+        <div key={pt.id} style={{
+          position: "absolute", left: `${pt.x}%`, top: `${pt.y}%`,
+          transform: "translate(-50%, -50%)", zIndex: 14,
+          pointerEvents: "none",
+        }}>
+          <div style={{
+            width: pt.trapType === "caltrops" ? 30 : 24,
+            height: pt.trapType === "caltrops" ? 30 : 24,
+            borderRadius: pt.trapType === "net_trap" ? "50%" : 4,
+            background: pt.trapType === "caltrops" ? "rgba(100,80,40,0.3)"
+              : pt.trapType === "powder_barrel" ? "rgba(160,60,20,0.3)"
+              : "rgba(40,120,160,0.3)",
+            border: `1px solid ${pt.trapType === "caltrops" ? "#8a7040" : pt.trapType === "powder_barrel" ? "#cc4020" : "#40a0c0"}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: `0 0 8px ${pt.trapType === "powder_barrel" ? "rgba(200,60,20,0.3)" : "rgba(60,140,180,0.2)"}`,
+          }}>
+            <Icon name={pt.config.icon} size={14} />
+          </div>
+        </div>
+      ))}
+
+      {/* Caravan Shield Button */}
+      {defenseMode && defenseMode.phase === "wave_active" && (
+        <div onClick={activateCaravanShield} style={{
+          position: "absolute", bottom: isMobile ? 130 : 30, right: isMobile ? 60 : 8,
+          zIndex: 25, cursor: "pointer", pointerEvents: "auto",
+          width: isMobile ? 44 : 48, height: isMobile ? 44 : 48,
+          borderRadius: "50%",
+          background: caravanShield.active ? "rgba(64,160,255,0.3)" : "rgba(14,8,10,0.85)",
+          border: `2px solid ${caravanShield.active ? "#40a0ff" : caravanShield.cooldown > Date.now() ? "#444" : "#4080cc"}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: caravanShield.active ? "0 0 16px rgba(64,160,255,0.5)" : "none",
+          opacity: caravanShield.cooldown > Date.now() && !caravanShield.active ? 0.5 : 1,
+          transition: "all 0.3s",
+        }}>
+          <Icon name="shield" size={isMobile ? 20 : 24} />
+          {caravanShield.active && (
+            <div style={{
+              position: "absolute", top: -4, right: -4,
+              width: 10, height: 10, borderRadius: "50%",
+              background: "#40a0ff", animation: "gemPulse 0.5s infinite",
+            }} />
+          )}
+        </div>
+      )}
+
+      {/* Weather Skillshot Effect Indicator */}
+      {weather?.skillshotEffect && (
+        <div style={{
+          position: "absolute", bottom: isMobile ? 100 : 12, left: 8, zIndex: 20,
+          background: "rgba(14,8,10,0.85)", border: "1px solid #80a0cc",
+          padding: "2px 8px", borderRadius: 4, fontSize: isMobile ? 9 : 10,
+          color: "#80a0cc", pointerEvents: "none",
+        }}>
+          <Icon name={weather.icon} size={10} />
+          {weather.skillshotEffect === "wind_drift" && ` Wiatr ${weather.windDir > 0 ? "→" : "←"}`}
+          {weather.skillshotEffect === "extra_gravity" && " Cięższe pociski"}
+          {weather.skillshotEffect === "lightning_strikes" && " Pioruny!"}
+          {weather.skillshotEffect === "reduced_range" && " Ograniczona widoczność"}
+        </div>
+      )}
 
       {/* Skillshot Mode Indicator */}
       {skillshotMode && skillshotSpell && (
