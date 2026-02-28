@@ -3,7 +3,8 @@
 
 import { Graphics } from "pixi.js";
 
-const MAX_PARTICLES = 400;
+const _isMobile = ("ontouchstart" in window || navigator.maxTouchPoints > 0) && window.innerWidth < 900;
+const MAX_PARTICLES = _isMobile ? 150 : 400;
 
 export class CombatParticles {
   constructor(layer) {
@@ -11,6 +12,12 @@ export class CombatParticles {
     this.particles = [];
     this.gfx = new Graphics();
     this.layer.addChild(this.gfx);
+    this.mobile = _isMobile;
+  }
+
+  // Scale particle counts for mobile
+  _c(count) {
+    return this.mobile ? Math.ceil(count * 0.5) : count;
   }
 
   _emit(count, x, y, config) {
@@ -31,7 +38,7 @@ export class CombatParticles {
   }
 
   spawnBlood(x, y, dirX, intensity = 1) {
-    const count = Math.round(16 * intensity);
+    const count = this._c(Math.round(16 * intensity));
     this._emit(count, x, y, {
       vx: () => dirX * (Math.random() * 4 + 2) + (Math.random() - 0.5) * 3,
       vy: () => -(Math.random() * 5 + 1),
@@ -43,7 +50,7 @@ export class CombatParticles {
   }
 
   spawnFire(x, y) {
-    this._emit(22, x, y, {
+    this._emit(this._c(22), x, y, {
       vx: () => (Math.random() - 0.5) * 4,
       vy: () => -(Math.random() * 4 + 2),
       life: 20 + Math.random() * 10,
@@ -52,7 +59,7 @@ export class CombatParticles {
       gravity: -0.08,
     });
     // Inner white-hot
-    this._emit(6, x, y, {
+    this._emit(this._c(6), x, y, {
       vx: () => (Math.random() - 0.5) * 2,
       vy: () => -(Math.random() * 3 + 1),
       life: 12,
@@ -63,7 +70,7 @@ export class CombatParticles {
   }
 
   spawnIceShards(x, y, dirX) {
-    this._emit(14, x, y, {
+    this._emit(this._c(14), x, y, {
       vx: () => dirX * (Math.random() * 3 + 1) + (Math.random() - 0.5) * 2,
       vy: () => -(Math.random() * 3 + 1),
       life: 22 + Math.random() * 10,
@@ -75,7 +82,7 @@ export class CombatParticles {
   }
 
   spawnShadowMist(x, y) {
-    this._emit(16, x, y, {
+    this._emit(this._c(16), x, y, {
       vx: () => (Math.random() - 0.5) * 3,
       vy: () => -(Math.random() * 2),
       life: 30 + Math.random() * 15,
@@ -86,7 +93,7 @@ export class CombatParticles {
   }
 
   spawnHolyLight(x, y) {
-    this._emit(14, x, y, {
+    this._emit(this._c(14), x, y, {
       vx: () => (Math.random() - 0.5) * 5,
       vy: () => (Math.random() - 0.5) * 5,
       life: 18 + Math.random() * 8,
@@ -95,7 +102,7 @@ export class CombatParticles {
       gravity: -0.06,
     });
     // Central flash
-    this._emit(4, x, y, {
+    this._emit(this._c(4), x, y, {
       vx: () => 0,
       vy: () => 0,
       life: 8,
@@ -105,7 +112,7 @@ export class CombatParticles {
   }
 
   spawnMeleeSparks(x, y, dirX) {
-    this._emit(12, x, y, {
+    this._emit(this._c(12), x, y, {
       vx: () => dirX * (Math.random() * 5 + 2) + (Math.random() - 0.5) * 2,
       vy: () => -(Math.random() * 4 + 1),
       life: 12 + Math.random() * 8,
@@ -116,7 +123,7 @@ export class CombatParticles {
   }
 
   spawnFireBreath(x, y, dirX) {
-    this._emit(20, x, y, {
+    this._emit(this._c(20), x, y, {
       vx: () => dirX * (Math.random() * 6 + 3),
       vy: () => (Math.random() - 0.5) * 3,
       life: 18 + Math.random() * 8,
@@ -127,7 +134,7 @@ export class CombatParticles {
   }
 
   spawnPoisonCloud(x, y) {
-    this._emit(14, x, y, {
+    this._emit(this._c(14), x, y, {
       vx: () => (Math.random() - 0.5) * 2,
       vy: () => -(Math.random() * 1.5),
       life: 35 + Math.random() * 15,
@@ -138,7 +145,7 @@ export class CombatParticles {
   }
 
   spawnArrowTrail(x, y, vx, vy) {
-    this._emit(3, x, y, {
+    this._emit(this.mobile ? 1 : 3, x, y, {
       vx: () => (Math.random() - 0.5) * 0.5,
       vy: () => (Math.random() - 0.5) * 0.5,
       life: 8,
@@ -175,9 +182,11 @@ export class CombatParticles {
         this.gfx.closePath();
         this.gfx.fill({ color: p.color, alpha: alpha * 0.8 });
       } else {
-        // Glow halo
-        this.gfx.circle(p.x, p.y, size * 2);
-        this.gfx.fill({ color: p.color, alpha: alpha * 0.1 });
+        // On mobile: skip glow halo to reduce draw calls
+        if (!this.mobile) {
+          this.gfx.circle(p.x, p.y, size * 2);
+          this.gfx.fill({ color: p.color, alpha: alpha * 0.1 });
+        }
         // Core
         this.gfx.circle(p.x, p.y, size);
         this.gfx.fill({ color: p.color, alpha: alpha * 0.7 });
