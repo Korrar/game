@@ -331,6 +331,19 @@ export default function App() {
     return bonus;
   };
 
+  const showMessage = useCallback((text, color) => {
+    setMsg({ text, color });
+    setTimeout(() => setMsg(null), 1500);
+  }, []);
+
+  const addMoneyFn = useCallback((val) => {
+    setMoney(prev => {
+      let tc = totalCopper(prev) + totalCopper(val);
+      return copperToMoney(tc);
+    });
+    setTotalGoldEarned(prev => prev + (val.gold || 0) + (val.silver || 0) / 100 + (val.copper || 0) / 10000);
+  }, []);
+
   // ─── XP & Level helpers ───
   const grantXp = useCallback((amount) => {
     setPlayerXp(prev => {
@@ -447,18 +460,7 @@ export default function App() {
 
   useEffect(() => { activeBossRef.current = activeBoss; }, [activeBoss]);
 
-  const showMessage = useCallback((text, color) => {
-    setMsg({ text, color });
-    setTimeout(() => setMsg(null), 1500);
-  }, []);
-
-  const addMoneyFn = useCallback((val) => {
-    setMoney(prev => {
-      let tc = totalCopper(prev) + totalCopper(val);
-      return copperToMoney(tc);
-    });
-    setTotalGoldEarned(prev => prev + (val.gold || 0) + (val.silver || 0) / 100 + (val.copper || 0) / 10000);
-  }, []);
+  // (showMessage & addMoneyFn moved before grantXp / selectPerk)
 
   // Spawn a floating damage popup at walker's current position
   const spawnDmgPopup = useCallback((wid, text, color, element) => {
