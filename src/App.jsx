@@ -222,7 +222,7 @@ export default function App() {
   const [knightLevel, setKnightLevel] = useState(0);
 
   // Mana & spell system
-  const [mana, setMana] = useState(20);
+  const [mana, setMana] = useState(50);
   const [ammo, setAmmo] = useState({ dynamite: 5, harpoon: 5, cannonball: 3 });
   const ammoRef = useRef({ dynamite: 5, harpoon: 5, cannonball: 3 });
   ammoRef.current = ammo;
@@ -2823,7 +2823,7 @@ export default function App() {
     setTotalGoldEarned(0); setBossesDefeated(0); setHideoutLevel(0);
     setKills(0); setPanel(null); setLoot(null);
     setOwnedTools([]); setCaravanLevel(0); setCaravanHp(CARAVAN_LEVELS[0].hp);
-    setKnightLevel(0); setMana(20); setBestiary({}); setKnowledge(0);
+    setKnightLevel(0); setMana(50); setBestiary({}); setKnowledge(0);
     setLearnedSpells(SPELLS.filter(s => s.learned).map(s => s.id));
     setActiveRelics([]); setRelicChoices(null); setKnowledgeUpgrades({ manaPool: 0, spellPower: 0, manaRegen: 0 });
     setDefenseMode(null); setActiveBoss(null); setWalkers([]);
@@ -2915,7 +2915,7 @@ export default function App() {
       setKnowledgeUpgrades(s.knowledgeUpgrades || { manaPool: 0, spellPower: 0, manaRegen: 0 });
       setBossesDefeated(s.bossesDefeated || 0);
       setAmmo(s.ammo || { dynamite: 5, harpoon: 5, cannonball: 3 });
-      setMana(s.mana || 20);
+      setMana(s.mana || 50);
       // New systems
       if (s.activeSynergies) {
         const synObjs = s.activeSynergies.map(id => RELIC_SYNERGIES.find(syn => syn.id === id)).filter(Boolean);
