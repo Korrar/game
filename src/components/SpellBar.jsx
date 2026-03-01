@@ -5,6 +5,18 @@ import { SPELL_ICON_MAP } from "../rendering/icons";
 
 const SPELLS_PER_PAGE = 6;
 
+// Determine which spells are visible:
+// - learned spells (Strzał) are always visible
+// - spells with ammoCost are visible only if player has ammo for them
+// - summon is visible if learned
+function getVisibleSpells(ammo) {
+  return SPELLS.filter(s => {
+    if (s.learned) return true;
+    if (s.ammoCost && ammo && (ammo[s.ammoCost.type] || 0) > 0) return true;
+    return false;
+  });
+}
+
 export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart, isMobile, gameW, gameH }) {
   const [, tick] = useState(0);
   const [page, setPage] = useState(0);
@@ -24,24 +36,22 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       const num = parseInt(e.key);
       if (num >= 1 && num <= SPELLS_PER_PAGE) {
-        const known = learnedSpells || SPELLS.filter(s => s.learned).map(s => s.id);
-        const knownSpells = SPELLS.filter(s => known.includes(s.id));
+        const visible = getVisibleSpells(ammo);
         const idx = (page * SPELLS_PER_PAGE) + num - 1;
-        if (idx < knownSpells.length) onSelect(knownSpells[idx].id);
+        if (idx < visible.length) onSelect(visible[idx].id);
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [page, learnedSpells, onSelect, m]);
+  }, [page, ammo, onSelect, m]);
 
   const now = Date.now();
-  const known = learnedSpells || SPELLS.filter(s => s.learned).map(s => s.id);
-  const knownSpells = SPELLS.filter(s => known.includes(s.id));
-  const totalPages = Math.max(1, Math.ceil(knownSpells.length / SPELLS_PER_PAGE));
+  const visibleSpells = getVisibleSpells(ammo);
+  const totalPages = Math.max(1, Math.ceil(visibleSpells.length / SPELLS_PER_PAGE));
   const safePage = Math.min(page, totalPages - 1);
   // Avoid calling setState during render — defer page correction
   if (safePage !== page) setTimeout(() => setPage(safePage), 0);
-  const pageSpells = knownSpells.slice(safePage * SPELLS_PER_PAGE, (safePage + 1) * SPELLS_PER_PAGE);
+  const pageSpells = visibleSpells.slice(safePage * SPELLS_PER_PAGE, (safePage + 1) * SPELLS_PER_PAGE);
   const hasPrev = safePage > 0;
   const hasNext = safePage < totalPages - 1;
 
@@ -79,9 +89,9 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
             }}>
               {onCooldown && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${cdPct * 100}%`, background: "rgba(0,0,0,0.65)", pointerEvents: "none", zIndex: 2 }} />}
               {/* Hotkey number */}
-              {page === 0 && SPELLS.indexOf(spell) < 9 && (
+              {page === 0 && visibleSpells.indexOf(spell) < 9 && (
                 <div style={{ position: "absolute", top: 1, left: 3, fontSize: 8, fontWeight: "bold", color: "#d4a030", opacity: 0.7, zIndex: 4 }}>
-                  {SPELLS.indexOf(spell) + 1}
+                  {visibleSpells.indexOf(spell) + 1}
                 </div>
               )}
               <span style={{ fontSize: 20, zIndex: 3, opacity: canCast ? 1 : 0.3, filter: canCast ? `drop-shadow(0 0 4px ${spell.color}66)` : "none" }}>

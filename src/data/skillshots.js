@@ -13,7 +13,7 @@ export const SKILLSHOT_TYPES = {
     splashDamageMult: 0.5, // splash damage = 50% of direct hit
     trail: "fire",
   },
-  // Strzał Snajpera — fast straight line, narrow hitbox
+  // Strzał — fast straight line, narrow hitbox
   lightning: {
     type: "linear",
     speed: 14,

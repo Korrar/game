@@ -8,7 +8,7 @@ import { KNIGHT_LEVELS } from "./data/knightLevels";
 import { MERCENARY_TYPES } from "./data/mercenaries";
 import { SHOP_TOOLS, MANA_POTIONS, AMMO_ITEMS, pickResource, MINE_TIMES } from "./data/shopItems";
 import { pickNpc, SPELLS, RESIST_NAMES } from "./data/npcs";
-import { SKILLSHOT_TYPES, ACCURACY_COMBO_THRESHOLD, ACCURACY_COMBO_BONUS, HEADSHOT_BONUS, DODGE_ROLL_COOLDOWN, DODGE_ROLL_DURATION, BARREL_HP, BARREL_SPLASH_RADIUS, BARREL_DAMAGE, DEFENSE_TRAPS, MAX_PLAYER_TRAPS } from "./data/skillshots";
+import { SKILLSHOT_TYPES, ACCURACY_COMBO_THRESHOLD, ACCURACY_COMBO_BONUS, HEADSHOT_BONUS, BARREL_HP, BARREL_SPLASH_RADIUS, BARREL_DAMAGE, DEFENSE_TRAPS, MAX_PLAYER_TRAPS } from "./data/skillshots";
 import { totalCopper, copperToMoney, pickTreasure, formatValHTML } from "./utils/helpers";
 import { rollRandomEvent } from "./data/randomEvents";
 import { rollWeather, applyWeatherDamage } from "./data/weather";
@@ -163,13 +163,15 @@ export default function App() {
   const [miningProgress, setMiningProgress] = useState(0);
   const miningRef = useRef({ active: false, intervalId: null });
 
-  // POIs: fruit tree, mine nuggets, waterfall, merc camp, wizard
+  // POIs: fruit tree, mine nuggets, waterfall, merc camp, arsenal
   const [fruitTree, setFruitTree] = useState(null);     // { x, fruits, biomeId, crown, trunk, label }
-  const [mineNugget, setMineNugget] = useState(null);   // { x, nuggets, progress, activeId, biomeId, rockCol, oreIcon }
+  const [mineNugget, setMineNugget] = useState(null);   // { x, nuggets, biomeId, rockCol, oreIcon }
   const [waterfall, setWaterfall] = useState(null);      // { x, opened, biomeId, rgb, frozen, label }
   const [mercCamp, setMercCamp] = useState(null);        // { x, biomeId }
-  const [wizardPoi, setWizardPoi] = useState(null);      // { x, spellId, cost }
+  const [wizardPoi, setWizardPoi] = useState(null);      // { x, ammoType, ammoAmount }
   const nuggetRef = useRef({ active: false, intervalId: null });
+  // Decorative obstacles per room
+  const [obstacles, setObstacles] = useState([]);        // [{id, type, x, biomeId}]
 
   // Traps system
   const [traps, setTraps] = useState([]);               // [{id, type, x, hp?, maxHp?, active, triggered?, cooldown?}]
@@ -297,11 +299,6 @@ export default function App() {
   const [slowMotion, setSlowMotion] = useState(false);
   const slowMotionRef = useRef(false);
   slowMotionRef.current = slowMotion;
-
-  // ─── FEATURE: Dodge Roll ───
-  const [dodgeRollCooldown, setDodgeRollCooldown] = useState(0);
-  const [isDodging, setIsDodging] = useState(false);
-  const dodgeRollRef = useRef({ cooldown: 0, active: false });
 
   // ─── FEATURE: Interactive Environment (Barrels) ───
   const [barrels, setBarrels] = useState([]); // [{id, x, y, hp, exploded}]
@@ -833,11 +830,6 @@ export default function App() {
 
   // Enemy attacks caravan (called from RAF loop via ref)
   attackCaravanRef.current = (enemyId, damage) => {
-    // Dodge roll: player is invulnerable during dodge
-    if (dodgeRollRef.current.active) {
-      spawnDmgPopup(enemyId, "UNIK!", "#40c0ff");
-      return;
-    }
     // Caravan shield: blocks one hit and deactivates
     if (caravanShieldRef.current.active) {
       setCaravanShield(prev => ({ ...prev, active: false }));
@@ -1875,7 +1867,7 @@ export default function App() {
       // Defense rooms: clear all POIs, no new NPCs/traps
       setShowChest(false); setChestPos(null); setResourceNode(null); setShowResource(false);
       setFruitTree(null); setMineNugget(null); setWaterfall(null);
-      setMercCamp(null); setWizardPoi(null); setTraps([]);
+      setMercCamp(null); setWizardPoi(null); setTraps([]); setObstacles([]);
     }
 
     const terrain = b.terrain;
@@ -1974,13 +1966,17 @@ export default function App() {
       if (cx !== null) newCamp = { x: cx, biomeId: bid };
     }
 
-    const unlearned = SPELLS.filter(s => !s.learned && !learnedSpellsRef.current.includes(s.id));
-    if (poiCount() < MAX_POIS && unlearned.length > 0 && Math.random() < 0.15) {
+    if (poiCount() < MAX_POIS && Math.random() < 0.20) {
       const wizX = pickX(30, 75);
       if (wizX !== null) {
-        const spell = unlearned[Math.floor(Math.random() * unlearned.length)];
-        const wizCost = 10000; // 1 gold
-        newWizard = { x: wizX, spellId: spell.id, cost: wizCost };
+        const ammoTypes = [
+          { type: "dynamite", min: 2, max: 5 },
+          { type: "harpoon", min: 2, max: 5 },
+          { type: "cannonball", min: 1, max: 3 },
+        ];
+        const pick = ammoTypes[Math.floor(Math.random() * ammoTypes.length)];
+        const amount = pick.min + Math.floor(Math.random() * (pick.max - pick.min + 1));
+        newWizard = { x: wizX, ammoType: pick.type, ammoAmount: amount };
       }
     }
 
@@ -1990,6 +1986,33 @@ export default function App() {
     setWaterfall(newWater);
     setMercCamp(newCamp);
     setWizardPoi(newWizard);
+
+    // ─── OBSTACLES (decorative per biome) ───
+    const OBSTACLE_VARIANTS = {
+      jungle:   ["fallen_log", "vine_wall", "ancient_totem", "moss_boulder"],
+      island:   ["shipwreck", "driftwood", "tide_pool", "anchor_post"],
+      desert:   ["cactus_cluster", "wagon_wreck", "sun_bleached_skull", "tumbleweed"],
+      winter:   ["ice_pillar", "frozen_barrel", "snowdrift", "icicle_rock"],
+      city:     ["market_stall", "broken_wagon", "lamp_post", "sandbag_wall"],
+      volcano:  ["lava_pool", "obsidian_pillar", "steam_vent", "ash_mound"],
+      summer:   ["haystack", "windmill", "scarecrow", "wooden_fence"],
+      autumn:   ["log_pile", "hunting_stand", "mushroom_ring", "fallen_tree"],
+      spring:   ["flower_patch", "beehive", "stone_bridge", "well"],
+      mushroom: ["crystal_cluster", "giant_mushroom", "web_wall", "stalactite"],
+      swamp:    ["quicksand", "dead_tree", "fog_pool", "lily_pad"],
+    };
+    const biomeObstacles = OBSTACLE_VARIANTS[bid] || OBSTACLE_VARIANTS.desert;
+    const newObstacles = [];
+    if (!isDefenseRoom) {
+      const obsCount = 2 + Math.floor(Math.random() * 3); // 2-4 obstacles per room
+      for (let i = 0; i < obsCount; i++) {
+        const ox = 5 + Math.random() * 85;
+        const oy = 8 + Math.random() * 6; // bottom offset
+        const obsType = biomeObstacles[Math.floor(Math.random() * biomeObstacles.length)];
+        newObstacles.push({ id: i, type: obsType, x: ox, y: oy, biomeId: bid });
+      }
+    }
+    setObstacles(newObstacles);
 
     // ─── TRAPS ───
     const newTraps = [];
@@ -3299,46 +3322,28 @@ export default function App() {
     setFruitTree(prev => prev ? { ...prev, fruits: prev.fruits.map(f => f.id === fruitId ? { ...f, picked: true } : f) } : null);
   };
 
-  const startDigNugget = (nuggetId) => {
-    if (!mineNugget || nuggetRef.current.active) return;
+  const pickNugget = (nuggetId) => {
+    if (!mineNugget) return;
     if (!ownedTools.includes("pickaxe")) { showMessage("Potrzebujesz kilofa!", "#b83030"); return; }
-    const duration = 3000;
-    const startTime = Date.now();
-    nuggetRef.current = { active: true, intervalId: null };
-    setMineNugget(prev => prev ? { ...prev, activeId: nuggetId } : null);
-    const id = setInterval(() => {
-      const progress = Math.min(1, (Date.now() - startTime) / duration);
-      setMineNugget(prev => prev ? { ...prev, progress } : null);
-      if (progress >= 1) {
-        clearInterval(id);
-        nuggetRef.current = { active: false, intervalId: null };
-        sfxGather();
-        const rewards = [
-          { name: "Złoty samorodek", value: { silver: 1 }, rarity: "rare" },
-          { name: "Srebrny samorodek", value: { copper: 25 }, rarity: "uncommon" },
-          { name: "Kawałek rudy", value: { copper: 10 }, rarity: "common" },
-        ];
-        const roll = Math.random();
-        const reward = roll < 0.15 ? rewards[0] : roll < 0.45 ? rewards[1] : rewards[2];
-        const nv = totalCopper(reward.value);
-        setMoney(prev => copperToMoney(totalCopper(prev) + nv));
-        showMessage(`${reward.name}! +${nv} Cu`, "#d4a030");
-        // Mark this nugget as dug, check if all dug
-        setMineNugget(prev => {
-          if (!prev) return null;
-          const updated = prev.nuggets.map(n => n.id === nuggetId ? { ...n, dug: true } : n);
-          if (updated.every(n => n.dug)) return null; // all mined
-          return { ...prev, nuggets: updated, progress: 0, activeId: null };
-        });
-      }
-    }, 50);
-    nuggetRef.current.intervalId = id;
-  };
-
-  const stopDigNugget = () => {
-    if (nuggetRef.current.intervalId) clearInterval(nuggetRef.current.intervalId);
-    nuggetRef.current = { active: false, intervalId: null };
-    setMineNugget(prev => prev ? { ...prev, progress: 0, activeId: null } : null);
+    const nugget = mineNugget.nuggets.find(n => n.id === nuggetId && !n.dug);
+    if (!nugget) return;
+    sfxGather();
+    const rewards = [
+      { name: "Złoty samorodek", value: { silver: 1 }, rarity: "rare" },
+      { name: "Srebrny samorodek", value: { copper: 25 }, rarity: "uncommon" },
+      { name: "Kawałek rudy", value: { copper: 10 }, rarity: "common" },
+    ];
+    const roll = Math.random();
+    const reward = roll < 0.15 ? rewards[0] : roll < 0.45 ? rewards[1] : rewards[2];
+    const nv = totalCopper(reward.value);
+    setMoney(prev => copperToMoney(totalCopper(prev) + nv));
+    showMessage(`${reward.name}! +${nv} Cu`, "#d4a030");
+    setMineNugget(prev => {
+      if (!prev) return null;
+      const updated = prev.nuggets.map(n => n.id === nuggetId ? { ...n, dug: true } : n);
+      if (updated.every(n => n.dug)) return null;
+      return { ...prev, nuggets: updated };
+    });
   };
 
   const openWaterfall = () => {
@@ -3401,16 +3406,14 @@ export default function App() {
     setMercCamp(null); // camp disappears after recruiting
   };
 
-  const learnSpellFromWizard = () => {
+  const collectArsenalAmmo = () => {
     if (!wizardPoi) return;
-    const spell = SPELLS.find(s => s.id === wizardPoi.spellId);
-    if (!spell) return;
-    const tc = totalCopper(money);
-    if (tc < wizardPoi.cost) { showMessage("Za mało monet na naukę akcji!", "#b83030"); return; }
-    setMoney(copperToMoney(tc - wizardPoi.cost));
-    setLearnedSpells(prev => [...prev, wizardPoi.spellId]);
     sfxChest();
-    showMessage(`Nauczono się: ${spell.icon} ${spell.name}!`, spell.color);
+    const ammoType = wizardPoi.ammoType;
+    const ammoAmount = wizardPoi.ammoAmount;
+    setAmmo(prev => ({ ...prev, [ammoType]: (prev[ammoType] || 0) + ammoAmount }));
+    const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
+    showMessage(`+${ammoAmount} ${ammoNames[ammoType] || ammoType}!`, "#e0a040");
     setWizardPoi(null);
   };
 
@@ -4430,27 +4433,6 @@ export default function App() {
         showMessage("Auto-atak wyłączony", "#888");
         return;
       }
-      // SPACE — dodge roll
-      if (e.key === " " || e.code === "Space") {
-        e.preventDefault();
-        const now = Date.now();
-        if (dodgeRollRef.current.cooldown && now < dodgeRollRef.current.cooldown) {
-          const remaining = Math.ceil((dodgeRollRef.current.cooldown - now) / 1000);
-          showMessage(`Unik: ${remaining}s...`, "#888");
-          return;
-        }
-        dodgeRollRef.current.cooldown = now + DODGE_ROLL_COOLDOWN;
-        dodgeRollRef.current.active = true;
-        setIsDodging(true);
-        setDodgeRollCooldown(now + DODGE_ROLL_COOLDOWN);
-        showMessage("Unik!", "#40c0ff");
-        // During dodge, player is invulnerable to enemy attacks
-        setTimeout(() => {
-          dodgeRollRef.current.active = false;
-          setIsDodging(false);
-        }, DODGE_ROLL_DURATION);
-        return;
-      }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -5007,21 +4989,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Dodge Roll Cooldown Indicator */}
-      {isDodging && (
-        <div style={{
-          position: "absolute", bottom: isMobile ? 130 : 150, left: "50%", transform: "translateX(-50%)",
-          background: "rgba(64,192,255,0.2)", border: "2px solid #40c0ff",
-          padding: "4px 16px", borderRadius: 20, zIndex: 25,
-          color: "#40c0ff", fontWeight: "bold", fontSize: 16,
-          textShadow: "0 0 12px rgba(64,192,255,0.8)",
-          animation: "gemPulse 0.2s infinite",
-          pointerEvents: "none",
-        }}>
-          UNIK!
-        </div>
-      )}
-
       {/* Slow Motion Effect Overlay */}
       {slowMotion && (
         <div style={{
@@ -5242,37 +5209,19 @@ export default function App() {
             <div style={{ position: "absolute", top: 10, left: 8, width: 16, height: 3, background: "rgba(0,0,0,0.15)", borderRadius: 2, transform: "rotate(-8deg)" }} />
             <div style={{ position: "absolute", top: 25, left: 20, width: 22, height: 2, background: "rgba(0,0,0,0.12)", borderRadius: 2, transform: "rotate(5deg)" }} />
             <div style={{ position: "absolute", top: 38, left: 6, width: 18, height: 2, background: "rgba(0,0,0,0.1)", borderRadius: 2, transform: "rotate(-3deg)" }} />
-            {/* Ore veins */}
+            {/* Ore veins — click to collect */}
             {mineNugget.nuggets.map(n => !n.dug && (
               <div key={n.id}
-                onMouseDown={() => startDigNugget(n.id)}
-                onMouseUp={stopDigNugget}
-                onMouseLeave={stopDigNugget}
-                onTouchStart={() => startDigNugget(n.id)}
-                onTouchEnd={stopDigNugget}
+                onClick={() => pickNugget(n.id)}
                 style={{
                   position: "absolute", left: `${n.x}%`, top: `${n.y}%`,
                   fontSize: 14, cursor: "pointer",
                   filter: "drop-shadow(0 0 6px rgba(212,160,48,0.6))",
-                  animation: mineNugget.activeId === n.id
-                    ? `mineShake ${Math.max(0.06, 0.12 - mineNugget.progress * 0.06)}s infinite alternate`
-                    : "resNode 3s ease-in-out infinite",
+                  animation: "resNode 3s ease-in-out infinite",
                   animationDelay: `${n.id * 0.4}s`,
                 }}><Icon name={mineNugget.oreIcon} size={16} /></div>
             ))}
           </div>
-          {mineNugget.progress > 0 && (
-            <div style={{
-              width: 42, height: 5, background: "rgba(0,0,0,0.75)",
-              border: "1px solid #555", borderRadius: 2, margin: "3px auto 0", overflow: "hidden",
-            }}>
-              <div style={{
-                height: "100%", width: `${mineNugget.progress * 100}%`,
-                background: mineNugget.progress > 0.75 ? "#d4a030" : "#a08040",
-                transition: "width 0.05s linear", borderRadius: 1,
-              }} />
-            </div>
-          )}
           <div style={{ textAlign: "center", marginTop: 2, fontSize: 9, color: "#8a8", textShadow: "1px 1px 0 #000" }}>
             <Icon name="pickaxe" size={9} /> {mineNugget.label}
           </div>
@@ -5432,9 +5381,9 @@ export default function App() {
 
       {/* ─── ARSENAL TENT POI ─── */}
       {wizardPoi && (() => {
-        const spell = SPELLS.find(s => s.id === wizardPoi.spellId);
-        if (!spell) return null;
-        const canAfford = totalCopper(money) >= wizardPoi.cost;
+        const ammoIcons = { dynamite: "dynamite", harpoon: "harpoon", cannonball: "cannon" };
+        const ammoNames = { dynamite: "Dynamit", harpoon: "Harpuny", cannonball: "Kule armatnie" };
+        const ammoIcon = ammoIcons[wizardPoi.ammoType] || "dynamite";
         return (
           <div style={{
             position: "absolute", left: `${wizardPoi.x}%`, bottom: "12%", zIndex: 14,
@@ -5481,23 +5430,22 @@ export default function App() {
               <div style={{
                 position: "absolute", bottom: -2, left: "50%", transform: "translateX(-50%)",
                 fontSize: 12, animation: "keyF 3s ease-in-out infinite",
-              }}><Icon name="dynamite" size={12} /></div>
+              }}><Icon name={ammoIcon} size={12} /></div>
             </div>
-            {/* Spell offer – icon button like merc camp */}
+            {/* Ammo pickup – click to collect */}
             <div style={{ display: "flex", justifyContent: "center", marginTop: 4 }}>
-              <div onClick={() => canAfford && learnSpellFromWizard()}
-                title={`${spell.name} – 1 złota`}
+              <div onClick={() => collectArsenalAmmo()}
+                title={`${ammoNames[wizardPoi.ammoType]} ×${wizardPoi.ammoAmount}`}
                 style={{
-                  fontSize: 20, cursor: canAfford ? "pointer" : "not-allowed",
-                  opacity: canAfford ? 1 : 0.4,
-                  filter: canAfford ? `drop-shadow(0 0 6px ${spell.color})` : "none",
-                  animation: canAfford ? "keyF 2.5s ease-in-out infinite" : "none",
+                  fontSize: 20, cursor: "pointer",
+                  filter: "drop-shadow(0 0 6px #e0a040)",
+                  animation: "keyF 2.5s ease-in-out infinite",
                 }}>
-                <Icon name={spell.icon} size={20} />
+                <Icon name={ammoIcon} size={20} />
               </div>
             </div>
-            <div style={{ fontSize: 8, color: canAfford ? "#d4a030" : "#666", marginTop: 1 }}>
-              <Icon name="gold" size={8} /> 1 złota
+            <div style={{ fontSize: 9, color: "#e0a040", fontWeight: "bold", marginTop: 1 }}>
+              +{wizardPoi.ammoAmount} {ammoNames[wizardPoi.ammoType]}
             </div>
             <div style={{ fontSize: 9, color: "#c0a060", textShadow: "1px 1px 0 #000", marginTop: 1 }}>
               <Icon name="swords" size={9} /> Arsenał
@@ -5505,6 +5453,73 @@ export default function App() {
           </div>
         );
       })()}
+
+      {/* ─── DECORATIVE OBSTACLES ─── */}
+      {obstacles.map(obs => {
+        const obsStyles = {
+          fallen_log: { w: 50, h: 14, bg: "linear-gradient(90deg,#5a3a18,#6a4a20,#4a3010)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
+          vine_wall: { w: 30, h: 40, bg: "linear-gradient(180deg,#2a6a10,#1a4a08,#0e3004)", radius: "6px 6px 2px 2px", shadow: "0 2px 8px rgba(0,0,0,0.4)" },
+          ancient_totem: { w: 16, h: 44, bg: "linear-gradient(180deg,#6a5030,#5a4020,#4a3018)", radius: "4px 4px 2px 2px", shadow: "0 2px 8px rgba(0,0,0,0.5)" },
+          moss_boulder: { w: 36, h: 28, bg: "radial-gradient(ellipse,#5a6a30,#4a5a20,#3a4a18)", radius: "40%", shadow: "inset -3px 0 6px rgba(0,0,0,0.3), 0 3px 8px rgba(0,0,0,0.5)" },
+          shipwreck: { w: 55, h: 30, bg: "linear-gradient(180deg,#6a5030,#4a3818,#3a2810)", radius: "8px 20px 4px 4px", shadow: "0 3px 10px rgba(0,0,0,0.5)" },
+          driftwood: { w: 44, h: 10, bg: "linear-gradient(90deg,#7a6a50,#8a7a60,#6a5a40)", radius: "3px", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
+          tide_pool: { w: 32, h: 16, bg: "radial-gradient(ellipse,rgba(80,180,220,0.6),rgba(40,120,180,0.3))", radius: "50%", shadow: "0 0 8px rgba(60,160,220,0.3)" },
+          anchor_post: { w: 12, h: 38, bg: "linear-gradient(180deg,#5a5a5a,#4a4a4a,#3a3a3a)", radius: "2px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
+          cactus_cluster: { w: 20, h: 36, bg: "linear-gradient(180deg,#3a7a20,#2a6a18,#1a5a10)", radius: "8px 8px 2px 2px", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
+          wagon_wreck: { w: 48, h: 28, bg: "linear-gradient(180deg,#6a4a20,#5a3a18,#3a2808)", radius: "4px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
+          sun_bleached_skull: { w: 22, h: 18, bg: "radial-gradient(ellipse,#d8c8a0,#c0b080,#a09060)", radius: "40%", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
+          tumbleweed: { w: 24, h: 22, bg: "radial-gradient(circle,#8a7a50,#6a6040,#5a5030)", radius: "50%", shadow: "0 1px 3px rgba(0,0,0,0.3)" },
+          ice_pillar: { w: 14, h: 42, bg: "linear-gradient(180deg,#b0d0f0,#90b8e0,#70a0d0)", radius: "4px 4px 2px 2px", shadow: "0 0 10px rgba(160,200,255,0.3), 0 3px 8px rgba(0,0,0,0.4)" },
+          frozen_barrel: { w: 24, h: 28, bg: "linear-gradient(180deg,#8090a0,#607080,#405060)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
+          snowdrift: { w: 40, h: 16, bg: "radial-gradient(ellipse,#e8f0ff,#d0e0f0,#b0c8e0)", radius: "40%", shadow: "0 2px 4px rgba(0,0,0,0.2)" },
+          icicle_rock: { w: 30, h: 32, bg: "linear-gradient(180deg,#90b0d0,#7090b0,#506a8a)", radius: "20%", shadow: "inset -2px 0 6px rgba(0,0,0,0.2), 0 3px 8px rgba(0,0,0,0.4)" },
+          market_stall: { w: 40, h: 32, bg: "linear-gradient(180deg,#8a4020,#6a3018,#4a2010)", radius: "4px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
+          broken_wagon: { w: 50, h: 24, bg: "linear-gradient(180deg,#5a4030,#4a3020,#3a2018)", radius: "4px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
+          lamp_post: { w: 8, h: 48, bg: "linear-gradient(180deg,#4a4a4a,#3a3a3a,#2a2a2a)", radius: "2px", shadow: "0 2px 4px rgba(0,0,0,0.5)" },
+          sandbag_wall: { w: 44, h: 20, bg: "linear-gradient(180deg,#8a7a60,#7a6a50,#6a5a40)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
+          lava_pool: { w: 34, h: 14, bg: "radial-gradient(ellipse,rgba(255,100,20,0.7),rgba(200,60,10,0.4),rgba(120,30,0,0.2))", radius: "50%", shadow: "0 0 12px rgba(255,80,20,0.5)" },
+          obsidian_pillar: { w: 14, h: 40, bg: "linear-gradient(180deg,#2a2030,#1a1020,#0a0810)", radius: "3px", shadow: "0 0 6px rgba(60,20,80,0.3), 0 3px 8px rgba(0,0,0,0.5)" },
+          steam_vent: { w: 18, h: 12, bg: "radial-gradient(ellipse,rgba(200,200,200,0.5),rgba(160,160,160,0.2))", radius: "50%", shadow: "0 0 10px rgba(200,200,200,0.3)" },
+          ash_mound: { w: 32, h: 16, bg: "radial-gradient(ellipse,#4a4040,#3a3030,#2a2020)", radius: "40%", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
+          haystack: { w: 30, h: 28, bg: "radial-gradient(ellipse,#c0a040,#a08830,#806820)", radius: "30%", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
+          windmill: { w: 20, h: 50, bg: "linear-gradient(180deg,#7a6a50,#6a5a40,#5a4a30)", radius: "3px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
+          scarecrow: { w: 18, h: 44, bg: "linear-gradient(180deg,#8a7a50,#6a5a30,#5a4a20)", radius: "3px 3px 1px 1px", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
+          wooden_fence: { w: 46, h: 22, bg: "linear-gradient(180deg,#7a5a30,#6a4a20,#5a3a18)", radius: "2px", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
+          log_pile: { w: 38, h: 20, bg: "linear-gradient(180deg,#6a4a20,#5a3a18,#4a3010)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
+          hunting_stand: { w: 22, h: 46, bg: "linear-gradient(180deg,#6a5a30,#5a4a20,#4a3a18)", radius: "2px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
+          mushroom_ring: { w: 36, h: 14, bg: "radial-gradient(ellipse,#8060a0,#604080,#402060)", radius: "50%", shadow: "0 0 8px rgba(120,60,160,0.3)" },
+          fallen_tree: { w: 55, h: 16, bg: "linear-gradient(90deg,#5a4020,#6a5030,#4a3018)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
+          flower_patch: { w: 34, h: 12, bg: "radial-gradient(ellipse,#60c040,#40a028,#308018)", radius: "50%", shadow: "0 0 6px rgba(60,160,40,0.3)" },
+          beehive: { w: 18, h: 24, bg: "radial-gradient(ellipse,#c0a040,#a08830,#806820)", radius: "30%", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
+          stone_bridge: { w: 50, h: 14, bg: "linear-gradient(180deg,#7a7a7a,#6a6a6a,#5a5a5a)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
+          well: { w: 22, h: 26, bg: "linear-gradient(180deg,#6a6a6a,#5a5a5a,#4a4a4a)", radius: "4px 4px 50% 50%", shadow: "0 2px 8px rgba(0,0,0,0.5)" },
+          crystal_cluster: { w: 24, h: 30, bg: "linear-gradient(180deg,#a060e0,#8040c0,#6030a0)", radius: "4px 8px 2px 2px", shadow: "0 0 10px rgba(160,80,240,0.4)" },
+          giant_mushroom: { w: 28, h: 38, bg: "radial-gradient(ellipse at top,#8060a0 40%,#5a3a18 40%)", radius: "50% 50% 4px 4px", shadow: "0 0 8px rgba(120,60,160,0.3)" },
+          web_wall: { w: 40, h: 34, bg: "radial-gradient(circle,rgba(200,200,200,0.2),rgba(160,160,160,0.08))", radius: "4px", shadow: "none" },
+          stalactite: { w: 12, h: 36, bg: "linear-gradient(180deg,#5a5a5a,#4a4a4a,#3a3a3a)", radius: "2px 2px 50% 50%", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
+          quicksand: { w: 36, h: 12, bg: "radial-gradient(ellipse,rgba(100,80,40,0.6),rgba(80,60,30,0.3))", radius: "50%", shadow: "0 0 6px rgba(100,80,40,0.3)" },
+          dead_tree: { w: 18, h: 44, bg: "linear-gradient(180deg,#4a3a28,#3a2a18,#2a1a10)", radius: "3px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
+          fog_pool: { w: 38, h: 12, bg: "radial-gradient(ellipse,rgba(100,140,100,0.4),rgba(60,100,60,0.15))", radius: "50%", shadow: "0 0 10px rgba(80,120,80,0.3)" },
+          lily_pad: { w: 22, h: 10, bg: "radial-gradient(ellipse,#408040,#306030,#205020)", radius: "50%", shadow: "0 1px 3px rgba(0,0,0,0.3)" },
+        };
+        const s = obsStyles[obs.type] || obsStyles.moss_boulder;
+        return (
+          <div key={`obs-${obs.id}`} style={{
+            position: "absolute",
+            left: `${obs.x}%`,
+            bottom: `${obs.y}%`,
+            width: s.w,
+            height: s.h,
+            background: s.bg,
+            borderRadius: s.radius,
+            boxShadow: s.shadow,
+            pointerEvents: "none",
+            zIndex: 5,
+            opacity: 0.7,
+            transform: "translateX(-50%)",
+          }} />
+        );
+      })}
 
       {/* ─── TRAPS ─── */}
       {traps.map(trap => {
@@ -6022,53 +6037,6 @@ export default function App() {
           spellUpgrades={spellUpgrades}
         />
       </div>
-
-      {/* Mobile Dodge Roll Button — replaces spacebar for mobile */}
-      {isMobile && screen === "game" && (
-        <div
-          onClick={() => {
-            const now = Date.now();
-            if (dodgeRollRef.current.cooldown && now < dodgeRollRef.current.cooldown) return;
-            dodgeRollRef.current.cooldown = now + DODGE_ROLL_COOLDOWN;
-            dodgeRollRef.current.active = true;
-            setIsDodging(true);
-            setDodgeRollCooldown(now + DODGE_ROLL_COOLDOWN);
-            showMessage("Unik!", "#40c0ff");
-            setTimeout(() => {
-              dodgeRollRef.current.active = false;
-              setIsDodging(false);
-            }, DODGE_ROLL_DURATION);
-          }}
-          style={{
-            position: "fixed",
-            bottom: 68,
-            right: 10,
-            width: 50, height: 50,
-            borderRadius: "50%",
-            background: isDodging
-              ? "radial-gradient(circle, rgba(64,192,255,0.5), rgba(64,192,255,0.15))"
-              : dodgeRollCooldown > Date.now()
-                ? "radial-gradient(circle, rgba(60,60,60,0.7), rgba(30,30,30,0.5))"
-                : "radial-gradient(circle, rgba(64,192,255,0.3), rgba(20,40,60,0.6))",
-            border: `2px solid ${isDodging ? "#40c0ff" : dodgeRollCooldown > Date.now() ? "#444" : "#40a0d0"}`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 200,
-            userSelect: "none",
-            WebkitTapHighlightColor: "transparent",
-            boxShadow: isDodging ? "0 0 16px rgba(64,192,255,0.6)" : "0 2px 8px rgba(0,0,0,0.5)",
-            opacity: dodgeRollCooldown > Date.now() && !isDodging ? 0.5 : 1,
-            transition: "opacity 0.3s, box-shadow 0.2s",
-          }}
-        >
-          <span style={{
-            fontSize: 20, color: isDodging ? "#40c0ff" : "#aad0e0",
-            fontWeight: "bold", textShadow: "0 1px 2px #000",
-            pointerEvents: "none", lineHeight: 1,
-          }}>
-            &#10132;
-          </span>
-        </div>
-      )}
 
       {/* Tutorial overlay – shows on first few rooms */}
       {showTutorial && room <= 1 && tutorialStep >= 0 && tutorialStep < 5 && (
