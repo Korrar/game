@@ -48,13 +48,11 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
   if (m) {
     return (
       <div style={{
-        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9000,
         display: "flex", alignItems: "center", justifyContent: "center", gap: 0,
         padding: "4px 2px",
         paddingBottom: "calc(4px + env(safe-area-inset-bottom, 0px))",
         background: "linear-gradient(0deg, rgba(8,4,6,0.97), rgba(14,8,10,0.95))",
-        borderTop: "2px solid #5a3818",
-        boxShadow: "0 -3px 12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(212,160,48,0.1)",
+        boxShadow: "inset 0 1px 0 rgba(212,160,48,0.05)",
       }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 5px", borderRight: "1px solid #2a1808" }}>
           <GameIcon name="gunpowder" size={18} />
@@ -106,13 +104,11 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
 
   return (
     <div style={{
-      position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
-      zIndex: 9000, display: "flex", alignItems: "stretch", gap: 0,
+      display: "flex", alignItems: "stretch", gap: 0,
       padding: "8px 8px",
       background: "linear-gradient(180deg, rgba(14,8,6,0.97), rgba(8,4,4,0.98))",
-      border: "2px solid #5a3818", borderBottom: "none",
-      borderRadius: "10px 10px 0 0",
-      boxShadow: "0 -4px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(212,160,48,0.15)",
+      borderTop: "none",
+      boxShadow: "inset 0 1px 0 rgba(212,160,48,0.08)",
     }}>
       {/* Top gold line */}
       <div style={{ position: "absolute", top: 0, left: 10, right: 10, height: 1, background: "linear-gradient(90deg, transparent, rgba(212,160,48,0.4), transparent)" }} />

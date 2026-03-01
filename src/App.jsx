@@ -684,6 +684,9 @@ export default function App() {
 
   // Summon auto-attack handler (called from RAF loop via ref)
   summonAttackRef.current = (friendlyId, enemyId, damage) => {
+    // War Drums: bonus damage from caravan aura
+    const drumsData = CARAVAN_LEVELS[caravanLevelRef.current].warDrums;
+    if (drumsData) damage = Math.round(damage * (1 + drumsData.bonus / 100));
     sfxMeleeHit();
     spawnDmgPopup(enemyId, `${damage}`, "#40e060");
     // Lunge on the friendly walker
@@ -872,6 +875,18 @@ export default function App() {
     // Lunge anim on the enemy
     const ew = walkDataRef.current[enemyId];
     if (ew) { ew.lungeFrames = 8; ew.lungeOffset = 12; }
+    // Thorn Armor: reflect damage back to attacking enemy
+    const thornData = CARAVAN_LEVELS[caravanLevelRef.current].thornArmor;
+    if (thornData && ew && ew.alive) {
+      const reflectDmg = thornData.damage;
+      ew.hp = (ew.hp || 0) - reflectDmg;
+      spawnDmgPopup(enemyId, `${reflectDmg}`, "#e06030");
+      if (ew.hp <= 0 && !ew.dying) {
+        ew.alive = false;
+        ew.dying = true;
+        setWalkers(prev => prev.map(w => w.id === enemyId ? { ...w, hp: 0, dying: true, dyingAt: Date.now() } : w));
+      }
+    }
   };
 
   // Enemy ability attack (ranged: projectile, fireBreath, charge)
@@ -1187,95 +1202,12 @@ export default function App() {
               }
             }
           } else {
-            // No enemy walkers – look for towers to attack
+            // No enemies – normal patrol
             w.combatState = null;
             w.combatTimer = 0;
-            // Avoid .filter() allocation: scan traps inline
-            const _traps = trapsRef.current;
-            let nearTower = null, nearTowerDist = Infinity;
-            for (let ti = 0; ti < _traps.length; ti++) {
-              const t = _traps[ti];
-              if (t.type !== "tower" || !t.active) continue;
-              const td = Math.abs(t.x - w.x);
-              if (td < nearTowerDist) { nearTowerDist = td; nearTower = t; }
-            }
-            const towerRange = isRanged ? (w.range || 35) : 7;
-            const towerApproach = isRanged ? 15 : 6;
-            if (nearTower && nearTowerDist < 40) {
-              w.dir = nearTower.x > w.x ? 1 : -1;
-              if (nearTowerDist > towerApproach) {
-                w.x += w.speed * w.dir;
-              } else if (!isRanged && nearTowerDist < 3) {
-                w.x -= w.speed * w.dir * 0.5;
-              }
-              if (nearTowerDist < towerRange) {
-                const cdKey = "tw" + id;
-                if (isRanged) {
-                  // Ranged tower attack – spawn visible projectile
-                  const projCd = w.mercType === "mage" ? (w.spellCd || 3500) : (w.projectileCd || 1800);
-                  const canShoot = w.mercType === "mage"
-                    ? (w.currentMana || 0) >= (w.spellCost || 15)
-                    : true;
-                  if (canShoot && (!atkCds[cdKey] || dateNow - atkCds[cdKey] > projCd)) {
-                    atkCds[cdKey] = dateNow;
-                    if (w.mercType === "mage") w.currentMana -= (w.spellCost || 15);
-                    const dmg = w.mercType === "mage" ? (w.spellDamage || 14) : (w.projectileDamage || 6);
-                    const projType = w.mercType === "mage" ? "mageSpell" : "arrow";
-                    if (physicsRef.current) {
-                      physicsRef.current.triggerAttackAnim(idNum);
-                      const tId = nearTower.id;
-                      const towerPx = (nearTower.x / 100) * GAME_W;
-                      const towerPy = GAME_H * 0.58;
-                      physicsRef.current.spawnProjectile(
-                        idNum, nearTower.x, projType, dmg, w.spellElement || null,
-                        (hitId, hitDmg) => {
-                          setTraps(prev => prev.map(t => {
-                            if (t.id !== tId || !t.active) return t;
-                            const newHp = t.hp - hitDmg;
-                            if (newHp <= 0) {
-                              sfxNpcDeath();
-                              showMessage("Wieża zniszczona!", "#e0a040");
-                              return { ...t, hp: 0, active: false };
-                            }
-                            return { ...t, hp: newHp };
-                          }));
-                        }
-                      );
-                      // Set targetPos on the last added projectile so it hits the tower
-                      const projs = physicsRef.current.projectiles;
-                      if (projs.length > 0) {
-                        projs[projs.length - 1].targetPos = { x: towerPx, y: towerPy };
-                      }
-                    }
-                  }
-                } else {
-                  // Melee tower attack
-                  const atkCdMs = w.attackCd || 2500;
-                  if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > atkCdMs) {
-                    atkCds[cdKey] = dateNow;
-                    const dmg = w.damage || 5;
-                    if (physicsRef.current) physicsRef.current.triggerAttackAnim(idNum);
-                    sfxMeleeHit();
-                    const tId = nearTower.id;
-                    setTraps(prev => prev.map(t => {
-                      if (t.id !== tId || !t.active) return t;
-                      const newHp = t.hp - dmg;
-                      if (newHp <= 0) {
-                        sfxNpcDeath();
-                        showMessage("Wieża zniszczona!", "#e0a040");
-                        return { ...t, hp: 0, active: false };
-                      }
-                      return { ...t, hp: newHp };
-                    }));
-                  }
-                }
-              }
-            } else {
-              // No towers either – normal patrol
-              w.x += w.speed * w.dir;
-              if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
-              if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
-            }
+            w.x += w.speed * w.dir;
+            if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
+            if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
           }
           } // end !stationary else
         } else {
@@ -1755,29 +1687,7 @@ export default function App() {
           }
         }
 
-        if (trap.type === "tower") {
-          // Tower shoots nearest friendly every 2.5s
-          if (trapNow - (trap.lastShot || 0) < 2500) continue;
-          let nearId = null, nearDist = Infinity;
-          // Use pre-computed friendlyList instead of iterating all walkData
-          for (let fli = 0; fli < friendlyList.length; fli++) {
-            const fEntry = friendlyList[fli];
-            const dist = Math.abs(fEntry.w.x - trap.x);
-            if (dist < nearDist && dist < 35) { nearDist = dist; nearId = fEntry.id; }
-          }
-          if (nearId !== null) {
-            trap.lastShot = trapNow;
-            const dmg = 6 + Math.floor(Math.random() * 5);
-            if (physicsRef.current) {
-              physicsRef.current.spawnProjectileFrom(
-                trap.x, 55, wd[nearId].x, "arrow", dmg, null,
-                (hitId, hitDmg) => {
-                  if (enemyAttackFriendlyRef.current) enemyAttackFriendlyRef.current(-trap.id, hitId, hitDmg);
-                }
-              );
-            }
-          }
-        }
+        // (tower trap type removed — enemy towers no longer spawn)
       }
       // Update trapsRef for render
       trapsRef.current = curTraps;
@@ -2102,12 +2012,7 @@ export default function App() {
         newTraps.push({ id: ++trapId, type: "mine", x: tx, active: true, triggered: false });
       }
     }
-    // Towers (25% chance, 1)
-    if (Math.random() < 0.25 + roomDifficulty * 0.1) {
-      const towerHp = 30 + Math.floor(roomDifficulty * 40);
-      const tx = 25 + Math.random() * 50;
-      newTraps.push({ id: ++trapId, type: "tower", x: tx, active: true, hp: towerHp, maxHp: towerHp, lastShot: 0 });
-    }
+    // (enemy tower traps removed)
     } // end !isDefenseRoom traps
     setTraps(newTraps);
 
@@ -2220,7 +2125,7 @@ export default function App() {
         };
       }
     }
-    // Preserve alive friendly mercenaries across rooms (skip barricade/tower – defense only)
+    // Preserve alive friendly mercenaries across rooms (skip barricade – defense only)
     const preservedData = {};
     for (const [id, w] of Object.entries(walkDataRef.current)) {
       if (w && w.alive && w.friendly && !w.stationary) {
@@ -2235,7 +2140,7 @@ export default function App() {
       }
     }
     // Collect preserved walker React state via ref (avoids stale closure + batching issues)
-    const keptWalkerState = walkersRef.current.filter(pw => pw.alive && !pw.dying && pw.friendly && !pw.isBarricade && !pw.isTower && preservedData[pw.id]);
+    const keptWalkerState = walkersRef.current.filter(pw => pw.alive && !pw.dying && pw.friendly && !pw.isBarricade && preservedData[pw.id]);
     setWalkers([...keptWalkerState, ...newWalkers]);
     walkDataRef.current = { ...preservedData, ...newWalkData };
     npcElsRef.current = {};
@@ -2309,7 +2214,7 @@ export default function App() {
         showMessage("Etap Obronny!", "#ff6020");
       }
 
-      // Spawn caravan defenses: barricade, tower, dog
+      // Spawn caravan defenses: barricade, dog
       const cl = CARAVAN_LEVELS[caravanLevelRef.current];
       if (cl.barricade) {
         const bId = ++walkerIdCounter;
@@ -2325,23 +2230,7 @@ export default function App() {
         };
         if (physicsRef.current) physicsRef.current.spawnNpc(bId, 50, bNpc, true);
       }
-      if (cl.tower) {
-        const tId = ++walkerIdCounter;
-        const towerHp = cl.tower.hp || 200;
-        const tNpc = { icon: "swords", name: "Wieża karawany", hp: towerHp, resist: null, loot: {}, bodyColor: "#5a5a5a", armorColor: "#3a3a3a", bodyType: "tower" };
-        setWalkers(prev => [...prev, { id: tId, npcData: tNpc, alive: true, dying: false, hp: towerHp, maxHp: towerHp, friendly: true, isTower: true }]);
-        walkDataRef.current[tId] = {
-          x: 40, y: 73, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
-          minX: 40, maxX: 40, minY: 25, maxY: 90,
-          bouncePhase: 0, alive: true, friendly: true,
-          damage: cl.tower.damage, projectileDamage: cl.tower.damage,
-          lungeFrames: 0, lungeOffset: 0,
-          stationary: true, combatStyle: "ranged",
-          attackCd: cl.tower.attackCd, projectileCd: cl.tower.attackCd,
-          range: cl.tower.range,
-        };
-        if (physicsRef.current) physicsRef.current.spawnNpc(tId, 40, tNpc, true);
-      }
+      // Tower removed — replaced by thornArmor (passive reflect) and warDrums (merc aura)
       if (cl.dog) {
         // Check if dog already exists among preserved friendlies
         const existingDog = keptWalkerState.find(w => w.isDog);
@@ -2896,14 +2785,14 @@ export default function App() {
     setActiveBoss(null);
     setPlayerTraps([]);
     setPlacingTrap(null);
-    // Clean up remaining enemies + barricade/tower (not dog — dog persists)
+    // Clean up remaining enemies + barricade (not dog — dog persists)
     for (const [id, w] of Object.entries(walkDataRef.current)) {
       if (!w.friendly || w.stationary) {
         if (physicsRef.current) physicsRef.current.removeNpc(parseInt(id));
         delete walkDataRef.current[id];
       }
     }
-    setWalkers(prev => prev.filter(w => w.friendly && !w.isBarricade && !w.isTower));
+    setWalkers(prev => prev.filter(w => w.friendly && !w.isBarricade));
     setDefenseMode(null);
   }, []);
 
@@ -4375,17 +4264,7 @@ export default function App() {
         return { ...w, hp: newHp };
       }));
 
-      // AoE also damages towers
-      setTraps(prev => prev.map(t => {
-        if (t.type !== "tower" || !t.active) return t;
-        const newHp = t.hp - spell.damage;
-        if (newHp <= 0) {
-          sfxNpcDeath();
-          showMessage("Wieża zniszczona!", "#e0a040");
-          return { ...t, hp: 0, active: false };
-        }
-        return { ...t, hp: newHp };
-      }));
+      // (tower AoE damage removed)
     }, deathDelay);
 
     setSelectedSpell(null);
@@ -4577,61 +4456,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [showMessage]);
 
-  // ─── TOWER ATTACK (cast spell on tower) ───
-  const attackTower = (trapId) => {
-    if (!selectedSpell) return;
-    const spell = SPELLS.find(s => s.id === selectedSpell);
-    if (!spell || spell.id === "summon") return;
-    if (!canCastSpell(spell)) {
-      if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
-        const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
-        showMessage(`Brak ${ammoNames[spell.ammoCost.type] || "amunicji"}!`, "#c04040");
-      } else if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
-      else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
-      return;
-    }
-    setMana(m => m - getSpellManaCost(spell));
-    if (spell.ammoCost) {
-      const spellUps = spellUpgradesRef.current[spell.id] || [];
-      const uStats = getUpgradedSpellStats(spell, spellUps);
-      const ammoCost = Math.max(1, spell.ammoCost.amount - uStats.ammoCostReduction);
-      setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
-    }
-    {
-      const spellUps = spellUpgradesRef.current[spell.id] || [];
-      const uStats = getUpgradedSpellStats(spell, spellUps);
-      const finalCd = Math.round(uStats.cooldown * perkCooldownMult);
-      setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
-    }
-    const sfxFn = SPELL_SFX[spell.id];
-    if (sfxFn) sfxFn();
-
-    const trap = traps.find(t => t.id === trapId);
-    if (!trap) return;
-
-    // Play spell animation toward tower position
-    if (animatorRef.current) {
-      const tx = GAME_W * (trap.x / 100);
-      const ty = GAME_H * 0.58;
-      animatorRef.current.playSpell(spell.id, tx, ty, spell.color, spell.colorLight);
-    }
-
-    setTimeout(() => {
-      setTraps(prev => prev.map(t => {
-        if (t.id !== trapId || !t.active) return t;
-        const newHp = t.hp - spell.damage;
-        if (newHp <= 0) {
-          sfxNpcDeath();
-          showMessage("Wieża zniszczona!", "#e0a040");
-          return { ...t, hp: 0, active: false };
-        }
-        showMessage(`Wieża: ${newHp}/${t.maxHp} HP`, "#cc8040");
-        return { ...t, hp: newHp };
-      }));
-    }, 450);
-
-    setSelectedSpell(null);
-  };
+  // (tower attack function removed)
 
   // ─── SHOP ───
 
@@ -5213,16 +5038,7 @@ export default function App() {
       <LevelUpPicker choices={levelUpChoices} onSelect={selectPerk} playerLevel={playerLevel} isMobile={isMobile} />
       <WeatherOverlay weather={weather} />
 
-      <Caravan
-        initiative={initiative}
-        maxInitiative={MAX_INITIATIVE}
-        cost={CARAVAN_COST}
-        canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete")}
-        onClick={travelCaravan}
-        hp={caravanHp}
-        maxHp={CARAVAN_LEVELS[caravanLevel].hp}
-        showHp={caravanHp < CARAVAN_LEVELS[caravanLevel].hp || (!!defenseMode && defenseMode.phase !== "complete")}
-      />
+      {/* Caravan moved to bottom bar above SpellBar */}
 
       {showChest && <Chest pos={chestPos} onClick={openChest} />}
 
@@ -5764,100 +5580,6 @@ export default function App() {
           );
         }
 
-        if (trap.type === "tower" && trap.active) {
-          const hpPct = trap.hp / trap.maxHp;
-          return (
-            <div key={trap.id} style={{
-              position: "absolute", left: `${trap.x}%`, bottom: "12%", zIndex: 15,
-              transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
-              cursor: selectedSpell ? "crosshair" : "pointer",
-            }}
-              onClick={() => attackTower(trap.id)}
-            >
-              {/* Tower structure */}
-              <div style={{ position: "relative", width: 30, height: 65 }}>
-                {/* Tower base */}
-                <div style={{
-                  position: "absolute", bottom: 0, left: 1, right: 1, height: 40,
-                  background: "linear-gradient(180deg,#5a5050,#3a3030,#2a2020)",
-                  borderRadius: "2px 2px 0 0",
-                  border: "1px solid #4a4040",
-                }} />
-                {/* Tower top / battlements */}
-                <div style={{
-                  position: "absolute", bottom: 40, left: -3, right: -3, height: 10,
-                  background: "#4a4040",
-                  borderRadius: "2px 2px 0 0",
-                }}>
-                  {/* Crenellations */}
-                  {[-3, 5, 13, 21, 29].map((cx, i) => (
-                    <div key={i} style={{
-                      position: "absolute", top: -6, left: cx,
-                      width: 6, height: 6,
-                      background: "#5a5050",
-                      border: "1px solid #6a6060",
-                    }} />
-                  ))}
-                </div>
-                {/* Arrow slit */}
-                <div style={{
-                  position: "absolute", bottom: 18, left: "50%", transform: "translateX(-50%)",
-                  width: 3, height: 12,
-                  background: "#0a0808",
-                  boxShadow: "inset 0 0 3px rgba(255,100,0,0.3)",
-                }} />
-                {/* Crossbow / weapon on top */}
-                <div style={{
-                  position: "absolute", bottom: 50, left: "50%", transform: "translateX(-50%)",
-                  fontSize: 14,
-                }}><Icon name="gunner" size={14} /></div>
-                {/* Damage glow when low HP */}
-                {hpPct < 0.5 && (
-                  <div style={{
-                    position: "absolute", bottom: 5, left: 3, right: 3, height: 15,
-                    background: "rgba(255,60,20,0.15)",
-                    animation: "resNode 1s ease-in-out infinite",
-                  }} />
-                )}
-              </div>
-              {/* HP bar */}
-              <div style={{
-                width: 34, height: 4, background: "rgba(0,0,0,0.7)",
-                border: "1px solid #555", marginTop: 2, marginLeft: "auto", marginRight: "auto",
-              }}>
-                <div style={{
-                  width: `${hpPct * 100}%`, height: "100%",
-                  background: hpPct > 0.5 ? "#cc4040" : "#ff3020",
-                  transition: "width 0.2s",
-                }} />
-              </div>
-              <div style={{ fontSize: 8, color: "#aa6040", textShadow: "1px 1px 0 #000", marginTop: 1 }}>
-                <Icon name="swords" size={8} /> Wieża
-              </div>
-            </div>
-          );
-        }
-
-        // Destroyed tower
-        if (trap.type === "tower" && !trap.active) {
-          return (
-            <div key={trap.id} style={{
-              position: "absolute", left: `${trap.x}%`, bottom: "12%", zIndex: 10,
-              transform: "translateX(-50%)", pointerEvents: "none", opacity: 0.4,
-            }}>
-              <div style={{ position: "relative", width: 30, height: 25 }}>
-                <div style={{
-                  position: "absolute", bottom: 0, left: 3, right: 3, height: 20,
-                  background: "linear-gradient(180deg,#4a4040,#2a2020)",
-                  borderRadius: "2px 2px 0 0",
-                  clipPath: "polygon(0 40%, 30% 0, 60% 20%, 100% 0, 100% 100%, 0 100%)",
-                }} />
-              </div>
-              <div style={{ fontSize: 8, color: "#666", textAlign: "center", marginTop: 1 }}>ruiny</div>
-            </div>
-          );
-        }
-
         return null;
       })}
 
@@ -6264,20 +5986,42 @@ export default function App() {
 
       </div>{/* end game container */}
 
-      {/* Spell Bar – fixed to viewport bottom, OUTSIDE game container */}
-      <SpellBar
-        mana={mana}
-        ammo={ammo}
-        selectedSpell={selectedSpell}
-        cooldowns={cooldowns}
-        learnedSpells={learnedSpells}
-        onSelect={handleSelectSpell}
-        onDragStart={() => {}}
-        isMobile={isMobile}
-        gameW={GAME_W}
-        gameH={GAME_H}
-        spellUpgrades={spellUpgrades}
-      />
+      {/* Bottom bar: Caravan + Spell Bar – fixed to viewport bottom, OUTSIDE game container */}
+      <div style={{
+        position: "fixed", bottom: 0, left: isMobile ? 0 : "50%",
+        right: isMobile ? 0 : "auto",
+        transform: isMobile ? "none" : "translateX(-50%)",
+        zIndex: 9000, display: "flex", flexDirection: "column",
+      }}>
+        <Caravan
+          initiative={initiative}
+          maxInitiative={MAX_INITIATIVE}
+          cost={CARAVAN_COST}
+          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete")}
+          onClick={travelCaravan}
+          hp={caravanHp}
+          maxHp={CARAVAN_LEVELS[caravanLevel].hp}
+          showHp={caravanHp < CARAVAN_LEVELS[caravanLevel].hp || (!!defenseMode && defenseMode.phase !== "complete")}
+          caravanName={CARAVAN_LEVELS[caravanLevel].name}
+          caravanLevel={caravanLevel}
+          thornArmor={CARAVAN_LEVELS[caravanLevel].thornArmor}
+          warDrums={CARAVAN_LEVELS[caravanLevel].warDrums}
+          isMobile={isMobile}
+        />
+        <SpellBar
+          mana={mana}
+          ammo={ammo}
+          selectedSpell={selectedSpell}
+          cooldowns={cooldowns}
+          learnedSpells={learnedSpells}
+          onSelect={handleSelectSpell}
+          onDragStart={() => {}}
+          isMobile={isMobile}
+          gameW={GAME_W}
+          gameH={GAME_H}
+          spellUpgrades={spellUpgrades}
+        />
+      </div>
 
       {/* Mobile Dodge Roll Button — replaces spacebar for mobile */}
       {isMobile && screen === "game" && (
@@ -6579,7 +6323,8 @@ export default function App() {
                   <div style={{ fontSize: 12, color: "#a08a60" }}>
                     HP: {cl.hp} | Armor: {cl.armor}
                     {cl.barricade && <> | <Icon name="wood" size={12} /> Barykada ({cl.barricade.hp} HP)</>}
-                    {cl.tower && <> | <Icon name="swords" size={12} /> Wieża ({cl.tower.damage} dmg)</>}
+                    {cl.thornArmor && <> | <Icon name="lightning" size={12} /> Kolce ({cl.thornArmor.damage} dmg)</>}
+                    {cl.warDrums && <> | <Icon name="fame" size={12} /> Bębny (+{cl.warDrums.bonus}%)</>}
                     {cl.dog && <> | <Icon name="dog" size={12} /> Ogar</>}
                   </div>
                 </div>
@@ -6590,7 +6335,7 @@ export default function App() {
                   color: canAffordCaravan ? "#d4a030" : "#555", fontWeight: "bold", fontSize: 14, padding: "6px 16px",
                   cursor: canAffordCaravan ? "pointer" : "not-allowed", display: "block", width: "100%", textAlign: "center", marginBottom: 12,
                 }}>
-                {nextCl ? <>{nextCl.name} (HP:{nextCl.hp}, Armor:{nextCl.armor}{nextCl.barricade && !cl.barricade ? ", +Barykada" : ""}{nextCl.tower && !cl.tower ? ", +Wieża" : ""}{nextCl.dog && !cl.dog ? ", +Ogar" : ""}) — {formatValHTML(nextCl.cost)}</> : "Maksymalny poziom!"}
+                {nextCl ? <>{nextCl.name} (HP:{nextCl.hp}, Armor:{nextCl.armor}{nextCl.barricade && !cl.barricade ? ", +Barykada" : ""}{nextCl.thornArmor && !cl.thornArmor ? ", +Kolce" : ""}{nextCl.warDrums && !cl.warDrums ? ", +Bębny Wojenne" : ""}{nextCl.dog && !cl.dog ? ", +Ogar" : ""}) — {formatValHTML(nextCl.cost)}</> : "Maksymalny poziom!"}
               </button>
             </div>
           );
