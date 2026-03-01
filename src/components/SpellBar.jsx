@@ -39,7 +39,8 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
   const knownSpells = SPELLS.filter(s => known.includes(s.id));
   const totalPages = Math.max(1, Math.ceil(knownSpells.length / SPELLS_PER_PAGE));
   const safePage = Math.min(page, totalPages - 1);
-  if (safePage !== page) setPage(safePage);
+  // Avoid calling setState during render — defer page correction
+  if (safePage !== page) setTimeout(() => setPage(safePage), 0);
   const pageSpells = knownSpells.slice(safePage * SPELLS_PER_PAGE, (safePage + 1) * SPELLS_PER_PAGE);
   const hasPrev = safePage > 0;
   const hasNext = safePage < totalPages - 1;

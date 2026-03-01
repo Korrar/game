@@ -206,12 +206,10 @@ export function rollSeaEvent() {
 }
 
 export function rollIslandDiscovery() {
-  for (const island of DISCOVERABLE_ISLANDS) {
-    if (Math.random() < island.chance) {
-      return { ...island };
-    }
-  }
-  return null;
+  // Collect all islands that pass their check, then pick one randomly (avoids first-match bias)
+  const found = DISCOVERABLE_ISLANDS.filter(() => Math.random() < 0.08); // flat 8% per island
+  if (found.length === 0) return null;
+  return { ...found[Math.floor(Math.random() * found.length)] };
 }
 
 // Ile wydarzeń morskich na jedną podróż (zależy od odległości biomu)

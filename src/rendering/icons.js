@@ -2193,6 +2193,7 @@ export const ICON_MAP = {
   feather: DRAW.feather,
   eye: DRAW.eye,
   banjo: DRAW.banjo,
+  spike: DRAW.swords,  // alias — no dedicated spike icon, use swords
   fame: DRAW.fame,
   copper: DRAW.copper,
   silver: DRAW.silver,

@@ -24,7 +24,7 @@ export const ARTIFACT_SETS = [
     pieces: [
       { id: "pk_crown",   icon: "crown",     name: "Korona Króla Piratów",    desc: "Noszono ją tylko w bitwie", lore: "Pierwszy Król Piratów nosił ją podczas Bitwy o Złoty Przylądek. Mówi się, że daje nieśmiertelność w walce." },
       { id: "pk_sword",   icon: "swords",    name: "Miecz Krwawego Kapitana", desc: "Ostrze wciąż tęskni za bitwą", lore: "Wykuty z meteorytu, który spadł na Wyspę Kości. Krwawy Kapitan zabił nim 100 ludzi w jednej nocy." },
-      { id: "pk_compass", icon: "compass",   name: "Kompas Zaginionych Mórz", desc: "Wskazuje nie północ, a pragnienia", lore: "Stworzony przez ślepego nawigaora. Kompas prowadzi do tego, czego serce najbardziej pragnie." },
+      { id: "pk_compass", icon: "compass",   name: "Kompas Zaginionych Mórz", desc: "Wskazuje nie północ, a pragnienia", lore: "Stworzony przez ślepego nawigatora. Kompas prowadzi do tego, czego serce najbardziej pragnie." },
       { id: "pk_flag",    icon: "pirate",    name: "Flaga Ostatniego Rejsu",  desc: "Szepcze o zapomnianych wyspach", lore: "Flaga Czarnej Perły — ostatni okręt, który widział Koniec Świata i wrócił." },
     ],
     setBonus: { desc: "Komplet: +25% obrażeń, +2 pancerza konwoju, podwójny łup z bossów", effect: { dmgMult: 1.25, caravanArmor: 2, bossLootMult: 2.0 } },
@@ -37,7 +37,7 @@ export const ARTIFACT_SETS = [
     desc: "Artefakty ofiarowane przez starożytne bóstwa oceanu",
     pieces: [
       { id: "sg_trident", icon: "harpoon",   name: "Ząb Lewiatana",         desc: "Z bestii, która połknęła księżyc", lore: "Wyrwany z paszczy Lewiatana przez pierwszego harpuniarza. Daje władztwo nad falami." },
-      { id: "sg_pearl",   icon: "gem",       name: "Perła Głębin",          desc: "Świeci własnym światłem w ciemności", lore: "Rosła przez tysiąc lat w muszli żyjącej na dnie Rowu Marsjańskiego." },
+      { id: "sg_pearl",   icon: "gem",       name: "Perła Głębin",          desc: "Świeci własnym światłem w ciemności", lore: "Rosła przez tysiąc lat w muszli żyjącej na dnie Rowu Mariańskiego." },
       { id: "sg_shell",   icon: "anchor",    name: "Muszla Posejdona",      desc: "Słychać w niej przeszłość i przyszłość", lore: "Posejdon zostawił ją na brzegu jako ostrzeżenie dla śmiertelników." },
       { id: "sg_kelp",    icon: "herb",      name: "Koralowy Amulet",       desc: "Tętni energią głębin", lore: "Wodorosty splecione przez syreny w amulet chroniący przed utopieniem." },
     ],
