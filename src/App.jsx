@@ -924,6 +924,11 @@ export default function App() {
     const atkCds = {};
     let lastTime = performance.now();
     let frameCount = 0;
+    // Pre-allocated reusable arrays to avoid GC pressure
+    let _friendlyList = [];
+    let _enemyList = [];
+    // Cache knight positions per frame for O(1) aura lookup
+    let _knightPositions = []; // [{x, y}]
     const loop = () => {
       walkRafRef.current = requestAnimationFrame(loop);
       // Pause game when upgrade/level-up picker is open
@@ -938,22 +943,48 @@ export default function App() {
       lastTime = now;
       frameCount++;
       const wd = walkDataRef.current;
+      // Cache Date.now() once per frame instead of calling it dozens of times in inner loops
+      const dateNow = Date.now();
 
       // ─── OPTIMIZATION: Pre-compute friendly/enemy arrays once per frame ───
+      // Reuse arrays to avoid allocation
       const allIds = Object.keys(wd);
-      const friendlyList = []; // [{id, w}]
-      const enemyList = [];    // [{id, w}]
+      _friendlyList.length = 0;
+      _enemyList.length = 0;
+      _knightPositions.length = 0;
+      const friendlyList = _friendlyList;
+      const enemyList = _enemyList;
+      const knightPositions = _knightPositions;
       for (const id of allIds) {
         const w = wd[id];
         if (!w || !w.alive) continue;
-        if (w.friendly) friendlyList.push({ id, w });
+        if (w.friendly) {
+          friendlyList.push({ id, w });
+          // Cache knight positions for aura checks
+          if (w.mercType === "knight") {
+            knightPositions.push({ x: w.x, y: w.y || 50 });
+          }
+        }
         else enemyList.push({ id, w });
       }
+
+      // Helper: check if any knight is within aura range (uses cached positions, O(k) where k = knight count)
+      const _hasKnightAura = (wx, wy) => {
+        for (let ki = 0; ki < knightPositions.length; ki++) {
+          const kp = knightPositions[ki];
+          const adx = kp.x - wx;
+          const ady = (kp.y - wy) * 0.5;
+          if (adx * adx + ady * ady < 625) return true; // 25*25 = 625, avoid sqrt
+        }
+        return false;
+      };
 
       for (let wi = 0; wi < allIds.length; wi++) {
         const id = allIds[wi];
         const w = wd[id];
         if (!w || !w.alive) continue;
+        // Cache parseInt(id) once per walker per frame
+        const idNum = parseInt(id);
 
         if (w.friendly) {
           // Friendly AI: find nearest enemy from pre-computed list
@@ -977,17 +1008,17 @@ export default function App() {
               const range = w.range || 40;
               if (nearDist < range) {
                 w.dir = (wd[nearId]?.x || 50) > w.x ? 1 : -1;
-                const now = Date.now();
                 const projCd = w.projectileCd || w.attackCd || 2000;
-                if (!atkCds[id] || now - atkCds[id] > projCd) {
-                  atkCds[id] = now;
+                if (!atkCds[id] || dateNow - atkCds[id] > projCd) {
+                  atkCds[id] = dateNow;
                   if (physicsRef.current) {
-                    physicsRef.current.triggerAttackAnim(parseInt(id));
+                    physicsRef.current.triggerAttackAnim(idNum);
                     const targetWd = wd[nearId];
                     const targetXPct = targetWd ? targetWd.x : nearX;
+                    const _idNum = idNum; // capture for closure
                     physicsRef.current.spawnProjectile(
-                      parseInt(id), targetXPct, "arrow", w.projectileDamage || w.damage || 8, null,
-                      (hitId, dmg) => { if (summonAttackRef.current) summonAttackRef.current(parseInt(id), hitId, dmg); },
+                      idNum, targetXPct, "arrow", w.projectileDamage || w.damage || 8, null,
+                      (hitId, dmg) => { if (summonAttackRef.current) summonAttackRef.current(_idNum, hitId, dmg); },
                       parseInt(nearId)
                     );
                   }
@@ -1025,33 +1056,24 @@ export default function App() {
 
               const range = w.range || 35;
               if (nearDist < range) {
-                const now = Date.now();
-                // Sheriff aura: boost ranged merc damage if a knight is nearby
-                let rangedAuraBonus = 1;
-                for (const fid2 of Object.keys(wd)) {
-                  const f2 = wd[fid2];
-                  if (!f2 || !f2.alive || !f2.friendly || fid2 === id) continue;
-                  if (f2.mercType === "knight") {
-                    const adx = f2.x - w.x;
-                    const ady = ((f2.y || 50) - (w.y || 50)) * 0.5;
-                    if (Math.sqrt(adx * adx + ady * ady) < 25) { rangedAuraBonus = 1.15; break; }
-                  }
-                }
+                // Sheriff aura: use cached knight positions instead of O(n) scan
+                const rangedAuraBonus = _hasKnightAura(w.x, w.y || 50) ? 1.15 : 1;
 
                 if (w.mercType === "mage") {
                   // Mage ranged spell
                   const spellCd = w.spellCd || 3500;
                   const spellCost = w.spellCost || 15;
-                  if ((w.currentMana || 0) >= spellCost && (!atkCds[id] || now - atkCds[id] > spellCd)) {
+                  if ((w.currentMana || 0) >= spellCost && (!atkCds[id] || dateNow - atkCds[id] > spellCd)) {
                     w.currentMana -= spellCost;
-                    atkCds[id] = now;
+                    atkCds[id] = dateNow;
                     if (physicsRef.current) {
-                      physicsRef.current.triggerAttackAnim(parseInt(id));
+                      physicsRef.current.triggerAttackAnim(idNum);
                       const targetWd = wd[nearId];
                       const targetXPct = targetWd ? targetWd.x : nearX;
+                      const _idNum = idNum;
                       physicsRef.current.spawnProjectile(
-                        parseInt(id), targetXPct, "mageSpell", Math.round((w.spellDamage || 14) * rangedAuraBonus), w.spellElement || "fire",
-                        (hitId, dmg) => { if (summonAttackRef.current) summonAttackRef.current(parseInt(id), hitId, dmg); },
+                        idNum, targetXPct, "mageSpell", Math.round((w.spellDamage || 14) * rangedAuraBonus), w.spellElement || "fire",
+                        (hitId, dmg) => { if (summonAttackRef.current) summonAttackRef.current(_idNum, hitId, dmg); },
                         parseInt(nearId)
                       );
                     }
@@ -1059,27 +1081,28 @@ export default function App() {
                     // Fallback melee when out of mana
                     const meleeCd = 2000;
                     const cdKey = "m" + id;
-                    if (!atkCds[cdKey] || now - atkCds[cdKey] > meleeCd) {
-                      atkCds[cdKey] = now;
-                      if (summonAttackRef.current) summonAttackRef.current(parseInt(id), parseInt(nearId), w.meleeDamage || 3);
+                    if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > meleeCd) {
+                      atkCds[cdKey] = dateNow;
+                      if (summonAttackRef.current) summonAttackRef.current(idNum, parseInt(nearId), w.meleeDamage || 3);
                     }
                   }
                 } else if (w.mercType === "archer") {
                   // Archer ranged attack
                   const projCd = w.projectileCd || 1800;
-                  if (!atkCds[id] || now - atkCds[id] > projCd) {
-                    atkCds[id] = now;
+                  if (!atkCds[id] || dateNow - atkCds[id] > projCd) {
+                    atkCds[id] = dateNow;
                     if (physicsRef.current) {
-                      physicsRef.current.triggerAttackAnim(parseInt(id));
+                      physicsRef.current.triggerAttackAnim(idNum);
                       const targetWd = wd[nearId];
                       let targetXPct = targetWd ? targetWd.x : nearX;
                       // Storm: arrows have 30% chance to miss (offset target)
                       const ww = weatherRef.current;
                       if (ww?.accuracyMult?.arrow && Math.random() > ww.accuracyMult.arrow)
                         targetXPct += (Math.random() - 0.5) * 30;
+                      const _idNum = idNum;
                       physicsRef.current.spawnProjectile(
-                        parseInt(id), targetXPct, "arrow", Math.round((w.projectileDamage || 6) * rangedAuraBonus), null,
-                        (hitId, dmg) => { if (summonAttackRef.current) summonAttackRef.current(parseInt(id), hitId, dmg); },
+                        idNum, targetXPct, "arrow", Math.round((w.projectileDamage || 6) * rangedAuraBonus), null,
+                        (hitId, dmg) => { if (summonAttackRef.current) summonAttackRef.current(_idNum, hitId, dmg); },
                         parseInt(nearId)
                       );
                     }
@@ -1127,10 +1150,9 @@ export default function App() {
               }
               // Attack when in melee range
               if (nearDist < 10) {
-                const now = Date.now();
                 const atkCdMs = w.attackCd || 2500;
-                if (!atkCds[id] || now - atkCds[id] > atkCdMs) {
-                  atkCds[id] = now;
+                if (!atkCds[id] || dateNow - atkCds[id] > atkCdMs) {
+                  atkCds[id] = dateNow;
                   let knightDmg = w.damage || 5;
                   // Rogue crit: chance for double damage (+perk bonus)
                   const mercCritBonus = getPerkCount("merc_crit") * 0.10;
@@ -1147,26 +1169,17 @@ export default function App() {
                       spawnDmgPopup(parseInt(nearId), `COMBO! ${knightDmg}`, "#ffa040");
                     }
                   }
-                  // Sheriff passive: aura — check if nearby knight boosts damage
-                  for (const fid2 of Object.keys(wd)) {
-                    const f2 = wd[fid2];
-                    if (!f2 || !f2.alive || !f2.friendly || fid2 === id) continue;
-                    if (f2.mercType === "knight") {
-                      const adx = f2.x - w.x;
-                      const ady = ((f2.y || 50) - (w.y || 50)) * 0.5;
-                      if (Math.sqrt(adx * adx + ady * ady) < 25) {
-                        knightDmg = Math.round(knightDmg * 1.15);
-                        break;
-                      }
-                    }
+                  // Sheriff passive: aura — use cached knight positions (O(k) instead of O(n))
+                  if (_hasKnightAura(w.x, w.y || 50)) {
+                    knightDmg = Math.round(knightDmg * 1.15);
                   }
                   // berserker: merc <30% HP → 2x damage
                   if (hasRelic("berserker")) {
-                    const wState = walkersRef.current.find(ww => ww.id === parseInt(id));
-                    if (wState && wState.hp / wState.maxHp < 0.30) knightDmg *= 2;
+                    // Use w.hp/w.maxHp from walkData instead of O(n) find on walkersRef
+                    if (w.hp !== undefined && w.maxHp && w.hp / w.maxHp < 0.30) knightDmg *= 2;
                   }
-                  if (physicsRef.current) physicsRef.current.triggerAttackAnim(parseInt(id));
-                  if (summonAttackRef.current) summonAttackRef.current(parseInt(id), parseInt(nearId), knightDmg);
+                  if (physicsRef.current) physicsRef.current.triggerAttackAnim(idNum);
+                  if (summonAttackRef.current) summonAttackRef.current(idNum, parseInt(nearId), knightDmg);
                   w.combatState = Math.random() < 0.5 ? "retreat" : "circle";
                   w.combatTimer = 20 + Math.floor(Math.random() * 30);
                   w.strafeDir = Math.random() < 0.5 ? 1 : -1;
@@ -1177,9 +1190,12 @@ export default function App() {
             // No enemy walkers – look for towers to attack
             w.combatState = null;
             w.combatTimer = 0;
-            const towers = trapsRef.current.filter(t => t.type === "tower" && t.active);
+            // Avoid .filter() allocation: scan traps inline
+            const _traps = trapsRef.current;
             let nearTower = null, nearTowerDist = Infinity;
-            for (const t of towers) {
+            for (let ti = 0; ti < _traps.length; ti++) {
+              const t = _traps[ti];
+              if (t.type !== "tower" || !t.active) continue;
               const td = Math.abs(t.x - w.x);
               if (td < nearTowerDist) { nearTowerDist = td; nearTower = t; }
             }
@@ -1193,7 +1209,6 @@ export default function App() {
                 w.x -= w.speed * w.dir * 0.5;
               }
               if (nearTowerDist < towerRange) {
-                const now = Date.now();
                 const cdKey = "tw" + id;
                 if (isRanged) {
                   // Ranged tower attack – spawn visible projectile
@@ -1201,18 +1216,18 @@ export default function App() {
                   const canShoot = w.mercType === "mage"
                     ? (w.currentMana || 0) >= (w.spellCost || 15)
                     : true;
-                  if (canShoot && (!atkCds[cdKey] || now - atkCds[cdKey] > projCd)) {
-                    atkCds[cdKey] = now;
+                  if (canShoot && (!atkCds[cdKey] || dateNow - atkCds[cdKey] > projCd)) {
+                    atkCds[cdKey] = dateNow;
                     if (w.mercType === "mage") w.currentMana -= (w.spellCost || 15);
                     const dmg = w.mercType === "mage" ? (w.spellDamage || 14) : (w.projectileDamage || 6);
                     const projType = w.mercType === "mage" ? "mageSpell" : "arrow";
                     if (physicsRef.current) {
-                      physicsRef.current.triggerAttackAnim(parseInt(id));
+                      physicsRef.current.triggerAttackAnim(idNum);
                       const tId = nearTower.id;
                       const towerPx = (nearTower.x / 100) * GAME_W;
                       const towerPy = GAME_H * 0.58;
                       physicsRef.current.spawnProjectile(
-                        parseInt(id), nearTower.x, projType, dmg, w.spellElement || null,
+                        idNum, nearTower.x, projType, dmg, w.spellElement || null,
                         (hitId, hitDmg) => {
                           setTraps(prev => prev.map(t => {
                             if (t.id !== tId || !t.active) return t;
@@ -1236,10 +1251,10 @@ export default function App() {
                 } else {
                   // Melee tower attack
                   const atkCdMs = w.attackCd || 2500;
-                  if (!atkCds[cdKey] || now - atkCds[cdKey] > atkCdMs) {
-                    atkCds[cdKey] = now;
+                  if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > atkCdMs) {
+                    atkCds[cdKey] = dateNow;
                     const dmg = w.damage || 5;
-                    if (physicsRef.current) physicsRef.current.triggerAttackAnim(parseInt(id));
+                    if (physicsRef.current) physicsRef.current.triggerAttackAnim(idNum);
                     sfxMeleeHit();
                     const tId = nearTower.id;
                     setTraps(prev => prev.map(t => {
@@ -1278,10 +1293,10 @@ export default function App() {
           if (w.ability && friendX !== null) {
             const ability = w.ability;
             const abCdKey = "ab" + id;
-            const now = Date.now();
-            if (friendDist < ability.range && (!atkCds[abCdKey] || now - atkCds[abCdKey] > ability.cooldown)) {
-              atkCds[abCdKey] = now;
+            if (friendDist < ability.range && (!atkCds[abCdKey] || dateNow - atkCds[abCdKey] > ability.cooldown)) {
+              atkCds[abCdKey] = dateNow;
               const dirX = friendX > w.x ? 1 : -1;
+              const _idNum = idNum; // capture for closures
               switch (ability.type) {
                 case "fireBreath":
                   if (physicsRef.current) {
@@ -1289,7 +1304,7 @@ export default function App() {
                     const ty = GAME_H * 0.25 - 30;
                     physicsRef.current.fx.spawnFireBreath(tx, ty, dirX);
                   }
-                  if (enemyAbilityRef.current) enemyAbilityRef.current(parseInt(id), parseInt(friendId), ability.damage, ability.element);
+                  if (enemyAbilityRef.current) enemyAbilityRef.current(idNum, parseInt(friendId), ability.damage, ability.element);
                   break;
                 case "poisonSpit":
                 case "iceShot":
@@ -1300,8 +1315,8 @@ export default function App() {
                     const targetWd = wd[friendId];
                     const targetXPct = targetWd ? targetWd.x : friendX;
                     physicsRef.current.spawnProjectile(
-                      parseInt(id), targetXPct, projType, ability.damage, ability.element,
-                      (hitId, dmg, elem) => { if (enemyAbilityRef.current) enemyAbilityRef.current(parseInt(id), hitId, dmg, elem); },
+                      idNum, targetXPct, projType, ability.damage, ability.element,
+                      (hitId, dmg, elem) => { if (enemyAbilityRef.current) enemyAbilityRef.current(_idNum, hitId, dmg, elem); },
                       parseInt(friendId)
                     );
                   }
@@ -1313,7 +1328,7 @@ export default function App() {
                   w.speed = origSpeed * 3;
                   w.dir = friendX > w.x ? 1 : -1;
                   setTimeout(() => { if (wd[id]) wd[id].speed = origSpeed; }, 800);
-                  if (enemyAbilityRef.current) enemyAbilityRef.current(parseInt(id), parseInt(friendId), ability.damage, "melee");
+                  if (enemyAbilityRef.current) enemyAbilityRef.current(idNum, parseInt(friendId), ability.damage, "melee");
                   break;
                 }
                 case "drain": {
@@ -1322,19 +1337,19 @@ export default function App() {
                     const targetWd = wd[friendId];
                     const targetXPct = targetWd ? targetWd.x : friendX;
                     physicsRef.current.spawnProjectile(
-                      parseInt(id), targetXPct, "shadowBolt_npc", ability.damage, "shadow",
+                      idNum, targetXPct, "shadowBolt_npc", ability.damage, "shadow",
                       (hitId, dmg, elem) => {
-                        if (enemyAbilityRef.current) enemyAbilityRef.current(parseInt(id), hitId, dmg, elem);
+                        if (enemyAbilityRef.current) enemyAbilityRef.current(_idNum, hitId, dmg, elem);
                         // Heal boss for 50% of damage dealt
                         const bossWd = wd[id];
                         if (bossWd && bossWd.isBoss) {
                           const healAmt = Math.floor(dmg * 0.5);
                           setWalkers(prev => prev.map(ww => {
-                            if (ww.id !== parseInt(id) || !ww.isBoss) return ww;
+                            if (ww.id !== _idNum || !ww.isBoss) return ww;
                             const newHp = Math.min(ww.maxHp, ww.hp + healAmt);
                             return { ...ww, hp: newHp };
                           }));
-                          spawnDmgPopup(parseInt(id), `+${healAmt}`, "#40c040");
+                          spawnDmgPopup(_idNum, `+${healAmt}`, "#40c040");
                         }
                       },
                       parseInt(friendId)
@@ -1376,7 +1391,7 @@ export default function App() {
                 boss.manaShieldMaxHp = shieldHp;
               }
               setActiveBoss({ ...boss });
-              spawnDmgPopup(parseInt(id), "FAZA 2!", "#ff6020");
+              spawnDmgPopup(idNum, "FAZA 2!", "#ff6020");
             }
             // Phase 2 → Phase 3 (Cosmic Titan)
             if (boss.phase === 2 && boss.phase3 && hpRatio <= boss.phase3.hpThreshold) {
@@ -1397,7 +1412,7 @@ export default function App() {
               }
               boss.phase = 3;
               setActiveBoss({ ...boss });
-              spawnDmgPopup(parseInt(id), "FAZA 3!", "#e040e0");
+              spawnDmgPopup(idNum, "FAZA 3!", "#e040e0");
             }
 
             // Sync HP to state for BossHpBar
@@ -1416,17 +1431,17 @@ export default function App() {
               if (!bt.active || bt.trapType !== "barricade") continue;
               const bdx = bt.x - w.x;
               const bdy = ((bt.y || 50) - (w.y || 50)) * 0.5;
-              const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
-              if (bdist < (bt.config.blockRadius || 5)) {
+              const bdistSq = bdx * bdx + bdy * bdy;
+              const blockR = bt.config.blockRadius || 5;
+              if (bdistSq < blockR * blockR) {
                 barricadeBlock = true;
                 w.dir = bdx > 0 ? 1 : -1;
-                const now3 = Date.now();
                 const cdKey3 = "barr" + id;
-                if (!atkCds[cdKey3] || now3 - atkCds[cdKey3] > 2000) {
-                  atkCds[cdKey3] = now3;
+                if (!atkCds[cdKey3] || dateNow - atkCds[cdKey3] > 2000) {
+                  atkCds[cdKey3] = dateNow;
                   const eDmg2 = w.damage || 5;
                   bt.currentHp = (bt.currentHp != null ? bt.currentHp : bt.config.hp) - eDmg2;
-                  spawnDmgPopup(parseInt(id), `${eDmg2}`, "#8a6030");
+                  spawnDmgPopup(idNum, `${eDmg2}`, "#8a6030");
                   if (bt.currentHp <= 0) {
                     bt.active = false;
                     sfxNpcDeath();
@@ -1482,12 +1497,11 @@ export default function App() {
             }
             // Attack when in melee range
             if (friendDist < 10) {
-              const now = Date.now();
               const cdKey = "e" + id;
-              if (!atkCds[cdKey] || now - atkCds[cdKey] > 3000) {
-                atkCds[cdKey] = now;
+              if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 3000) {
+                atkCds[cdKey] = dateNow;
                 const eDmg = w.damage || 5;
-                if (enemyAttackFriendlyRef.current) enemyAttackFriendlyRef.current(parseInt(id), parseInt(friendId), eDmg);
+                if (enemyAttackFriendlyRef.current) enemyAttackFriendlyRef.current(idNum, parseInt(friendId), eDmg);
                 w.combatState = Math.random() < 0.6 ? "retreat" : "circle";
                 w.combatTimer = 25 + Math.floor(Math.random() * 35);
                 w.strafeDir = Math.random() < 0.5 ? 1 : -1;
@@ -1504,18 +1518,18 @@ export default function App() {
               if (!bt.active || bt.trapType !== "barricade") continue;
               const bdx = bt.x - w.x;
               const bdy = ((bt.y || 50) - (w.y || 50)) * 0.5;
-              const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
-              if (bdist < (bt.config.blockRadius || 5)) {
+              const bdistSq = bdx * bdx + bdy * bdy;
+              const blockR2 = bt.config.blockRadius || 5;
+              if (bdistSq < blockR2 * blockR2) {
                 // Blocked — stop and attack the barricade
                 blockedByBarricade = true;
                 w.dir = bdx > 0 ? 1 : -1;
-                const now2 = Date.now();
                 const cdKey2 = "barr" + id;
-                if (!atkCds[cdKey2] || now2 - atkCds[cdKey2] > 2000) {
-                  atkCds[cdKey2] = now2;
+                if (!atkCds[cdKey2] || dateNow - atkCds[cdKey2] > 2000) {
+                  atkCds[cdKey2] = dateNow;
                   const eDmg = w.damage || 5;
                   bt.currentHp = (bt.currentHp != null ? bt.currentHp : bt.config.hp) - eDmg;
-                  spawnDmgPopup(parseInt(id), `${eDmg}`, "#8a6030");
+                  spawnDmgPopup(idNum, `${eDmg}`, "#8a6030");
                   if (bt.currentHp <= 0) {
                     bt.active = false;
                     sfxNpcDeath();
@@ -1536,14 +1550,13 @@ export default function App() {
               if (Math.abs(dxC) > 2) w.x += Math.sign(dxC) * w.speed * 0.6;
               if (w.y != null && Math.abs(dyC) > 2) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * 2.5;
               w.dir = dxC > 0 ? 1 : -1;
-              // Attack when close enough to caravan
-              const distToCaravan = Math.sqrt(dxC * dxC + dyC * dyC);
-              if (distToCaravan < 15) {
-                const now = Date.now();
+              // Attack when close enough to caravan (use squared distance: 15*15=225)
+              const distToCaravanSq = dxC * dxC + dyC * dyC;
+              if (distToCaravanSq < 225) {
                 const cdKey = "ec" + id;
-                if (!atkCds[cdKey] || now - atkCds[cdKey] > 3000) {
-                  atkCds[cdKey] = now;
-                  if (attackCaravanRef.current) attackCaravanRef.current(parseInt(id), w.damage || 5);
+                if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 3000) {
+                  atkCds[cdKey] = dateNow;
+                  if (attackCaravanRef.current) attackCaravanRef.current(idNum, w.damage || 5);
                 }
               }
             }
@@ -1582,17 +1595,18 @@ export default function App() {
 
         // ─── Elite: Dark – HP regen (regenPct % of maxHp per second) ───
         if (w.isElite && w.eliteMod?.regenPct) {
-          const walkerState = walkersRef.current.find(ww => ww.id === parseInt(id));
-          if (walkerState && walkerState.alive && !walkerState.dying && walkerState.hp < walkerState.maxHp) {
-            const healPerSec = walkerState.maxHp * w.eliteMod.regenPct;
+          // Use walkData hp/maxHp to avoid O(n) walkersRef.current.find()
+          if (w.hp !== undefined && w.maxHp && w.alive && w.hp < w.maxHp) {
+            const healPerSec = w.maxHp * w.eliteMod.regenPct;
             const healAmt = healPerSec * dt;
             if (!w._regenAccum) w._regenAccum = 0;
             w._regenAccum += healAmt;
             if (w._regenAccum >= 1) {
               const heal = Math.floor(w._regenAccum);
               w._regenAccum -= heal;
+              const _idNum = idNum;
               setWalkers(prev => prev.map(ww =>
-                ww.id === parseInt(id) ? { ...ww, hp: Math.min(ww.maxHp, ww.hp + heal) } : ww
+                ww.id === _idNum ? { ...ww, hp: Math.min(ww.maxHp, ww.hp + heal) } : ww
               ));
             }
           }
@@ -1604,13 +1618,14 @@ export default function App() {
             const f = friendlyList[fi].w;
             const dx = f.x - w.x;
             const dy = ((f.y || 50) - (w.y || 50)) * 0.5;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < 30) {
+            // Use squared distance: 30*30 = 900
+            const distSq = dx * dx + dy * dy;
+            if (distSq < 900) {
               // Apply slow: store original speed once, then halve
               if (!f._origSpeed) f._origSpeed = f.speed;
               f.speed = f._origSpeed * 0.5;
-              f._slowedUntil = now + 500; // refresh slow for 500ms
-            } else if (f._slowedUntil && now > f._slowedUntil && f._origSpeed) {
+              f._slowedUntil = dateNow + 500; // refresh slow for 500ms
+            } else if (f._slowedUntil && dateNow > f._slowedUntil && f._origSpeed) {
               // Restore speed when out of range
               f.speed = f._origSpeed;
               delete f._origSpeed;
@@ -1620,7 +1635,7 @@ export default function App() {
         }
 
         // Alchemist slow passive: restore speed after slow duration expires
-        if (!w.friendly && w._slowedUntil && w._origSpeed && now > w._slowedUntil) {
+        if (!w.friendly && w._slowedUntil && w._origSpeed && dateNow > w._slowedUntil) {
           w.speed = w._origSpeed;
           delete w._origSpeed;
           delete w._slowedUntil;
@@ -1647,11 +1662,11 @@ export default function App() {
         // Update physics body to match walker position
         if (physicsRef.current) {
           const yPctForPhysics = w.y != null ? w.y : null;
-          physicsRef.current.updatePatrol(parseInt(id), w.x, w.dir, w.bouncePhase, yPctForPhysics);
+          physicsRef.current.updatePatrol(idNum, w.x, w.dir, w.bouncePhase, yPctForPhysics);
         }
       }
       // ─── TRAP COLLISION CHECK ───
-      const trapNow = Date.now();
+      const trapNow = dateNow;
       const curTraps = trapsRef.current;
       for (const trap of curTraps) {
         if (!trap.active) continue;
@@ -1662,20 +1677,20 @@ export default function App() {
           const spikesUp = cycle < 1200;
           trap._spikesUp = spikesUp; // for rendering
           if (!spikesUp) continue;
-          // Damage any friendly walker stepping on spikes
-          for (const id of Object.keys(wd)) {
-            const w = wd[id];
-            if (!w || !w.alive || !w.friendly) continue;
-            if (Math.abs(w.x - trap.x) < 4) {
-              const cdKey = `spike_${trap.id}_${id}`;
+          // Damage any friendly walker stepping on spikes — use pre-computed friendlyList
+          for (let fli = 0; fli < friendlyList.length; fli++) {
+            const fEntry = friendlyList[fli];
+            const fw = fEntry.w;
+            if (Math.abs(fw.x - trap.x) < 4) {
+              const cdKey = `spike_${trap.id}_${fEntry.id}`;
               if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > 1500) {
                 atkCds[cdKey] = trapNow;
                 const dmg = 8 + Math.floor(Math.random() * 6);
                 if (enemyAttackFriendlyRef.current) {
-                  // Use a fake enemy ID (negative) for trap damage
-                  spawnDmgPopup(parseInt(id), `${dmg}`, "#cc4040");
+                  const fIdNum = parseInt(fEntry.id);
+                  spawnDmgPopup(fIdNum, `${dmg}`, "#cc4040");
                   setWalkers(prev => prev.map(ww => {
-                    if (ww.id !== parseInt(id) || !ww.alive || !ww.friendly) return ww;
+                    if (ww.id !== fIdNum || !ww.alive || !ww.friendly) return ww;
                     const newHp = Math.max(0, ww.hp - dmg);
                     if (newHp <= 0) {
                       if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
@@ -1683,7 +1698,7 @@ export default function App() {
                       showMessage(`${ww.npcData.name} zginął na kolcach!`, "#cc4040");
                       return { ...ww, hp: 0, dying: true, dyingAt: trapNow };
                     }
-                    if (physicsRef.current) physicsRef.current.applyHit(parseInt(id), "melee", Math.sign(w.x - trap.x) || 1);
+                    if (physicsRef.current) physicsRef.current.applyHit(fIdNum, "melee", Math.sign(fw.x - trap.x) || 1);
                     return { ...ww, hp: newHp };
                   }));
                 }
@@ -1693,18 +1708,20 @@ export default function App() {
         }
 
         if (trap.type === "mine" && !trap.triggered) {
-          for (const id of Object.keys(wd)) {
-            const w = wd[id];
-            if (!w || !w.alive || !w.friendly) continue;
-            if (Math.abs(w.x - trap.x) < 3.5) {
+          // Use pre-computed friendlyList instead of re-iterating Object.keys(wd)
+          for (let fli = 0; fli < friendlyList.length; fli++) {
+            const fEntry = friendlyList[fli];
+            const fw = fEntry.w;
+            if (Math.abs(fw.x - trap.x) < 3.5) {
               trap.triggered = true;
               trap._explodeAt = trapNow;
               const dmg = 15 + Math.floor(Math.random() * 10);
+              const fIdNum = parseInt(fEntry.id);
               sfxMeteorImpact();
-              spawnDmgPopup(parseInt(id), `${dmg}`, "#ff6020");
+              spawnDmgPopup(fIdNum, `${dmg}`, "#ff6020");
               showMessage("Mina eksplodowała!", "#ff6020");
               if (animatorRef.current) {
-                const ex = npcElsRef.current[id];
+                const ex = npcElsRef.current[fEntry.id];
                 let px = GAME_W * (trap.x / 100), py = GAME_H * 0.25;
                 if (ex && gameContainerRef.current) {
                   const gr = gameContainerRef.current.getBoundingClientRect();
@@ -1719,7 +1736,7 @@ export default function App() {
                 if (!ww.alive || !ww.friendly) return ww;
                 const wwd = walkDataRef.current[ww.id];
                 if (!wwd || Math.abs(wwd.x - trap.x) > 8) return ww;
-                const actualDmg = ww.id === parseInt(id) ? dmg : Math.floor(dmg * 0.5);
+                const actualDmg = ww.id === fIdNum ? dmg : Math.floor(dmg * 0.5);
                 const newHp = Math.max(0, ww.hp - actualDmg);
                 if (newHp <= 0) {
                   if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
@@ -1742,11 +1759,11 @@ export default function App() {
           // Tower shoots nearest friendly every 2.5s
           if (trapNow - (trap.lastShot || 0) < 2500) continue;
           let nearId = null, nearDist = Infinity;
-          for (const id of Object.keys(wd)) {
-            const w = wd[id];
-            if (!w || !w.alive || !w.friendly) continue;
-            const dist = Math.abs(w.x - trap.x);
-            if (dist < nearDist && dist < 35) { nearDist = dist; nearId = id; }
+          // Use pre-computed friendlyList instead of iterating all walkData
+          for (let fli = 0; fli < friendlyList.length; fli++) {
+            const fEntry = friendlyList[fli];
+            const dist = Math.abs(fEntry.w.x - trap.x);
+            if (dist < nearDist && dist < 35) { nearDist = dist; nearId = fEntry.id; }
           }
           if (nearId !== null) {
             trap.lastShot = trapNow;
@@ -3798,18 +3815,16 @@ export default function App() {
     if (roomChallengeRef.current?.id === "no_mana" && !roomChallengeRef.current.completed && !roomChallengeRef.current.failed && getSpellManaCost(spell) > 0) {
       setRoomChallenge(prev => prev ? { ...prev, failed: true } : prev);
     }
-    // Spend mana & set cooldown
+    // Spend mana & set cooldown — compute upgrade stats once
     setMana(m => m - getSpellManaCost(spell));
+    const _skUps = spellUpgradesRef.current[spell.id] || [];
+    const _skStats = getUpgradedSpellStats(spell, _skUps);
     if (spell.ammoCost) {
-      const spellUps = spellUpgradesRef.current[spell.id] || [];
-      const uStats = getUpgradedSpellStats(spell, spellUps);
-      const ammoCost = Math.max(1, spell.ammoCost.amount - uStats.ammoCostReduction);
+      const ammoCost = Math.max(1, spell.ammoCost.amount - _skStats.ammoCostReduction);
       setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
     }
     {
-      const spellUps = spellUpgradesRef.current[spell.id] || [];
-      const uStats = getUpgradedSpellStats(spell, spellUps);
-      const finalCd = Math.round(uStats.cooldown * perkCooldownMult);
+      const finalCd = Math.round(_skStats.cooldown * perkCooldownMult);
       setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
     }
 
@@ -3823,14 +3838,11 @@ export default function App() {
       setTimeout(() => setScreenShake(false), 600);
     }
 
-    // Spawn skillshot projectile in physics
+    // Spawn skillshot projectile in physics (reuse pre-computed _skStats)
     if (physicsRef.current) {
-      const spellUps = spellUpgradesRef.current[spell.id] || [];
-      const uStats = getUpgradedSpellStats(spell, spellUps);
-
       physicsRef.current.spawnPlayerSkillshot(
         spell.id, targetPx, targetPy,
-        uStats.damage, spell.element,
+        _skStats.damage, spell.element,
         // onHit callback
         (hitId, damage, element, isHeadshot) => {
           // Track accuracy
@@ -3994,17 +4006,17 @@ export default function App() {
 
     // Spend mana & set cooldown (chaos_blade: +25% mana cost)
     setMana(m => m - getSpellManaCost(spell));
+    // Compute upgrade stats once for both ammo cost and cooldown
+    const _spellUps = spellUpgradesRef.current[spell.id] || [];
+    const _uStats = getUpgradedSpellStats(spell, _spellUps);
     // Ammo cost with upgrade reduction
     if (spell.ammoCost) {
-      const spellUps = spellUpgradesRef.current[spell.id] || [];
-      const uStats = getUpgradedSpellStats(spell, spellUps);
-      const ammoCost = Math.max(1, spell.ammoCost.amount - uStats.ammoCostReduction);
+      const ammoCost = Math.max(1, spell.ammoCost.amount - _uStats.ammoCostReduction);
       setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
     }
     // Cooldown with upgrades + perk
     {
-      const spellUps = spellUpgradesRef.current[spell.id] || [];
-      const uStats = getUpgradedSpellStats(spell, spellUps);
+      const uStats = _uStats;
       const finalCd = Math.round(uStats.cooldown * perkCooldownMult);
       setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
     }

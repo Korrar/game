@@ -895,7 +895,8 @@ export class PhysicsWorld {
   // Update player skillshot projectiles
   _updatePlayerSkillshots() {
     const fx = this.pixiRenderer || this.combatEffects;
-    const bodyEntries = Object.entries(this.bodies);
+    // Cache body keys once per frame instead of per-skillshot
+    const bodyKeys = Object.keys(this.bodies);
 
     for (let i = this.playerSkillshots.length - 1; i >= 0; i--) {
       const proj = this.playerSkillshots[i];
@@ -905,58 +906,60 @@ export class PhysicsWorld {
       proj.x += proj.vx;
       proj.y += proj.vy;
       if (proj.gravity) proj.vy += proj.gravity;
-      // Wind drift for linear projectiles (gale weather)
       if (proj.windDrift) proj.x += proj.windDrift;
       if (this.windDeflection) {
         proj.vx += this.windDeflection * 0.3;
       }
 
       // Trail effects (throttled to reduce particle load)
-      if (proj.trail === "fire" && proj.age % 4 === 0) fx.spawnFire(proj.x, proj.y);
-      if (proj.trail === "ice" && proj.age % 5 === 0) fx.spawnIceShards(proj.x, proj.y, Math.sign(proj.vx));
-      if (proj.trail === "spark" && proj.age % 4 === 0) fx.spawnMeleeSparks(proj.x, proj.y, Math.sign(proj.vx));
-      if (proj.trail === "shadow" && proj.age % 5 === 0) fx.spawnPoisonCloud(proj.x, proj.y);
+      const trail = proj.trail;
+      if (trail) {
+        const age = proj.age;
+        if (trail === "fire" && age % 4 === 0) fx.spawnFire(proj.x, proj.y);
+        else if (trail === "ice" && age % 5 === 0) fx.spawnIceShards(proj.x, proj.y, Math.sign(proj.vx));
+        else if (trail === "spark" && age % 4 === 0) fx.spawnMeleeSparks(proj.x, proj.y, Math.sign(proj.vx));
+        else if (trail === "shadow" && age % 5 === 0) fx.spawnPoisonCloud(proj.x, proj.y);
+      }
 
       let hit = false;
       let hitAnybody = false;
 
+      // Pre-compute squared hit radius once
+      const hitRSq = proj.hitRadius * proj.hitRadius;
+
       // Check collision with enemy bodies
-      for (const [id, entry] of bodyEntries) {
-        if (entry.ragdoll || !entry.alive || entry.friendly) continue;
-        const nid = parseInt(id);
-        if (proj.hitIds.includes(nid)) continue; // already pierced
+      for (let bi = 0; bi < bodyKeys.length; bi++) {
+        const bid = bodyKeys[bi];
+        const entry = this.bodies[bid];
+        if (!entry || entry.ragdoll || !entry.alive || entry.friendly) continue;
+        const nid = parseInt(bid);
+        if (proj.hitIds.includes(nid)) continue;
 
         const torso = entry.limbBodies.torso;
         if (!torso) continue;
         const ePos = torso.translation();
         const ddx = proj.x - ePos.x, ddy = proj.y - ePos.y;
-        const hitR = proj.hitRadius * proj.hitRadius;
 
-        if (ddx * ddx + ddy * ddy < hitR) {
+        if (ddx * ddx + ddy * ddy < hitRSq) {
           hitAnybody = true;
           const isHeadshot = this._isHeadshot(entry, proj.x, proj.y);
 
-          // Spawn hit effects
           fx.spawnBlood(ePos.x, ePos.y, Math.sign(proj.vx) || 1, isHeadshot ? 1.2 : 0.6);
           if (proj.element === "fire") fx.spawnFire(ePos.x, ePos.y);
           else if (proj.element === "ice") fx.spawnIceShards(ePos.x, ePos.y, Math.sign(proj.vx));
           else if (proj.element === "shadow") fx.spawnPoisonCloud(ePos.x, ePos.y);
           else fx.spawnMeleeSparks(ePos.x, ePos.y, Math.sign(proj.vx));
 
-          // Screen shake proportional to damage
           if (this.pixiRenderer) {
-            const shakeIntensity = isHeadshot ? 8 : (proj.splashRadius > 0 ? 10 : 5);
-            this.pixiRenderer.screenShake(shakeIntensity);
+            this.pixiRenderer.screenShake(isHeadshot ? 8 : (proj.splashRadius > 0 ? 10 : 5));
           }
 
-          // Notify hit callback
           if (isHeadshot && proj.onHeadshot) {
             proj.onHeadshot(nid, proj.damage, proj.element);
           } else if (proj.onHit) {
             proj.onHit(nid, proj.damage, proj.element, isHeadshot);
           }
 
-          // Handle splash damage
           if (proj.splashRadius > 0) {
             this._applySplashDamage(proj, ePos.x, ePos.y, nid);
           }
@@ -966,25 +969,27 @@ export class PhysicsWorld {
             proj.hitIds.push(nid);
             proj.pierceCount++;
             proj.damage = Math.round(proj.damage * proj.chainDamageMult);
-            // Retarget to nearest unhit enemy
-            let nearId = null, nearDist = Infinity;
-            for (const [eid, ee] of bodyEntries) {
-              if (ee.ragdoll || !ee.alive || ee.friendly || proj.hitIds.includes(parseInt(eid))) continue;
+            // Retarget to nearest unhit enemy (use squared distance)
+            let nearId = null, nearDistSq = Infinity;
+            for (let ci = 0; ci < bodyKeys.length; ci++) {
+              const eid = bodyKeys[ci];
+              const ee = this.bodies[eid];
+              if (!ee || ee.ragdoll || !ee.alive || ee.friendly || proj.hitIds.includes(parseInt(eid))) continue;
               const ep = ee.limbBodies.torso?.translation();
               if (!ep) continue;
-              const d = Math.sqrt((ep.x - proj.x) ** 2 + (ep.y - proj.y) ** 2);
-              if (d < nearDist) { nearDist = d; nearId = eid; }
+              const cdx = ep.x - proj.x, cdy = ep.y - proj.y;
+              const dSq = cdx * cdx + cdy * cdy;
+              if (dSq < nearDistSq) { nearDistSq = dSq; nearId = eid; }
             }
-            if (nearId && nearDist < 300) {
+            if (nearId && nearDistSq < 90000) { // 300*300
               const ne = this.bodies[nearId].limbBodies.torso.translation();
               const nd = Math.sqrt((ne.x - proj.x) ** 2 + (ne.y - proj.y) ** 2) || 1;
               proj.vx = ((ne.x - proj.x) / nd) * proj.speed;
               proj.vy = ((ne.y - proj.y) / nd) * proj.speed;
-              continue; // Don't remove — continues to next target
+              continue;
             }
-            hit = true; // No more targets, remove
+            hit = true;
           } else if (proj.pierce && proj.pierceCount < proj.maxPierce) {
-            // Pierce: pass through enemy
             proj.hitIds.push(nid);
             proj.pierceCount++;
             continue;
@@ -1019,19 +1024,22 @@ export class PhysicsWorld {
 
   // Apply splash/AoE damage to nearby enemies
   _applySplashDamage(proj, cx, cy, directHitId) {
-    for (const [id, entry] of Object.entries(this.bodies)) {
-      if (entry.ragdoll || !entry.alive || entry.friendly) continue;
-      if (parseInt(id) === directHitId) continue; // already hit directly
+    const splashRSq = proj.splashRadius * proj.splashRadius;
+    const splashDmg = Math.round(proj.damage * (proj.splashDamageMult || 0.5));
+    const fx = this.pixiRenderer || this.combatEffects;
+    const ids = Object.keys(this.bodies);
+    for (let si = 0; si < ids.length; si++) {
+      const entry = this.bodies[ids[si]];
+      if (!entry || entry.ragdoll || !entry.alive || entry.friendly) continue;
+      const nid = parseInt(ids[si]);
+      if (nid === directHitId) continue;
       const torso = entry.limbBodies.torso;
       if (!torso) continue;
       const ePos = torso.translation();
       const dx = cx - ePos.x, dy = cy - ePos.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < proj.splashRadius) {
-        const splashDmg = Math.round(proj.damage * (proj.splashDamageMult || 0.5));
-        const fx = this.pixiRenderer || this.combatEffects;
+      if (dx * dx + dy * dy < splashRSq) {
         fx.spawnBlood(ePos.x, ePos.y, Math.sign(proj.vx) || 1, 0.3);
-        if (proj.onHit) proj.onHit(parseInt(id), splashDmg, proj.element, false);
+        if (proj.onHit) proj.onHit(nid, splashDmg, proj.element, false);
       }
     }
   }
@@ -1040,47 +1048,52 @@ export class PhysicsWorld {
   _updateMines() {
     const now = Date.now();
     const fx = this.pixiRenderer || this.combatEffects;
+    const bKeys = Object.keys(this.bodies);
 
     for (let i = this.mines.length - 1; i >= 0; i--) {
       const mine = this.mines[i];
 
-      // Arm delay
       if (!mine.armed && now - mine.placedAt >= mine.armDelay) {
         mine.armed = true;
       }
 
       if (!mine.armed || mine.triggered) continue;
 
+      const trigRSq = mine.triggerRadius * mine.triggerRadius;
+      let triggerId = -1;
+
       // Check if any enemy steps on it
-      for (const [id, entry] of Object.entries(this.bodies)) {
-        if (entry.ragdoll || !entry.alive || entry.friendly) continue;
+      for (let bi = 0; bi < bKeys.length; bi++) {
+        const entry = this.bodies[bKeys[bi]];
+        if (!entry || entry.ragdoll || !entry.alive || entry.friendly) continue;
         const torso = entry.limbBodies.torso;
         if (!torso) continue;
         const ePos = torso.translation();
         const dx = mine.x - ePos.x, dy = mine.y - ePos.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < mine.triggerRadius) {
+        if (dx * dx + dy * dy < trigRSq) {
           mine.triggered = true;
-          // Explosion effects (no screen shake — mine is subtle)
+          triggerId = parseInt(bKeys[bi]);
           fx.spawnFire(mine.x, mine.y);
 
-          // Damage all enemies in splash radius
-          for (const [eid, ee] of Object.entries(this.bodies)) {
-            if (ee.ragdoll || !ee.alive || ee.friendly) continue;
+          // Damage all enemies in splash radius (squared comparison)
+          const splashRSq = mine.splashRadius * mine.splashRadius;
+          for (let si = 0; si < bKeys.length; si++) {
+            const ee = this.bodies[bKeys[si]];
+            if (!ee || ee.ragdoll || !ee.alive || ee.friendly) continue;
             const et = ee.limbBodies.torso;
             if (!et) continue;
             const ep = et.translation();
-            const ed = Math.sqrt((mine.x - ep.x) ** 2 + (mine.y - ep.y) ** 2);
-            if (ed < mine.splashRadius) {
-              const dmgMult = parseInt(eid) === parseInt(id) ? 1.0 : 0.6;
+            const edx = mine.x - ep.x, edy = mine.y - ep.y;
+            if (edx * edx + edy * edy < splashRSq) {
+              const eidNum = parseInt(bKeys[si]);
+              const dmgMult = eidNum === triggerId ? 1.0 : 0.6;
               const dmg = Math.round(mine.damage * dmgMult);
               fx.spawnBlood(ep.x, ep.y, Math.sign(ep.x - mine.x) || 1, 0.5);
-              if (mine.onHit) mine.onHit(parseInt(eid), dmg, mine.element, false);
+              if (mine.onHit) mine.onHit(eidNum, dmg, mine.element, false);
             }
           }
 
-          // Remove mine after explosion
           setTimeout(() => {
             const idx = this.mines.indexOf(mine);
             if (idx >= 0) this.mines.splice(idx, 1);
@@ -1099,22 +1112,25 @@ export class PhysicsWorld {
     for (let i = this.areaIndicators.length - 1; i >= 0; i--) {
       const ind = this.areaIndicators[i];
       if (now - ind.createdAt >= ind.delay) {
-        // Impact! Damage all enemies in radius
         fx.spawnFire(ind.x, ind.y);
         if (this.pixiRenderer) this.pixiRenderer.screenShake(12);
 
-        for (const [id, entry] of Object.entries(this.bodies)) {
-          if (entry.ragdoll || !entry.alive || entry.friendly) continue;
+        const radiusSq = ind.radius * ind.radius;
+        const aKeys = Object.keys(this.bodies);
+        for (let ai = 0; ai < aKeys.length; ai++) {
+          const entry = this.bodies[aKeys[ai]];
+          if (!entry || entry.ragdoll || !entry.alive || entry.friendly) continue;
           const torso = entry.limbBodies.torso;
           if (!torso) continue;
           const ePos = torso.translation();
           const dx = ind.x - ePos.x, dy = ind.y - ePos.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < ind.radius) {
-            const distMult = 1 - (dist / ind.radius) * 0.4; // closer = more damage
+          const distSq = dx * dx + dy * dy;
+          if (distSq < radiusSq) {
+            const dist = Math.sqrt(distSq); // only sqrt when needed for damage scaling
+            const distMult = 1 - (dist / ind.radius) * 0.4;
             const dmg = Math.round(ind.damage * distMult);
             fx.spawnBlood(ePos.x, ePos.y, Math.sign(ePos.x - ind.x) || 1, 0.5);
-            if (ind.onHit) ind.onHit(parseInt(id), dmg, ind.element, false);
+            if (ind.onHit) ind.onHit(parseInt(aKeys[ai]), dmg, ind.element, false);
           }
         }
 
@@ -1125,32 +1141,39 @@ export class PhysicsWorld {
 
   // Enemy dodge: check if any enemy should dodge an incoming skillshot
   _checkEnemyDodge() {
-    for (const proj of this.playerSkillshots) {
-      for (const [id, entry] of Object.entries(this.bodies)) {
-        if (entry.ragdoll || !entry.alive || entry.friendly) continue;
-        if (entry._dodgeCooldown && Date.now() < entry._dodgeCooldown) continue;
+    if (this.playerSkillshots.length === 0) return; // early exit if no skillshots
+
+    const now = Date.now();
+    const dKeys = Object.keys(this.bodies);
+    const reactDistSq = ENEMY_DODGE_REACT_DIST * ENEMY_DODGE_REACT_DIST;
+
+    for (let pi = 0; pi < this.playerSkillshots.length; pi++) {
+      const proj = this.playerSkillshots[pi];
+      const projSpd = Math.sqrt(proj.vx * proj.vx + proj.vy * proj.vy) || 1;
+
+      for (let di = 0; di < dKeys.length; di++) {
+        const entry = this.bodies[dKeys[di]];
+        if (!entry || entry.ragdoll || !entry.alive || entry.friendly) continue;
+        if (entry._dodgeCooldown && now < entry._dodgeCooldown) continue;
 
         const torso = entry.limbBodies.torso;
         if (!torso) continue;
         const ePos = torso.translation();
 
-        // Predict projectile path
         const dx = ePos.x - proj.x, dy = ePos.y - proj.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        const distSq = dx * dx + dy * dy;
 
-        if (dist < ENEMY_DODGE_REACT_DIST && dist > 20) {
-          // Check if projectile is heading toward this enemy
-          const dotProduct = (dx * proj.vx + dy * proj.vy) / (dist * Math.sqrt(proj.vx * proj.vx + proj.vy * proj.vy) || 1);
-          if (dotProduct > 0.7) { // heading roughly toward enemy
-            // Some enemies dodge (fast ones)
+        if (distSq < reactDistSq && distSq > 400) { // 20*20 = 400
+          const dist = Math.sqrt(distSq);
+          const dotProduct = (dx * proj.vx + dy * proj.vy) / (dist * projSpd);
+          if (dotProduct > 0.7) {
             const npcData = entry.npcData;
             const isQuick = npcData?.bodyType === "quadruped" || npcData?.bodyType === "floating" ||
                            npcData?.rarity === "rare" || npcData?.rarity === "epic" || npcData?.rarity === "legendary";
             if (isQuick && Math.random() < 0.20) {
-              // Dodge sideways
               entry._dodgeOffset = (Math.random() < 0.5 ? 1 : -1) * ENEMY_DODGE_SPEED;
               entry._dodgeFrames = 15;
-              entry._dodgeCooldown = Date.now() + 3000;
+              entry._dodgeCooldown = now + 3000;
             }
           }
         }
@@ -1158,10 +1181,11 @@ export class PhysicsWorld {
     }
 
     // Apply dodge movement
-    for (const [, entry] of Object.entries(this.bodies)) {
+    for (let di = 0; di < dKeys.length; di++) {
+      const entry = this.bodies[dKeys[di]];
+      if (!entry) continue;
       if (entry._dodgeFrames > 0) {
         entry._dodgeFrames--;
-        // Move the entry's walkData Y position (handled in App.jsx via a flag)
         entry._dodging = true;
         entry._dodgeDir = entry._dodgeOffset > 0 ? 1 : -1;
       } else {
@@ -1235,27 +1259,31 @@ export class PhysicsWorld {
         }
       }
 
-      for (const [id, entry] of Object.entries(this.bodies)) {
-        if (parseInt(id) === proj.sourceId || entry.ragdoll || !entry.alive) continue;
+      // Cache source entry once per projectile instead of looking it up per body
+      const sourceEntry = this.bodies[proj.sourceId];
+      const sourceFriendly = sourceEntry ? sourceEntry.friendly : null;
+      const bodyIds = Object.keys(this.bodies);
+      for (let bi = 0; bi < bodyIds.length; bi++) {
+        const bid = bodyIds[bi];
+        const entry = this.bodies[bid];
+        if (!entry.alive || entry.ragdoll) continue;
+        const bidNum = parseInt(bid);
+        if (bidNum === proj.sourceId) continue;
         if (proj.hitFriendlyOnly) {
           if (!entry.friendly) continue;
-        } else {
-          const sourceEntry = this.bodies[proj.sourceId];
-          if (sourceEntry && sourceEntry.friendly === entry.friendly) continue;
-        }
-        const ePos = entry.limbBodies.torso ? entry.limbBodies.torso.translation() : null;
-        if (!ePos) continue;
+        } else if (sourceFriendly !== null && sourceFriendly === entry.friendly) continue;
+        const torso = entry.limbBodies.torso;
+        if (!torso) continue;
+        const ePos = torso.translation();
         const ddx = proj.x - ePos.x, ddy = proj.y - ePos.y;
-        const hitR = 400;
-        if (ddx * ddx + ddy * ddy < hitR) {
+        if (ddx * ddx + ddy * ddy < 400) {
           hit = true;
           fx.spawnBlood(ePos.x, ePos.y, Math.sign(proj.vx) || 1, 0.4);
           if (proj.element === "fire") fx.spawnFire(ePos.x, ePos.y);
           else if (proj.element === "ice") fx.spawnIceShards(ePos.x, ePos.y, Math.sign(proj.vx));
           else if (proj.element === "shadow") fx.spawnPoisonCloud(ePos.x, ePos.y);
           else fx.spawnMeleeSparks(ePos.x, ePos.y, Math.sign(proj.vx));
-          if (proj.onHit) proj.onHit(parseInt(id), proj.damage, proj.element);
-          // Screen shake on hit
+          if (proj.onHit) proj.onHit(bidNum, proj.damage, proj.element);
           if (this.pixiRenderer) this.pixiRenderer.screenShake(4);
           break;
         }
@@ -1269,12 +1297,15 @@ export class PhysicsWorld {
   // ─── STEP & RENDER ───
 
   step() {
-    for (const entry of Object.values(this.bodies)) {
+    const bodyIds = Object.keys(this.bodies);
+    for (let bi = 0; bi < bodyIds.length; bi++) {
+      const entry = this.bodies[bodyIds[bi]];
       if (entry.frozenTimer > 0) {
         entry.frozenTimer--;
         if (entry.frozenTimer > 0 && entry.ragdoll) {
-          // Freeze ragdoll bodies
-          for (const rb of Object.values(entry.limbBodies)) {
+          const limbKeys = Object.keys(entry.limbBodies);
+          for (let li = 0; li < limbKeys.length; li++) {
+            const rb = entry.limbBodies[limbKeys[li]];
             rb.setLinvel({ x: 0, y: 0 }, true);
             rb.setAngvel(0, true);
           }
@@ -1309,9 +1340,10 @@ export class PhysicsWorld {
     // PixiJS rendering mode
     if (this.pixiRenderer) {
       // Remove bodies flagged for cleanup
-      for (const [id, entry] of Object.entries(this.bodies)) {
-        if (entry._removeFlag) {
-          this.removeNpc(parseInt(id));
+      const ids = Object.keys(this.bodies);
+      for (let i = ids.length - 1; i >= 0; i--) {
+        if (this.bodies[ids[i]]._removeFlag) {
+          this.removeNpc(parseInt(ids[i]));
         }
       }
       this.pixiRenderer.render(this.bodies, this.projectiles, this.fogVisibility,
@@ -1324,7 +1356,11 @@ export class PhysicsWorld {
     if (!ctx || !W) return;
     ctx.clearRect(0, 0, W, H);
 
-    for (const [id, entry] of Object.entries(this.bodies)) {
+    const renderIds = Object.keys(this.bodies);
+    for (let ri = 0; ri < renderIds.length; ri++) {
+      const id = renderIds[ri];
+      const entry = this.bodies[id];
+      if (!entry) continue;
       if (entry.ragdoll) {
         entry.fadeTimer++;
         entry.fadeAlpha = Math.max(0, 1 - (entry.fadeTimer - 60) / 90);
@@ -1343,8 +1379,8 @@ export class PhysicsWorld {
     }
 
     // Projectiles
-    for (const proj of this.projectiles) {
-      drawProjectile(ctx, proj);
+    for (let pi = 0; pi < this.projectiles.length; pi++) {
+      drawProjectile(ctx, this.projectiles[pi]);
     }
 
     this.combatEffects.update(ctx, GY);
