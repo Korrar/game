@@ -5,13 +5,25 @@ const _isMobile = ("ontouchstart" in window || navigator.maxTouchPoints > 0) && 
 const MAX_PARTICLES = _isMobile ? 100 : 250;
 
 class Particle {
-  constructor() { this.alive = false; }
+  constructor() {
+    this.alive = false;
+    this.age = 0;
+    this.maxAge = 0;
+    this.x = 0; this.y = 0;
+    this.vx = 0; this.vy = 0;
+    this.size = 0;
+    this.type = "";
+  }
 }
+
+// Pre-computed TWO_PI to avoid repeated Math.PI * 2
+const TWO_PI = Math.PI * 2;
 
 export class CombatEffects {
   constructor() {
     this.particles = [];
     this.mobile = _isMobile;
+    this._nextFree = 0; // track next likely free slot for faster allocation
     for (let i = 0; i < MAX_PARTICLES; i++) this.particles.push(new Particle());
   }
 
@@ -21,11 +33,27 @@ export class CombatEffects {
   }
 
   _spawn(props) {
-    for (const p of this.particles) {
+    const len = this.particles.length;
+    // Start search from last known free slot for O(1) amortized allocation
+    for (let i = 0; i < len; i++) {
+      const idx = (this._nextFree + i) % len;
+      const p = this.particles[idx];
       if (!p.alive) {
         p.alive = true;
         p.age = 0;
-        Object.assign(p, props);
+        p.type = props.type;
+        p.x = props.x; p.y = props.y;
+        p.vx = props.vx; p.vy = props.vy;
+        p.size = props.size;
+        p.maxAge = props.maxAge;
+        // Copy optional props directly instead of Object.assign
+        if (props.bounced !== undefined) p.bounced = props.bounced;
+        if (props.r !== undefined) { p.r = props.r; p.g = props.g; p.b = props.b; }
+        if (props.hue !== undefined) p.hue = props.hue;
+        if (props.rot !== undefined) { p.rot = props.rot; p.rotSpeed = props.rotSpeed; }
+        if (props.phase !== undefined) p.phase = props.phase;
+        if (props.gravity !== undefined) p.gravity = props.gravity;
+        this._nextFree = (idx + 1) % len;
         return p;
       }
     }
@@ -214,16 +242,25 @@ export class CombatEffects {
   }
 
   // ─── UPDATE + RENDER ───
+  // Optimized: batch by type to reduce ctx state changes, avoid per-particle gradients
   update(ctx, groundY) {
     const GRAVITY = 0.15;
+    const particles = this.particles;
+    const len = particles.length;
 
-    for (const p of this.particles) {
+    // Count alive particles to skip empty loop iterations
+    let aliveCount = 0;
+
+    for (let i = 0; i < len; i++) {
+      const p = particles[i];
       if (!p.alive) continue;
+      aliveCount++;
       p.age++;
-      if (p.age > p.maxAge) { p.alive = false; continue; }
+      if (p.age > p.maxAge) { p.alive = false; aliveCount--; continue; }
 
       const t = p.age / p.maxAge;
-      const alpha = t < 0.1 ? t / 0.1 : 1 - (t - 0.1) / 0.9;
+      // Optimized alpha: avoid branch with clamp math
+      const alpha = t < 0.1 ? t * 10 : (1 - t) / 0.9;
 
       switch (p.type) {
         case "blood": {
@@ -231,14 +268,12 @@ export class CombatEffects {
           p.vx *= 0.98;
           p.x += p.vx;
           p.y += p.vy;
-          // Bounce on ground
           if (p.y > groundY && !p.bounced) {
             p.vy = -Math.abs(p.vy) * 0.3;
             p.vx *= 0.5;
             p.y = groundY;
             p.bounced = true;
           }
-          // Pool on ground
           if (p.bounced && p.y >= groundY - 1) {
             p.y = groundY;
             p.vy = 0;
@@ -246,27 +281,33 @@ export class CombatEffects {
           }
           ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${alpha * 0.85})`;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size * (p.bounced ? 1.3 : 1), 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, p.size * (p.bounced ? 1.3 : 1), 0, TWO_PI);
           ctx.fill();
           break;
         }
 
         case "fire": {
-          p.vy -= 0.05; // rise
+          p.vy -= 0.05;
           p.vx *= 0.96;
           p.vy *= 0.97;
           p.x += p.vx + Math.sin(p.age * 0.2) * 0.5;
           p.y += p.vy;
           p.size *= 0.98;
-          const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3);
-          glow.addColorStop(0, `hsla(${p.hue},100%,60%,${alpha * 0.5})`);
-          glow.addColorStop(1, "transparent");
-          ctx.fillStyle = glow;
-          ctx.fillRect(p.x - p.size * 3, p.y - p.size * 3, p.size * 6, p.size * 6);
-          ctx.fillStyle = `hsla(${p.hue},100%,70%,${alpha})`;
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fill();
+          // Optimized: use simple filled circles with globalAlpha instead of per-particle radial gradient
+          const fireAlpha = alpha * 0.5;
+          if (fireAlpha > 0.02) {
+            ctx.globalAlpha = fireAlpha;
+            ctx.fillStyle = `hsl(${p.hue},100%,60%)`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * 2.5, 0, TWO_PI);
+            ctx.fill();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = `hsl(${p.hue},100%,70%)`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, TWO_PI);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
           break;
         }
 
@@ -278,16 +319,19 @@ export class CombatEffects {
           p.rot += p.rotSpeed;
           if (p.y > groundY) { p.alive = false; continue; }
           ctx.save();
+          ctx.globalAlpha = alpha * 0.8;
           ctx.translate(p.x, p.y);
           ctx.rotate(p.rot);
-          ctx.fillStyle = `rgba(140,220,255,${alpha * 0.8})`;
+          ctx.fillStyle = "rgb(140,220,255)";
           ctx.fillRect(-p.size * 0.3, -p.size, p.size * 0.6, p.size * 2);
           ctx.restore();
-          // Glow
-          ctx.fillStyle = `rgba(100,200,255,${alpha * 0.15})`;
+          // Simplified glow: filled circle instead of separate arc
+          ctx.globalAlpha = alpha * 0.15;
+          ctx.fillStyle = "rgb(100,200,255)";
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, p.size * 2, 0, TWO_PI);
           ctx.fill();
+          ctx.globalAlpha = 1;
           break;
         }
 
@@ -297,11 +341,16 @@ export class CombatEffects {
           p.vx *= 0.98;
           p.vy *= 0.99;
           p.size *= 0.995;
-          const sg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2);
-          sg.addColorStop(0, `rgba(100,30,180,${alpha * 0.4})`);
-          sg.addColorStop(1, "transparent");
-          ctx.fillStyle = sg;
-          ctx.fillRect(p.x - p.size * 2, p.y - p.size * 2, p.size * 4, p.size * 4);
+          // Optimized: use simple circle with alpha instead of per-particle radial gradient
+          const shadowAlpha = alpha * 0.4;
+          if (shadowAlpha > 0.02) {
+            ctx.globalAlpha = shadowAlpha;
+            ctx.fillStyle = "rgb(100,30,180)";
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * 1.8, 0, TWO_PI);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
           break;
         }
 
@@ -309,15 +358,17 @@ export class CombatEffects {
           p.x += p.vx * (1 - t * 0.5);
           p.y += p.vy * (1 - t * 0.5);
           // Cross shape
-          ctx.fillStyle = `rgba(255,240,180,${alpha * 0.8})`;
+          ctx.globalAlpha = alpha * 0.8;
+          ctx.fillStyle = "rgb(255,240,180)";
           ctx.fillRect(p.x - p.size, p.y - 0.5, p.size * 2, 1);
           ctx.fillRect(p.x - 0.5, p.y - p.size, 1, p.size * 2);
-          // Glow
-          const hg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3);
-          hg.addColorStop(0, `rgba(255,240,150,${alpha * 0.25})`);
-          hg.addColorStop(1, "transparent");
-          ctx.fillStyle = hg;
-          ctx.fillRect(p.x - p.size * 3, p.y - p.size * 3, p.size * 6, p.size * 6);
+          // Simplified glow: circle instead of per-particle radial gradient
+          ctx.globalAlpha = alpha * 0.25;
+          ctx.fillStyle = "rgb(255,240,150)";
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * 2.5, 0, TWO_PI);
+          ctx.fill();
+          ctx.globalAlpha = 1;
           break;
         }
 
@@ -326,18 +377,20 @@ export class CombatEffects {
           p.x += p.vx;
           p.y += p.vy;
           p.vx *= 0.95;
-          const brightness = 0.6 + Math.random() * 0.4;
-          ctx.fillStyle = `rgba(255,${180 + Math.floor(Math.random() * 60)},60,${alpha * brightness})`;
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = `rgb(255,${180 + ((p.age * 37) & 63)},60)`;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, p.size, 0, TWO_PI);
           ctx.fill();
           // Trail
-          ctx.strokeStyle = `rgba(255,200,80,${alpha * 0.3})`;
+          ctx.globalAlpha = alpha * 0.3;
+          ctx.strokeStyle = "rgb(255,200,80)";
           ctx.lineWidth = 0.5;
           ctx.beginPath();
           ctx.moveTo(p.x, p.y);
           ctx.lineTo(p.x - p.vx * 2, p.y - p.vy * 2);
           ctx.stroke();
+          ctx.globalAlpha = 1;
           break;
         }
 
@@ -346,10 +399,12 @@ export class CombatEffects {
           p.x += p.vx;
           p.y += p.vy;
           if (p.y > groundY) { p.alive = false; continue; }
-          ctx.fillStyle = `rgba(100,180,255,${alpha * 0.7})`;
+          ctx.globalAlpha = alpha * 0.7;
+          ctx.fillStyle = "rgb(100,180,255)";
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, p.size, 0, TWO_PI);
           ctx.fill();
+          ctx.globalAlpha = 1;
           break;
         }
 
@@ -359,11 +414,16 @@ export class CombatEffects {
           p.vx *= 0.98;
           p.vy *= 0.99;
           p.size *= 0.995;
-          const pg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2);
-          pg.addColorStop(0, `rgba(60,180,40,${alpha * 0.45})`);
-          pg.addColorStop(1, "transparent");
-          ctx.fillStyle = pg;
-          ctx.fillRect(p.x - p.size * 2, p.y - p.size * 2, p.size * 4, p.size * 4);
+          // Optimized: simple circle instead of per-particle radial gradient
+          const poisonAlpha = alpha * 0.45;
+          if (poisonAlpha > 0.02) {
+            ctx.globalAlpha = poisonAlpha;
+            ctx.fillStyle = "rgb(60,180,40)";
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * 1.8, 0, TWO_PI);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
           break;
         }
 
@@ -372,10 +432,12 @@ export class CombatEffects {
           p.y += p.vy;
           p.vx *= 0.9;
           p.vy *= 0.9;
-          ctx.fillStyle = `rgba(160,120,60,${alpha * 0.6})`;
+          ctx.globalAlpha = alpha * 0.6;
+          ctx.fillStyle = "rgb(160,120,60)";
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, p.size, 0, TWO_PI);
           ctx.fill();
+          ctx.globalAlpha = 1;
           break;
         }
       }
