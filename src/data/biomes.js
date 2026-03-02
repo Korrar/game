@@ -21,4 +21,8 @@ export const BIOMES = [
     fx: { spores: true, fireflies: true }, terrain: "forest" },
   { id: "swamp", name: "Bagienne Przejście", icon: "water", skyTop: "#0a1a0a", skyBot: "#1a2a10", groundCol: "#2a3a18", groundBot: "#1a2a10", fogCol: "rgba(40,80,20,0.15)", renderFn: "swamp", scatter: ["water","herb","water","herb","water","herb","water"],
     fx: { rain: 0.35, fog: true, fireflies: true }, terrain: "forest" },
+  { id: "sunset_beach", name: "Złota Plaża Zachodu", icon: "star", skyTop: "#ff6030", skyBot: "#ffc040", groundCol: "#e8c878", groundBot: "#d4a850", fogCol: "rgba(255,180,80,0.06)", renderFn: "sunset_beach", scatter: ["star","anchor","palm","water","star","palm","star","anchor"],
+    fx: { waves: true, wind: 0.3, sunsetGlow: true, fireflies: true }, terrain: "forest" },
+  { id: "bamboo_falls", name: "Bambusowy Wodospad", icon: "herb", skyTop: "#1a4a20", skyBot: "#40a050", groundCol: "#1a5a30", groundBot: "#104a20", fogCol: "rgba(40,160,80,0.10)", renderFn: "bamboo_falls", scatter: ["herb","leaf","water","herb","flower","leaf","herb","water"],
+    fx: { rain: 0.15, leaves: true, wind: 0.2, fireflies: true, waterfall: true }, terrain: "forest" },
 ];
