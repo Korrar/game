@@ -81,7 +81,7 @@ export const BIOME_NPCS = {
 // Arsenal POI gives random ammo, unlocking skills temporarily
 // skillshot: true = requires aiming (projectile-based), false = click-to-target
 export const SPELLS = [
-  { id: "lightning",  icon: "sniper", name: "Strzał",          color: "#f0e060", colorLight: "#fffff0", desc: "Szybki precyzyjny strzał — wąski pocisk (celuj!)",        manaCost: 8, cooldown: 5000, damage: 35, element: "lightning", learned: true, skillshot: true },
+  { id: "lightning",  icon: "sniper", name: "Strzał",          color: "#f0e060", colorLight: "#fffff0", desc: "Szybki precyzyjny strzał — wąski pocisk (celuj!)",        manaCost: 8, cooldown: 1000, damage: 35, element: "lightning", learned: true, skillshot: true },
   { id: "fireball",  icon: "dynamite", name: "Dynamit",        color: "#ff6020", colorLight: "#ffb060", desc: "Rzut dynamitem w łuku — eksploduje przy trafieniu (celuj!)",     manaCost: 0,  cooldown: 3000, damage: 25, element: "fire", learned: false, skillshot: true, ammoCost: { type: "dynamite", amount: 1 } },
   { id: "icelance",   icon: "harpoon", name: "Harpun",          color: "#40c0ff", colorLight: "#c0f0ff", desc: "Harpun przeszywa pierwszego wroga na wylot (celuj!)",                manaCost: 0,  cooldown: 2500, damage: 18, element: "ice", learned: false, skillshot: true, ammoCost: { type: "harpoon", amount: 1 } },
   { id: "holybeam",   icon: "cannon", name: "Strzał z Armaty",      color: "#d4a030", colorLight: "#fff8d0", desc: "Wolna kula armatnia z obrażeniami obszarowymi (celuj!)",            manaCost: 10, cooldown: 6000, damage: 40, element: "holy", learned: false, skillshot: true, ammoCost: { type: "cannonball", amount: 1 } },
@@ -92,6 +92,7 @@ export const SPELLS = [
   { id: "drain",     icon: "pirateRaid", name: "Piracki Haracz",  color: "#c02060", colorLight: "#ff80a0", desc: "Okrada wroga i leczy wykonawcę (celuj!)",                manaCost: 0, cooldown: 5000, damage: 28, element: "shadow", learned: false, skillshot: true, ammoCost: { type: "rum", amount: 1 } },
   { id: "chainlightning", icon: "ricochet", name: "Rykoszet",   color: "#e0e040", colorLight: "#ffff80", desc: "Kula odbija się między wrogami (celuj w pierwszego!)",                manaCost: 0, cooldown: 6000, damage: 30, element: "lightning", learned: false, aoe: true, skillshot: true, ammoCost: { type: "chain", amount: 2 } },
   { id: "earthquake", icon: "mine", name: "Mina Wybuchowa",  color: "#8a6030", colorLight: "#c0a060", desc: "Postaw minę — eksploduje gdy wróg nadejdzie (celuj w ziemię!)",           manaCost: 0, cooldown: 7000, damage: 45, element: "holy", learned: false, aoe: true, skillshot: true, ammoCost: { type: "dynamite", amount: 2 } },
+  { id: "saber",      icon: "swords", name: "Szabla",           color: "#c0c0c0", colorLight: "#f0f0f0", desc: "Przeciągnij przez wrogów jak w Fruit Ninja!",                          manaCost: 0, cooldown: 300,  damage: 10, element: null, learned: true, skillshot: true, isSaber: true },
 ];
 
 // Resistance labels for messages

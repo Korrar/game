@@ -2229,6 +2229,7 @@ export const SPELL_ICON_MAP = {
   drain: "pirateRaid",
   chainlightning: "ricochet",
   earthquake: "mine",
+  saber: "swords",
 };
 
 /** mercenary type → icon name */

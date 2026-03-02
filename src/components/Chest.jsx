@@ -44,18 +44,19 @@ function GoldPile() {
 }
 
 function ChestBody({ stage, shaking }) {
-  // Lid angle based on stage: 0=closed, 1=cracked(5deg), 2=half(25deg), 3=open(55deg)
-  const lidAngles = [0, -8, -28, -55];
-  const lidAngle = lidAngles[stage] || 0;
+  // Lid lifts upward based on stage: 0=closed, 1=cracked, 2=half, 3=fully open
+  const lidLiftY = [0, -6, -20, -42][stage] || 0;
+  // Slight tilt when lifting
+  const lidTilt = [0, -3, -8, -15][stage] || 0;
   // Glow inside when opening
-  const innerGlow = stage >= 2 ? Math.min(1, (stage - 1) * 0.4) : 0;
+  const innerGlow = stage >= 1 ? Math.min(1, stage * 0.35) : 0;
 
   return (
     <g transform={`translate(60, 20) ${shaking ? "" : ""}`}>
       {/* Inner glow when chest starts opening */}
       {innerGlow > 0 && (
-        <ellipse cx="0" cy="20" rx={28 + stage * 4} ry={8 + stage * 3}
-          fill="#ffd700" opacity={innerGlow * 0.35}
+        <ellipse cx="0" cy="14" rx={30 + stage * 6} ry={10 + stage * 5}
+          fill="#ffd700" opacity={innerGlow * 0.45}
           filter="url(#chestInnerGlow)" />
       )}
 
@@ -83,20 +84,6 @@ function ChestBody({ stage, shaking }) {
       <rect x="-3" y="10" width="6" height="5" rx="1" fill="#1a0e06" />
       {stage < 3 && <circle cx="0" cy="12" r="1.5" fill="#ffd700" opacity="0.6" />}
 
-      {/* Lid - rotates around top hinge */}
-      <g transform={`rotate(${lidAngle}, 0, 10)`}>
-        <path d="M-40,10 L-34,-8 L34,-8 L40,10 Z" fill="#6a4420" stroke="#3a2410" strokeWidth="1.5" />
-        <path d="M-36,8 L-30,-4 L30,-4 L36,8 Z" fill="#7a5430" />
-        {/* Lid band */}
-        <rect x="-40" y="6" width="80" height="4" rx="1" fill="url(#goldBandChest)" />
-        {/* Lid vertical band */}
-        <rect x="-3" y="-8" width="6" height="18" fill="url(#goldBandChest)" />
-        {/* Lid rivets */}
-        {[-32, -16, 14, 30].map(cx => (
-          <circle key={`lr${cx}`} cx={cx} cy="8" r="2.5" fill="#d4a030" stroke="#a07020" strokeWidth="0.6" />
-        ))}
-      </g>
-
       {/* Treasure visible inside when open */}
       {stage >= 2 && (
         <g opacity={stage === 2 ? 0.5 : 1}>
@@ -114,6 +101,20 @@ function ChestBody({ stage, shaking }) {
           <polygon points="12,13 14,11 16,13 14,16" fill="#44aaff" stroke="#0066aa" strokeWidth="0.3" />
         </g>
       )}
+
+      {/* Lid - lifts upward with slight tilt */}
+      <g style={{ transition: "transform 0.3s ease-out" }} transform={`translate(0, ${lidLiftY}) rotate(${lidTilt}, 0, 10)`}>
+        <path d="M-40,10 L-34,-8 L34,-8 L40,10 Z" fill="#6a4420" stroke="#3a2410" strokeWidth="1.5" />
+        <path d="M-36,8 L-30,-4 L30,-4 L36,8 Z" fill="#7a5430" />
+        {/* Lid band */}
+        <rect x="-40" y="6" width="80" height="4" rx="1" fill="url(#goldBandChest)" />
+        {/* Lid vertical band */}
+        <rect x="-3" y="-8" width="6" height="18" fill="url(#goldBandChest)" />
+        {/* Lid rivets */}
+        {[-32, -16, 14, 30].map(cx => (
+          <circle key={`lr${cx}`} cx={cx} cy="8" r="2.5" fill="#d4a030" stroke="#a07020" strokeWidth="0.6" />
+        ))}
+      </g>
     </g>
   );
 }

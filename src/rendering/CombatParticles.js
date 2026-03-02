@@ -145,33 +145,42 @@ export class CombatParticles {
   }
 
   spawnGoldCoins(x, y, intensity = 1) {
-    const count = this._c(Math.round(12 * intensity));
-    // Large bright gold coins flying to both sides
+    // Big bright gold coins - fountain upward
+    const count = this._c(Math.round(24 * intensity));
     this._emit(count, x, y, {
-      vx: () => (Math.random() - 0.5) * 8,
-      vy: () => -(Math.random() * 5 + 2),
+      vx: () => (Math.random() - 0.5) * 12,
+      vy: () => -(Math.random() * 8 + 4),
+      life: 50 + Math.random() * 20,
+      size: 5 + Math.random() * 3,
+      color: 0xffd700,
+      gravity: 0.14,
+    });
+    // Bright white-gold sparkles
+    this._emit(this._c(Math.round(14 * intensity)), x, y, {
+      vx: () => (Math.random() - 0.5) * 10,
+      vy: () => -(Math.random() * 7 + 3),
       life: 35 + Math.random() * 15,
       size: 3 + Math.random() * 2,
-      color: 0xffd700,
-      gravity: 0.18,
+      color: 0xfff8c0,
+      gravity: 0.10,
     });
-    // Smaller sparkle particles
-    this._emit(this._c(6), x, y, {
-      vx: () => (Math.random() - 0.5) * 6,
-      vy: () => -(Math.random() * 4 + 1),
-      life: 20 + Math.random() * 10,
-      size: 1.5 + Math.random(),
-      color: 0xffe880,
-      gravity: 0.12,
-    });
-    // A few copper-colored coins
-    this._emit(this._c(4), x, y, {
-      vx: () => (Math.random() - 0.5) * 7,
-      vy: () => -(Math.random() * 4 + 2),
-      life: 30 + Math.random() * 10,
-      size: 2.5 + Math.random() * 1.5,
+    // Copper-colored coins
+    this._emit(this._c(Math.round(10 * intensity)), x, y, {
+      vx: () => (Math.random() - 0.5) * 10,
+      vy: () => -(Math.random() * 6 + 3),
+      life: 45 + Math.random() * 15,
+      size: 4 + Math.random() * 2,
       color: 0xd4a030,
-      gravity: 0.2,
+      gravity: 0.16,
+    });
+    // Tiny glitter dust
+    this._emit(this._c(Math.round(8 * intensity)), x, y, {
+      vx: () => (Math.random() - 0.5) * 6,
+      vy: () => -(Math.random() * 3 + 1),
+      life: 25 + Math.random() * 10,
+      size: 1.5 + Math.random(),
+      color: 0xffffff,
+      gravity: 0.05,
     });
   }
 

@@ -301,6 +301,13 @@ export default function App() {
   accuracyStreakRef.current = accuracyStreak;
   const [slowMotion, setSlowMotion] = useState(false);
   const slowMotionRef = useRef(false);
+
+  // ─── FEATURE: Saber Swipe System ───
+  const saberSwipingRef = useRef(false);
+  const saberPointsRef = useRef([]); // [{x, y, time}] in game % coords
+  const saberHitIdsRef = useRef(new Set()); // enemy IDs already hit in this swipe
+  const [saberTrail, setSaberTrail] = useState([]); // for rendering the trail
+  const saberCdRef = useRef(0); // cooldown timestamp
   slowMotionRef.current = slowMotion;
 
   // ─── FEATURE: Interactive Environment (Barrels) ───
@@ -2232,9 +2239,31 @@ export default function App() {
     if (isDefenseRoom) {
       const totalWaves = bossData ? 1 : (newRoom <= 15 ? 3 : newRoom <= 30 ? 4 : 5);
       setDefenseMode({ phase: "setup", currentWave: 1, totalWaves,
-        enemiesRemaining: 0, enemiesSpawned: 0, timer: 15, roomNumber: newRoom, isBossRoom: !!bossData });
+        enemiesRemaining: 0, enemiesSpawned: 0, timer: 3, roomNumber: newRoom, isBossRoom: !!bossData });
       setMeteorite(null);
       sfxWaveHorn();
+      // Auto-deploy all trap types randomly for free
+      {
+        const autoTraps = [];
+        for (const trap of DEFENSE_TRAPS) {
+          for (let i = 0; i < trap.maxCount; i++) {
+            if (autoTraps.length >= MAX_PLAYER_TRAPS) break;
+            autoTraps.push({
+              id: Date.now() + Math.random() + i + autoTraps.length,
+              trapType: trap.id,
+              x: 15 + Math.random() * 70,
+              y: 35 + Math.random() * 50,
+              active: true,
+              armed: true,
+              config: trap,
+              ...(trap.hp ? { currentHp: trap.hp } : {}),
+            });
+          }
+          if (autoTraps.length >= MAX_PLAYER_TRAPS) break;
+        }
+        setPlayerTraps(autoTraps);
+        showMessage("Pułapki rozstawione!", "#40c0a0");
+      }
 
       if (bossData) {
         const roomScale = 1 + Math.min(newRoom / 25, 1.5);
@@ -3868,6 +3897,100 @@ export default function App() {
     castSkillshot(spell, clickX, clickY);
   }, [selectedSpell, gameScale, castSkillshot]);
 
+  // ─── SABER: Swipe handlers (Fruit Ninja style) ───
+  const isSaberMode = selectedSpell === "saber" && skillshotMode;
+
+  const saberGetGamePos = useCallback((e) => {
+    if (!gameContainerRef.current) return null;
+    const gr = gameContainerRef.current.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const gx = (clientX - gr.left) / gameScale;
+    const gy = (clientY - gr.top) / gameScale;
+    return { x: (gx / GAME_W) * 100, y: (gy / GAME_H) * 100, px: gx, py: gy };
+  }, [gameScale]);
+
+  const saberCheckHits = useCallback((x, y) => {
+    const spell = SPELLS.find(s => s.id === "saber");
+    if (!spell) return;
+    const hitRadius = 6; // % of screen
+    const wd = walkDataRef.current;
+    for (const w of walkersRef.current) {
+      if (!w.alive || w.dying || w.friendly) continue;
+      if (saberHitIdsRef.current.has(w.id)) continue;
+      const d = wd[w.id];
+      if (!d) continue;
+      const dx = d.x - x, dy = d.y - y;
+      if (dx * dx + dy * dy < hitRadius * hitRadius) {
+        saberHitIdsRef.current.add(w.id);
+        // Apply saber damage directly
+        let dmg = spell.damage;
+        dmg = Math.round(dmg * perkSpellDmgMult);
+        if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
+        if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
+        const wData = w;
+        const newHp = Math.max(0, wData.hp - dmg);
+        spawnDmgPopup(w.id, `${dmg}`, "#c0c0c0");
+        if (d) {
+          const px = (d.x / 100) * GAME_W, py = (d.y / 100) * GAME_H;
+          if (pixiRef.current) pixiRef.current.spawnMeleeSparks(px, py, d.x > 50 ? 1 : -1);
+        }
+        setWalkers(prev => prev.map(ww => {
+          if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
+          if (newHp <= 0) {
+            sfxNpcDeath();
+            if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
+            if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, null, d.x > 50 ? 1 : -1);
+            addMoneyFn(ww.npcData.loot);
+            setKills(k => k + 1);
+            handleCardDrop(ww.npcData);
+            rollAmmoDrop();
+            grantXp(ww.isBoss ? 100 : ww.isElite ? 50 : 10 + roomRef.current * 2);
+            processKillStreak();
+            setTimeout(() => setWalkers(pp => pp.filter(www => www.id !== w.id)), 2500);
+            return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+          }
+          return { ...ww, hp: newHp };
+        }));
+      }
+    }
+  }, [spawnDmgPopup, addMoneyFn, showMessage]);
+
+  const handleSaberDown = useCallback((e) => {
+    if (!isSaberMode) return;
+    if (Date.now() < saberCdRef.current) return;
+    e.preventDefault();
+    const pos = saberGetGamePos(e);
+    if (!pos) return;
+    saberSwipingRef.current = true;
+    saberHitIdsRef.current = new Set();
+    saberPointsRef.current = [{ x: pos.x, y: pos.y, time: Date.now() }];
+    setSaberTrail([{ x: pos.px, y: pos.py }]);
+    saberCheckHits(pos.x, pos.y);
+  }, [isSaberMode, saberGetGamePos, saberCheckHits]);
+
+  const handleSaberMove = useCallback((e) => {
+    if (!saberSwipingRef.current) return;
+    e.preventDefault();
+    const pos = saberGetGamePos(e);
+    if (!pos) return;
+    saberPointsRef.current.push({ x: pos.x, y: pos.y, time: Date.now() });
+    setSaberTrail(prev => [...prev, { x: pos.px, y: pos.py }].slice(-30));
+    saberCheckHits(pos.x, pos.y);
+  }, [saberGetGamePos, saberCheckHits]);
+
+  const handleSaberUp = useCallback(() => {
+    if (!saberSwipingRef.current) return;
+    saberSwipingRef.current = false;
+    saberPointsRef.current = [];
+    saberHitIdsRef.current = new Set();
+    // Short cooldown after swipe
+    const spell = SPELLS.find(s => s.id === "saber");
+    saberCdRef.current = Date.now() + (spell ? spell.cooldown : 300);
+    // Fade out trail
+    setTimeout(() => setSaberTrail([]), 150);
+  }, []);
+
   // ─── DEFENSE TRAP: Place a player trap during setup phase ───
   const placeDefenseTrap = useCallback((trapCfg, clickX, clickY) => {
     // Check max count
@@ -4756,7 +4879,16 @@ export default function App() {
       )}
 
       {/* Scaled game container – fills entire screen on mobile */}
-      <div ref={gameContainerRef} onClick={placingTrap ? handleTrapPlaceClick : skillshotMode ? handleSkillshotClick : undefined} style={{
+      <div ref={gameContainerRef}
+        onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode) ? handleSkillshotClick : undefined}
+        onMouseDown={isSaberMode ? handleSaberDown : undefined}
+        onMouseMove={isSaberMode ? handleSaberMove : undefined}
+        onMouseUp={isSaberMode ? handleSaberUp : undefined}
+        onMouseLeave={isSaberMode ? handleSaberUp : undefined}
+        onTouchStart={isSaberMode ? handleSaberDown : undefined}
+        onTouchMove={isSaberMode ? handleSaberMove : undefined}
+        onTouchEnd={isSaberMode ? handleSaberUp : undefined}
+        style={{
         width: GAME_W, height: GAME_H,
         transform: `scale(${gameScale})`,
         transformOrigin: isMobile ? "top left" : "center center",
@@ -4764,7 +4896,7 @@ export default function App() {
         top: isMobile ? 0 : undefined,
         left: isMobile ? 0 : undefined,
         overflow: "hidden",
-        cursor: placingTrap ? "crosshair" : skillshotMode ? "crosshair" : "default",
+        cursor: placingTrap ? "crosshair" : isSaberMode ? "none" : skillshotMode ? "crosshair" : "default",
         animation: slowMotion
           ? "slowMoFlash 1s ease-out forwards"
           : screenShake ? "screenShake 0.08s infinite alternate" : "none",
@@ -4890,6 +5022,34 @@ export default function App() {
         </div>
       )}
 
+      {/* Saber swipe trail */}
+      {saberTrail.length > 1 && (
+        <svg style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, zIndex: 50, pointerEvents: "none" }}>
+          <defs>
+            <linearGradient id="saberGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
+              <stop offset="40%" stopColor="#e0e0ff" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0.95" />
+            </linearGradient>
+            <filter id="saberGlow">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          </defs>
+          {saberTrail.length > 1 && (() => {
+            const pts = saberTrail;
+            const d = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+            return (
+              <>
+                <path d={d} fill="none" stroke="rgba(200,200,255,0.15)" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" filter="url(#saberGlow)" />
+                <path d={d} fill="none" stroke="url(#saberGrad)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={d} fill="none" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+              </>
+            );
+          })()}
+        </svg>
+      )}
+
       {/* Player-placed defense trap visuals */}
       {playerTraps.map(pt => pt.active && (
         <div key={pt.id} style={{
@@ -4986,7 +5146,7 @@ export default function App() {
       )}
 
       {/* Skillshot Mode Indicator */}
-      {skillshotMode && skillshotSpell && (
+      {skillshotMode && skillshotSpell && !isSaberMode && (
         <div style={{
           position: "absolute", bottom: isMobile ? 70 : 90, left: "50%", transform: "translateX(-50%)",
           background: "rgba(0,0,0,0.8)", border: `2px solid ${skillshotSpell.color}`,
@@ -4998,6 +5158,22 @@ export default function App() {
         }}>
           <Icon name={skillshotSpell.icon} size={16} style={{ marginRight: 6 }} />
           CELUJ: {skillshotSpell.name}
+          <span style={{ color: "#888", fontSize: 10, marginLeft: 8 }}>[ESC] anuluj</span>
+        </div>
+      )}
+      {/* Saber Mode Indicator */}
+      {isSaberMode && (
+        <div style={{
+          position: "absolute", bottom: isMobile ? 70 : 90, left: "50%", transform: "translateX(-50%)",
+          background: "rgba(0,0,0,0.8)", border: "2px solid #c0c0c0",
+          padding: "4px 16px", borderRadius: 6, zIndex: 25,
+          color: "#e0e0e0", fontWeight: "bold", fontSize: isMobile ? 11 : 14,
+          textShadow: "0 0 8px rgba(200,200,255,0.6)",
+          animation: "gemPulse 1.5s ease-in-out infinite",
+          pointerEvents: "none",
+        }}>
+          <Icon name="swords" size={16} style={{ marginRight: 6 }} />
+          {isMobile ? "Przeciągnij palcem!" : "Przeciągnij myszką przez wrogów!"}
           <span style={{ color: "#888", fontSize: 10, marginLeft: 8 }}>[ESC] anuluj</span>
         </div>
       )}
