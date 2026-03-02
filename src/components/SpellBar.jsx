@@ -61,7 +61,7 @@ function SpellSlot({ spell, isSelected, canCast, onCooldown, cdPct, cdEnd, now, 
         <div style={{ position: "absolute", top: 1, left: 3, fontSize: m ? 8 : 9, color: "#d4a030", fontWeight: "bold", zIndex: 4, opacity: 0.8, textShadow: "0 0 4px rgba(212,160,48,0.3)" }}>{hotkey}</div>
       )}
       <span style={{ fontSize: m ? 20 : 26, position: "relative", zIndex: 3, opacity: canCast ? 1 : 0.35, filter: canCast ? `drop-shadow(0 0 ${m ? 4 : 6}px ${spell.color}${m ? "66" : "88"})` : "none" }}>
-        {SPELL_ICON_MAP[spell.id] ? <GameIcon name={SPELL_ICON_MAP[spell.id]} size={m ? 20 : 28} /> : spell.icon}
+        <GameIcon name={spell.icon || SPELL_ICON_MAP[spell.id] || "swords"} size={m ? 20 : 28} />
       </span>
       <div style={{ fontSize: m ? 8 : 10, fontWeight: "bold", color: isSelected ? spell.color : spell.color + "aa", zIndex: 3, whiteSpace: "nowrap", textShadow: isSelected ? `0 0 6px ${spell.color}44` : "none" }}>{spell.name}</div>
       {!m && (
@@ -80,7 +80,7 @@ function SpellSlot({ spell, isSelected, canCast, onCooldown, cdPct, cdEnd, now, 
   );
 }
 
-export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart, isMobile, gameW, gameH }) {
+export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart, isMobile, gameW, gameH, equippedSaber }) {
   const [, tick] = useState(0);
   const [inneOpen, setInneOpen] = useState(false);
   const m = isMobile;
@@ -125,6 +125,8 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
   }, [onSelect]);
 
   const renderSlot = (spell, hotkey) => {
+    // Override saber spell display with equipped saber data
+    const displaySpell = (spell.id === "saber" && equippedSaber) ? { ...spell, name: equippedSaber.name, color: equippedSaber.color, icon: equippedSaber.icon } : spell;
     const cdEnd = cooldowns[spell.id] || 0;
     const onCooldown = cdEnd > now;
     const cdPct = onCooldown ? (cdEnd - now) / spell.cooldown : 0;
@@ -134,7 +136,7 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
     return (
       <SpellSlot
         key={spell.id}
-        spell={spell}
+        spell={displaySpell}
         isSelected={selectedSpell === spell.id}
         canCast={canCast}
         onCooldown={onCooldown}
