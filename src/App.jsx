@@ -2353,6 +2353,11 @@ export default function App() {
         await pixiRef.current.init(gameContainerRef.current, GAME_W, GAME_H);
       } else {
         pixiRef.current.resize(GAME_W, GAME_H);
+        // Re-attach canvas if it was removed from DOM (e.g., after game over screen unmounted the game container)
+        const canvas = pixiRef.current.getCanvas();
+        if (canvas && gameContainerRef.current && !gameContainerRef.current.contains(canvas)) {
+          gameContainerRef.current.appendChild(canvas);
+        }
       }
       if (cancelled) return;
 
