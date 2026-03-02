@@ -6,29 +6,40 @@ export const BIOME_NPCS = {
     { icon: "recruit", name: "Piracki Strażnik", hp: 40, resist: null, loot: { copper: 12 }, rarity: "uncommon", bodyColor: "#8B7355", armorColor: "#2d5a1e", bodyType: "humanoid", ability: null },
     { icon: "skull", name: "Krokodyl Rzeczny", hp: 25, resist: null, loot: { copper: 8 }, rarity: "common", bodyColor: "#4a6a30", armorColor: "#2a4020", bodyType: "serpent", ability: null },
     { icon: "skull", name: "Dzika Małpa", hp: 20, resist: null, loot: { copper: 5 }, rarity: "common", bodyColor: "#8B6914", armorColor: "#5a4020", bodyType: "quadruped", ability: { type: "charge", damage: 8, cooldown: 5000, element: null, range: 20 } },
+    { icon: "poison", name: "Jadowita Żaba", hp: 18, resist: null, loot: { copper: 6 }, rarity: "common", bodyColor: "#e06020", armorColor: "#a04010", bodyType: "frog", ability: { type: "poisonSpit", damage: 6, cooldown: 4500, element: "shadow", range: 18 } },
+    { icon: "skull", name: "Dżunglowy Pająk", hp: 30, resist: null, loot: { copper: 10 }, rarity: "uncommon", bodyColor: "#2a4a20", armorColor: "#1a3010", bodyType: "spider", ability: { type: "poisonSpit", damage: 5, cooldown: 4000, element: "shadow", range: 20 } },
   ],
   island: [
     { icon: "pirate", name: "Kapitan Piratu", hp: 35, resist: "ice", loot: { copper: 15 }, rarity: "uncommon", bodyColor: "#8a6a50", armorColor: "#4a3030", bodyType: "humanoid", ability: null },
     { icon: "water", name: "Syrena Morska", hp: 45, resist: "ice", loot: { copper: 20 }, rarity: "rare", bodyColor: "#4a8090", armorColor: "#2a5060", bodyType: "floating", ability: { type: "iceShot", damage: 8, cooldown: 4500, element: "ice", range: 25 } },
+    { icon: "skull", name: "Krab Kokosowy", hp: 28, resist: null, loot: { copper: 9 }, rarity: "common", bodyColor: "#b04830", armorColor: "#803020", bodyType: "spider", ability: { type: "charge", damage: 8, cooldown: 5000, element: null, range: 18 } },
+    { icon: "skull", name: "Waran Wyspowy", hp: 40, resist: null, loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#5a6a40", armorColor: "#3a4a28", bodyType: "serpent", ability: { type: "charge", damage: 10, cooldown: 5000, element: null, range: 22 } },
   ],
   desert: [
     { icon: "recruit", name: "Bandyta z Kanionu", hp: 60, resist: "fire", loot: { silver: 1 }, rarity: "epic", bodyColor: "#6040a0", armorColor: "#402060", bodyType: "humanoid", ability: { type: "shadowBolt", damage: 12, cooldown: 4000, element: "shadow", range: 30 } },
     { icon: "skull", name: "Pustynny Skorpion", hp: 30, resist: "fire", loot: { copper: 10 }, rarity: "common", bodyColor: "#6a5030", armorColor: "#4a3020", bodyType: "scorpion", ability: { type: "poisonSpit", damage: 8, cooldown: 4000, element: "shadow", range: 25 } },
     { icon: "fire", name: "Kaktusowy Strzelec", hp: 45, resist: "fire", loot: { copper: 18 }, rarity: "rare", bodyColor: "#806040", armorColor: "#503020", bodyType: "humanoid", ability: { type: "fireBreath", damage: 10, cooldown: 5000, element: "fire", range: 20 } },
+    { icon: "skull", name: "Pustynna Żmija", hp: 22, resist: "fire", loot: { copper: 7 }, rarity: "common", bodyColor: "#c0a050", armorColor: "#907030", bodyType: "serpent", ability: { type: "poisonSpit", damage: 6, cooldown: 3500, element: "shadow", range: 20 } },
+    { icon: "skull", name: "Ropucha Piaskowa", hp: 26, resist: "fire", loot: { copper: 8 }, rarity: "common", bodyColor: "#b09060", armorColor: "#806040", bodyType: "frog", ability: null },
   ],
   winter: [
     { icon: "skull", name: "Arktyczny Wilk", hp: 35, resist: "ice", loot: { copper: 12 }, rarity: "common", bodyColor: "#8090a0", armorColor: "#506070", bodyType: "quadruped", ability: { type: "charge", damage: 15, cooldown: 6000, element: null, range: 30 } },
     { icon: "anchor", name: "Duch Lodowca", hp: 50, resist: "ice", loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#6080b0", armorColor: "#304060", bodyType: "floating", ability: null },
     { icon: "ice", name: "Lodowy Pirat", hp: 55, resist: "ice", loot: { silver: 1 }, rarity: "rare", bodyColor: "#6a6a80", armorColor: "#404060", bodyType: "humanoid", ability: { type: "iceShot", damage: 10, cooldown: 4000, element: "ice", range: 25 } },
+    { icon: "skull", name: "Lodowy Pająk", hp: 32, resist: "ice", loot: { copper: 11 }, rarity: "common", bodyColor: "#90a8c0", armorColor: "#607080", bodyType: "spider", ability: { type: "iceShot", damage: 6, cooldown: 4500, element: "ice", range: 20 } },
   ],
   city: [
     { icon: "skull", name: "Szczur Portowy", hp: 25, resist: null, loot: { copper: 8 }, rarity: "common", bodyColor: "#6a5a40", armorColor: "#3a3020", bodyType: "quadruped", ability: null },
     { icon: "baron", name: "Szef Mafii", hp: 55, resist: null, loot: { silver: 1, copper: 10 }, rarity: "epic", bodyColor: "#5a3040", armorColor: "#2a1820", bodyType: "humanoid", ability: { type: "shadowBolt", damage: 12, cooldown: 4500, element: "shadow", range: 28 } },
     { icon: "swords", name: "Złodziej Portowy", hp: 30, resist: null, loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#4a4a4a", armorColor: "#2a2a2a", bodyType: "humanoid", ability: null },
+    { icon: "skull", name: "Kanałowy Skorpion", hp: 28, resist: null, loot: { copper: 9 }, rarity: "common", bodyColor: "#4a4a30", armorColor: "#2a2a18", bodyType: "scorpion", ability: { type: "poisonSpit", damage: 7, cooldown: 4000, element: "shadow", range: 20 } },
+    { icon: "pirate", name: "Portowy Najemnik", hp: 42, resist: null, loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#6a5050", armorColor: "#3a2828", bodyType: "humanoid", ability: { type: "charge", damage: 10, cooldown: 5000, element: null, range: 22 } },
   ],
   volcano: [
     { icon: "fire", name: "Strażnik Wulkanu", hp: 70, resist: "fire", loot: { silver: 1, copper: 20 }, rarity: "epic", bodyColor: "#8a3030", armorColor: "#4a2020", bodyType: "humanoid", ability: { type: "fireBreath", damage: 15, cooldown: 5000, element: "fire", range: 20 } },
     { icon: "fire", name: "Morski Wąż Ognia", hp: 90, resist: "fire", loot: { silver: 2 }, rarity: "legendary", bodyColor: "#6a4020", armorColor: "#3a2010", bodyType: "serpent", ability: { type: "fireBreath", damage: 12, cooldown: 5000, element: "fire", range: 20 } },
+    { icon: "skull", name: "Lawowy Skorpion", hp: 50, resist: "fire", loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#6a2020", armorColor: "#401010", bodyType: "scorpion", ability: { type: "fireBreath", damage: 10, cooldown: 4500, element: "fire", range: 20 } },
+    { icon: "skull", name: "Ognisty Salamander", hp: 40, resist: "fire", loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#c04020", armorColor: "#902010", bodyType: "frog", ability: { type: "fireBreath", damage: 8, cooldown: 4000, element: "fire", range: 18 } },
   ],
   summer: [
     { icon: "bull", name: "Byk Prerii", hp: 30, resist: null, loot: { copper: 10 }, rarity: "common", bodyColor: "#6a5030", armorColor: "#4a3820", bodyType: "quadruped", ability: { type: "charge", damage: 10, cooldown: 5000, element: null, range: 25 } },
@@ -48,11 +59,16 @@ export const BIOME_NPCS = {
   mushroom: [
     { icon: "skull", name: "Nietoperz Jaskiniowy", hp: 35, resist: null, loot: { copper: 12 }, rarity: "uncommon", bodyColor: "#8060a0", armorColor: "#504070", bodyType: "floating", ability: null },
     { icon: "skull", name: "Jaskiniowy Pająk", hp: 40, resist: null, loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#3a3a3a", armorColor: "#1a1a1a", bodyType: "spider", ability: { type: "poisonSpit", damage: 7, cooldown: 4000, element: "shadow", range: 22 } },
+    { icon: "skull", name: "Grzybowy Szczur", hp: 22, resist: null, loot: { copper: 7 }, rarity: "common", bodyColor: "#8a6a80", armorColor: "#5a4050", bodyType: "quadruped", ability: null },
+    { icon: "poison", name: "Trujący Ślimak", hp: 30, resist: null, loot: { copper: 10 }, rarity: "common", bodyColor: "#7050a0", armorColor: "#402070", bodyType: "frog", ability: { type: "poisonSpit", damage: 6, cooldown: 3500, element: "shadow", range: 18 } },
+    { icon: "skull", name: "Jaskiniowy Skorpion", hp: 38, resist: null, loot: { copper: 13 }, rarity: "uncommon", bodyColor: "#504040", armorColor: "#302020", bodyType: "scorpion", ability: { type: "poisonSpit", damage: 8, cooldown: 4000, element: "shadow", range: 22 } },
   ],
   swamp: [
     { icon: "skull", name: "Aligator", hp: 30, resist: "ice", loot: { copper: 10 }, rarity: "common", bodyColor: "#506030", armorColor: "#304020", bodyType: "serpent", ability: { type: "charge", damage: 12, cooldown: 6000, element: null, range: 25 } },
     { icon: "water", name: "Bagienne Widmo", hp: 45, resist: "ice", loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#506050", armorColor: "#304030", bodyType: "floating", ability: null },
     { icon: "poison", name: "Żabi Szaman", hp: 50, resist: "ice", loot: { copper: 18 }, rarity: "rare", bodyColor: "#408040", armorColor: "#205020", bodyType: "frog", ability: { type: "poisonSpit", damage: 9, cooldown: 4000, element: "shadow", range: 22 } },
+    { icon: "skull", name: "Bagienne Pijawki", hp: 20, resist: "ice", loot: { copper: 6 }, rarity: "common", bodyColor: "#304830", armorColor: "#1a3018", bodyType: "serpent", ability: { type: "poisonSpit", damage: 5, cooldown: 3500, element: "shadow", range: 18 } },
+    { icon: "skull", name: "Bagienne Robale", hp: 32, resist: null, loot: { copper: 11 }, rarity: "uncommon", bodyColor: "#506040", armorColor: "#304028", bodyType: "spider", ability: null },
   ],
   sunset_beach: [
     { icon: "skull", name: "Krab Plażowy", hp: 22, resist: null, loot: { copper: 7 }, rarity: "common", bodyColor: "#c05030", armorColor: "#903820", bodyType: "spider", ability: null },
