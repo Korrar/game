@@ -23,7 +23,7 @@ import {
   sfxStore, sfxRetrieve, sfxUpgrade, sfxGather, sfxBuy,
   sfxFireball, sfxLightning, sfxIceLance, sfxShadowBolt, sfxHolyBeam,
   sfxNpcDeath, sfxDrinkMana, sfxSummon, sfxRecruit, sfxMeleeHit, sfxMeteorFall, sfxMeteorImpact,
-  sfxEventAppear, sfxMerchant, sfxAmbush, sfxRiddle, sfxAltar, sfxEventSuccess, sfxEventFail,
+  sfxEventAppear, sfxMerchant, sfxAmbush, sfxAltar, sfxEventSuccess, sfxEventFail,
   sfxWaveHorn, sfxWaveComplete, sfxVictoryFanfare, sfxWeather, sfxCaravanHit,
 } from "./audio/soundEngine";
 import TopBar from "./components/TopBar";
@@ -36,7 +36,7 @@ import Caravan from "./components/Caravan";
 import EventModal from "./components/EventModal";
 import WaveOverlay, { PowerSpikeWarning } from "./components/WaveOverlay";
 import WeatherOverlay from "./components/WeatherOverlay";
-import Chest from "./components/Chest";
+import Chest, { CLICKS_TO_OPEN } from "./components/Chest";
 import RelicPicker from "./components/RelicPicker";
 import { RELICS, RELIC_SYNERGIES } from "./data/relics";
 import { getBossForRoom } from "./data/bosses";
@@ -144,6 +144,7 @@ export default function App() {
   const [hideoutLevel, setHideoutLevel] = useState(0);
   const [chestPos, setChestPos] = useState(null);
   const [showChest, setShowChest] = useState(false);
+  const [chestClicks, setChestClicks] = useState(0);
   const [panel, setPanel] = useState(null);
   const [selectedInv, setSelectedInv] = useState(-1);
   const [loot, setLoot] = useState(null);
@@ -1861,14 +1862,15 @@ export default function App() {
       const cx = 10 + Math.random() * 72, cy = 25 + Math.random() * 65;
       setChestPos({ x: cx, y: cy });
       setShowChest(true);
+      setChestClicks(0);
     } else {
-      setShowChest(false); setChestPos(null);
+      setShowChest(false); setChestPos(null); setChestClicks(0);
     }
 
     const currentTools = tools || [];
     if (isDefenseRoom) {
       // Defense rooms: clear all POIs, no new NPCs/traps
-      setShowChest(false); setChestPos(null); setResourceNode(null); setShowResource(false);
+      setShowChest(false); setChestPos(null); setChestClicks(0); setResourceNode(null); setShowResource(false);
       setFruitTree(null); setMineNugget(null); setWaterfall(null);
       setMercCamp(null); setWizardPoi(null); setTraps([]); setObstacles([]);
     }
@@ -3046,7 +3048,7 @@ export default function App() {
     const event = rollRandomEvent(room + 1);
     if (event) {
       setTimeout(() => {
-        const sfxMap = { merchant: sfxMerchant, ambush: sfxAmbush, riddle: sfxRiddle, altar: sfxAltar, wounded: sfxEventAppear };
+        const sfxMap = { merchant: sfxMerchant, ambush: sfxAmbush, altar: sfxAltar, wounded: sfxEventAppear };
         (sfxMap[event.id] || sfxEventAppear)();
         setRandomEvent(event);
       }, 450);
@@ -3125,20 +3127,6 @@ export default function App() {
         const actual = Math.min(loss, current);
         setMoney(copperToMoney(current - actual));
         showMessage(`Bandyci okradli cię! -${actual} Cu`, "#cc3030");
-        break;
-      }
-      case "riddleCorrect":
-        sfxEventSuccess();
-        addMoneyFn(outcome.reward);
-        showMessage(`Poprawna odpowiedź! +${outcome.reward.copper} Cu`, "#40e060");
-        break;
-      case "riddleWrong": {
-        sfxEventFail();
-        const pen = totalCopper(outcome.penalty);
-        const cur = totalCopper(money);
-        const actual = Math.min(pen, cur);
-        setMoney(copperToMoney(cur - actual));
-        showMessage(`Błędna odpowiedź! -${actual} Cu`, "#cc3030");
         break;
       }
       case "altar": {
@@ -3236,16 +3224,45 @@ export default function App() {
   }, [money, room, ownedTools, addMoneyFn, showMessage, spawnFreeMerc]);
 
   const openChest = () => {
-    setShowChest(false); sfxChest();
-    const t = pickTreasure(room); t.biome = biome.name; t.room = room;
-    // greedy_merchant: x1.5 treasure value (nerfed from x2)
-    if (hasRelic("greedy_merchant") && t.value) {
-      t.value = { ...t.value };
-      if (t.value.copper) t.value.copper = Math.round(t.value.copper * 1.5);
-      if (t.value.silver) t.value.silver = Math.round(t.value.silver * 1.5);
-      if (t.value.gold) t.value.gold = Math.round(t.value.gold * 1.5);
+    if (!chestPos) return;
+    sfxChest();
+    const newClicks = chestClicks + 1;
+    setChestClicks(newClicks);
+
+    // Spawn gold coin particles at chest position
+    if (pixiRef.current) {
+      const px = (chestPos.x / 100) * GAME_W;
+      const py = (chestPos.y / 100) * GAME_H;
+      const intensity = 0.5 + (newClicks / CLICKS_TO_OPEN) * 0.8;
+      pixiRef.current.spawnGoldCoins(px, py, intensity);
     }
-    setInventory(prev => [...prev, t]); setLoot(t);
+
+    // Small copper bonus per click
+    const clickCopper = 2 + Math.floor(Math.random() * 4);
+    addMoneyFn({ copper: clickCopper });
+
+    // Final open — give the real treasure
+    if (newClicks >= CLICKS_TO_OPEN) {
+      setTimeout(() => {
+        setShowChest(false); setChestClicks(0);
+        const t = pickTreasure(room); t.biome = biome.name; t.room = room;
+        // greedy_merchant: x1.5 treasure value (nerfed from x2)
+        if (hasRelic("greedy_merchant") && t.value) {
+          t.value = { ...t.value };
+          if (t.value.copper) t.value.copper = Math.round(t.value.copper * 1.5);
+          if (t.value.silver) t.value.silver = Math.round(t.value.silver * 1.5);
+          if (t.value.gold) t.value.gold = Math.round(t.value.gold * 1.5);
+        }
+        setInventory(prev => [...prev, t]); setLoot(t);
+        showMessage("Skrzynia otwarta!", "#ffd700");
+        // Big coin burst on final open
+        if (pixiRef.current) {
+          const px = (chestPos.x / 100) * GAME_W;
+          const py = (chestPos.y / 100) * GAME_H;
+          pixiRef.current.spawnGoldCoins(px, py, 2.0);
+        }
+      }, 300);
+    }
   };
 
   const openMeteorite = () => {
@@ -5011,7 +5028,7 @@ export default function App() {
 
       {/* Caravan moved to bottom bar above SpellBar */}
 
-      {showChest && <Chest pos={chestPos} onClick={openChest} />}
+      {showChest && <Chest pos={chestPos} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} />}
 
       {/* Meteorite event – falling from sky */}
       {meteorite && meteorite.phase === "falling" && (
@@ -6933,6 +6950,7 @@ export default function App() {
         @keyframes lockP{0%,100%{opacity:1;transform:translateX(-50%) scale(1)}50%{opacity:.6;transform:translateX(-50%) scale(1.1)}}
         @keyframes keyF{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
         @keyframes chestG{0%,100%{filter:drop-shadow(0 0 8px rgba(160,120,40,0.4))}50%{filter:drop-shadow(0 0 18px rgba(212,160,48,0.7))}}
+        @keyframes chestHint{0%,100%{opacity:0.6;transform:translateX(-50%) translateY(0)}50%{opacity:1;transform:translateX(-50%) translateY(-4px)}}
         @keyframes resNode{0%,100%{transform:scale(1) translateY(0)}50%{transform:scale(1.08) translateY(-4px)}}
         @keyframes waterFlow{0%{background-position:0 0}100%{background-position:0 20px}}
         @keyframes npcDie{0%{transform:scale(1) rotate(0);opacity:1;filter:drop-shadow(0 0 8px rgba(200,60,60,0.5))}

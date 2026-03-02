@@ -195,73 +195,6 @@ function AmbushView({ event, onResolve }) {
   );
 }
 
-// ─── RIDDLE ───
-function RiddleView({ event, onResolve }) {
-  const [selected, setSelected] = useState(null);
-  const [result, setResult] = useState(null);
-
-  const handleAnswer = (idx) => {
-    if (selected !== null) return;
-    setSelected(idx);
-    const correct = idx === event.correctIndex;
-    setResult(correct ? "correct" : "wrong");
-    setTimeout(() => {
-      onResolve(correct
-        ? { type: "riddleCorrect", reward: event.reward }
-        : { type: "riddleWrong", penalty: event.penalty }
-      );
-    }, 1800);
-  };
-
-  return (
-    <div>
-      <SectionHeader event={event} />
-      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(60,100,200,0.4))" }}><EIcon name={event.icon} size={46} /></div>
-      <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
-      <div style={{
-        fontSize: 15, color: "#c0d0f0", marginBottom: 18, fontStyle: "italic",
-        padding: "12px 18px", background: "rgba(40,60,100,0.2)", borderRadius: 8,
-        borderLeft: `3px solid ${event.themeColor}`,
-        boxShadow: `inset 0 0 10px rgba(0,0,0,0.3), 0 0 8px ${event.themeColor}11`,
-      }}>
-        "{event.question}"
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        {event.answers.map((ans, i) => {
-          let bg = "rgba(30,40,60,0.6)";
-          let borderC = "#3a5a8a";
-          let shadow = "inset 0 0 6px rgba(0,0,0,0.3)";
-          if (selected !== null) {
-            if (i === event.correctIndex) { bg = "rgba(40,120,40,0.4)"; borderC = "#40e060"; shadow = "0 0 12px rgba(60,200,80,0.3)"; }
-            else if (i === selected) { bg = "rgba(120,30,30,0.4)"; borderC = "#cc3030"; shadow = "0 0 12px rgba(200,40,40,0.3)"; }
-          }
-          return (
-            <button key={i} onClick={() => handleAnswer(i)} disabled={selected !== null}
-              style={{
-                padding: "10px 12px", border: `2px solid ${borderC}`, borderRadius: 8,
-                background: bg, color: "#d8c8a8", fontSize: 14, cursor: selected !== null ? "default" : "pointer",
-                fontFamily: "'Segoe UI', monospace", transition: "all 0.2s",
-                boxShadow: shadow,
-              }}
-            >{ans}</button>
-          );
-        })}
-      </div>
-
-      {result === "correct" && (
-        <div style={{ fontSize: 18, fontWeight: "bold", color: "#40e060", animation: "eventAppear 0.3s ease-out", textShadow: "0 0 10px rgba(60,200,80,0.4)" }}>
-          Poprawna odpowiedź! +{event.reward.copper} <EIcon name="coin" size={18} />
-        </div>
-      )}
-      {result === "wrong" && (
-        <div style={{ fontSize: 18, fontWeight: "bold", color: "#cc3030", animation: "eventAppear 0.3s ease-out", textShadow: "0 0 10px rgba(200,40,40,0.4)" }}>
-          Błędna odpowiedź! -{event.penalty.copper} <EIcon name="coin" size={18} />
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── ALTAR ───
 function AltarView({ event, onResolve }) {
@@ -454,7 +387,6 @@ export default function EventModal({ event, money, onResolve }) {
       <div style={cardStyle(event)}>
         {event.id === "merchant" && <MerchantView event={event} money={money} onResolve={onResolve} />}
         {event.id === "ambush" && <AmbushView event={event} onResolve={onResolve} />}
-        {event.id === "riddle" && <RiddleView event={event} onResolve={onResolve} />}
         {event.id === "altar" && <AltarView event={event} onResolve={onResolve} />}
         {event.id === "wounded" && <WoundedView event={event} onResolve={onResolve} />}
         {event.id === "cursed_chest" && <CursedChestView event={event} onResolve={onResolve} />}

@@ -1,50 +1,14 @@
 // Random event definitions for convoy travel
-// 30% chance per travel to trigger one of 6 event types
+// 30% chance per travel to trigger one of 5 event types
 
 export const EVENT_CHANCE = 0.30;
 
 export const EVENT_TYPES = [
   { id: "merchant",      name: "Wędrowny Handlarz",     icon: "shop",    weight: 25, themeColor: "#d4a030", themeBorder: "#8a6a20", themeGlow: "rgba(212,160,48,0.3)" },
   { id: "ambush",        name: "Zasadzka Bandytów",     icon: "recruit", weight: 20, themeColor: "#cc3030", themeBorder: "#6a1a1a", themeGlow: "rgba(200,40,40,0.3)" },
-  { id: "riddle",        name: "Zagadka Papugi",        icon: "scroll",  weight: 20, themeColor: "#60a0ff", themeBorder: "#2a4a80", themeGlow: "rgba(80,140,255,0.3)" },
-  { id: "altar",         name: "Kamienny Totem",         icon: "rock",    weight: 18, themeColor: "#a050e0", themeBorder: "#4a2060", themeGlow: "rgba(160,80,224,0.3)" },
-  { id: "wounded",       name: "Ranny Rewolwerowiec",    icon: "bandage", weight: 12, themeColor: "#40e060", themeBorder: "#1a6a2a", themeGlow: "rgba(60,200,80,0.3)" },
-  { id: "cursed_chest",  name: "Przeklęta Skrzynia",     icon: "treasure",weight: 10, themeColor: "#9040c0", themeBorder: "#4a1860", themeGlow: "rgba(144,64,192,0.3)" },
-];
-
-export const RIDDLES = [
-  {
-    question: "Mam miasta, ale nie mam domów. Mam lasy, ale nie mam drzew. Mam wodę, ale nie mam ryb. Czym jestem?",
-    answers: ["Mapa", "Globus", "Obraz", "Książka"], correct: 0,
-  },
-  {
-    question: "Im więcej z tego zabierasz, tym większe się staje. Co to jest?",
-    answers: ["Dziura", "Głód", "Ciemność", "Cisza"], correct: 0,
-  },
-  {
-    question: "Chodzi bez nóg, pluje bez ust, bije bez rąk. Co to?",
-    answers: ["Zegar", "Wiatr", "Deszcz", "Fala"], correct: 0,
-  },
-  {
-    question: "Kto ją robi, nie potrzebuje. Kto ją kupuje, nie używa. Kto ją używa, nie wie o tym. Co to?",
-    answers: ["Trumna", "Lekarstwo", "Klucz", "Pieniądze"], correct: 0,
-  },
-  {
-    question: "Znika, gdy wymówisz jego imię. Co to?",
-    answers: ["Cisza", "Ciemność", "Sen", "Cień"], correct: 0,
-  },
-  {
-    question: "Ma klucz, ale nie otwiera zamka. Ma spację, ale nie ma pokoju. Co to?",
-    answers: ["Klawiatura", "Nuty", "Mapa", "Księga"], correct: 0,
-  },
-  {
-    question: "Jest lżejsze od piórka, ale nawet najsilniejszy człowiek nie utrzyma go dłużej niż minutę. Co to?",
-    answers: ["Oddech", "Myśl", "Śmiech", "Pył"], correct: 0,
-  },
-  {
-    question: "Widzisz mnie raz w roku, dwa razy w tygodniu, ale nigdy w ciągu dnia. Co to?",
-    answers: ["Litera N", "Gwiazda", "Księżyc", "Sowa"], correct: 0,
-  },
+  { id: "altar",         name: "Kamienny Totem",         icon: "rock",    weight: 25, themeColor: "#a050e0", themeBorder: "#4a2060", themeGlow: "rgba(160,80,224,0.3)" },
+  { id: "wounded",       name: "Ranny Rewolwerowiec",    icon: "bandage", weight: 18, themeColor: "#40e060", themeBorder: "#1a6a2a", themeGlow: "rgba(60,200,80,0.3)" },
+  { id: "cursed_chest",  name: "Przeklęta Skrzynia",     icon: "treasure",weight: 12, themeColor: "#9040c0", themeBorder: "#4a1860", themeGlow: "rgba(144,64,192,0.3)" },
 ];
 
 export const MERCHANT_ITEMS = [
@@ -102,16 +66,6 @@ export function rollRandomEvent(roomNum) {
       const baseLoss = Math.min(50, 10 + roomNum * 2);
       event.moneyLoss = { copper: baseLoss };
       event.requiredClicks = 8 + Math.min(12, roomNum);
-      break;
-    }
-    case "riddle": {
-      const riddle = RIDDLES[Math.floor(Math.random() * RIDDLES.length)];
-      const indices = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
-      event.question = riddle.question;
-      event.answers = indices.map(i => riddle.answers[i]);
-      event.correctIndex = indices.indexOf(riddle.correct);
-      event.reward = { copper: 15 + roomNum * 3 };
-      event.penalty = { copper: Math.min(30, 5 + roomNum) };
       break;
     }
     case "altar": {

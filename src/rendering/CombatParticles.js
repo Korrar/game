@@ -144,6 +144,37 @@ export class CombatParticles {
     });
   }
 
+  spawnGoldCoins(x, y, intensity = 1) {
+    const count = this._c(Math.round(12 * intensity));
+    // Large bright gold coins flying to both sides
+    this._emit(count, x, y, {
+      vx: () => (Math.random() - 0.5) * 8,
+      vy: () => -(Math.random() * 5 + 2),
+      life: 35 + Math.random() * 15,
+      size: 3 + Math.random() * 2,
+      color: 0xffd700,
+      gravity: 0.18,
+    });
+    // Smaller sparkle particles
+    this._emit(this._c(6), x, y, {
+      vx: () => (Math.random() - 0.5) * 6,
+      vy: () => -(Math.random() * 4 + 1),
+      life: 20 + Math.random() * 10,
+      size: 1.5 + Math.random(),
+      color: 0xffe880,
+      gravity: 0.12,
+    });
+    // A few copper-colored coins
+    this._emit(this._c(4), x, y, {
+      vx: () => (Math.random() - 0.5) * 7,
+      vy: () => -(Math.random() * 4 + 2),
+      life: 30 + Math.random() * 10,
+      size: 2.5 + Math.random() * 1.5,
+      color: 0xd4a030,
+      gravity: 0.2,
+    });
+  }
+
   spawnArrowTrail(x, y, vx, vy) {
     this._emit(this.mobile ? 1 : 3, x, y, {
       vx: () => (Math.random() - 0.5) * 0.5,
