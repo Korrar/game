@@ -253,7 +253,7 @@ export default function App() {
   const knowledgeRef = useRef(0);
   bestiaryRef.current = bestiary;
   knowledgeRef.current = knowledge;
-  const [cardDrop, setCardDrop] = useState(null);
+  const [cardLog, setCardLog] = useState([]); // compact side log entries
   // Knowledge shop: permanent upgrades bought with knowledge
   const [knowledgeUpgrades, setKnowledgeUpgrades] = useState({
     manaPool: 0,     // +10 max mana per level (max 3)
@@ -703,15 +703,15 @@ export default function App() {
       },
     }));
     setKnowledge(k => k + card.knowledge);
-    setCardDrop({
-      icon: npcData.icon,
+    const logId = Date.now() + Math.random();
+    setCardLog(prev => [...prev.slice(-4), {
+      id: logId,
       name: npcData.name,
-      rarity: card.rarity,
       rarityLabel: card.rarityLabel,
       rarityColor: card.rarityColor,
       knowledge: card.knowledge,
-    });
-    setTimeout(() => setCardDrop(null), 3000);
+    }]);
+    setTimeout(() => setCardLog(prev => prev.filter(c => c.id !== logId)), 2000);
   }, []);
 
   // Summon auto-attack handler (called from RAF loop via ref)
@@ -6521,26 +6521,23 @@ export default function App() {
       <LootPopup loot={loot} onClose={() => setLoot(null)} />
 
       {/* Card Drop Popup */}
-      {cardDrop && (
-        <div style={{
-          position: "fixed", top: "30%", left: "50%", transform: "translate(-50%, -50%)",
-          zIndex: 210, textAlign: "center",
-          background: "rgba(20,10,8,0.95)", border: `3px solid ${cardDrop.rarityColor}`,
-          padding: "20px 30px", minWidth: 260,
-          boxShadow: `inset 0 0 20px rgba(0,0,0,0.5), 0 0 30px ${cardDrop.rarityColor}40`,
-          animation: "cardDrop 0.5s ease-out",
-        }}>
-          <div style={{ fontSize: 11, color: "#888", marginBottom: 4, letterSpacing: 2 }}>KARTA POTWORA</div>
-          <div><NpcIcon bodyType={cardDrop.bodyType} bodyColor={cardDrop.bodyColor} armorColor={cardDrop.armorColor} size={52} /></div>
-          <div style={{ fontWeight: "bold", fontSize: 17, color: cardDrop.rarityColor, marginBottom: 4 }}>
-            {cardDrop.name}
-          </div>
-          <div style={{ fontSize: 14, color: cardDrop.rarityColor }}>
-            {cardDrop.rarityLabel}
-          </div>
-          <div style={{ fontSize: 13, color: "#60a0ff", marginTop: 6 }}>
-            <Icon name="scroll" size={13} /> +{cardDrop.knowledge} Wiedza
-          </div>
+      {/* Card drop side log */}
+      {cardLog.length > 0 && (
+        <div style={{ position: "fixed", top: isMobile ? 60 : 80, right: 8, zIndex: 210, display: "flex", flexDirection: "column", gap: 4, pointerEvents: "none" }}>
+          {cardLog.map(c => (
+            <div key={c.id} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: "rgba(14,8,6,0.9)", border: `1px solid ${c.rarityColor}50`,
+              padding: "3px 10px", borderRadius: 4,
+              animation: "cardLogSlide 0.3s ease-out",
+              fontSize: isMobile ? 10 : 12,
+            }}>
+              <Icon name="scroll" size={11} />
+              <span style={{ color: c.rarityColor, fontWeight: "bold" }}>{c.name}</span>
+              <span style={{ color: "#666", fontSize: 10 }}>{c.rarityLabel}</span>
+              <span style={{ color: "#60a0ff", fontSize: 10 }}>+{c.knowledge}</span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -7424,7 +7421,7 @@ export default function App() {
         @keyframes meteorFall{0%{transform:translateY(-72px) rotate(-30deg);opacity:0}10%{opacity:1}100%{transform:translateY(var(--meteor-land-y)) rotate(15deg);opacity:1}}
         @keyframes screenShake{0%{transform:translate(-1px,-0.5px)}25%{transform:translate(1px,0.5px)}50%{transform:translate(-0.5px,1px)}75%{transform:translate(0.5px,-1px)}100%{transform:translate(-0.5px,0.5px)}}
         @keyframes meteorFlash{0%{opacity:1}100%{opacity:0}}
-        @keyframes cardDrop{0%{opacity:0;transform:translate(-50%,-50%) scale(0.5) rotateY(90deg)}50%{transform:translate(-50%,-50%) scale(1.1) rotateY(0)}100%{opacity:1;transform:translate(-50%,-50%) scale(1) rotateY(0)}}
+        @keyframes cardLogSlide{0%{opacity:0;transform:translateX(40px)}100%{opacity:1;transform:translateX(0)}}
         @keyframes eventAppear{0%{opacity:0;transform:scale(0.85) translateY(20px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes comboFlash{0%{opacity:0.5}100%{opacity:0}}
         @keyframes comboAppear{0%{opacity:0;transform:translateX(-50%) scale(0.7) translateY(20px)}40%{opacity:1;transform:translateX(-50%) scale(1.05) translateY(0)}100%{opacity:1;transform:translateX(-50%) scale(1) translateY(0)}}

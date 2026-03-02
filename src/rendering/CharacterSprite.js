@@ -1,5 +1,6 @@
 // CharacterSprite — PixiJS icon-based character rendering
 // Each enemy/NPC is represented by a hand-drawn icon sprite
+// On death, the icon splits into individual limb pieces that fly apart via physics
 
 import { Container, Graphics, Sprite, Texture } from "pixi.js";
 import { HALF_HEIGHTS, FIGURE_HALF_HEIGHT } from "../physics/bodies/constants.js";
@@ -16,6 +17,121 @@ const ICON_SIZES = {
   spider: 38, frog: 36, serpent: 44, barricade: 52, tower: 56,
 };
 
+// ─── LIMB VISUAL DEFINITIONS ───
+// Maps body type → limb name → { shape, hw, hh, r, color: "body"|"armor"|"skin"|"dark"|"blood" }
+// hw/hh = half-width/half-height for rects, r = radius for circles
+
+function hexToInt(hex) {
+  return parseInt(hex.replace("#", ""), 16);
+}
+
+function darkenHex(hex, factor = 0.7) {
+  const c = parseInt(hex.replace("#", ""), 16);
+  const r = Math.round(((c >> 16) & 0xff) * factor);
+  const g = Math.round(((c >> 8) & 0xff) * factor);
+  const b = Math.round((c & 0xff) * factor);
+  return (r << 16) | (g << 8) | b;
+}
+
+function lightenHex(hex, factor = 1.3) {
+  const c = parseInt(hex.replace("#", ""), 16);
+  const r = Math.min(255, Math.round(((c >> 16) & 0xff) * factor));
+  const g = Math.min(255, Math.round(((c >> 8) & 0xff) * factor));
+  const b = Math.min(255, Math.round((c & 0xff) * factor));
+  return (r << 16) | (g << 8) | b;
+}
+
+const LIMB_DEFS = {
+  humanoid: {
+    head:      { shape: "circle", r: 10, color: "skin" },
+    torso:     { shape: "rect", hw: 6, hh: 12, color: "armor" },
+    lUpperArm: { shape: "rect", hw: 2.5, hh: 7, color: "body" },
+    rUpperArm: { shape: "rect", hw: 2.5, hh: 7, color: "body" },
+    lLowerArm: { shape: "rect", hw: 2, hh: 6, color: "skin" },
+    rLowerArm: { shape: "rect", hw: 2, hh: 6, color: "skin" },
+    lUpperLeg: { shape: "rect", hw: 3, hh: 7, color: "dark" },
+    rUpperLeg: { shape: "rect", hw: 3, hh: 7, color: "dark" },
+    lLowerLeg: { shape: "rect", hw: 2.5, hh: 7, color: "armor" },
+    rLowerLeg: { shape: "rect", hw: 2.5, hh: 7, color: "armor" },
+  },
+  quadruped: {
+    head:  { shape: "circle", r: 8, color: "body" },
+    torso: { shape: "rect", hw: 13, hh: 6, color: "body" },
+    fl:    { shape: "rect", hw: 2.5, hh: 7, color: "dark" },
+    fr:    { shape: "rect", hw: 2.5, hh: 7, color: "dark" },
+    bl:    { shape: "rect", hw: 2.5, hh: 7, color: "dark" },
+    br:    { shape: "rect", hw: 2.5, hh: 7, color: "dark" },
+    tail:  { shape: "rect", hw: 2, hh: 5, color: "body" },
+  },
+  floating: {
+    head:  { shape: "circle", r: 10, color: "body" },
+    torso: { shape: "rect", hw: 7, hh: 14, color: "armor" },
+    lArm:  { shape: "rect", hw: 2, hh: 8, color: "body" },
+    rArm:  { shape: "rect", hw: 2, hh: 8, color: "body" },
+    trail: { shape: "rect", hw: 2.5, hh: 5, color: "dark" },
+  },
+  scorpion: {
+    head:    { shape: "circle", r: 6, color: "body" },
+    torso:   { shape: "rect", hw: 15, hh: 7, color: "armor" },
+    l1:      { shape: "rect", hw: 2, hh: 5, color: "dark" },
+    l2:      { shape: "rect", hw: 2, hh: 5, color: "dark" },
+    l3:      { shape: "rect", hw: 2, hh: 5, color: "dark" },
+    r1:      { shape: "rect", hw: 2, hh: 5, color: "dark" },
+    r2:      { shape: "rect", hw: 2, hh: 5, color: "dark" },
+    r3:      { shape: "rect", hw: 2, hh: 5, color: "dark" },
+    lPincer: { shape: "rect", hw: 2.5, hh: 5, color: "body" },
+    rPincer: { shape: "rect", hw: 2.5, hh: 5, color: "body" },
+    tail1:   { shape: "rect", hw: 2.5, hh: 4, color: "armor" },
+    tail2:   { shape: "rect", hw: 2.5, hh: 4, color: "armor" },
+    stinger: { shape: "circle", r: 3, color: "blood" },
+  },
+  spider: {
+    head:    { shape: "circle", r: 6, color: "body" },
+    torso:   { shape: "rect", hw: 9, hh: 6, color: "armor" },
+    abdomen: { shape: "circle", r: 8, color: "body" },
+    ll0:     { shape: "rect", hw: 1.5, hh: 6, color: "dark" },
+    ll1:     { shape: "rect", hw: 1.5, hh: 6, color: "dark" },
+    ll2:     { shape: "rect", hw: 1.5, hh: 6, color: "dark" },
+    ll3:     { shape: "rect", hw: 1.5, hh: 6, color: "dark" },
+    rl0:     { shape: "rect", hw: 1.5, hh: 6, color: "dark" },
+    rl1:     { shape: "rect", hw: 1.5, hh: 6, color: "dark" },
+    rl2:     { shape: "rect", hw: 1.5, hh: 6, color: "dark" },
+    rl3:     { shape: "rect", hw: 1.5, hh: 6, color: "dark" },
+  },
+  frog: {
+    head:   { shape: "circle", r: 8, color: "body" },
+    torso:  { shape: "rect", hw: 8, hh: 6, color: "body" },
+    lHind:  { shape: "rect", hw: 3, hh: 6, color: "dark" },
+    rHind:  { shape: "rect", hw: 3, hh: 6, color: "dark" },
+    lFront: { shape: "rect", hw: 2, hh: 4, color: "dark" },
+    rFront: { shape: "rect", hw: 2, hh: 4, color: "dark" },
+  },
+  serpent: {
+    head:    { shape: "circle", r: 9, color: "body" },
+    torso:   { shape: "rect", hw: 8, hh: 6, color: "body" },
+    seg2:    { shape: "rect", hw: 7, hh: 5, color: "armor" },
+    seg3:    { shape: "rect", hw: 6, hh: 4, color: "body" },
+    tailTip: { shape: "rect", hw: 3.5, hh: 3, color: "dark" },
+    lFin:    { shape: "rect", hw: 2, hh: 4, color: "armor" },
+    rFin:    { shape: "rect", hw: 2, hh: 4, color: "armor" },
+  },
+  barricade: {
+    torso:    { shape: "rect", hw: 16, hh: 23, color: "body" },
+    head:     { shape: "rect", hw: 5, hh: 5, color: "armor" },
+    plankL:   { shape: "rect", hw: 3, hh: 18, color: "body" },
+    plankR:   { shape: "rect", hw: 3, hh: 18, color: "body" },
+    crossbar: { shape: "rect", hw: 18, hh: 3, color: "armor" },
+  },
+  tower: {
+    torso:  { shape: "rect", hw: 12, hh: 26, color: "body" },
+    head:   { shape: "rect", hw: 7, hh: 7, color: "armor" },
+    roofL:  { shape: "rect", hw: 3.5, hh: 2.5, color: "dark" },
+    roofR:  { shape: "rect", hw: 3.5, hh: 2.5, color: "dark" },
+    baseL:  { shape: "rect", hw: 3.5, hh: 5, color: "armor" },
+    baseR:  { shape: "rect", hw: 3.5, hh: 5, color: "armor" },
+  },
+};
+
 export class CharacterSprite {
   constructor(npcData, friendly) {
     this.npcData = npcData;
@@ -30,16 +146,19 @@ export class CharacterSprite {
     this.shadowGfx = new Graphics();
     this.glowGfx = new Graphics();
     this.weaponGfx = new Graphics();
+    this.limbGfx = new Graphics(); // for ragdoll limb rendering
 
     this.auraGfx.zIndex = 0;
     this.shadowGfx.zIndex = 1;
     this.weaponGfx.zIndex = 3;
     this.glowGfx.zIndex = 4;
+    this.limbGfx.zIndex = 3;
 
     this.container.addChild(this.auraGfx);
     this.container.addChild(this.shadowGfx);
     this.container.addChild(this.weaponGfx);
     this.container.addChild(this.glowGfx);
+    this.container.addChild(this.limbGfx);
 
     // Create icon sprite from raw canvas (avoids PixiJS async data-URL issues)
     const iconSize = ICON_SIZES[this.bodyType] || 48;
@@ -61,16 +180,36 @@ export class CharacterSprite {
     this.flashSprite.visible = false;
     this.container.addChild(this.flashSprite);
 
+    // Precompute limb colors
+    this._bodyColorInt = hexToInt(bodyColor);
+    this._armorColorInt = hexToInt(armorColor);
+    this._skinColorInt = lightenHex(bodyColor, 1.4);
+    this._darkColorInt = darkenHex(bodyColor, 0.5);
+    this._bloodColorInt = 0xaa2020;
+
     this._lastDir = 1;
+  }
+
+  _getLimbColor(colorKey) {
+    switch (colorKey) {
+      case "body": return this._bodyColorInt;
+      case "armor": return this._armorColorInt;
+      case "skin": return this._skinColorInt;
+      case "dark": return this._darkColorInt;
+      case "blood": return this._bloodColorInt;
+      default: return this._bodyColorInt;
+    }
   }
 
   update(entry, W, H, GY, fogVisibility) {
     if (!entry.limbBodies) return;
 
     const limbs = {};
+    const limbRots = {};
     for (const [name, rb] of Object.entries(entry.limbBodies)) {
       const t = rb.translation();
       limbs[name] = { x: t.x, y: t.y };
+      limbRots[name] = rb.rotation();
     }
 
     // Calculate alpha with fog
@@ -95,6 +234,7 @@ export class CharacterSprite {
     this.shadowGfx.clear();
     this.glowGfx.clear();
     this.weaponGfx.clear();
+    this.limbGfx.clear();
 
     if (!limbs.torso) return;
 
@@ -102,13 +242,70 @@ export class CharacterSprite {
     const ty = limbs.torso.y;
     const halfH = HALF_HEIGHTS[this.bodyType] || FIGURE_HALF_HEIGHT;
 
+    // ─── RAGDOLL: Draw individual limb pieces ───
+    if (entry.ragdoll) {
+      // Hide icon sprite, show limb graphics
+      this.iconSprite.visible = false;
+      this.flashSprite.visible = false;
+
+      const defs = LIMB_DEFS[this.bodyType] || LIMB_DEFS.humanoid;
+      const g = this.limbGfx;
+
+      for (const [name, def] of Object.entries(defs)) {
+        const pos = limbs[name];
+        if (!pos) continue;
+        const rot = limbRots[name] || 0;
+        const color = this._getLimbColor(def.color);
+
+        if (def.shape === "circle") {
+          // Circle limb (head, abdomen, stinger, etc.)
+          g.circle(pos.x, pos.y, def.r);
+          g.fill({ color, alpha: 1 });
+          // Head details: eyes
+          if (name === "head") {
+            const eyeOff = def.r * 0.35;
+            g.circle(pos.x - eyeOff, pos.y - eyeOff * 0.5, 1.5);
+            g.fill({ color: 0xffffff, alpha: 0.9 });
+            g.circle(pos.x + eyeOff, pos.y - eyeOff * 0.5, 1.5);
+            g.fill({ color: 0xffffff, alpha: 0.9 });
+            g.circle(pos.x - eyeOff, pos.y - eyeOff * 0.5, 0.7);
+            g.fill({ color: 0x111111, alpha: 0.9 });
+            g.circle(pos.x + eyeOff, pos.y - eyeOff * 0.5, 0.7);
+            g.fill({ color: 0x111111, alpha: 0.9 });
+          }
+        } else {
+          // Rotated rectangle limb — compute 4 corners manually
+          const cos = Math.cos(rot), sin = Math.sin(rot);
+          const hw = def.hw, hh = def.hh;
+          const cx = pos.x, cy = pos.y;
+          const pts = [
+            cx + (-hw * cos - (-hh) * sin), cy + (-hw * sin + (-hh) * cos),
+            cx + (hw * cos - (-hh) * sin),  cy + (hw * sin + (-hh) * cos),
+            cx + (hw * cos - hh * sin),     cy + (hw * sin + hh * cos),
+            cx + (-hw * cos - hh * sin),    cy + (-hw * sin + hh * cos),
+          ];
+          g.poly(pts);
+          g.fill({ color, alpha: 1 });
+        }
+
+        // Blood trail on severed connection points (small red dot)
+        if (name !== "torso" && (entry.fadeTimer || 0) < 40) {
+          const bloodAlpha = Math.max(0, 1 - (entry.fadeTimer || 0) / 40);
+          g.circle(pos.x, pos.y, 2);
+          g.fill({ color: 0xcc2020, alpha: bloodAlpha * 0.6 });
+        }
+      }
+
+      return; // skip normal icon rendering
+    }
+
+    // ─── ALIVE: Normal icon rendering ───
+
     // Shadow on ground
     this._drawShadow(this.shadowGfx, tx, ty + halfH + 2, 14, 5);
 
     // Ground aura
-    if (!entry.ragdoll) {
-      this._drawGroundAura(tx, ty);
-    }
+    this._drawGroundAura(tx, ty);
 
     // Position icon sprite at torso
     this.iconSprite.position.set(tx, ty);
@@ -124,45 +321,17 @@ export class CharacterSprite {
       this.flashSprite.visible = false;
     }
 
-    // Ragdoll: tilt the sprite or slice-in-half
-    if (entry.ragdoll) {
-      if (entry.sliceEffect) {
-        // Slice in half: top drifts up-left, bottom drifts down-right
-        const t = Math.min(1, (entry.fadeTimer || 0) / 40);
-        const splitDist = t * 18;
-        const topAngle = -t * 0.6;
-        const botAngle = t * 0.5;
-        // Use mask/clip via sprite positioning to simulate split
-        this.iconSprite.position.set(tx - splitDist * 0.5, ty - splitDist);
-        this.iconSprite.rotation = topAngle;
-        this.flashSprite.position.set(tx + splitDist * 0.5, ty + splitDist * 0.8);
-        this.flashSprite.rotation = botAngle;
-        this.flashSprite.visible = true;
-        this.flashSprite.alpha = alpha * 0.7;
-        this.flashSprite.tint = 0xcc2020;
-        // Crop: top half of icon, bottom half of flash (approximate via anchor offset)
-        this.iconSprite.anchor.set(0.5, 0.5 + t * 0.25);
-        this.flashSprite.anchor.set(0.5, 0.5 - t * 0.25);
-      } else {
-        const rotAngle = (1 - alpha) * (Math.PI / 2);
-        this.iconSprite.rotation = rotAngle;
-        this.flashSprite.rotation = rotAngle;
-      }
-    } else {
-      this.iconSprite.rotation = 0;
-      this.flashSprite.rotation = 0;
-      this.iconSprite.anchor.set(0.5, 0.5);
-      this.flashSprite.anchor.set(0.5, 0.5);
-    }
+    this.iconSprite.rotation = 0;
+    this.flashSprite.rotation = 0;
+    this.iconSprite.anchor.set(0.5, 0.5);
+    this.flashSprite.anchor.set(0.5, 0.5);
 
     // Mirror based on direction
     this.iconSprite.scale.x = dir;
     this.flashSprite.scale.x = dir;
 
     // Glow ring around icon
-    if (!entry.ragdoll) {
-      this._drawSymbolGlow(tx, ty, halfH, flash);
-    }
+    this._drawSymbolGlow(tx, ty, halfH, flash);
 
     // Draw weapon if applicable
     if (entry.friendly && entry.npcData.weapon && this.bodyType === "humanoid") {

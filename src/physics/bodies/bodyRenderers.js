@@ -53,6 +53,57 @@ export function getColors(entry, fogVisibility, W) {
   };
 }
 
+// ─── LIMB DEFS FOR RAGDOLL (Canvas2D fallback) ───
+const C2D_LIMBS = {
+  humanoid: { head:{s:"c",r:10,c:"b"}, torso:{s:"r",hw:6,hh:12,c:"a"}, lUpperArm:{s:"r",hw:2.5,hh:7,c:"b"}, rUpperArm:{s:"r",hw:2.5,hh:7,c:"b"}, lLowerArm:{s:"r",hw:2,hh:6,c:"b"}, rLowerArm:{s:"r",hw:2,hh:6,c:"b"}, lUpperLeg:{s:"r",hw:3,hh:7,c:"a"}, rUpperLeg:{s:"r",hw:3,hh:7,c:"a"}, lLowerLeg:{s:"r",hw:2.5,hh:7,c:"a"}, rLowerLeg:{s:"r",hw:2.5,hh:7,c:"a"} },
+  quadruped: { head:{s:"c",r:8,c:"b"}, torso:{s:"r",hw:13,hh:6,c:"b"}, fl:{s:"r",hw:2.5,hh:7,c:"a"}, fr:{s:"r",hw:2.5,hh:7,c:"a"}, bl:{s:"r",hw:2.5,hh:7,c:"a"}, br:{s:"r",hw:2.5,hh:7,c:"a"}, tail:{s:"r",hw:2,hh:5,c:"b"} },
+  floating: { head:{s:"c",r:10,c:"b"}, torso:{s:"r",hw:7,hh:14,c:"a"}, lArm:{s:"r",hw:2,hh:8,c:"b"}, rArm:{s:"r",hw:2,hh:8,c:"b"}, trail:{s:"r",hw:2.5,hh:5,c:"a"} },
+  scorpion: { head:{s:"c",r:6,c:"b"}, torso:{s:"r",hw:15,hh:7,c:"a"}, l1:{s:"r",hw:2,hh:5,c:"a"}, l2:{s:"r",hw:2,hh:5,c:"a"}, l3:{s:"r",hw:2,hh:5,c:"a"}, r1:{s:"r",hw:2,hh:5,c:"a"}, r2:{s:"r",hw:2,hh:5,c:"a"}, r3:{s:"r",hw:2,hh:5,c:"a"}, lPincer:{s:"r",hw:2.5,hh:5,c:"b"}, rPincer:{s:"r",hw:2.5,hh:5,c:"b"}, tail1:{s:"r",hw:2.5,hh:4,c:"a"}, tail2:{s:"r",hw:2.5,hh:4,c:"a"}, stinger:{s:"c",r:3,c:"b"} },
+  spider: { head:{s:"c",r:6,c:"b"}, torso:{s:"r",hw:9,hh:6,c:"a"}, abdomen:{s:"c",r:8,c:"b"}, ll0:{s:"r",hw:1.5,hh:6,c:"a"}, ll1:{s:"r",hw:1.5,hh:6,c:"a"}, ll2:{s:"r",hw:1.5,hh:6,c:"a"}, ll3:{s:"r",hw:1.5,hh:6,c:"a"}, rl0:{s:"r",hw:1.5,hh:6,c:"a"}, rl1:{s:"r",hw:1.5,hh:6,c:"a"}, rl2:{s:"r",hw:1.5,hh:6,c:"a"}, rl3:{s:"r",hw:1.5,hh:6,c:"a"} },
+  frog: { head:{s:"c",r:8,c:"b"}, torso:{s:"r",hw:8,hh:6,c:"b"}, lHind:{s:"r",hw:3,hh:6,c:"a"}, rHind:{s:"r",hw:3,hh:6,c:"a"}, lFront:{s:"r",hw:2,hh:4,c:"a"}, rFront:{s:"r",hw:2,hh:4,c:"a"} },
+  serpent: { head:{s:"c",r:9,c:"b"}, torso:{s:"r",hw:8,hh:6,c:"b"}, seg2:{s:"r",hw:7,hh:5,c:"a"}, seg3:{s:"r",hw:6,hh:4,c:"b"}, tailTip:{s:"r",hw:3.5,hh:3,c:"a"}, lFin:{s:"r",hw:2,hh:4,c:"a"}, rFin:{s:"r",hw:2,hh:4,c:"a"} },
+  barricade: { torso:{s:"r",hw:16,hh:23,c:"b"}, head:{s:"r",hw:5,hh:5,c:"a"}, plankL:{s:"r",hw:3,hh:18,c:"b"}, plankR:{s:"r",hw:3,hh:18,c:"b"}, crossbar:{s:"r",hw:18,hh:3,c:"a"} },
+  tower: { torso:{s:"r",hw:12,hh:26,c:"b"}, head:{s:"r",hw:7,hh:7,c:"a"}, roofL:{s:"r",hw:3.5,hh:2.5,c:"a"}, roofR:{s:"r",hw:3.5,hh:2.5,c:"a"}, baseL:{s:"r",hw:3.5,hh:5,c:"a"}, baseR:{s:"r",hw:3.5,hh:5,c:"a"} },
+};
+
+function drawRagdollLimbs(ctx, limbs, entry, alpha) {
+  const bodyColor = entry.friendly ? "#3a8a40" : (entry.npcData.bodyColor || "#6a4a30");
+  const armorColor = entry.friendly ? "#2a5a28" : (entry.npcData.armorColor || "#4a3a28");
+  const defs = C2D_LIMBS[entry.bodyType || "humanoid"] || C2D_LIMBS.humanoid;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  for (const [name, def] of Object.entries(defs)) {
+    const pos = limbs[name];
+    if (!pos) continue;
+    const rot = entry.limbBodies?.[name]?.rotation?.() || 0;
+    const col = def.c === "a" ? armorColor : bodyColor;
+
+    ctx.fillStyle = col;
+    if (def.s === "c") {
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, def.r, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.save();
+      ctx.translate(pos.x, pos.y);
+      ctx.rotate(rot);
+      ctx.fillRect(-def.hw, -def.hh, def.hw * 2, def.hh * 2);
+      ctx.restore();
+    }
+
+    // Blood on severed points
+    if (name !== "torso" && (entry.fadeTimer || 0) < 40) {
+      ctx.fillStyle = `rgba(200,30,30,${Math.max(0, 1 - (entry.fadeTimer || 0) / 40) * 0.5})`;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 // ─── UNIFIED ICON RENDERER ───
 
 function drawIconBody(ctx, limbs, colors, dir, entry) {
@@ -65,6 +116,13 @@ function drawIconBody(ctx, limbs, colors, dir, entry) {
 
   const tx = limbs.torso.x;
   const ty = limbs.torso.y;
+
+  // Ragdoll: draw individual limb pieces instead of icon
+  if (entry.ragdoll) {
+    drawRagdollLimbs(ctx, limbs, entry, c.alpha);
+    ctx.restore();
+    return;
+  }
 
   // Ground shadow
   ctx.fillStyle = "rgba(0,0,0,0.2)";
@@ -86,12 +144,7 @@ function drawIconBody(ctx, limbs, colors, dir, entry) {
   if (img) {
     const halfIcon = iconSize / 2;
 
-    if (entry.ragdoll) {
-      ctx.translate(tx, ty);
-      const rotAngle = (1 - c.alpha) * (Math.PI / 2);
-      ctx.rotate(rotAngle);
-      ctx.drawImage(img, -halfIcon, -halfIcon, iconSize, iconSize);
-    } else if (dir < 0) {
+    if (dir < 0) {
       ctx.save();
       ctx.translate(tx, ty);
       ctx.scale(-1, 1);
