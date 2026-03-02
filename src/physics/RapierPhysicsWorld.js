@@ -298,6 +298,44 @@ function _applyDeathImpulse(limbBodies, element, dirX) {
       }
       break;
     }
+    case "explosion":
+      // Spectacular radial explosion — all limbs fly outward violently
+      for (const p of allParts) {
+        const rx = (Math.random() - 0.5) * 16 * k;
+        const ry = -(Math.random() * 14 + 6) * k;
+        p.applyImpulse({ x: rx, y: ry }, true);
+        p.setAngularDamping(0.1);
+      }
+      if (head) head.applyImpulse({ x: dir * 10 * k, y: -18 * k }, true);
+      break;
+    case "saber":
+      // Clean slash — body splits with moderate force
+      if (torso) torso.applyImpulse({ x: dir * 3 * k, y: -2 * k }, true);
+      if (head) head.applyImpulse({ x: dir * 2 * k, y: -6 * k }, true);
+      // Upper limbs drift up, lower down
+      for (const [name, p] of Object.entries(limbBodies)) {
+        if (name.includes("Upper") || name === "head") {
+          p.applyImpulse({ x: dir * 2 * k, y: -5 * k }, true);
+        } else if (name.includes("Lower") || name.includes("leg") || name.includes("Leg")) {
+          p.applyImpulse({ x: -dir * 1 * k, y: 2 * k }, true);
+        }
+      }
+      break;
+    case "saber_crit":
+      // Critical slash — violent split, top half flies up, bottom drops
+      for (const [name, p] of Object.entries(limbBodies)) {
+        if (name === "head" || name.includes("Upper") || name === "torso") {
+          p.applyImpulse({ x: dir * 6 * k, y: -(8 + Math.random() * 6) * k }, true);
+        } else {
+          p.applyImpulse({ x: -dir * 4 * k, y: (3 + Math.random() * 4) * k }, true);
+        }
+        p.setAngularDamping(0.15);
+      }
+      break;
+    case "shot":
+      // Minimal knockback for gunshot — just a small push
+      if (torso) torso.applyImpulse({ x: dir * 3 * k, y: -2 * k }, true);
+      break;
     default:
       if (torso) torso.applyImpulse({ x: dir * 6 * k, y: -5 * k }, true);
       if (head) head.applyImpulse({ x: dir * 4 * k, y: -8 * k }, true);
@@ -688,14 +726,53 @@ export class PhysicsWorld {
     _applyDeathImpulse(entry.limbBodies, element, dirX);
 
     const pos = entry.limbBodies.torso ? entry.limbBodies.torso.translation() : { x: 0, y: 0 };
-    this.combatEffects.spawnBlood(pos.x, pos.y, dirX, 1.5);
+
     switch (element) {
-      case "fire": this.combatEffects.spawnFire(pos.x, pos.y); this.combatEffects.spawnFire(pos.x, pos.y); break;
-      case "ice": this.combatEffects.spawnIceShards(pos.x, pos.y, dirX); entry.frozenTimer = 20; break;
-      case "shadow": this.combatEffects.spawnShadowMist(pos.x, pos.y); this.combatEffects.spawnShadowMist(pos.x, pos.y); break;
-      case "holy": this.combatEffects.spawnHolyLight(pos.x, pos.y); break;
-      case "lightning": this.combatEffects.spawnMeleeSparks(pos.x, pos.y, dirX); this.combatEffects.spawnMeleeSparks(pos.x, pos.y, -dirX); break;
-      default: this.combatEffects.spawnMeleeSparks(pos.x, pos.y, dirX); break;
+      case "fire":
+        this.fx.spawnBlood(pos.x, pos.y, dirX, 1.5);
+        this.fx.spawnFire(pos.x, pos.y);
+        this.fx.spawnFire(pos.x, pos.y);
+        break;
+      case "ice":
+        this.fx.spawnBlood(pos.x, pos.y, dirX, 1.0);
+        this.fx.spawnIceShards(pos.x, pos.y, dirX);
+        entry.frozenTimer = 20;
+        break;
+      case "shadow":
+        this.fx.spawnBlood(pos.x, pos.y, dirX, 0.8);
+        this.fx.spawnShadowMist(pos.x, pos.y);
+        this.fx.spawnShadowMist(pos.x, pos.y);
+        break;
+      case "holy":
+        this.fx.spawnBlood(pos.x, pos.y, dirX, 0.8);
+        this.fx.spawnHolyLight(pos.x, pos.y);
+        break;
+      case "lightning":
+        this.fx.spawnBlood(pos.x, pos.y, dirX, 1.0);
+        this.fx.spawnMeleeSparks(pos.x, pos.y, dirX);
+        this.fx.spawnMeleeSparks(pos.x, pos.y, -dirX);
+        break;
+      case "explosion":
+        // Spectacular gore explosion for dynamite/cannonball
+        this.fx.spawnGoreExplosion(pos.x, pos.y);
+        break;
+      case "saber":
+        // Slash blood spray
+        this.fx.spawnSlashBlood(pos.x, pos.y, dirX, 1.2);
+        break;
+      case "saber_crit":
+        // Critical slash — split effect + massive blood
+        entry.sliceEffect = true;
+        this.fx.spawnCritSlash(pos.x, pos.y, dirX);
+        break;
+      case "shot":
+        // Subtle blood puff for gunshot
+        this.fx.spawnShotBlood(pos.x, pos.y, dirX);
+        break;
+      default:
+        this.fx.spawnBlood(pos.x, pos.y, dirX, 1.5);
+        this.fx.spawnMeleeSparks(pos.x, pos.y, dirX);
+        break;
     }
   }
 
