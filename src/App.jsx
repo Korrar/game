@@ -372,6 +372,12 @@ export default function App() {
   const [playerDoubleDmgRooms, setPlayerDoubleDmgRooms] = useState(0);
   const playerDoubleDmgRoomsRef = useRef(0);
   playerDoubleDmgRoomsRef.current = playerDoubleDmgRooms;
+  const [eventMercDmgBuff, setEventMercDmgBuff] = useState(0);
+  const eventMercDmgBuffRef = useRef(0);
+  eventMercDmgBuffRef.current = eventMercDmgBuff;
+  const [eventMercHpBuff, setEventMercHpBuff] = useState(0);
+  const eventMercHpBuffRef = useRef(0);
+  eventMercHpBuffRef.current = eventMercHpBuff;
 
   // ─── FEATURE: Crew Management ───
   const [crew, setCrew] = useState([]);           // [{role, loyalty, skillLevel, id}]
@@ -1838,6 +1844,10 @@ export default function App() {
     // Decrement risk event room counters
     if (enemyBuffRoomsRef.current > 0) setEnemyBuffRooms(prev => prev - 1);
     if (playerDoubleDmgRoomsRef.current > 0) setPlayerDoubleDmgRooms(prev => prev - 1);
+    // Reset per-room merchant buffs (active for 1 room after purchase)
+    if (eventMercDmgBuffRef.current > 0) { setEventMercDmgBuff(0); eventMercDmgBuffRef.current = 0; }
+    if (eventMercHpBuffRef.current > 0) { setEventMercHpBuff(0); eventMercHpBuffRef.current = 0; }
+
 
     // Night mode (30% chance)
     const night = Math.random() < 0.3;
@@ -1857,7 +1867,7 @@ export default function App() {
     miningRef.current = { active: false, intervalId: null };
     setMiningProgress(0);
 
-    const chestRate = hasRelic("fortune_magnet") ? 0.15 : 0.08;
+    const chestRate = b.id === "jungle" ? 1.0 : hasRelic("fortune_magnet") ? 0.15 : 0.08;
     if (!isDefenseRoom && Math.random() < chestRate) {
       const cx = 10 + Math.random() * 72, cy = 25 + Math.random() * 65;
       setChestPos({ x: cx, y: cy });
@@ -2869,7 +2879,7 @@ export default function App() {
     setPlayerXp(0); setPlayerLevel(1); setLevelPerks([]); setLevelUpChoices(null);
     setSpellUpgrades({}); setUpgradeChoices(null);
     setKillStreak(0); setPowerSpikeWarning(false);
-    setEnemyBuffRooms(0); setPlayerDoubleDmgRooms(0);
+    setEnemyBuffRooms(0); setPlayerDoubleDmgRooms(0); setEventMercDmgBuff(0); setEventMercHpBuff(0);
     setPlayerTraps([]); setPlacingTrap(null);
     setRoomChallenge(null);
     setCaravanShield({ active: false, cooldown: 0 });
@@ -3064,9 +3074,11 @@ export default function App() {
     const lvl = KNIGHT_LEVELS[knightLevel];
     const mult = lvl.mult || 1;
     const stoneBonus = (hasRelic("stone_skin") ? 30 : 0) + (hasSynergy("twierdza") ? 30 : 0) + perkMercHpBonus;
-    const finalHp = Math.round(mercType.hp * mult * hpFraction) + stoneBonus;
-    const maxHp = Math.round(mercType.hp * mult) + stoneBonus;
-    const finalDmg = Math.round(mercType.damage * mult);
+    const hpBuff = eventMercHpBuffRef.current || 0;
+    const dmgBuff = eventMercDmgBuffRef.current || 0;
+    const finalHp = Math.round(mercType.hp * mult * hpFraction) + stoneBonus + hpBuff;
+    const maxHp = Math.round(mercType.hp * mult) + stoneBonus + hpBuff;
+    const finalDmg = Math.round(mercType.damage * mult) + dmgBuff;
     const npcData = {
       icon: mercType.icon, name: mercType.name,
       hp: maxHp, resist: null, loot: {},
@@ -3111,7 +3123,8 @@ export default function App() {
         else if (item.effect === "initiative") { setInitiative(prev => Math.min(MAX_INITIATIVE, prev + item.value)); showMessage(`${item.icon} ${item.name} – +${item.value} inicjatywy!`, "#d4a030"); }
         else if (item.effect === "moneyBack") { addMoneyFn(item.value); showMessage(`${item.icon} ${item.name}!`, "#d4a030"); }
         else if (item.effect === "soulstone") { setMana(MAX_MANA); addMoneyFn({ copper: item.value }); showMessage(`${item.icon} ${item.name} – Proch + monety!`, "#a050e0"); }
-        else if (item.effect === "dmgBuff" || item.effect === "hpBuff") { showMessage(`${item.icon} ${item.name}!`, "#40e060"); }
+        else if (item.effect === "dmgBuff") { setEventMercDmgBuff(item.value); showMessage(`${item.icon} ${item.name} – +${item.value} obrażeń najemników!`, "#40e060"); }
+        else if (item.effect === "hpBuff") { setEventMercHpBuff(item.value); showMessage(`${item.icon} ${item.name} – +${item.value} HP najemników!`, "#40e060"); }
         break;
       }
       case "merchantSkip": break;
@@ -3402,8 +3415,10 @@ export default function App() {
     const lvl = KNIGHT_LEVELS[knightLevel];
     const mult = lvl.mult || 1;
     const stoneBonus = (hasRelic("stone_skin") ? 30 : 0) + (hasSynergy("twierdza") ? 30 : 0) + perkMercHpBonus;
-    const finalHp = Math.round(mercType.hp * mult) + stoneBonus;
-    const finalDmg = Math.round(mercType.damage * mult);
+    const hpBuff = eventMercHpBuffRef.current || 0;
+    const dmgBuff = eventMercDmgBuffRef.current || 0;
+    const finalHp = Math.round(mercType.hp * mult) + stoneBonus + hpBuff;
+    const finalDmg = Math.round(mercType.damage * mult) + dmgBuff;
     const npcData = {
       icon: mercType.icon, name: mercType.name,
       hp: finalHp, resist: null, loot: {},
@@ -3490,8 +3505,10 @@ export default function App() {
       const lvl = KNIGHT_LEVELS[knightLevel];
       const mult = lvl.mult || 1;
       const stoneBonus = (hasRelic("stone_skin") ? 30 : 0) + (hasSynergy("twierdza") ? 30 : 0) + perkMercHpBonus;
-      const finalHp = Math.round(mercType.hp * mult) + stoneBonus;
-      const finalDmg = Math.round(mercType.damage * mult);
+      const hpBuff = eventMercHpBuffRef.current || 0;
+      const dmgBuff = eventMercDmgBuffRef.current || 0;
+      const finalHp = Math.round(mercType.hp * mult) + stoneBonus + hpBuff;
+      const finalDmg = Math.round(mercType.damage * mult) + dmgBuff;
       const npcData = {
         icon: mercType.icon, name: mercType.name,
         hp: finalHp, resist: null, loot: {},
@@ -6007,18 +6024,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Selected spell indicator — inside game container */}
-      {selectedSpell && (
-        <div style={{
-          position: "absolute",
-          bottom: isMobile ? 8 : 90, left: "50%", transform: "translateX(-50%)",
-          fontSize: isMobile ? 11 : 12, color: "#cc9040", fontWeight: "bold", zIndex: 101,
-          background: "rgba(0,0,0,0.85)", padding: isMobile ? "4px 10px" : "3px 12px", border: "1px solid #5a4030",
-          whiteSpace: "nowrap", borderRadius: 6,
-        }}>
-          {isMobile ? "Dotknij wroga" : "Kliknij na cel, by wykonać akcję (lub przeciągnij)"}
-        </div>
-      )}
 
       </div>{/* end game container */}
 
