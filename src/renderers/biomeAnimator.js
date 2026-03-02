@@ -83,6 +83,8 @@ export class BiomeAnimator {
     if (fx.spores) this._spawnSpores();
     if (fx.fireflies) this._spawnFireflies();
     if (fx.fog) this._drawFog();
+    if (fx.sunsetGlow) this._drawSunsetGlow();
+    if (fx.waterfall) this._drawWaterfall();
 
     // Weather-specific visuals
     if (this.weather) {
@@ -136,6 +138,9 @@ export class BiomeAnimator {
         case "bird": this._updateBird(p); break;
         case "shootingstar": this._updateShootingStar(p); break;
         case "galeDebris": this._updateGaleDebris(p, wind); break;
+        case "sunsetSparkle": this._updateSunsetSparkle(p); break;
+        case "waterfallDrop": this._updateWaterfallDrop(p); break;
+        case "waterfallMist": this._updateWaterfallMist(p); break;
       }
     }
 
@@ -1526,5 +1531,182 @@ export class BiomeAnimator {
       ctx.fillStyle = g;
       ctx.fillRect(fx - radius - 30, fy - 50, (radius + 30) * 2, 100);
     }
+  }
+
+  // ─── SUNSET GLOW (warm pulsating light for sunset beach) ───
+
+  _drawSunsetGlow() {
+    const { ctx, W, H, GY } = this;
+    const t = this.time * 0.008;
+
+    // Pulsating warm horizon glow
+    const intensity = 0.04 + Math.sin(t) * 0.015 + Math.sin(t * 1.7) * 0.01;
+    const sunX = W * 0.55;
+    const g = ctx.createRadialGradient(sunX, GY, 10, sunX, GY, W * 0.5);
+    g.addColorStop(0, `rgba(255,180,60,${intensity * 1.5})`);
+    g.addColorStop(0.4, `rgba(255,120,40,${intensity})`);
+    g.addColorStop(1, "transparent");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H * 0.6);
+
+    // Sun shimmer on water surface
+    const waterY = H * 0.78;
+    const shimmerIntensity = 0.06 + Math.sin(t * 2.3) * 0.03;
+    for (let i = 0; i < 8; i++) {
+      const sx = sunX + Math.sin(t * 1.5 + i * 1.2) * 30 + (Math.sin(i * 73.37) * 0.5) * 60;
+      const sy = waterY + 5 + i * 7 + Math.sin(t * 0.8 + i) * 3;
+      const sw = 12 + Math.sin(t * 3 + i * 2) * 6;
+      ctx.fillStyle = `rgba(255,220,100,${shimmerIntensity * (1 - i * 0.1)})`;
+      ctx.fillRect(sx - sw / 2, sy, sw, 2);
+    }
+
+    // Spawn golden sparkles in air
+    if (this.time % 12 === 0) {
+      this._spawn("sunsetSparkle", {
+        x: Math.random() * W,
+        y: GY * 0.3 + Math.random() * GY * 0.6,
+        size: 1 + Math.random() * 2,
+        speed: 0.2 + Math.random() * 0.3,
+        phase: Math.random() * Math.PI * 2,
+        opacity: 0,
+        maxOpacity: 0.3 + Math.random() * 0.4,
+        hue: 30 + Math.random() * 30,
+        maxAge: 200 + Math.floor(Math.random() * 150),
+      });
+    }
+
+    // Gentle warm color wash (overall atmosphere)
+    ctx.fillStyle = `rgba(255,160,60,${0.015 + Math.sin(t * 0.5) * 0.005})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  _updateSunsetSparkle(p) {
+    const lifeRatio = p.age / p.maxAge;
+    // Fade in and out with twinkle
+    if (lifeRatio < 0.2) p.opacity = p.maxOpacity * (lifeRatio / 0.2);
+    else if (lifeRatio > 0.7) p.opacity = p.maxOpacity * (1 - (lifeRatio - 0.7) / 0.3);
+    else p.opacity = p.maxOpacity * (0.6 + Math.sin(p.age * 0.15 + p.phase) * 0.4);
+
+    p.x += Math.sin(p.age * 0.01 + p.phase) * 0.3;
+    p.y -= p.speed * 0.3;
+
+    if (p.opacity < 0.01) return;
+
+    const { ctx } = this;
+    // Glow
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 4);
+    g.addColorStop(0, `hsla(${p.hue},100%,80%,${p.opacity * 0.3})`);
+    g.addColorStop(1, "transparent");
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x - p.size * 4, p.y - p.size * 4, p.size * 8, p.size * 8);
+    // Core
+    ctx.fillStyle = `hsla(${p.hue},100%,90%,${p.opacity})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 0.5, 0, Math.PI * 2); ctx.fill();
+    // Cross sparkle
+    ctx.strokeStyle = `hsla(${p.hue},100%,85%,${p.opacity * 0.6})`;
+    ctx.lineWidth = 0.5;
+    const sl = p.size * 1.5;
+    ctx.beginPath(); ctx.moveTo(p.x - sl, p.y); ctx.lineTo(p.x + sl, p.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p.x, p.y - sl); ctx.lineTo(p.x, p.y + sl); ctx.stroke();
+  }
+
+  // ─── WATERFALL ANIMATION (flowing water for bamboo falls) ───
+
+  _drawWaterfall() {
+    const { ctx, W, H, GY } = this;
+    const t = this.time * 0.015;
+
+    const fallX = W * 0.65;
+    const fallW = 45;
+    const fallTop = GY * 0.35;
+    const fallBot = GY + (H - GY) * 0.52;
+
+    // Animated water streaks
+    ctx.strokeStyle = "rgba(180,255,240,0.08)";
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 8; i++) {
+      const offset = (t * 60 + i * 40) % (fallBot - fallTop);
+      const sx = fallX + (Math.sin(i * 2.3) * 0.5) * fallW * 0.5;
+      const sy = fallTop + offset;
+      const streakLen = 15 + Math.sin(i + t) * 8;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + Math.sin(t + i) * 3, sy + streakLen);
+      ctx.stroke();
+    }
+
+    // Splash particles at base
+    if (this.time % 4 === 0) {
+      this._spawn("waterfallDrop", {
+        x: fallX + (Math.random() - 0.5) * fallW * 1.2,
+        y: fallBot,
+        vx: (Math.random() - 0.5) * 2,
+        vy: -(1.5 + Math.random() * 2.5),
+        size: 1.5 + Math.random() * 2.5,
+        opacity: 0.3 + Math.random() * 0.3,
+        maxAge: 40 + Math.floor(Math.random() * 30),
+      });
+    }
+
+    // Rising mist at base
+    if (this.time % 10 === 0) {
+      this._spawn("waterfallMist", {
+        x: fallX + (Math.random() - 0.5) * fallW * 2,
+        y: fallBot + 5 + Math.random() * 10,
+        size: 15 + Math.random() * 25,
+        speedY: -(0.15 + Math.random() * 0.25),
+        speedX: (Math.random() - 0.5) * 0.3,
+        opacity: 0.06 + Math.random() * 0.06,
+        maxAge: 200 + Math.floor(Math.random() * 100),
+      });
+    }
+
+    // Pool surface ripples
+    const poolY = fallBot;
+    const poolCenterX = fallX;
+    ctx.strokeStyle = "rgba(150,255,220,0.06)";
+    ctx.lineWidth = 1;
+    for (let ring = 0; ring < 3; ring++) {
+      const rt = ((t * 0.8 + ring * 1.5) % 4) / 4;
+      const r = 8 + rt * 60;
+      const alpha = (1 - rt) * 0.08;
+      ctx.strokeStyle = `rgba(150,255,220,${alpha})`;
+      ctx.beginPath();
+      ctx.ellipse(poolCenterX, poolY + 8, r, r * 0.25, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  _updateWaterfallDrop(p) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.12; // gravity
+    const fade = 1 - p.age / p.maxAge;
+    if (fade <= 0) { p.alive = false; return; }
+
+    const { ctx } = this;
+    ctx.fillStyle = `rgba(180,255,240,${p.opacity * fade})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * fade, 0, Math.PI * 2); ctx.fill();
+    // Small glow
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2);
+    g.addColorStop(0, `rgba(200,255,240,${p.opacity * fade * 0.3})`);
+    g.addColorStop(1, "transparent");
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x - p.size * 2, p.y - p.size * 2, p.size * 4, p.size * 4);
+  }
+
+  _updateWaterfallMist(p) {
+    p.x += p.speedX + Math.sin(p.age * 0.015) * 0.2;
+    p.y += p.speedY;
+    p.size += 0.05; // slowly expand
+    const fade = 1 - p.age / p.maxAge;
+    if (fade <= 0) { p.alive = false; return; }
+
+    const { ctx } = this;
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+    g.addColorStop(0, `rgba(180,240,220,${p.opacity * fade})`);
+    g.addColorStop(1, "transparent");
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x - p.size, p.y - p.size, p.size * 2, p.size * 2);
   }
 }

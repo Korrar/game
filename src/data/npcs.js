@@ -54,6 +54,20 @@ export const BIOME_NPCS = {
     { icon: "water", name: "Bagienne Widmo", hp: 45, resist: "ice", loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#506050", armorColor: "#304030", bodyType: "floating", ability: null },
     { icon: "poison", name: "Żabi Szaman", hp: 50, resist: "ice", loot: { copper: 18 }, rarity: "rare", bodyColor: "#408040", armorColor: "#205020", bodyType: "frog", ability: { type: "poisonSpit", damage: 9, cooldown: 4000, element: "shadow", range: 22 } },
   ],
+  sunset_beach: [
+    { icon: "skull", name: "Krab Plażowy", hp: 22, resist: null, loot: { copper: 7 }, rarity: "common", bodyColor: "#c05030", armorColor: "#903820", bodyType: "spider", ability: null },
+    { icon: "pirate", name: "Pirat Rozbitek", hp: 38, resist: "fire", loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#a07050", armorColor: "#604030", bodyType: "humanoid", ability: { type: "charge", damage: 10, cooldown: 5000, element: null, range: 22 } },
+    { icon: "water", name: "Meduza Brzegowa", hp: 30, resist: "ice", loot: { copper: 10 }, rarity: "common", bodyColor: "#e0a0c0", armorColor: "#c070a0", bodyType: "floating", ability: { type: "poisonSpit", damage: 7, cooldown: 4000, element: "shadow", range: 20 } },
+    { icon: "skull", name: "Żółw Morski", hp: 50, resist: "ice", loot: { copper: 18 }, rarity: "rare", bodyColor: "#507040", armorColor: "#305020", bodyType: "quadruped", ability: { type: "charge", damage: 12, cooldown: 6000, element: null, range: 18 } },
+    { icon: "anchor", name: "Duch Zachodniej Laguny", hp: 55, resist: "fire", loot: { silver: 1 }, rarity: "rare", bodyColor: "#d0a060", armorColor: "#a07030", bodyType: "floating", ability: { type: "fireBreath", damage: 10, cooldown: 4500, element: "fire", range: 22 } },
+  ],
+  bamboo_falls: [
+    { icon: "skull", name: "Bambusowa Żmija", hp: 28, resist: null, loot: { copper: 9 }, rarity: "common", bodyColor: "#50a040", armorColor: "#308020", bodyType: "serpent", ability: { type: "poisonSpit", damage: 8, cooldown: 4000, element: "shadow", range: 22 } },
+    { icon: "recruit", name: "Leśny Strażnik", hp: 42, resist: null, loot: { copper: 15 }, rarity: "uncommon", bodyColor: "#506030", armorColor: "#304018", bodyType: "humanoid", ability: { type: "charge", damage: 10, cooldown: 5000, element: null, range: 25 } },
+    { icon: "skull", name: "Małpa Gibbon", hp: 25, resist: null, loot: { copper: 8 }, rarity: "common", bodyColor: "#8a6a30", armorColor: "#604a18", bodyType: "quadruped", ability: { type: "charge", damage: 7, cooldown: 3500, element: null, range: 20 } },
+    { icon: "water", name: "Duch Wodospadu", hp: 48, resist: "ice", loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#40a0b0", armorColor: "#207080", bodyType: "floating", ability: { type: "iceShot", damage: 9, cooldown: 4000, element: "ice", range: 24 } },
+    { icon: "skull", name: "Jaszczurka Szmaragdowa", hp: 35, resist: null, loot: { copper: 12 }, rarity: "uncommon", bodyColor: "#30b060", armorColor: "#208040", bodyType: "serpent", ability: null },
+  ],
   meteor: [
     { icon: "meteor", name: "Ognisty Strażnik", hp: 80, resist: "fire", loot: { silver: 2 }, rarity: "epic", bodyColor: "#8a4020", armorColor: "#5a2010", bodyType: "floating", ability: { type: "fireBreath", damage: 14, cooldown: 4500, element: "fire", range: 22 } },
     { icon: "skull", name: "Kościany Strażnik", hp: 60, resist: null, loot: { silver: 1, copper: 20 }, rarity: "rare", bodyColor: "#2a2040", armorColor: "#6040a0", bodyType: "humanoid", ability: { type: "shadowBolt", damage: 10, cooldown: 4000, element: "shadow", range: 28 } },
