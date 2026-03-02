@@ -22,7 +22,7 @@ import {
   startMusic, toggleMusic, changeBiomeMusic, sfxDoor, sfxChest, sfxSell,
   sfxStore, sfxRetrieve, sfxUpgrade, sfxGather, sfxBuy,
   sfxFireball, sfxLightning, sfxIceLance, sfxShadowBolt, sfxHolyBeam,
-  sfxNpcDeath, sfxDrinkMana, sfxSummon, sfxRecruit, sfxMeleeHit, sfxMeteorFall, sfxMeteorImpact,
+  sfxNpcDeath, sfxDrinkMana, sfxSummon, sfxRecruit, sfxMeleeHit, sfxSaberSwipe, sfxSaberHit, sfxMeteorFall, sfxMeteorImpact,
   sfxEventAppear, sfxMerchant, sfxAmbush, sfxAltar, sfxEventSuccess, sfxEventFail,
   sfxWaveHorn, sfxWaveComplete, sfxVictoryFanfare, sfxWeather, sfxCaravanHit,
 } from "./audio/soundEngine";
@@ -51,6 +51,7 @@ import { SHIP_UPGRADES, rollSeaEvent, rollIslandDiscovery } from "./data/sailing
 import { FORTIFICATION_TREE, TRAP_COMBOS } from "./data/advancedTraps";
 import { FACTIONS, getFactionBonus, getFactionHostility, rollFactionQuest, rollFactionEvent } from "./data/factions";
 import { ARTIFACT_SETS, DISCOVERY_MILESTONES, JOURNAL_CATEGORIES, getDiscoveryMilestone, rollSecretRoom, getCompletedSetBonuses } from "./data/discovery";
+import { SABERS, SABER_RARITY_COLOR } from "./data/sabers";
 import ComboOverlay from "./components/ComboOverlay";
 import LevelUpPicker from "./components/LevelUpPicker";
 import SpellUpgradePicker from "./components/SpellUpgradePicker";
@@ -284,6 +285,13 @@ export default function App() {
   const activeSynergiesRef = useRef([]);
   activeSynergiesRef.current = activeSynergies;
   const hasSynergy = (id) => activeSynergiesRef.current.some(s => s.id === id);
+
+  // ─── FEATURE: Saber Equipment ───
+  const [ownedSabers, setOwnedSabers] = useState(["basic_saber"]);
+  const [equippedSaber, setEquippedSaber] = useState("basic_saber");
+  const equippedSaberRef = useRef("basic_saber");
+  equippedSaberRef.current = equippedSaber;
+  const getEquippedSaberData = () => SABERS.find(s => s.id === equippedSaberRef.current) || SABERS[0];
 
   // ─── FEATURE: Combo Visual Feedback ───
   const [comboCounter, setComboCounter] = useState(0);
@@ -1579,6 +1587,44 @@ export default function App() {
           delete w._origSpeed;
           delete w._slowedUntil;
         }
+
+        // Saber burn/poison DOT processing
+        if (!w.friendly && w._burnUntil && dateNow < w._burnUntil) {
+          if (!w._lastBurnTick || dateNow - w._lastBurnTick >= 1000) {
+            w._lastBurnTick = dateNow;
+            const burnDmg = w._burnDps || 5;
+            const wObj = walkersRef.current.find(ww => ww.id === id);
+            if (wObj && wObj.alive && !wObj.dying) {
+              const nh = Math.max(0, wObj.hp - burnDmg);
+              spawnDmgPopup(id, `🔥${burnDmg}`, "#ff6020");
+              if (nh <= 0) {
+                sfxNpcDeath(); w.alive = false;
+                setWalkers(prev => prev.map(ww => ww.id === id ? { ...ww, hp: 0, dying: true, dyingAt: dateNow } : ww));
+                setTimeout(() => setWalkers(pp => pp.filter(ww => ww.id !== id)), 2500);
+              } else {
+                setWalkers(prev => prev.map(ww => ww.id === id ? { ...ww, hp: nh } : ww));
+              }
+            }
+          }
+        } else if (w._burnUntil) { delete w._burnDps; delete w._burnUntil; delete w._lastBurnTick; }
+        if (!w.friendly && w._poisonUntil && dateNow < w._poisonUntil) {
+          if (!w._lastPoisonTick || dateNow - w._lastPoisonTick >= 1000) {
+            w._lastPoisonTick = dateNow;
+            const poisonDmg = w._poisonDps || 3;
+            const wObj = walkersRef.current.find(ww => ww.id === id);
+            if (wObj && wObj.alive && !wObj.dying) {
+              const nh = Math.max(0, wObj.hp - poisonDmg);
+              spawnDmgPopup(id, `☠${poisonDmg}`, "#44ff44");
+              if (nh <= 0) {
+                sfxNpcDeath(); w.alive = false;
+                setWalkers(prev => prev.map(ww => ww.id === id ? { ...ww, hp: 0, dying: true, dyingAt: dateNow } : ww));
+                setTimeout(() => setWalkers(pp => pp.filter(ww => ww.id !== id)), 2500);
+              } else {
+                setWalkers(prev => prev.map(ww => ww.id === id ? { ...ww, hp: nh } : ww));
+              }
+            }
+          }
+        } else if (w._poisonUntil) { delete w._poisonDps; delete w._poisonUntil; delete w._lastPoisonTick; }
 
         // Lunge animation decay
         if (w.lungeFrames > 0) {
@@ -2920,6 +2966,7 @@ export default function App() {
     setActiveFactionQuest(null); setFactionEvent(null);
     setJournal({ biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
     setOwnedArtifacts([]); setTotalDiscoveries(0); setSecretRoom(null); setShowJournal(false);
+    setOwnedSabers(["basic_saber"]); setEquippedSaber("basic_saber");
     walkDataRef.current = {};
     if (pixiRef.current) pixiRef.current.clearNpcs();
     if (physicsRef.current) physicsRef.current.clear();
@@ -2955,6 +3002,7 @@ export default function App() {
       unlockedFortifications,
       factionRep,
       journal, ownedArtifacts, totalDiscoveries,
+      ownedSabers, equippedSaber,
       savedAt: Date.now(),
     };
     try {
@@ -3015,6 +3063,8 @@ export default function App() {
       setJournal(s.journal || { biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
       setOwnedArtifacts(s.ownedArtifacts || []);
       setTotalDiscoveries(s.totalDiscoveries || 0);
+      setOwnedSabers(s.ownedSabers || ["basic_saber"]);
+      setEquippedSaber(s.equippedSaber || "basic_saber");
       setScreen("game");
       enterRoom(s.room || 1, s.ownedTools || []);
       startMusic();
@@ -3047,12 +3097,13 @@ export default function App() {
         shipUpgrades, discoveredIslands,
         unlockedFortifications, factionRep,
         journal, ownedArtifacts, totalDiscoveries,
+        ownedSabers, equippedSaber,
         savedAt: Date.now(),
       };
       try { localStorage.setItem("wrota_save", JSON.stringify(saveData)); } catch {}
     }, 60000);
     return () => clearInterval(iv);
-  }, [screen, room, money, mana, ammo, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades, activeSynergies, playerXp, playerLevel, levelPerks, spellUpgrades, killStreak, enemyBuffRooms, playerDoubleDmgRooms, crew, activeStory, completedStories, shipUpgrades, discoveredIslands, unlockedFortifications, factionRep, journal, ownedArtifacts, totalDiscoveries]);
+  }, [screen, room, money, mana, ammo, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades, activeSynergies, playerXp, playerLevel, levelPerks, spellUpgrades, killStreak, enemyBuffRooms, playerDoubleDmgRooms, crew, activeStory, completedStories, shipUpgrades, discoveredIslands, unlockedFortifications, factionRep, journal, ownedArtifacts, totalDiscoveries, ownedSabers, equippedSaber]);
 
   const travelCaravan = () => {
     if (defenseMode && defenseMode.phase !== "complete") {
@@ -3285,6 +3336,14 @@ export default function App() {
     if (newClicks >= CLICKS_TO_OPEN) {
       setTimeout(() => {
         setShowChest(false); setChestClicks(0);
+        // 25% chance to drop a saber the player doesn't own
+        const unownedSabers = SABERS.filter(s => !s.starter && !ownedSabers.includes(s.id));
+        if (unownedSabers.length > 0 && Math.random() < 0.25) {
+          const saber = unownedSabers[Math.floor(Math.random() * unownedSabers.length)];
+          setOwnedSabers(prev => [...prev, saber.id]);
+          setEquippedSaber(saber.id);
+          showMessage(`Znaleziono: ${saber.name}!`, saber.color);
+        }
         const t = pickTreasure(room); t.biome = biome.name; t.room = room;
         // greedy_merchant: x1.5 treasure value (nerfed from x2)
         if (hasRelic("greedy_merchant") && t.value) {
@@ -3895,6 +3954,51 @@ export default function App() {
     castSkillshot(spell, clickX, clickY);
   }, [selectedSpell, gameScale, castSkillshot]);
 
+  // ─── RAPID FIRE: Hold-to-fire for Strzał ───
+  const rapidFireRef = useRef({ active: false, intervalId: null, lastPos: null });
+  const isRapidFireMode = selectedSpell === "lightning" && skillshotMode;
+
+  const startRapidFire = useCallback((e) => {
+    if (!isRapidFireMode || !gameContainerRef.current) return;
+    e.preventDefault();
+    const spell = SPELLS.find(s => s.id === "lightning");
+    if (!spell) return;
+    const getPos = (ev) => {
+      const gr = gameContainerRef.current.getBoundingClientRect();
+      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      return { x: (cx - gr.left) / gameScale, y: (cy - gr.top) / gameScale };
+    };
+    const pos = getPos(e);
+    rapidFireRef.current.lastPos = pos;
+    // Fire immediately
+    castSkillshot(spell, pos.x, pos.y);
+    // Start interval for continuous fire
+    const id = setInterval(() => {
+      const p = rapidFireRef.current.lastPos;
+      if (!p) return;
+      const sp = SPELLS.find(s => s.id === "lightning");
+      if (sp && canCastSpell(sp)) {
+        castSkillshot(sp, p.x, p.y);
+      }
+    }, 130); // ~8 shots/second
+    rapidFireRef.current = { active: true, intervalId: id, lastPos: pos };
+  }, [isRapidFireMode, gameScale, castSkillshot, canCastSpell]);
+
+  const moveRapidFire = useCallback((e) => {
+    if (!rapidFireRef.current.active || !gameContainerRef.current) return;
+    e.preventDefault();
+    const gr = gameContainerRef.current.getBoundingClientRect();
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    rapidFireRef.current.lastPos = { x: (cx - gr.left) / gameScale, y: (cy - gr.top) / gameScale };
+  }, [gameScale]);
+
+  const stopRapidFire = useCallback(() => {
+    if (rapidFireRef.current.intervalId) clearInterval(rapidFireRef.current.intervalId);
+    rapidFireRef.current = { active: false, intervalId: null, lastPos: null };
+  }, []);
+
   // ─── SABER: Swipe handlers (Fruit Ninja style) ───
   const isSaberMode = selectedSpell === "saber" && skillshotMode;
 
@@ -3911,6 +4015,8 @@ export default function App() {
   const saberCheckHits = useCallback((x, y) => {
     const spell = SPELLS.find(s => s.id === "saber");
     if (!spell) return;
+    const saberData = getEquippedSaberData();
+    const eff = saberData.effect;
     const hitRadius = 6; // % of screen
     const wd = walkDataRef.current;
     for (const w of walkersRef.current) {
@@ -3921,17 +4027,80 @@ export default function App() {
       const dx = d.x - x, dy = d.y - y;
       if (dx * dx + dy * dy < hitRadius * hitRadius) {
         saberHitIdsRef.current.add(w.id);
-        // Apply saber damage directly
-        let dmg = spell.damage;
+        sfxSaberHit();
+        // Base damage from equipped saber
+        let dmg = saberData.damage;
         dmg = Math.round(dmg * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
         if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
-        const wData = w;
-        const newHp = Math.max(0, wData.hp - dmg);
-        spawnDmgPopup(w.id, `${dmg}`, "#c0c0c0");
-        if (d) {
-          const px = (d.x / 100) * GAME_W, py = (d.y / 100) * GAME_H;
-          if (pixiRef.current) pixiRef.current.spawnMeleeSparks(px, py, d.x > 50 ? 1 : -1);
+        // Execute effect: 2x dmg below threshold
+        if (eff?.type === "execute" && w.hp / w.maxHp <= eff.threshold) {
+          dmg = Math.round(dmg * eff.multiplier);
+          spawnDmgPopup(w.id, `EGZEKUCJA ${dmg}`, "#cc2020");
+        } else {
+          spawnDmgPopup(w.id, `${dmg}`, saberData.color);
+        }
+        const px = (d.x / 100) * GAME_W, py = (d.y / 100) * GAME_H;
+        if (pixiRef.current) pixiRef.current.spawnMeleeSparks(px, py, d.x > 50 ? 1 : -1);
+        // Saber effect: slow
+        if (eff?.type === "slow" && d) {
+          if (!d._origSpeed) d._origSpeed = d.speed;
+          d.speed = d._origSpeed * eff.value;
+          d._slowedUntil = Date.now() + eff.duration;
+        }
+        // Saber effect: knockback
+        if (eff?.type === "knockback" && d) {
+          const kbDir = d.x > 50 ? 1 : -1;
+          d.x = Math.max(5, Math.min(95, d.x + kbDir * eff.force * 3));
+          if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "melee", kbDir);
+        }
+        // Saber effect: gold bonus
+        if (eff?.type === "gold_bonus") {
+          addMoneyFn({ copper: eff.copperPerHit });
+        }
+        // Saber effect: cursed self-damage
+        if (eff?.type === "cursed" && Math.random() < eff.selfDamageChance) {
+          setCaravanHp(prev => Math.max(1, prev - eff.selfDamage));
+          showMessage("Klątwa! Konwój traci HP!", "#cc44cc");
+        }
+        // Saber effect: chain lightning
+        if (eff?.type === "chain_lightning" && Math.random() < eff.chance) {
+          const nearby = walkersRef.current.filter(ww => ww.alive && !ww.dying && !ww.friendly && ww.id !== w.id);
+          for (const target of nearby) {
+            const td = wd[target.id];
+            if (!td) continue;
+            const cdx = td.x - d.x, cdy = td.y - d.y;
+            if (cdx * cdx + cdy * cdy < eff.chainRadius * eff.chainRadius) {
+              spawnDmgPopup(target.id, `⚡${eff.chainDamage}`, "#ffee00");
+              setWalkers(prev2 => prev2.map(ww2 => {
+                if (ww2.id !== target.id || !ww2.alive || ww2.dying) return ww2;
+                const nh2 = Math.max(0, ww2.hp - eff.chainDamage);
+                if (nh2 <= 0) {
+                  sfxNpcDeath();
+                  if (walkDataRef.current[target.id]) walkDataRef.current[target.id].alive = false;
+                  addMoneyFn(ww2.npcData.loot); setKills(k => k + 1);
+                  setTimeout(() => setWalkers(pp => pp.filter(www => www.id !== target.id)), 2500);
+                  return { ...ww2, hp: 0, dying: true, dyingAt: Date.now() };
+                }
+                return { ...ww2, hp: nh2 };
+              }));
+              break; // chain to one target
+            }
+          }
+        }
+        const newHp = Math.max(0, w.hp - dmg);
+        // Saber effect: lifesteal
+        if (eff?.type === "lifesteal") {
+          const healAmt = Math.round(dmg * eff.value);
+          if (healAmt > 0) setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + healAmt));
+        }
+        // Saber effect: burn DOT
+        if (eff?.type === "burn" && d) {
+          d._burnDps = eff.dps; d._burnUntil = Date.now() + eff.duration; d._burnTarget = w.id;
+        }
+        // Saber effect: poison DOT
+        if (eff?.type === "poison" && d) {
+          d._poisonDps = eff.dps; d._poisonUntil = Date.now() + eff.duration; d._poisonTarget = w.id;
         }
         setWalkers(prev => prev.map(ww => {
           if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
@@ -3945,6 +4114,26 @@ export default function App() {
             rollAmmoDrop();
             grantXp(ww.isBoss ? 100 : ww.isElite ? 50 : 10 + roomRef.current * 2);
             processKillStreak();
+            // Shadow saber: summon skeleton on kill
+            if (eff?.type === "summon_skeleton") {
+              const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
+              setTimeout(() => {
+                const nid = ++walkerIdCounter;
+                const sx = d.x;
+                const nHp = Math.round(mt.hp * 0.6);
+                const nDmg = Math.round(mt.damage * 0.6);
+                const nd = { icon: "skull", name: "Szkielet", hp: nHp, resist: null, loot: {}, bodyColor: "#888888", armorColor: "#444444", weapon: mt.weapon };
+                setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
+                walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
+                if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
+                showMessage("Szkielet przywołany!", "#8844cc");
+                setTimeout(() => {
+                  if (walkDataRef.current[nid]) walkDataRef.current[nid].alive = false;
+                  if (physicsRef.current) physicsRef.current.removeNpc(nid);
+                  setWalkers(pr => pr.filter(ww2 => ww2.id !== nid));
+                }, eff.duration);
+              }, 300);
+            }
             setTimeout(() => setWalkers(pp => pp.filter(www => www.id !== w.id)), 2500);
             return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
           }
@@ -3964,6 +4153,7 @@ export default function App() {
     saberHitIdsRef.current = new Set();
     saberPointsRef.current = [{ x: pos.x, y: pos.y, time: Date.now() }];
     setSaberTrail([{ x: pos.px, y: pos.py }]);
+    sfxSaberSwipe();
     saberCheckHits(pos.x, pos.y);
   }, [isSaberMode, saberGetGamePos, saberCheckHits]);
 
@@ -4661,6 +4851,24 @@ export default function App() {
     showMessage(`+${item.amount} ${item.name}!`, "#e0a040");
   };
 
+  const buySaber = (saberId) => {
+    if (ownedSabers.includes(saberId)) return;
+    const saber = SABERS.find(s => s.id === saberId); if (!saber) return;
+    const tc = totalCopper(money); const need = saber.price * 100; // price in silver
+    if (tc < need) { showMessage("Za mało monet!", "#b83030"); return; }
+    sfxBuy(); setMoney(copperToMoney(tc - need));
+    setOwnedSabers(prev => [...prev, saberId]);
+    setEquippedSaber(saberId);
+    showMessage(`Zdobyto: ${saber.name}!`, saber.color);
+  };
+
+  const equipSaber = (saberId) => {
+    if (!ownedSabers.includes(saberId)) return;
+    setEquippedSaber(saberId);
+    const saber = SABERS.find(s => s.id === saberId);
+    showMessage(`Wyposażono: ${saber?.name || saberId}`, saber?.color || "#c0c0c0");
+  };
+
   const rollAmmoDrop = () => {
     for (const drop of AMMO_DROP_TABLE) {
       if (Math.random() < drop.chance) {
@@ -4878,14 +5086,14 @@ export default function App() {
 
       {/* Scaled game container – fills entire screen on mobile */}
       <div ref={gameContainerRef}
-        onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode) ? handleSkillshotClick : undefined}
-        onMouseDown={isSaberMode ? handleSaberDown : undefined}
-        onMouseMove={isSaberMode ? handleSaberMove : undefined}
-        onMouseUp={isSaberMode ? handleSaberUp : undefined}
-        onMouseLeave={isSaberMode ? handleSaberUp : undefined}
-        onTouchStart={isSaberMode ? handleSaberDown : undefined}
-        onTouchMove={isSaberMode ? handleSaberMove : undefined}
-        onTouchEnd={isSaberMode ? handleSaberUp : undefined}
+        onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode) ? handleSkillshotClick : undefined}
+        onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : undefined}
+        onMouseMove={isSaberMode ? handleSaberMove : isRapidFireMode ? moveRapidFire : undefined}
+        onMouseUp={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : undefined}
+        onMouseLeave={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : undefined}
+        onTouchStart={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : undefined}
+        onTouchMove={isSaberMode ? handleSaberMove : isRapidFireMode ? moveRapidFire : undefined}
+        onTouchEnd={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : undefined}
         style={{
         width: GAME_W, height: GAME_H,
         transform: `scale(${gameScale})`,
@@ -5022,12 +5230,14 @@ export default function App() {
       )}
 
       {/* Saber swipe trail */}
-      {saberTrail.length > 1 && (
+      {saberTrail.length > 1 && (() => {
+        const sc = getEquippedSaberData().trailColor || "#c0c0c0";
+        return (
         <svg style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, zIndex: 50, pointerEvents: "none" }}>
           <defs>
             <linearGradient id="saberGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
-              <stop offset="40%" stopColor="#e0e0ff" stopOpacity="0.6" />
+              <stop offset="0%" stopColor={sc} stopOpacity="0" />
+              <stop offset="40%" stopColor={sc} stopOpacity="0.6" />
               <stop offset="100%" stopColor="#ffffff" stopOpacity="0.95" />
             </linearGradient>
             <filter id="saberGlow">
@@ -5035,19 +5245,20 @@ export default function App() {
               <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
           </defs>
-          {saberTrail.length > 1 && (() => {
+          {(() => {
             const pts = saberTrail;
             const d = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
             return (
               <>
-                <path d={d} fill="none" stroke="rgba(200,200,255,0.15)" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" filter="url(#saberGlow)" />
+                <path d={d} fill="none" stroke={sc + "25"} strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" filter="url(#saberGlow)" />
                 <path d={d} fill="none" stroke="url(#saberGrad)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
                 <path d={d} fill="none" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
               </>
             );
           })()}
         </svg>
-      )}
+        );
+      })()}
 
       {/* Player-placed defense trap visuals */}
       {playerTraps.map(pt => pt.active && (
@@ -5161,21 +5372,24 @@ export default function App() {
         </div>
       )}
       {/* Saber Mode Indicator — click to dismiss */}
-      {isSaberMode && (
+      {isSaberMode && (() => {
+        const _sd = getEquippedSaberData();
+        return (
         <div onClick={() => { setSelectedSpell(null); setSkillshotMode(false); setSkillshotSpell(null); }} style={{
           position: "absolute", bottom: isMobile ? 70 : 90, left: "50%", transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.8)", border: "2px solid #c0c0c0",
+          background: "rgba(0,0,0,0.8)", border: `2px solid ${_sd.color}`,
           padding: "4px 16px", borderRadius: 6, zIndex: 25,
-          color: "#e0e0e0", fontWeight: "bold", fontSize: isMobile ? 11 : 14,
-          textShadow: "0 0 8px rgba(200,200,255,0.6)",
+          color: _sd.color, fontWeight: "bold", fontSize: isMobile ? 11 : 14,
+          textShadow: `0 0 8px ${_sd.color}66`,
           animation: "gemPulse 1.5s ease-in-out infinite",
           cursor: "pointer",
         }}>
-          <Icon name="swords" size={16} style={{ marginRight: 6 }} />
-          {isMobile ? "Przeciągnij palcem!" : "Przeciągnij myszką przez wrogów!"}
+          <Icon name={_sd.icon} size={16} style={{ marginRight: 6 }} />
+          {_sd.name} — {isMobile ? "Przeciągnij palcem!" : "Przeciągnij myszką przez wrogów!"}
           <span style={{ color: "#888", fontSize: 10, marginLeft: 8 }}>[ESC] anuluj</span>
         </div>
-      )}
+        );
+      })()}
 
       {/* Accuracy Display */}
       {(accuracy.hits > 0 || accuracy.misses > 0) && (
@@ -6236,6 +6450,7 @@ export default function App() {
           gameW={GAME_W}
           gameH={GAME_H}
           spellUpgrades={spellUpgrades}
+          equippedSaber={getEquippedSaberData()}
         />
       </div>
 
@@ -6386,6 +6601,32 @@ export default function App() {
             </div>
           );
         })}
+        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#c0c0c0", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #3a2a18", paddingBottom: 4 }}><Icon name="swords" size={15} /> Szable</h3>
+        <div style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>Wyposażona: <span style={{ color: getEquippedSaberData().color, fontWeight: "bold" }}>{getEquippedSaberData().name}</span></div>
+        {SABERS.filter(s => !s.starter && s.price > 0).map(saber => {
+          const owned = ownedSabers.includes(saber.id);
+          const equipped = equippedSaber === saber.id;
+          const priceCopper = saber.price * 100;
+          const canAfford = totalCopper(money) >= priceCopper;
+          return (
+            <div key={saber.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: `2px solid ${owned ? (equipped ? saber.color + "60" : "#2a3a1a") : "#2a1e14"}`, marginBottom: 6, background: equipped ? `${saber.color}10` : owned ? "rgba(40,80,20,0.08)" : "rgba(255,255,255,0.02)" }}>
+              <span style={{ filter: `drop-shadow(0 0 4px ${saber.color}66)` }}><Icon name={saber.icon} size={28} /></span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: "bold", fontSize: 14, color: SABER_RARITY_COLOR[saber.rarity] || "#888" }}>{saber.name}</div>
+                <div style={{ fontSize: 11, color: "#777" }}>{saber.desc}</div>
+                <div style={{ fontSize: 12, color: "#888" }}>Obrażenia: <span style={{ color: saber.color }}>{saber.damage}</span> | <Icon name="silver" size={12} /> {saber.price}</div>
+              </div>
+              {equipped ? (
+                <span style={{ color: saber.color, fontWeight: "bold", fontSize: 12 }}>Aktywna</span>
+              ) : owned ? (
+                <button onClick={() => equipSaber(saber.id)} style={{ background: "none", border: `2px solid ${saber.color}`, color: saber.color, fontSize: 13, padding: "3px 10px", cursor: "pointer", fontWeight: "bold" }}>Załóż</button>
+              ) : (
+                <button onClick={() => buySaber(saber.id)} disabled={!canAfford} style={{ background: "none", border: `2px solid ${canAfford ? saber.color : "#333"}`, color: canAfford ? saber.color : "#555", fontSize: 13, padding: "3px 10px", cursor: canAfford ? "pointer" : "not-allowed", fontWeight: "bold" }}>Kup</button>
+              )}
+            </div>
+          );
+        })}
+
         <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#d4a030", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="coin" size={15} /> Sprzedaż skarbów</h3>
         {inventory.length > 0 && (
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>

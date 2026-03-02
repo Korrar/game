@@ -779,6 +779,45 @@ export function sfxMeleeHit() {
   });
 }
 
+export function sfxSaberSwipe() {
+  playSfx((c, now, dest) => {
+    // Metallic whoosh — fast high-frequency sweep
+    const osc = c.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(300, now + 0.12);
+    const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1800; f.Q.value = 2;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.14, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.connect(f); f.connect(g); g.connect(dest);
+    osc.start(now); osc.stop(now + 0.18);
+    // Air swoosh — filtered noise
+    const buf = c.createBuffer(1, c.sampleRate * 0.12, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 0.8);
+    const n = c.createBufferSource(); n.buffer = buf;
+    const f2 = c.createBiquadFilter(); f2.type = "highpass"; f2.frequency.value = 1500;
+    const g2 = c.createGain(); g2.gain.setValueAtTime(0.18, now); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    n.connect(f2); f2.connect(g2); g2.connect(dest); n.start(now);
+  });
+}
+
+export function sfxSaberHit() {
+  playSfx((c, now, dest) => {
+    // Short metallic clang
+    const osc = c.createOscillator();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(900, now);
+    osc.frequency.exponentialRampToValueAtTime(500, now + 0.06);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.12, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.connect(g); g.connect(dest);
+    osc.start(now); osc.stop(now + 0.1);
+  });
+}
+
 export function sfxRecruit() {
   playSfx((c, now, dest) => {
     // Coin jingle – multiple metallic clinks

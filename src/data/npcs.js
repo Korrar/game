@@ -81,7 +81,7 @@ export const BIOME_NPCS = {
 // Arsenal POI gives random ammo, unlocking skills temporarily
 // skillshot: true = requires aiming (projectile-based), false = click-to-target
 export const SPELLS = [
-  { id: "lightning",  icon: "sniper", name: "Strzał",          color: "#f0e060", colorLight: "#fffff0", desc: "Szybki precyzyjny strzał — wąski pocisk (celuj!)",        manaCost: 8, cooldown: 1000, damage: 35, element: "lightning", learned: true, skillshot: true },
+  { id: "lightning",  icon: "sniper", name: "Strzał",          color: "#f0e060", colorLight: "#fffff0", desc: "Przytrzymaj aby strzelać serią! (1 proch/strzał)",        manaCost: 1, cooldown: 120, damage: 5, element: "lightning", learned: true, skillshot: true, rapidFire: true },
   { id: "fireball",  icon: "dynamite", name: "Dynamit",        color: "#ff6020", colorLight: "#ffb060", desc: "Rzut dynamitem w łuku — eksploduje przy trafieniu (celuj!)",     manaCost: 0,  cooldown: 3000, damage: 25, element: "fire", learned: false, skillshot: true, ammoCost: { type: "dynamite", amount: 1 } },
   { id: "icelance",   icon: "harpoon", name: "Harpun",          color: "#40c0ff", colorLight: "#c0f0ff", desc: "Harpun przeszywa pierwszego wroga na wylot (celuj!)",                manaCost: 0,  cooldown: 2500, damage: 18, element: "ice", learned: false, skillshot: true, ammoCost: { type: "harpoon", amount: 1 } },
   { id: "holybeam",   icon: "cannon", name: "Strzał z Armaty",      color: "#d4a030", colorLight: "#fff8d0", desc: "Wolna kula armatnia z obrażeniami obszarowymi (celuj!)",            manaCost: 10, cooldown: 6000, damage: 40, element: "holy", learned: false, skillshot: true, ammoCost: { type: "cannonball", amount: 1 } },
