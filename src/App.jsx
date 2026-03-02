@@ -1325,17 +1325,16 @@ export default function App() {
                   cooldown: boss.phase2.abilityCd || boss.abilityCd,
                 };
               }
-              boss.phase = 2;
-              if (boss.phase2.manaShield) {
-                const shieldHp = Math.round(boss.phase2.shieldHp * (boss.roomScale || 1));
-                boss.manaShieldHp = shieldHp;
-                boss.manaShieldMaxHp = shieldHp;
-              }
-              setActiveBoss({ ...boss });
+              const shieldData = boss.phase2.manaShield ? {
+                manaShieldHp: Math.round(boss.phase2.shieldHp * (boss.roomScale || 1)),
+                manaShieldMaxHp: Math.round(boss.phase2.shieldHp * (boss.roomScale || 1)),
+              } : {};
+              setActiveBoss(prev => prev ? { ...prev, phase: 2, ...shieldData } : null);
               spawnDmgPopup(idNum, "FAZA 2!", "#ff6020");
             }
             // Phase 2 → Phase 3 (Cosmic Titan)
-            if (boss.phase === 2 && boss.phase3 && hpRatio <= boss.phase3.hpThreshold) {
+            const bossPhaseNow = activeBossRef.current?.phase || boss.phase;
+            if (bossPhaseNow === 2 && boss.phase3 && hpRatio <= boss.phase3.hpThreshold) {
               if (boss.phase3.speed) w.speed = boss.phase3.speed;
               if (boss.phase3.attackCd) w.attackCd = boss.phase3.attackCd;
               if (boss.phase3.combatStyle) w.combatStyle = boss.phase3.combatStyle;
@@ -1351,15 +1350,14 @@ export default function App() {
                   cooldown: boss.phase3.abilityCd || boss.abilityCd,
                 };
               }
-              boss.phase = 3;
-              setActiveBoss({ ...boss });
+              setActiveBoss(prev => prev ? { ...prev, phase: 3 } : null);
               spawnDmgPopup(idNum, "FAZA 3!", "#e040e0");
             }
 
-            // Sync HP to state for BossHpBar
+            // Sync HP to state for BossHpBar — use functional update to avoid stale mutation
             if (w.hp !== boss.currentHp) {
-              boss.currentHp = w.hp;
-              setActiveBoss({ ...boss });
+              const syncHp = w.hp;
+              setActiveBoss(prev => prev ? { ...prev, currentHp: syncHp } : null);
             }
           }
 
@@ -2347,7 +2345,7 @@ export default function App() {
           setMeteorite(prev => prev ? { ...prev, phase: "landed" } : null);
           sfxMeteorImpact();
           setScreenShake(true);
-          setTimeout(() => setScreenShake(false), 500);
+          setTimeout(() => setScreenShake(false), 200);
           if (animatorRef.current) {
             const px = GAME_W * mx / 100;
             const py = GAME_H * landY / 100;
@@ -3316,7 +3314,7 @@ export default function App() {
       animatorRef.current.playMeteorImpact(mx, my);
     }
     setScreenShake(true);
-    setTimeout(() => setScreenShake(false), 400);
+    setTimeout(() => setScreenShake(false), 150);
     setMeteorite(prev => ({ ...prev, phase: "opened" }));
     showMessage("Meteoryt się otwiera!", "#ff6020");
     // Spawn 2-3 meteor monsters after short delay
@@ -3804,7 +3802,7 @@ export default function App() {
     const cfg = SKILLSHOT_TYPES[spell.id];
     if (cfg && cfg.type === "area") {
       setScreenShake(true);
-      setTimeout(() => setScreenShake(false), 600);
+      setTimeout(() => setScreenShake(false), 200);
     }
 
     // Spawn skillshot projectile in physics (reuse pre-computed _skStats)
@@ -4315,7 +4313,7 @@ export default function App() {
     // Screen shake for earthquake and meteor
     if (spell.id === "earthquake" || spell.id === "meteor") {
       setScreenShake(true);
-      setTimeout(() => setScreenShake(false), spell.id === "earthquake" ? 800 : 600);
+      setTimeout(() => setScreenShake(false), spell.id === "earthquake" ? 250 : 200);
     }
 
     // Apply damage to all alive enemies after delay
@@ -4936,8 +4934,9 @@ export default function App() {
         caravanHp={caravanHp} caravanMaxHp={CARAVAN_LEVELS[caravanLevel].hp}
         relicChoices={relicChoices} boss={activeBoss}
         killStreak={killStreak} powerSpikeWarning={powerSpikeWarning} />
-      {activeBoss && (
+      {activeBoss && activeBoss.phase !== "complete" && (
         <BossHpBar
+          key={activeBoss.id || activeBoss.name}
           boss={activeBoss}
           currentHp={activeBoss.currentHp}
           maxHp={activeBoss.maxHp}
@@ -5145,32 +5144,32 @@ export default function App() {
         </div>
       )}
 
-      {/* Skillshot Mode Indicator */}
+      {/* Skillshot Mode Indicator — click to dismiss */}
       {skillshotMode && skillshotSpell && !isSaberMode && (
-        <div style={{
+        <div onClick={() => { setSelectedSpell(null); setSkillshotMode(false); setSkillshotSpell(null); }} style={{
           position: "absolute", bottom: isMobile ? 70 : 90, left: "50%", transform: "translateX(-50%)",
           background: "rgba(0,0,0,0.8)", border: `2px solid ${skillshotSpell.color}`,
           padding: "4px 16px", borderRadius: 6, zIndex: 25,
           color: skillshotSpell.color, fontWeight: "bold", fontSize: isMobile ? 11 : 14,
           textShadow: `0 0 8px ${skillshotSpell.color}88`,
           animation: "gemPulse 1.5s ease-in-out infinite",
-          pointerEvents: "none",
+          cursor: "pointer",
         }}>
           <Icon name={skillshotSpell.icon} size={16} style={{ marginRight: 6 }} />
           CELUJ: {skillshotSpell.name}
           <span style={{ color: "#888", fontSize: 10, marginLeft: 8 }}>[ESC] anuluj</span>
         </div>
       )}
-      {/* Saber Mode Indicator */}
+      {/* Saber Mode Indicator — click to dismiss */}
       {isSaberMode && (
-        <div style={{
+        <div onClick={() => { setSelectedSpell(null); setSkillshotMode(false); setSkillshotSpell(null); }} style={{
           position: "absolute", bottom: isMobile ? 70 : 90, left: "50%", transform: "translateX(-50%)",
           background: "rgba(0,0,0,0.8)", border: "2px solid #c0c0c0",
           padding: "4px 16px", borderRadius: 6, zIndex: 25,
           color: "#e0e0e0", fontWeight: "bold", fontSize: isMobile ? 11 : 14,
           textShadow: "0 0 8px rgba(200,200,255,0.6)",
           animation: "gemPulse 1.5s ease-in-out infinite",
-          pointerEvents: "none",
+          cursor: "pointer",
         }}>
           <Icon name="swords" size={16} style={{ marginRight: 6 }} />
           {isMobile ? "Przeciągnij palcem!" : "Przeciągnij myszką przez wrogów!"}
@@ -5249,7 +5248,7 @@ export default function App() {
       {screenShake && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 17,
-          background: "radial-gradient(ellipse at center, rgba(255,100,0,0.35), transparent 70%)",
+          background: "radial-gradient(ellipse at center, rgba(255,100,0,0.12), transparent 70%)",
           pointerEvents: "none",
           animation: "meteorFlash 0.5s ease-out forwards",
         }} />
@@ -7145,7 +7144,7 @@ export default function App() {
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes meteorPulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 14px rgba(255,100,20,0.7))}50%{transform:scale(1.15);filter:drop-shadow(0 0 24px rgba(255,60,0,0.9))}}
         @keyframes meteorFall{0%{transform:translateY(-72px) rotate(-30deg);opacity:0}10%{opacity:1}100%{transform:translateY(var(--meteor-land-y)) rotate(15deg);opacity:1}}
-        @keyframes screenShake{0%{transform:translate(-3px,-2px)}25%{transform:translate(3px,1px)}50%{transform:translate(-2px,3px)}75%{transform:translate(2px,-3px)}100%{transform:translate(-1px,2px)}}
+        @keyframes screenShake{0%{transform:translate(-1px,-0.5px)}25%{transform:translate(1px,0.5px)}50%{transform:translate(-0.5px,1px)}75%{transform:translate(0.5px,-1px)}100%{transform:translate(-0.5px,0.5px)}}
         @keyframes meteorFlash{0%{opacity:1}100%{opacity:0}}
         @keyframes cardDrop{0%{opacity:0;transform:translate(-50%,-50%) scale(0.5) rotateY(90deg)}50%{transform:translate(-50%,-50%) scale(1.1) rotateY(0)}100%{opacity:1;transform:translate(-50%,-50%) scale(1) rotateY(0)}}
         @keyframes eventAppear{0%{opacity:0;transform:scale(0.85) translateY(20px)}100%{opacity:1;transform:scale(1) translateY(0)}}
