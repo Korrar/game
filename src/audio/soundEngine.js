@@ -102,6 +102,12 @@ const BIOME_MUSIC = {
     wv: 0.04, wf: 250,
     notes: [233.1, 277.2, 311.1, 370, 415.3], ct: [5000, 10000], cc: 0.35,
   },
+  blue_lagoon: {
+    drones: [{ freq: 110, dt: 0, vol: 0.2 }, { freq: 165, dt: 4, vol: 0.12 }, { freq: 220, dt: -2, vol: 0.08 }],
+    df: 480, pads: [{ freq: 330, vol: 0.06 }, { freq: 440, vol: 0.05 }], pf: 680,
+    wv: 0.05, wf: 380,
+    notes: [330, 392, 440, 523.3, 659.3, 784], ct: [3000, 6500], cc: 0.52,
+  },
 };
 
 function createDrone(freq, detune, vol, filterHz) {

@@ -295,6 +295,15 @@ export default function App() {
   equippedSaberRef.current = equippedSaber;
   const getEquippedSaberData = () => SABERS.find(s => s.id === equippedSaberRef.current) || SABERS[0];
 
+  // ─── FEATURE: Magic Wand ───
+  const [hasWand, setHasWand] = useState(false);
+  const hasWandRef = useRef(false);
+  hasWandRef.current = hasWand;
+  const [wandActive, setWandActive] = useState(false);
+  const wandActiveRef = useRef(false);
+  wandActiveRef.current = wandActive;
+  const wandOrbsRef = useRef({ active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {} });
+
   // ─── FEATURE: Combo Visual Feedback ───
   const [comboCounter, setComboCounter] = useState(0);
   const comboCounterRef = useRef(0);
@@ -1874,6 +1883,58 @@ export default function App() {
       }
       } // end throttled trap check
 
+      // ─── WAND ORBITING LIGHTNING BALLS ───
+      if (wandOrbsRef.current.active) {
+        const wo = wandOrbsRef.current;
+        const elapsed = dateNow - wo.startTime;
+        const orbRadius = 8; // % of screen
+        const hitRadius = 5; // % of screen for damage
+        const dmgCd = 800; // ms between hits per enemy
+        for (let orb = 0; orb < 3; orb++) {
+          const angle = (elapsed / 600) + (orb * Math.PI * 2 / 3);
+          const orbX = wo.cursorX + Math.cos(angle) * orbRadius;
+          const orbY = wo.cursorY + Math.sin(angle) * orbRadius * 0.7;
+          // Check hits against enemies
+          for (const w of walkersRef.current) {
+            if (!w.alive || w.dying || w.friendly) continue;
+            const d = wd[w.id];
+            if (!d || !d.alive) continue;
+            // Cooldown per enemy
+            const lastHit = wo.hitCooldowns[w.id] || 0;
+            if (dateNow - lastHit < dmgCd) continue;
+            const dx = d.x - orbX, dy = d.y - orbY;
+            if (dx * dx + dy * dy < hitRadius * hitRadius) {
+              wo.hitCooldowns[w.id] = dateNow;
+              const dmg = 10;
+              spawnDmgPopup(w.id, `⚡${dmg}`, "#4080ff");
+              if (pixiRef.current) {
+                pixiRef.current.spawnMeleeSparks((d.x / 100) * GAME_W, (d.y / 100) * GAME_H, Math.sign(d.x - 50) || 1);
+              }
+              setWalkers(prev => prev.map(ww => {
+                if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
+                const nh = Math.max(0, ww.hp - dmg);
+                if (nh <= 0) {
+                  sfxNpcDeath();
+                  if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
+                  if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "lightning", Math.sign(d.x - 50) || 1);
+                  addMoneyFn(ww.npcData.loot || {});
+                  setKills(k => k + 1);
+                  handleCardDrop(ww.npcData);
+                  rollAmmoDrop(); rollSaberDrop();
+                  grantXp(ww.isBoss ? 100 : ww.isElite ? 50 : 10 + roomRef.current * 2);
+                  processKillStreak();
+                  setTimeout(() => setWalkers(pr => pr.filter(www => www.id !== w.id)), 2500);
+                  return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                }
+                if (physicsRef.current) physicsRef.current.applyHit(w.id, "lightning", Math.sign(d.x - 50) || 1);
+                return { ...ww, hp: nh };
+              }));
+              break; // one hit per orb per frame
+            }
+          }
+        }
+      }
+
       // Step physics simulation
       if (physicsRef.current) physicsRef.current.step();
     };
@@ -2978,6 +3039,7 @@ export default function App() {
     setJournal({ biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
     setOwnedArtifacts([]); setTotalDiscoveries(0); setSecretRoom(null); setShowJournal(false);
     setOwnedSabers(["basic_saber"]); setEquippedSaber("basic_saber");
+    setHasWand(false); setWandActive(false); wandOrbsRef.current = { active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {} };
     walkDataRef.current = {};
     if (pixiRef.current) pixiRef.current.clearNpcs();
     if (physicsRef.current) physicsRef.current.clear();
@@ -3014,6 +3076,7 @@ export default function App() {
       factionRep,
       journal, ownedArtifacts, totalDiscoveries,
       ownedSabers, equippedSaber,
+      hasWand,
       savedAt: Date.now(),
     };
     try {
@@ -3076,6 +3139,10 @@ export default function App() {
       setTotalDiscoveries(s.totalDiscoveries || 0);
       setOwnedSabers(s.ownedSabers || ["basic_saber"]);
       setEquippedSaber(s.equippedSaber || "basic_saber");
+      setHasWand(s.hasWand || false);
+      if (s.hasWand && !s.learnedSpells?.includes("wand")) {
+        setLearnedSpells(prev => [...prev, "wand"]);
+      }
       setScreen("game");
       enterRoom(s.room || 1, s.ownedTools || []);
       startMusic();
@@ -3354,6 +3421,12 @@ export default function App() {
           setOwnedSabers(prev => [...prev, saber.id]);
           showMessage(`Znaleziono szabl\u0119: ${saber.name}! Zał\u00f3\u017c w ekwipunku.`, saber.color);
         }
+        // 15% chance to drop magic wand if not owned
+        if (!hasWandRef.current && Math.random() < 0.15) {
+          setHasWand(true);
+          setLearnedSpells(prev => prev.includes("wand") ? prev : [...prev, "wand"]);
+          showMessage("Znaleziono Różdżkę Burzy! Nowy skill dostępny!", "#4080ff");
+        }
         const t = pickTreasure(room); t.biome = biome.name; t.room = room;
         // greedy_merchant: x1.5 treasure value (nerfed from x2)
         if (hasRelic("greedy_merchant") && t.value) {
@@ -3570,7 +3643,7 @@ export default function App() {
 
   const canCastSpell = (spell) => {
     if (!spell) return false;
-    if (mana < getSpellManaCost(spell)) return false;
+    if (manaRef.current < getSpellManaCost(spell)) return false;
     const cdEnd = cooldowns[spell.id] || 0;
     if (Date.now() < cdEnd) return false;
     if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) return false;
@@ -3842,17 +3915,24 @@ export default function App() {
       if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
         const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich", rum: "rumu", chain: "łańcuchów" };
         showMessage(`Brak ${ammoNames[spell.ammoCost.type] || "amunicji"}!`, "#c04040");
-      } else if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
+      } else if (manaRef.current < getSpellManaCost(spell)) showMessage("Za mało prochu!", "#c0a060");
       else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
+      return;
+    }
+    // Double-check mana via ref to prevent negative values in rapid fire
+    const manaCost = getSpellManaCost(spell);
+    if (manaRef.current < manaCost) {
+      showMessage("Za mało prochu!", "#c0a060");
       return;
     }
 
     // Challenge: no_mana — fail if mana is used
-    if (roomChallengeRef.current?.id === "no_mana" && !roomChallengeRef.current.completed && !roomChallengeRef.current.failed && getSpellManaCost(spell) > 0) {
+    if (roomChallengeRef.current?.id === "no_mana" && !roomChallengeRef.current.completed && !roomChallengeRef.current.failed && manaCost > 0) {
       setRoomChallenge(prev => prev ? { ...prev, failed: true } : prev);
     }
     // Spend mana & set cooldown — compute upgrade stats once
-    setMana(m => m - getSpellManaCost(spell));
+    manaRef.current -= manaCost; // immediately update ref to prevent double-spend
+    setMana(m => Math.max(0, m - manaCost));
     const _skUps = spellUpgradesRef.current[spell.id] || [];
     const _skStats = getUpgradedSpellStats(spell, _skUps);
     if (spell.ammoCost) {
@@ -4271,13 +4351,15 @@ export default function App() {
       if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
         const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich", rum: "rumu", chain: "łańcuchów" };
         showMessage(`Brak ${ammoNames[spell.ammoCost.type] || "amunicji"}!`, "#c04040");
-      } else if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
+      } else if (manaRef.current < getSpellManaCost(spell)) showMessage("Za mało prochu!", "#c0a060");
       else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
       return;
     }
 
     // Spend mana & set cooldown (chaos_blade: +25% mana cost)
-    setMana(m => m - getSpellManaCost(spell));
+    const manaCost = getSpellManaCost(spell);
+    manaRef.current -= manaCost;
+    setMana(m => Math.max(0, m - manaCost));
     // Compute upgrade stats once for both ammo cost and cooldown
     const _spellUps = spellUpgradesRef.current[spell.id] || [];
     const _uStats = getUpgradedSpellStats(spell, _spellUps);
@@ -4489,12 +4571,14 @@ export default function App() {
       if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
         const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich", rum: "rumu", chain: "łańcuchów" };
         showMessage(`Brak ${ammoNames[spell.ammoCost.type] || "amunicji"}!`, "#c04040");
-      } else if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
+      } else if (manaRef.current < getSpellManaCost(spell)) showMessage("Za mało prochu!", "#c0a060");
       else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
       return;
     }
 
-    setMana(m => m - getSpellManaCost(spell));
+    const manaCost = getSpellManaCost(spell);
+    manaRef.current -= manaCost;
+    setMana(m => Math.max(0, m - manaCost));
     if (spell.ammoCost) {
       const spellUps = spellUpgradesRef.current[spell.id] || [];
       const uStats = getUpgradedSpellStats(spell, spellUps);
@@ -4772,6 +4856,32 @@ export default function App() {
         setSkillshotMode(true);
         setSkillshotSpell(spell);
       }
+      return;
+    }
+
+    // Wand: activate orbiting lightning orbs
+    if (spell && spell.isWand) {
+      if (wandActiveRef.current) {
+        showMessage("Różdżka już aktywna!", "#4080ff");
+        return;
+      }
+      if (!canCastSpell(spell)) {
+        showMessage("Za mało prochu!", "#c0a060");
+        return;
+      }
+      const manaCost = getSpellManaCost(spell);
+      manaRef.current -= manaCost;
+      setMana(m => Math.max(0, m - manaCost));
+      setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + spell.cooldown }));
+      setWandActive(true);
+      wandOrbsRef.current = { active: true, startTime: Date.now(), cursorX: 50, cursorY: 50, hitCooldowns: {} };
+      showMessage("Kule piorunów aktywne!", "#4080ff");
+      sfxLightning();
+      // Deactivate after 8 seconds
+      setTimeout(() => {
+        setWandActive(false);
+        wandOrbsRef.current.active = false;
+      }, 8000);
       return;
     }
 
@@ -5129,11 +5239,11 @@ export default function App() {
       <div ref={gameContainerRef}
         onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode) ? handleSkillshotClick : undefined}
         onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : undefined}
-        onMouseMove={isSaberMode ? handleSaberMove : isRapidFireMode ? moveRapidFire : undefined}
+        onMouseMove={(e) => { if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
         onMouseUp={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : undefined}
         onMouseLeave={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : undefined}
         onTouchStart={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : undefined}
-        onTouchMove={isSaberMode ? handleSaberMove : isRapidFireMode ? moveRapidFire : undefined}
+        onTouchMove={(e) => { if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (wandOrbsRef.current.active && gameContainerRef.current && e.touches[0]) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.touches[0].clientX; const cy = e.touches[0].clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
         onTouchEnd={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : undefined}
         style={{
         width: GAME_W, height: GAME_H,
@@ -5242,6 +5352,40 @@ export default function App() {
           <span onClick={() => setPlacingTrap(null)} style={{ color: "#888", fontSize: 10, marginLeft: 8, cursor: "pointer" }}>[ESC]</span>
         </div>
       )}
+
+      {/* Wand orbiting lightning balls */}
+      {wandActive && (() => {
+        const wo = wandOrbsRef.current;
+        const now = Date.now();
+        const elapsed = now - wo.startTime;
+        const remaining = Math.max(0, 8000 - elapsed);
+        const fade = remaining < 1500 ? remaining / 1500 : 1;
+        return (
+          <>
+            {[0, 1, 2].map(i => {
+              const angle = (elapsed / 600) + (i * Math.PI * 2 / 3);
+              const orbX = (wo.cursorX / 100) * GAME_W + Math.cos(angle) * GAME_W * 0.08;
+              const orbY = (wo.cursorY / 100) * GAME_H + Math.sin(angle) * GAME_H * 0.056;
+              return (
+                <div key={i} style={{
+                  position: "absolute", left: orbX - 10, top: orbY - 10,
+                  width: 20, height: 20, borderRadius: "50%", pointerEvents: "none", zIndex: 30,
+                  background: `radial-gradient(circle, rgba(100,180,255,${0.9 * fade}), rgba(40,100,255,${0.6 * fade}), rgba(20,50,200,${0.3 * fade}), transparent)`,
+                  boxShadow: `0 0 12px rgba(60,140,255,${0.7 * fade}), 0 0 24px rgba(40,100,255,${0.4 * fade}), 0 0 4px rgba(200,230,255,${0.9 * fade})`,
+                  animation: "gemPulse 0.4s infinite",
+                }} />
+              );
+            })}
+            <div style={{
+              position: "absolute",
+              left: (wo.cursorX / 100) * GAME_W - 25, top: (wo.cursorY / 100) * GAME_H - 25,
+              width: 50, height: 50, borderRadius: "50%", pointerEvents: "none", zIndex: 29,
+              border: `1px solid rgba(60,140,255,${0.2 * fade})`,
+              boxShadow: `inset 0 0 10px rgba(60,140,255,${0.1 * fade})`,
+            }} />
+          </>
+        );
+      })()}
 
       {/* Saber swipe trail */}
       {saberTrail.length > 1 && (() => {
@@ -6559,11 +6703,16 @@ export default function App() {
           const saber = SABERS.find(s => s.id === sid);
           if (!saber) return null;
           const isEquipped = equippedSaber === sid;
+          const r = saber.rarity;
+          const shimmerBg = r === "legendary" ? `linear-gradient(110deg, transparent 20%, rgba(255,215,0,0.15) 40%, rgba(255,255,180,0.25) 50%, rgba(255,215,0,0.15) 60%, transparent 80%)` : r === "epic" ? `linear-gradient(110deg, transparent 20%, ${saber.color}18 40%, ${saber.color}30 50%, ${saber.color}18 60%, transparent 80%)` : r === "rare" ? `linear-gradient(110deg, transparent 30%, ${saber.color}10 45%, ${saber.color}20 50%, ${saber.color}10 55%, transparent 70%)` : "none";
+          const shimmerAnim = r === "legendary" ? "saberShimmerLegendary 3s ease infinite" : r === "epic" ? "saberShimmerEpic 4s ease infinite" : r === "rare" ? "saberShimmerRare 5s ease infinite" : "none";
+          const boxGlow = r === "legendary" ? `0 0 12px ${saber.color}40, inset 0 0 12px ${saber.color}15` : r === "epic" ? `0 0 8px ${saber.color}30, inset 0 0 8px ${saber.color}10` : r === "rare" ? `0 0 4px ${saber.color}20` : "none";
+          const borderCol = isEquipped ? saber.color + "80" : r === "legendary" ? "#ffd70060" : r === "epic" ? saber.color + "50" : r === "rare" ? saber.color + "30" : "#2a2a2a";
           return (
-            <div key={sid} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", marginBottom: 4, border: `1px solid ${isEquipped ? saber.color + "60" : "#2a2a2a"}`, background: isEquipped ? `${saber.color}10` : "transparent" }}>
-              <span style={{ filter: isEquipped ? `drop-shadow(0 0 4px ${saber.color}66)` : "none" }}><Icon name={saber.icon} size={22} /></span>
+            <div key={sid} style={{ position: "relative", overflow: "hidden", display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", marginBottom: 4, border: `1px solid ${borderCol}`, background: isEquipped ? `${saber.color}10` : "transparent", boxShadow: boxGlow, backgroundImage: shimmerBg, backgroundSize: "200% 100%", animation: shimmerAnim }}>
+              <span style={{ filter: isEquipped || r === "epic" || r === "legendary" ? `drop-shadow(0 0 ${r === "legendary" ? 6 : 4}px ${saber.color}${r === "legendary" ? "aa" : "66"})` : "none" }}><Icon name={saber.icon} size={22} /></span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: "bold", fontSize: 13, color: SABER_RARITY_COLOR[saber.rarity] || "#888" }}>{saber.name}</div>
+                <div style={{ fontWeight: "bold", fontSize: 13, color: SABER_RARITY_COLOR[saber.rarity] || "#888", textShadow: r === "legendary" ? `0 0 6px ${saber.color}60` : r === "epic" ? `0 0 4px ${saber.color}40` : "none" }}>{saber.name}</div>
                 <div style={{ fontSize: 10, color: "#666" }}>{saber.desc}</div>
                 <div style={{ fontSize: 11, color: "#888" }}>Dmg: <span style={{ color: saber.color }}>{saber.damage}</span></div>
               </div>
@@ -6575,6 +6724,21 @@ export default function App() {
             </div>
           );
         })}
+        {/* Wand section */}
+        {hasWand && (
+          <>
+            <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#4080ff", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #1a2a4a", paddingBottom: 4 }}><Icon name="lightning" size={15} /> Różdżka</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", marginBottom: 4, border: "1px solid #2a3a5a", background: "rgba(40,80,200,0.08)", backgroundImage: "linear-gradient(110deg, transparent 20%, rgba(64,128,255,0.08) 40%, rgba(128,192,255,0.15) 50%, rgba(64,128,255,0.08) 60%, transparent 80%)", backgroundSize: "200% 100%", animation: "saberShimmerEpic 4s ease infinite", boxShadow: "0 0 6px rgba(64,128,255,0.2)", overflow: "hidden", position: "relative" }}>
+              <span style={{ filter: "drop-shadow(0 0 5px rgba(64,128,255,0.7))" }}><Icon name="lightning" size={22} /></span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: "bold", fontSize: 13, color: "#4080ff", textShadow: "0 0 4px rgba(64,128,255,0.4)" }}>Różdżka Burzy</div>
+                <div style={{ fontSize: 10, color: "#5577aa" }}>3 kule piorunów wokół kursora (10 dmg)</div>
+                <div style={{ fontSize: 11, color: "#888" }}>Koszt: 5 prochu | Czas: 8s</div>
+              </div>
+              <span style={{ color: "#4080ff", fontWeight: "bold", fontSize: 11 }}>Wyposażona</span>
+            </div>
+          </>
+        )}
       </SidePanel>
 
       {/* SHOP PANEL */}
@@ -6642,9 +6806,13 @@ export default function App() {
           const equipped = equippedSaber === saber.id;
           const priceCopper = saber.price * 100;
           const canAfford = totalCopper(money) >= priceCopper;
+          const sr = saber.rarity;
+          const shopShimmer = sr === "legendary" ? `linear-gradient(110deg, transparent 20%, rgba(255,215,0,0.12) 40%, rgba(255,255,180,0.2) 50%, rgba(255,215,0,0.12) 60%, transparent 80%)` : sr === "epic" ? `linear-gradient(110deg, transparent 20%, ${saber.color}14 40%, ${saber.color}25 50%, ${saber.color}14 60%, transparent 80%)` : sr === "rare" ? `linear-gradient(110deg, transparent 30%, ${saber.color}0a 45%, ${saber.color}18 50%, ${saber.color}0a 55%, transparent 70%)` : "none";
+          const shopAnim = sr === "legendary" ? "saberShimmerLegendary 3s ease infinite" : sr === "epic" ? "saberShimmerEpic 4s ease infinite" : sr === "rare" ? "saberShimmerRare 5s ease infinite" : "none";
+          const shopGlow = sr === "legendary" ? `0 0 10px ${saber.color}35` : sr === "epic" ? `0 0 6px ${saber.color}25` : "none";
           return (
-            <div key={saber.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: `2px solid ${owned ? (equipped ? saber.color + "60" : "#2a3a1a") : "#2a1e14"}`, marginBottom: 6, background: equipped ? `${saber.color}10` : owned ? "rgba(40,80,20,0.08)" : "rgba(255,255,255,0.02)" }}>
-              <span style={{ filter: `drop-shadow(0 0 4px ${saber.color}66)` }}><Icon name={saber.icon} size={28} /></span>
+            <div key={saber.id} style={{ position: "relative", overflow: "hidden", display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: `2px solid ${owned ? (equipped ? saber.color + "60" : "#2a3a1a") : "#2a1e14"}`, marginBottom: 6, background: equipped ? `${saber.color}10` : owned ? "rgba(40,80,20,0.08)" : "rgba(255,255,255,0.02)", backgroundImage: shopShimmer, backgroundSize: "200% 100%", animation: shopAnim, boxShadow: shopGlow }}>
+              <span style={{ filter: `drop-shadow(0 0 ${sr === "legendary" ? 6 : 4}px ${saber.color}${sr === "legendary" ? "aa" : "66"})` }}><Icon name={saber.icon} size={28} /></span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: "bold", fontSize: 14, color: SABER_RARITY_COLOR[saber.rarity] || "#888" }}>{saber.name}</div>
                 <div style={{ fontSize: 11, color: "#777" }}>{saber.desc}</div>
@@ -6660,6 +6828,28 @@ export default function App() {
             </div>
           );
         })}
+
+        {/* Magic Wand */}
+        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#4080ff", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #1a2a4a", paddingBottom: 4 }}><Icon name="lightning" size={15} /> Magiczne Przedmioty</h3>
+        {(() => {
+          const wandPrice = { silver: 5 };
+          const canAffordWand = totalCopper(money) >= totalCopper(wandPrice);
+          return (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: `2px solid ${hasWand ? "#1a3a6a" : "#2a1e14"}`, marginBottom: 6, background: hasWand ? "rgba(40,80,200,0.08)" : "rgba(255,255,255,0.02)", backgroundImage: hasWand ? "none" : "linear-gradient(110deg, transparent 20%, rgba(64,128,255,0.08) 40%, rgba(128,192,255,0.15) 50%, rgba(64,128,255,0.08) 60%, transparent 80%)", backgroundSize: "200% 100%", animation: hasWand ? "none" : "saberShimmerEpic 4s ease infinite", boxShadow: hasWand ? "none" : "0 0 6px rgba(64,128,255,0.2)" }}>
+              <span style={{ filter: "drop-shadow(0 0 5px rgba(64,128,255,0.7))" }}><Icon name="lightning" size={28} /></span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: "bold", fontSize: 14, color: "#4080ff" }}>Różdżka Burzy</div>
+                <div style={{ fontSize: 11, color: "#5577aa" }}>3 kule piorunów krążą wokół kursora zadając 10 obrażeń</div>
+                <div style={{ fontSize: 12, color: "#888" }}><Icon name="silver" size={12} /> 5</div>
+              </div>
+              {hasWand ? (
+                <span style={{ color: "#4080ff", fontWeight: "bold", fontSize: 12 }}>Posiadasz</span>
+              ) : (
+                <button onClick={() => { if (!canAffordWand) return; sfxBuy(); setMoney(copperToMoney(totalCopper(money) - totalCopper(wandPrice))); setHasWand(true); setLearnedSpells(prev => prev.includes("wand") ? prev : [...prev, "wand"]); showMessage("Kupiono Różdżkę Burzy! Nowy skill dostępny!", "#4080ff"); }} disabled={!canAffordWand} style={{ background: "none", border: `2px solid ${canAffordWand ? "#4080ff" : "#333"}`, color: canAffordWand ? "#4080ff" : "#555", fontSize: 13, padding: "3px 10px", cursor: canAffordWand ? "pointer" : "not-allowed", fontWeight: "bold" }}>Kup</button>
+              )}
+            </div>
+          );
+        })()}
 
         <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#d4a030", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="coin" size={15} /> Sprzedaż skarbów</h3>
         {inventory.length > 0 && (
@@ -7422,6 +7612,10 @@ export default function App() {
         @keyframes screenShake{0%{transform:translate(-1px,-0.5px)}25%{transform:translate(1px,0.5px)}50%{transform:translate(-0.5px,1px)}75%{transform:translate(0.5px,-1px)}100%{transform:translate(-0.5px,0.5px)}}
         @keyframes meteorFlash{0%{opacity:1}100%{opacity:0}}
         @keyframes cardLogSlide{0%{opacity:0;transform:translateX(40px)}100%{opacity:1;transform:translateX(0)}}
+        @keyframes saberShimmerRare{0%{background-position:200% 50%}100%{background-position:-200% 50%}}
+        @keyframes saberShimmerEpic{0%{background-position:200% 50%;filter:brightness(1)}50%{filter:brightness(1.15)}100%{background-position:-200% 50%;filter:brightness(1)}}
+        @keyframes saberShimmerLegendary{0%{background-position:200% 50%;filter:brightness(1) drop-shadow(0 0 3px rgba(255,215,0,0.4))}25%{filter:brightness(1.2) drop-shadow(0 0 8px rgba(255,215,0,0.7))}50%{background-position:0% 50%;filter:brightness(1.1) drop-shadow(0 0 5px rgba(255,215,0,0.5))}100%{background-position:-200% 50%;filter:brightness(1) drop-shadow(0 0 3px rgba(255,215,0,0.4))}}
+        @keyframes saberSparkle{0%,100%{opacity:0;transform:scale(0)}50%{opacity:1;transform:scale(1)}}
         @keyframes eventAppear{0%{opacity:0;transform:scale(0.85) translateY(20px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes comboFlash{0%{opacity:0.5}100%{opacity:0}}
         @keyframes comboAppear{0%{opacity:0;transform:translateX(-50%) scale(0.7) translateY(20px)}40%{opacity:1;transform:translateX(-50%) scale(1.05) translateY(0)}100%{opacity:1;transform:translateX(-50%) scale(1) translateY(0)}}

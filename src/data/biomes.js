@@ -25,4 +25,6 @@ export const BIOMES = [
     fx: { waves: true, wind: 0.3, sunsetGlow: true, fireflies: true }, terrain: "forest" },
   { id: "bamboo_falls", name: "Bambusowy Wodospad", icon: "herb", skyTop: "#1a4a20", skyBot: "#40a050", groundCol: "#1a5a30", groundBot: "#104a20", fogCol: "rgba(40,160,80,0.10)", renderFn: "bamboo_falls", scatter: ["herb","leaf","water","herb","flower","leaf","herb","water"],
     fx: { rain: 0.15, leaves: true, wind: 0.2, fireflies: true, waterfall: true }, terrain: "forest" },
+  { id: "blue_lagoon", name: "Błękitna Laguna", icon: "water", skyTop: "#0a3a6a", skyBot: "#40b8e8", groundCol: "#1abcbc", groundBot: "#0a7a9a", fogCol: "rgba(80,200,240,0.06)", renderFn: "blue_lagoon", scatter: ["palm","water","flower","star","palm","water","flower","anchor"],
+    fx: { waves: true, wind: 0.3, waterfall: true, fireflies: true }, terrain: "forest" },
 ];
