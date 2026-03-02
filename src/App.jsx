@@ -125,6 +125,8 @@ const AMMO_DROP_TABLE = [
   { type: "dynamite", chance: 0.12, amount: 1 },
   { type: "harpoon", chance: 0.10, amount: 1 },
   { type: "cannonball", chance: 0.06, amount: 1 },
+  { type: "rum", chance: 0.08, amount: 1 },
+  { type: "chain", chance: 0.06, amount: 1 },
 ];
 
 export default function App() {
@@ -225,8 +227,8 @@ export default function App() {
 
   // Mana & spell system
   const [mana, setMana] = useState(50);
-  const [ammo, setAmmo] = useState({ dynamite: 5, harpoon: 5, cannonball: 3 });
-  const ammoRef = useRef({ dynamite: 5, harpoon: 5, cannonball: 3 });
+  const [ammo, setAmmo] = useState({ dynamite: 5, harpoon: 5, cannonball: 3, rum: 3, chain: 3 });
+  const ammoRef = useRef({ dynamite: 5, harpoon: 5, cannonball: 3, rum: 3, chain: 3 });
   ammoRef.current = ammo;
   const [cooldowns, setCooldowns] = useState({});
   const [selectedSpell, setSelectedSpell] = useState(null);
@@ -751,10 +753,11 @@ export default function App() {
         rollAmmoDrop();
         // Archer passive: ammo_drop — 15% chance for bonus ammo on kill
         if (fw && fw.mercType === "archer" && Math.random() < 0.15) {
-          const ammoTypes = ["dynamite", "harpoon", "cannonball"];
+          const ammoTypes = ["dynamite", "harpoon", "cannonball", "rum", "chain"];
           const dropType = ammoTypes[Math.floor(Math.random() * ammoTypes.length)];
           setAmmo(prev => ({ ...prev, [dropType]: (prev[dropType] || 0) + 1 }));
-          spawnDmgPopup(friendlyId, `+1 ${dropType === "dynamite" ? "dyn" : dropType === "harpoon" ? "harp" : "kula"}`, "#60a050");
+          const ammoShort = { dynamite: "dyn", harpoon: "harp", cannonball: "kula", rum: "rum", chain: "łańc" };
+          spawnDmgPopup(friendlyId, `+1 ${ammoShort[dropType] || dropType}`, "#60a050");
         }
         // XP + streak on merc kill
         const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
@@ -1973,6 +1976,8 @@ export default function App() {
           { type: "dynamite", min: 2, max: 5 },
           { type: "harpoon", min: 2, max: 5 },
           { type: "cannonball", min: 1, max: 3 },
+          { type: "rum", min: 2, max: 4 },
+          { type: "chain", min: 1, max: 3 },
         ];
         const pick = ammoTypes[Math.floor(Math.random() * ammoTypes.length)];
         const amount = pick.min + Math.floor(Math.random() * (pick.max - pick.min + 1));
@@ -2000,6 +2005,8 @@ export default function App() {
       spring:   ["flower_patch", "beehive", "stone_bridge", "well"],
       mushroom: ["crystal_cluster", "giant_mushroom", "web_wall", "stalactite"],
       swamp:    ["quicksand", "dead_tree", "fog_pool", "lily_pad"],
+      sunset_beach: ["driftwood", "tide_pool", "shipwreck", "anchor_post"],
+      bamboo_falls: ["moss_boulder", "fallen_log", "vine_wall", "flower_patch"],
     };
     const biomeObstacles = OBSTACLE_VARIANTS[bid] || OBSTACLE_VARIANTS.desert;
     const newObstacles = [];
@@ -2007,7 +2014,7 @@ export default function App() {
       const obsCount = 2 + Math.floor(Math.random() * 3); // 2-4 obstacles per room
       for (let i = 0; i < obsCount; i++) {
         const ox = 5 + Math.random() * 85;
-        const oy = 8 + Math.random() * 6; // bottom offset
+        const oy = 10 + Math.random() * 55; // spread across full NPC walking area
         const obsType = biomeObstacles[Math.floor(Math.random() * biomeObstacles.length)];
         newObstacles.push({ id: i, type: obsType, x: ox, y: oy, biomeId: bid });
       }
@@ -2870,6 +2877,8 @@ export default function App() {
     setJournal({ biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
     setOwnedArtifacts([]); setTotalDiscoveries(0); setSecretRoom(null); setShowJournal(false);
     walkDataRef.current = {};
+    if (pixiRef.current) pixiRef.current.clearNpcs();
+    if (physicsRef.current) physicsRef.current.clear();
     setGameOverStats(null);
     localStorage.removeItem("wrota_save");
     setScreen("game"); enterRoom(1, []); startMusic();
@@ -2937,7 +2946,7 @@ export default function App() {
       }
       setKnowledgeUpgrades(s.knowledgeUpgrades || { manaPool: 0, spellPower: 0, manaRegen: 0 });
       setBossesDefeated(s.bossesDefeated || 0);
-      setAmmo(s.ammo || { dynamite: 5, harpoon: 5, cannonball: 3 });
+      setAmmo(s.ammo || { dynamite: 5, harpoon: 5, cannonball: 3, rum: 3, chain: 3 });
       setMana(s.mana || 50);
       // New systems
       if (s.activeSynergies) {
@@ -3412,7 +3421,7 @@ export default function App() {
     const ammoType = wizardPoi.ammoType;
     const ammoAmount = wizardPoi.ammoAmount;
     setAmmo(prev => ({ ...prev, [ammoType]: (prev[ammoType] || 0) + ammoAmount }));
-    const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
+    const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich", rum: "rumu", chain: "łańcuchów" };
     showMessage(`+${ammoAmount} ${ammoNames[ammoType] || ammoType}!`, "#e0a040");
     setWizardPoi(null);
   };
@@ -3696,7 +3705,7 @@ export default function App() {
   const castSkillshot = useCallback((spell, targetPx, targetPy) => {
     if (!canCastSpell(spell)) {
       if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
-        const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
+        const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich", rum: "rumu", chain: "łańcuchów" };
         showMessage(`Brak ${ammoNames[spell.ammoCost.type] || "amunicji"}!`, "#c04040");
       } else if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
       else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
@@ -3822,14 +3831,6 @@ export default function App() {
 
   // ─── DEFENSE TRAP: Place a player trap during setup phase ───
   const placeDefenseTrap = useCallback((trapCfg, clickX, clickY) => {
-    // Check if we can afford it
-    const costType = Object.keys(trapCfg.cost)[0];
-    const costAmt = trapCfg.cost[costType];
-    if ((ammoRef.current[costType] || 0) < costAmt) {
-      const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
-      showMessage(`Brak ${ammoNames[costType] || costType}!`, "#c04040");
-      return;
-    }
     // Check max count
     const existing = playerTrapsRef.current.filter(t => t.trapType === trapCfg.id);
     if (existing.length >= trapCfg.maxCount) {
@@ -3840,8 +3841,6 @@ export default function App() {
       showMessage(`Max ${MAX_PLAYER_TRAPS} pułapek!`, "#c08040");
       return;
     }
-    // Spend ammo
-    setAmmo(prev => ({ ...prev, [costType]: (prev[costType] || 0) - costAmt }));
     // Convert click position to percentage
     const xPct = (clickX / GAME_W) * 100;
     const yPct = (clickY / GAME_H) * 100;
@@ -3889,7 +3888,7 @@ export default function App() {
   const castSpellOnTarget = useCallback((spell, walker) => {
     if (!canCastSpell(spell)) {
       if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
-        const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
+        const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich", rum: "rumu", chain: "łańcuchów" };
         showMessage(`Brak ${ammoNames[spell.ammoCost.type] || "amunicji"}!`, "#c04040");
       } else if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
       else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
@@ -4107,7 +4106,7 @@ export default function App() {
   const castAoeSpell = useCallback((spell) => {
     if (!canCastSpell(spell)) {
       if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) {
-        const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich" };
+        const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul armatnich", rum: "rumu", chain: "łańcuchów" };
         showMessage(`Brak ${ammoNames[spell.ammoCost.type] || "amunicji"}!`, "#c04040");
       } else if (mana < spell.manaCost) showMessage("Za mało prochu!", "#c0a060");
       else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
@@ -4506,7 +4505,7 @@ export default function App() {
     for (const drop of AMMO_DROP_TABLE) {
       if (Math.random() < drop.chance) {
         setAmmo(prev => ({ ...prev, [drop.type]: (prev[drop.type] || 0) + drop.amount }));
-        const ammoLabels = { dynamite: "Dynamit", harpoon: "Harpun", cannonball: "Kula armatnia" };
+        const ammoLabels = { dynamite: "Dynamit", harpoon: "Harpun", cannonball: "Kula armatnia", rum: "Rum", chain: "Łańcuch" };
         showMessage(`+${drop.amount} ${ammoLabels[drop.type]}!`, "#e0a040");
         return;
       }
@@ -5381,8 +5380,8 @@ export default function App() {
 
       {/* ─── ARSENAL TENT POI ─── */}
       {wizardPoi && (() => {
-        const ammoIcons = { dynamite: "dynamite", harpoon: "harpoon", cannonball: "cannon" };
-        const ammoNames = { dynamite: "Dynamit", harpoon: "Harpuny", cannonball: "Kule armatnie" };
+        const ammoIcons = { dynamite: "dynamite", harpoon: "harpoon", cannonball: "cannon", rum: "rum", chain: "ricochet" };
+        const ammoNames = { dynamite: "Dynamit", harpoon: "Harpuny", cannonball: "Kule armatnie", rum: "Rum", chain: "Łańcuchy" };
         const ammoIcon = ammoIcons[wizardPoi.ammoType] || "dynamite";
         return (
           <div style={{
@@ -6147,7 +6146,7 @@ export default function App() {
         })}
 
         <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#e0a040", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #3a2a18", paddingBottom: 4 }}><Icon name="dynamite" size={15} /> Amunicja</h3>
-        <div style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>Posiadasz: <Icon name="dynamite" size={12} /> {ammo.dynamite} | <Icon name="harpoon" size={12} /> {ammo.harpoon} | <Icon name="cannon" size={12} /> {ammo.cannonball}</div>
+        <div style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>Posiadasz: <Icon name="dynamite" size={12} /> {ammo.dynamite} | <Icon name="harpoon" size={12} /> {ammo.harpoon} | <Icon name="cannon" size={12} /> {ammo.cannonball} | <Icon name="rum" size={12} /> {ammo.rum} | <Icon name="ricochet" size={12} /> {ammo.chain}</div>
         {AMMO_ITEMS.map(item => {
           const canAfford = totalCopper(money) >= totalCopper(item.cost);
           return (
