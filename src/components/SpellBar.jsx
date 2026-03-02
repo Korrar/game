@@ -19,7 +19,7 @@ if (typeof document !== "undefined" && !document.getElementById(ACTIVE_GLOW_STYL
 }
 
 // Primary spells always shown in main bar
-const PRIMARY_IDS = ["saber", "lightning"];
+const PRIMARY_IDS = ["saber", "lightning", "wand"];
 
 // Which spells are available to show
 function getVisibleSpells(ammo, learnedIds) {
@@ -100,15 +100,15 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       if (e.key === "Escape") setInneOpen(false);
       const num = parseInt(e.key);
-      if (num === 1 || num === 2) {
+      if (num >= 1 && num <= PRIMARY_IDS.length) {
         e.preventDefault();
-        const spell = PRIMARY_IDS[num - 1] ? SPELLS.find(s => s.id === PRIMARY_IDS[num - 1]) : null;
+        const spell = SPELLS.find(s => s.id === PRIMARY_IDS[num - 1]);
         if (spell) onSelect(spell.id);
       }
-      if (num >= 3) {
+      if (num > PRIMARY_IDS.length) {
         e.preventDefault();
         const secondary = getVisibleSpells(ammo, learnedSpells).filter(s => !PRIMARY_IDS.includes(s.id));
-        if (secondary[num - 3]) onSelect(secondary[num - 3].id);
+        if (secondary[num - PRIMARY_IDS.length - 1]) onSelect(secondary[num - PRIMARY_IDS.length - 1].id);
       }
     };
     window.addEventListener("keydown", handleKey);
@@ -195,7 +195,7 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
             maxWidth: "90vw",
             boxShadow: "0 -4px 16px rgba(0,0,0,0.7)",
           }}>
-            {secondarySpells.map((spell, i) => renderSlot(spell, `${i + 3}`))}
+            {secondarySpells.map((spell, i) => renderSlot(spell, `${i + PRIMARY_IDS.length + 1}`))}
           </div>
         )}
       </div>
@@ -263,7 +263,7 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
           <div style={{ width: "100%", textAlign: "center", fontSize: 11, color: "#8a7040", fontWeight: "bold", marginBottom: 4, borderBottom: "1px solid #2a1808", paddingBottom: 4 }}>
             INNE UMIEJĘTNOŚCI
           </div>
-          {secondarySpells.map((spell, i) => renderSlot(spell, `${i + 3}`))}
+          {secondarySpells.map((spell, i) => renderSlot(spell, `${i + PRIMARY_IDS.length + 1}`))}
         </div>
       )}
     </div>
