@@ -84,6 +84,13 @@ export const BIOME_NPCS = {
     { icon: "water", name: "Duch Wodospadu", hp: 48, resist: "ice", loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#40a0b0", armorColor: "#207080", bodyType: "floating", ability: { type: "iceShot", damage: 9, cooldown: 4000, element: "ice", range: 24 } },
     { icon: "skull", name: "Jaszczurka Szmaragdowa", hp: 35, resist: null, loot: { copper: 12 }, rarity: "uncommon", bodyColor: "#30b060", armorColor: "#208040", bodyType: "serpent", ability: null },
   ],
+  blue_lagoon: [
+    { icon: "skull", name: "Turkusowy Krab", hp: 26, resist: "ice", loot: { copper: 8 }, rarity: "common", bodyColor: "#20a0a0", armorColor: "#107070", bodyType: "spider", ability: null },
+    { icon: "water", name: "Syrena Laguny", hp: 45, resist: "ice", loot: { copper: 18 }, rarity: "rare", bodyColor: "#60b0c0", armorColor: "#308090", bodyType: "floating", ability: { type: "iceShot", damage: 9, cooldown: 4500, element: "ice", range: 24 } },
+    { icon: "pirate", name: "Pirat Rozbitek", hp: 38, resist: null, loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#a08060", armorColor: "#604030", bodyType: "humanoid", ability: { type: "charge", damage: 10, cooldown: 5000, element: null, range: 22 } },
+    { icon: "skull", name: "Morski Wąż", hp: 32, resist: "ice", loot: { copper: 11 }, rarity: "uncommon", bodyColor: "#30a080", armorColor: "#207060", bodyType: "serpent", ability: { type: "poisonSpit", damage: 7, cooldown: 4000, element: "shadow", range: 20 } },
+    { icon: "skull", name: "Jadowita Ryba", hp: 20, resist: "ice", loot: { copper: 6 }, rarity: "common", bodyColor: "#e08040", armorColor: "#b06030", bodyType: "frog", ability: { type: "poisonSpit", damage: 6, cooldown: 3500, element: "shadow", range: 18 } },
+  ],
   meteor: [
     { icon: "meteor", name: "Ognisty Strażnik", hp: 80, resist: "fire", loot: { silver: 2 }, rarity: "epic", bodyColor: "#8a4020", armorColor: "#5a2010", bodyType: "floating", ability: { type: "fireBreath", damage: 14, cooldown: 4500, element: "fire", range: 22 } },
     { icon: "skull", name: "Kościany Strażnik", hp: 60, resist: null, loot: { silver: 1, copper: 20 }, rarity: "rare", bodyColor: "#2a2040", armorColor: "#6040a0", bodyType: "humanoid", ability: { type: "shadowBolt", damage: 10, cooldown: 4000, element: "shadow", range: 28 } },
@@ -109,6 +116,7 @@ export const SPELLS = [
   { id: "chainlightning", icon: "ricochet", name: "Rykoszet",   color: "#e0e040", colorLight: "#ffff80", desc: "Kula odbija się między wrogami (celuj w pierwszego!)",                manaCost: 0, cooldown: 6000, damage: 30, element: "lightning", learned: false, aoe: true, skillshot: true, ammoCost: { type: "chain", amount: 2 } },
   { id: "earthquake", icon: "mine", name: "Mina Wybuchowa",  color: "#8a6030", colorLight: "#c0a060", desc: "Postaw minę — eksploduje gdy wróg nadejdzie (celuj w ziemię!)",           manaCost: 0, cooldown: 7000, damage: 45, element: "holy", learned: false, aoe: true, skillshot: true, ammoCost: { type: "dynamite", amount: 2 } },
   { id: "saber",      icon: "swords", name: "Szabla",           color: "#c0c0c0", colorLight: "#f0f0f0", desc: "Przeciągnij przez wrogów jak w Fruit Ninja!",                          manaCost: 0, cooldown: 300,  damage: 10, element: null, learned: true, skillshot: true, isSaber: true },
+  { id: "wand",       icon: "lightning", name: "Różdżka Burzy",  color: "#4080ff", colorLight: "#80c0ff", desc: "3 kule piorunów krążą wokół kursora zadając 10 obrażeń!",              manaCost: 5, cooldown: 12000, damage: 10, element: "lightning", learned: false, skillshot: false, isWand: true },
 ];
 
 // Resistance labels for messages

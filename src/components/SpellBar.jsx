@@ -22,9 +22,10 @@ if (typeof document !== "undefined" && !document.getElementById(ACTIVE_GLOW_STYL
 const PRIMARY_IDS = ["saber", "lightning"];
 
 // Which spells are available to show
-function getVisibleSpells(ammo) {
+function getVisibleSpells(ammo, learnedIds) {
   return SPELLS.filter(s => {
     if (s.learned) return true;
+    if (learnedIds && learnedIds.includes(s.id)) return true;
     if (s.ammoCost && ammo && (ammo[s.ammoCost.type] || 0) > 0) return true;
     return false;
   });
@@ -106,7 +107,7 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
       }
       if (num >= 3) {
         e.preventDefault();
-        const secondary = getVisibleSpells(ammo).filter(s => !PRIMARY_IDS.includes(s.id));
+        const secondary = getVisibleSpells(ammo, learnedSpells).filter(s => !PRIMARY_IDS.includes(s.id));
         if (secondary[num - 3]) onSelect(secondary[num - 3].id);
       }
     };
@@ -115,7 +116,7 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
   }, [ammo, onSelect, m]);
 
   const now = Date.now();
-  const visibleSpells = getVisibleSpells(ammo);
+  const visibleSpells = getVisibleSpells(ammo, learnedSpells);
   const primarySpells = PRIMARY_IDS.map(id => visibleSpells.find(s => s.id === id)).filter(Boolean);
   const secondarySpells = visibleSpells.filter(s => !PRIMARY_IDS.includes(s.id));
 

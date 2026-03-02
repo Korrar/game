@@ -50,7 +50,7 @@ export function renderBiome(ctx, biome, room, W, H, isNight) {
   }
 
   // Biome-specific
-  const fns = { jungle: drawJungle, island: drawIsland, desert: drawDesert, winter: drawWinter, city: drawCity, volcano: drawVolcano, summer: drawSummer, autumn: drawAutumn, spring: drawSpring, mushroom: drawMushroom, swamp: drawSwamp, sunset_beach: drawSunsetBeach, bamboo_falls: drawBambooFalls };
+  const fns = { jungle: drawJungle, island: drawIsland, desert: drawDesert, winter: drawWinter, city: drawCity, volcano: drawVolcano, summer: drawSummer, autumn: drawAutumn, spring: drawSpring, mushroom: drawMushroom, swamp: drawSwamp, sunset_beach: drawSunsetBeach, bamboo_falls: drawBambooFalls, blue_lagoon: drawBlueLagoon };
   if (fns[biome.renderFn]) fns[biome.renderFn](ctx, W, H, GY, rng);
 
   // Scatter
@@ -787,5 +787,267 @@ function drawBambooFalls(ctx, W, H, GY, r) {
   forestMist.addColorStop(0, "rgba(40,160,80,0.04)");
   forestMist.addColorStop(1, "transparent");
   ctx.fillStyle = forestMist;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// ─── BLUE LAGOON (Błękitna Laguna) ───
+// Tropical paradise with turquoise water, palm trees, mountains, waterfall, sandy beach
+function drawBlueLagoon(ctx, W, H, GY, r) {
+  // --- Tropical sky gradient ---
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, GY);
+  skyGrad.addColorStop(0, "#041830");
+  skyGrad.addColorStop(0.2, "#0a4a80");
+  skyGrad.addColorStop(0.5, "#1580c0");
+  skyGrad.addColorStop(0.75, "#30a8e0");
+  skyGrad.addColorStop(1, "#60d0f0");
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, W, GY);
+
+  // --- Wispy clouds ---
+  for (let i = 0; i < 6; i++) {
+    const cx = r() * W, cy = GY * (0.1 + r() * 0.4);
+    const cw = 50 + r() * 120, ch = 8 + r() * 14;
+    ctx.fillStyle = `rgba(255,255,255,${0.08 + r() * 0.12})`;
+    ctx.beginPath(); ctx.ellipse(cx, cy, cw, ch, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(255,255,255,${0.04 + r() * 0.06})`;
+    ctx.beginPath(); ctx.ellipse(cx + cw * 0.3, cy - ch * 0.2, cw * 0.6, ch * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // --- Distant mountain range (lush green, misty) ---
+  for (let layer = 0; layer < 3; layer++) {
+    const baseY = GY - 5 + layer * 8;
+    const alpha = 0.3 + layer * 0.15;
+    const hue = 160 + layer * 15;
+    const lum = 18 + layer * 8;
+    ctx.fillStyle = `hsla(${hue},50%,${lum}%,${alpha})`;
+    ctx.beginPath();
+    ctx.moveTo(0, baseY + 40);
+    for (let x = 0; x <= W; x += 12) {
+      const peak = Math.sin(x * 0.004 + layer * 2.5) * (50 + layer * 15) + Math.sin(x * 0.012 + layer) * 18;
+      ctx.lineTo(x, baseY - peak - 20 + layer * 30);
+    }
+    ctx.lineTo(W, GY + 20); ctx.lineTo(0, GY + 20);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // --- Mountain mist overlay ---
+  const mistGrad = ctx.createLinearGradient(0, GY - 60, 0, GY + 10);
+  mistGrad.addColorStop(0, "rgba(80,200,220,0.08)");
+  mistGrad.addColorStop(1, "rgba(80,200,220,0)");
+  ctx.fillStyle = mistGrad;
+  ctx.fillRect(0, GY - 60, W, 70);
+
+  // --- Waterfall from mountain (left side) ---
+  const fallX = W * 0.18 + r() * 20;
+  const fallW = 22 + r() * 12;
+  const fallTop = GY - 50;
+  const fallBot = GY + (H - GY) * 0.35;
+
+  // Rock cliff behind waterfall
+  ctx.fillStyle = "#2a5a40";
+  ctx.beginPath();
+  ctx.moveTo(fallX - fallW * 1.5, fallTop);
+  ctx.lineTo(fallX + fallW * 1.5, fallTop + 5);
+  ctx.lineTo(fallX + fallW * 1.8, fallBot + 10);
+  ctx.lineTo(fallX - fallW * 1.8, fallBot + 5);
+  ctx.closePath(); ctx.fill();
+  // Moss on rocks
+  ctx.fillStyle = "rgba(40,140,60,0.35)";
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath(); ctx.ellipse(fallX + (r() - 0.5) * fallW * 2, fallTop + r() * (fallBot - fallTop) * 0.7, 5 + r() * 10, 3 + r() * 5, r(), 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Waterfall stream
+  const fallGrad = ctx.createLinearGradient(fallX, fallTop, fallX, fallBot);
+  fallGrad.addColorStop(0, "rgba(180,240,255,0.7)");
+  fallGrad.addColorStop(0.4, "rgba(100,210,240,0.6)");
+  fallGrad.addColorStop(1, "rgba(140,230,250,0.5)");
+  ctx.fillStyle = fallGrad;
+  ctx.beginPath();
+  ctx.moveTo(fallX - fallW * 0.35, fallTop);
+  ctx.quadraticCurveTo(fallX - fallW * 0.45, (fallTop + fallBot) * 0.5, fallX - fallW * 0.5, fallBot);
+  ctx.lineTo(fallX + fallW * 0.5, fallBot);
+  ctx.quadraticCurveTo(fallX + fallW * 0.45, (fallTop + fallBot) * 0.5, fallX + fallW * 0.35, fallTop);
+  ctx.closePath(); ctx.fill();
+
+  // Waterfall streaks
+  ctx.strokeStyle = "rgba(220,250,255,0.2)"; ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i++) {
+    const sx = fallX - fallW * 0.25 + r() * fallW * 0.5;
+    ctx.beginPath(); ctx.moveTo(sx, fallTop + r() * 15);
+    ctx.lineTo(sx + (r() - 0.5) * 6, fallBot - r() * 10); ctx.stroke();
+  }
+
+  // Splash mist at waterfall base
+  for (let i = 0; i < 5; i++) {
+    const mx = fallX + (r() - 0.5) * fallW * 2;
+    const my = fallBot + r() * 12;
+    const mr = 8 + r() * 18;
+    const mist = ctx.createRadialGradient(mx, my, 0, mx, my, mr);
+    mist.addColorStop(0, `rgba(200,250,255,${0.1 + r() * 0.08})`);
+    mist.addColorStop(1, "transparent");
+    ctx.fillStyle = mist;
+    ctx.fillRect(mx - mr, my - mr, mr * 2, mr * 2);
+  }
+
+  // --- Turquoise lagoon water ---
+  const waterY = GY + (H - GY) * 0.25;
+  const waterGrad = ctx.createLinearGradient(0, waterY, 0, H);
+  waterGrad.addColorStop(0, "rgba(20,200,200,0.5)");
+  waterGrad.addColorStop(0.3, "rgba(10,160,180,0.55)");
+  waterGrad.addColorStop(0.6, "rgba(5,120,150,0.6)");
+  waterGrad.addColorStop(1, "rgba(0,80,120,0.7)");
+  ctx.fillStyle = waterGrad;
+  ctx.fillRect(0, waterY, W, H - waterY);
+
+  // Water sparkle highlights
+  ctx.fillStyle = "rgba(200,255,255,0.12)";
+  for (let i = 0; i < 20; i++) {
+    const sx = r() * W, sy = waterY + r() * (H - waterY) * 0.5;
+    ctx.beginPath(); ctx.arc(sx, sy, 0.8 + r() * 2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Wave lines on water
+  ctx.strokeStyle = "rgba(150,240,250,0.15)"; ctx.lineWidth = 1;
+  for (let row = 0; row < 8; row++) {
+    const y = waterY + 4 + row * 9;
+    ctx.beginPath();
+    for (let x = 0; x < W; x += 4) {
+      const yy = y + Math.sin(x * 0.02 + row * 2) * 2.5;
+      x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
+    }
+    ctx.stroke();
+  }
+
+  // --- Sandy beach area ---
+  const beachY = GY + 3;
+  const beachH = waterY - beachY;
+  const beachGrad = ctx.createLinearGradient(0, beachY, 0, waterY);
+  beachGrad.addColorStop(0, "rgba(230,210,160,0.35)");
+  beachGrad.addColorStop(0.7, "rgba(220,195,140,0.3)");
+  beachGrad.addColorStop(1, "rgba(180,160,110,0.25)");
+  ctx.fillStyle = beachGrad;
+  ctx.fillRect(0, beachY, W, beachH);
+
+  // Sand texture ripples
+  ctx.fillStyle = "rgba(190,160,80,0.1)";
+  for (let i = 0; i < 30; i++) {
+    const sx = r() * W, sy = beachY + r() * beachH;
+    ctx.beginPath(); ctx.ellipse(sx, sy, 6 + r() * 18, 1.2, r() * 0.3, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Shells on beach
+  for (let i = 0; i < 12; i++) {
+    const sx = r() * W, sy = beachY + 5 + r() * beachH * 0.8;
+    const hue = [35, 45, 350, 30][Math.floor(r() * 4)];
+    ctx.fillStyle = `hsla(${hue},${30 + r() * 30}%,${65 + r() * 20}%,${0.2 + r() * 0.15})`;
+    ctx.beginPath(); ctx.ellipse(sx, sy, 2 + r() * 3, 1.5 + r() * 2, r() * Math.PI, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // --- Lush palm trees ---
+  for (let i = 0; i < 6; i++) {
+    const px = 30 + r() * (W - 60);
+    const by = GY - 3 + r() * 10;
+    const h = 80 + r() * 110;
+    const lean = (r() - 0.4) * 30;
+    const depth = r();
+    ctx.globalAlpha = 0.5 + depth * 0.45;
+
+    // Trunk
+    ctx.lineWidth = 4 + depth * 4;
+    const trG = ctx.createLinearGradient(px, by, px + lean, by - h);
+    trG.addColorStop(0, "#6a4a20"); trG.addColorStop(1, "#4a3018");
+    ctx.strokeStyle = trG;
+    ctx.beginPath();
+    ctx.moveTo(px, by);
+    ctx.quadraticCurveTo(px + lean * 0.4, by - h * 0.5, px + lean, by - h);
+    ctx.stroke();
+
+    // Trunk ring texture
+    ctx.strokeStyle = "rgba(90,60,25,0.3)"; ctx.lineWidth = 1;
+    for (let t = 0; t < 5; t++) {
+      const tt = t / 5;
+      const rx = px + lean * 0.4 * tt + lean * 0.6 * tt * tt;
+      const ry = by - h * tt;
+      ctx.beginPath(); ctx.moveTo(rx - 3, ry); ctx.lineTo(rx + 3, ry); ctx.stroke();
+    }
+
+    // Coconuts
+    const topX = px + lean, topY = by - h;
+    ctx.fillStyle = "#5a3a12";
+    for (let c = 0; c < 2 + Math.floor(r()); c++) {
+      ctx.beginPath(); ctx.arc(topX + (r() - 0.5) * 8, topY + 4 + r() * 5, 2.5 + r() * 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Fronds
+    for (let f = 0; f < 8; f++) {
+      const angle = (f / 8) * Math.PI * 2 + r() * 0.5;
+      const frondLen = 30 + r() * 40;
+      const endX = topX + Math.cos(angle) * frondLen;
+      const endY = topY + Math.sin(angle) * frondLen * 0.45 + frondLen * 0.25;
+      const ctrlX = topX + Math.cos(angle) * frondLen * 0.6;
+      const ctrlY = topY + Math.sin(angle) * frondLen * 0.2 - 8;
+
+      ctx.strokeStyle = `hsl(${110 + r() * 25},${45 + r() * 20}%,${22 + depth * 12}%)`;
+      ctx.lineWidth = 2 + r();
+      ctx.beginPath(); ctx.moveTo(topX, topY);
+      ctx.quadraticCurveTo(ctrlX, ctrlY, endX, endY); ctx.stroke();
+
+      // Leaflets
+      for (let lf = 0; lf < 4; lf++) {
+        const lt = 0.25 + lf * 0.18;
+        const lx = topX + (endX - topX) * lt;
+        const ly = topY + (endY - topY) * lt;
+        const side = lf % 2 === 0 ? 1 : -1;
+        ctx.fillStyle = `hsl(${108 + r() * 20},${45 + r() * 15}%,${24 + depth * 10 + r() * 5}%)`;
+        ctx.beginPath();
+        ctx.ellipse(lx + side * 4, ly + 2, 7 + r() * 4, 2.2, angle + side * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // --- Tropical flowers and vegetation on beach ---
+  for (let i = 0; i < 10; i++) {
+    const fx = r() * W, fy = beachY + 3 + r() * beachH * 0.5;
+    const hue = [340, 35, 290, 10, 50][Math.floor(r() * 5)];
+    ctx.fillStyle = `hsl(${hue},70%,60%)`;
+    ctx.beginPath(); ctx.arc(fx, fy, 2 + r() * 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "hsl(50,80%,70%)";
+    ctx.beginPath(); ctx.arc(fx, fy, 0.8, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Green bush clusters on shore
+  for (let i = 0; i < 5; i++) {
+    const bx = r() * W, bby = GY - 2 + r() * 8;
+    for (let b = 0; b < 3; b++) {
+      ctx.fillStyle = `hsl(${115 + r() * 25},${45 + r() * 15}%,${20 + r() * 12}%)`;
+      ctx.beginPath(); ctx.ellipse(bx + (r() - 0.5) * 12, bby - r() * 10, 10 + r() * 12, 6 + r() * 8, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // --- Small rocky outcrop in water ---
+  const rockX = W * 0.72 + r() * 40;
+  const rockY = waterY + 15 + r() * 20;
+  ctx.fillStyle = "#3a5a4a";
+  ctx.beginPath(); ctx.ellipse(rockX, rockY, 18 + r() * 10, 10 + r() * 6, r() * 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(50,140,60,0.3)";
+  ctx.beginPath(); ctx.ellipse(rockX, rockY - 4, 12, 4, 0, Math.PI, Math.PI * 2); ctx.fill();
+
+  // --- Sun reflection on water ---
+  const sunX = W * 0.7, reflW = 25;
+  for (let i = 0; i < 8; i++) {
+    const ry = waterY + 3 + i * 7;
+    const rw = reflW - i * 1.5 + r() * 8;
+    ctx.fillStyle = `rgba(200,250,255,${Math.max(0.02, 0.2 - i * 0.02)})`;
+    ctx.fillRect(sunX - rw / 2 + (r() - 0.5) * 6, ry, rw, 2.5);
+  }
+
+  // --- Gentle tropical atmosphere glow ---
+  const tropGlow = ctx.createRadialGradient(W * 0.5, GY, 30, W * 0.5, GY, W * 0.6);
+  tropGlow.addColorStop(0, "rgba(100,220,240,0.04)");
+  tropGlow.addColorStop(1, "transparent");
+  ctx.fillStyle = tropGlow;
   ctx.fillRect(0, 0, W, H);
 }
