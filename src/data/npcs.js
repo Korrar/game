@@ -116,7 +116,7 @@ export const SPELLS = [
   { id: "chainlightning", icon: "ricochet", name: "Rykoszet",   color: "#e0e040", colorLight: "#ffff80", desc: "Kula odbija się między wrogami (celuj w pierwszego!)",                manaCost: 0, cooldown: 6000, damage: 30, element: "lightning", learned: false, aoe: true, skillshot: true, ammoCost: { type: "chain", amount: 2 } },
   { id: "earthquake", icon: "mine", name: "Mina Wybuchowa",  color: "#8a6030", colorLight: "#c0a060", desc: "Postaw minę — eksploduje gdy wróg nadejdzie (celuj w ziemię!)",           manaCost: 0, cooldown: 7000, damage: 45, element: "holy", learned: false, aoe: true, skillshot: true, ammoCost: { type: "dynamite", amount: 2 } },
   { id: "saber",      icon: "swords", name: "Szabla",           color: "#c0c0c0", colorLight: "#f0f0f0", desc: "Przeciągnij przez wrogów jak w Fruit Ninja!",                          manaCost: 0, cooldown: 300,  damage: 10, element: null, learned: true, skillshot: true, isSaber: true },
-  { id: "wand",       icon: "lightning", name: "Różdżka Burzy",  color: "#4080ff", colorLight: "#80c0ff", desc: "3 kule piorunów krążą wokół kursora zadając 10 obrażeń!",              manaCost: 5, cooldown: 12000, damage: 10, element: "lightning", learned: false, skillshot: false, isWand: true },
+  { id: "wand",       icon: "lightning", name: "Różdżka Burzy",  color: "#4080ff", colorLight: "#80c0ff", desc: "Trzymaj aby kule piorunów krążyły wokół kursora! Zbiera 1 proch/s.",  manaCost: 0, cooldown: 0,     damage: 10, element: "lightning", learned: false, skillshot: false, isWand: true, rarity: "legendary" },
 ];
 
 // Resistance labels for messages

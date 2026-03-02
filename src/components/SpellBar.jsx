@@ -35,39 +35,50 @@ function SpellSlot({ spell, isSelected, canCast, onCooldown, cdPct, cdEnd, now, 
   const isAoe = !!spell.aoe;
   const hasAmmo = !spell.ammoCost || (ammo && (ammo[spell.ammoCost.type] || 0) >= spell.ammoCost.amount);
   const isSummon = spell.id === "summon";
+  const isLegendary = spell.rarity === "legendary";
   const m = isMobile;
   const size = m ? 48 : 56;
+
+  const legendaryBorder = isLegendary ? `2px solid #ffd700` : `2px solid ${isSelected ? spell.color : spell.color + (m ? "30" : "35")}`;
+  const legendaryGlow = isLegendary
+    ? (isSelected ? `0 0 16px #ffd70088, 0 0 30px #ffd70044, inset 0 0 10px #ffd70033` : `0 0 8px #ffd70055, 0 0 16px #ffd70022, inset 0 0 6px rgba(0,0,0,0.3)`)
+    : (isSelected ? `0 0 16px ${spell.color}66, inset 0 0 10px ${spell.color}33` : "inset 0 0 6px rgba(0,0,0,0.3)");
+  const legendaryBg = isLegendary
+    ? (isSelected ? "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(10,6,4,0.7), rgba(255,215,0,0.1))" : "linear-gradient(135deg, rgba(255,215,0,0.06), rgba(10,6,4,0.6), rgba(255,215,0,0.04))")
+    : undefined;
 
   return (
     <div
       style={{
         position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         padding: m ? "3px 5px" : "5px 7px",
-        border: `2px solid ${isSelected ? spell.color : spell.color + (m ? "30" : "35")}`,
-        background: isSelected ? `${spell.color}20` : "rgba(10,6,4,0.6)",
+        border: legendaryBorder,
+        background: legendaryBg || (isSelected ? `${spell.color}20` : "rgba(10,6,4,0.6)"),
         cursor: canCast ? "grab" : "not-allowed",
         transition: isSelected ? "none" : "border-color 0.15s, background 0.15s, box-shadow 0.15s",
         minWidth: size, minHeight: m ? size : undefined, userSelect: "none", overflow: "hidden", borderRadius: 4,
-        "--glow-color": spell.color + "99", "--glow-color-dim": spell.color + "44",
+        "--glow-color": isLegendary ? "#ffd70099" : spell.color + "99", "--glow-color-dim": isLegendary ? "#ffd70044" : spell.color + "44",
         animation: isSelected ? "spellActiveGlow 1.5s ease-in-out infinite" : "none",
-        boxShadow: isSelected ? `0 0 16px ${spell.color}66, inset 0 0 10px ${spell.color}33` : "inset 0 0 6px rgba(0,0,0,0.3)",
+        boxShadow: legendaryGlow,
         WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
       }}
       draggable={!m && canCast && !isAoe}
       onDragStart={e => { if (!canCast || isAoe) { e.preventDefault(); return; } e.dataTransfer.setData("text/plain", spell.id); if (onDragStart) onDragStart(spell); }}
       onClick={() => onSelect(spell.id)}
     >
+      {isLegendary && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, transparent, #ffd700, transparent)", zIndex: 5, pointerEvents: "none" }} />}
+      {isLegendary && <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, transparent, #ffd700, transparent)", zIndex: 5, pointerEvents: "none" }} />}
       {onCooldown && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${cdPct * 100}%`, background: "rgba(0,0,0,0.6)", pointerEvents: "none", zIndex: 2, transition: "height 0.1s linear" }} />}
       {hotkey && (
-        <div style={{ position: "absolute", top: 1, left: 3, fontSize: m ? 8 : 9, color: "#d4a030", fontWeight: "bold", zIndex: 4, opacity: 0.8, textShadow: "0 0 4px rgba(212,160,48,0.3)" }}>{hotkey}</div>
+        <div style={{ position: "absolute", top: 1, left: 3, fontSize: m ? 8 : 9, color: isLegendary ? "#ffd700" : "#d4a030", fontWeight: "bold", zIndex: 4, opacity: 0.8, textShadow: isLegendary ? "0 0 4px rgba(255,215,0,0.5)" : "0 0 4px rgba(212,160,48,0.3)" }}>{hotkey}</div>
       )}
       <span style={{ fontSize: m ? 20 : 26, position: "relative", zIndex: 3, opacity: canCast ? 1 : 0.35, filter: canCast ? `drop-shadow(0 0 ${m ? 4 : 6}px ${spell.color}${m ? "66" : "88"})` : "none" }}>
         <GameIcon name={spell.icon || SPELL_ICON_MAP[spell.id] || "swords"} size={m ? 20 : 28} />
       </span>
       <div style={{ fontSize: m ? 8 : 10, fontWeight: "bold", color: isSelected ? spell.color : spell.color + "aa", zIndex: 3, whiteSpace: "nowrap", textShadow: isSelected ? `0 0 6px ${spell.color}44` : "none" }}>{spell.name}</div>
       {!m && (
-        <div style={{ fontSize: 9, color: canCast ? "#6090cc" : "#804040", zIndex: 3 }}>
-          {isSummon ? <><GameIcon name="gold" size={12} /> Wybierz</> : spell.manaCost === 0 && spell.ammoCost ? <><GameIcon name={SPELL_ICON_MAP[spell.id] || spell.icon} size={12} /> {spell.ammoCost.amount}</> : spell.manaCost > 0 ? <><GameIcon name="gunpowder" size={12} />{spell.manaCost}</> : null}
+        <div style={{ fontSize: 9, color: canCast ? (isLegendary ? "#ffd700" : "#6090cc") : "#804040", zIndex: 3 }}>
+          {spell.isWand ? <><GameIcon name="gunpowder" size={12} /> +1/s</> : isSummon ? <><GameIcon name="gold" size={12} /> Wybierz</> : spell.manaCost === 0 && spell.ammoCost ? <><GameIcon name={SPELL_ICON_MAP[spell.id] || spell.icon} size={12} /> {spell.ammoCost.amount}</> : spell.manaCost > 0 ? <><GameIcon name="gunpowder" size={12} />{spell.manaCost}</> : null}
           {isAoe && <span style={{ color: "#e0a040", marginLeft: 3 }}><GameIcon name="lightning" size={9} />AoE</span>}
         </div>
       )}

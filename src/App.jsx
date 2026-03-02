@@ -304,7 +304,7 @@ export default function App() {
   const [wandActive, setWandActive] = useState(false);
   const wandActiveRef = useRef(false);
   wandActiveRef.current = wandActive;
-  const wandOrbsRef = useRef({ active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {} });
+  const wandOrbsRef = useRef({ active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {}, lastDrainTime: 0 });
 
   // ─── FEATURE: Combo Visual Feedback ───
   const [comboCounter, setComboCounter] = useState(0);
@@ -1897,6 +1897,15 @@ export default function App() {
       if (wandOrbsRef.current.active) {
         const wo = wandOrbsRef.current;
         const elapsed = dateNow - wo.startTime;
+        // Collect 1 gunpowder per second while wand is active
+        if (dateNow - wo.lastDrainTime >= 1000) {
+          wo.lastDrainTime = dateNow;
+          const maxMana = BASE_MAX_MANA + (knowledgeUpgradesRef.current?.manaPool || 0) * 10;
+          if (manaRef.current < maxMana) {
+            manaRef.current = Math.min(maxMana, manaRef.current + 1);
+            setMana(m => Math.min(maxMana, m + 1));
+          }
+        }
         const orbRadius = 8; // % of screen
         const hitRadius = 5; // % of screen for damage
         const dmgCd = 800; // ms between hits per enemy
@@ -3049,7 +3058,7 @@ export default function App() {
     setJournal({ biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
     setOwnedArtifacts([]); setTotalDiscoveries(0); setSecretRoom(null); setShowJournal(false);
     setOwnedSabers(["basic_saber"]); setEquippedSaber("basic_saber");
-    setHasWand(false); setWandActive(false); wandOrbsRef.current = { active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {} };
+    setHasWand(false); setWandActive(false); wandOrbsRef.current = { active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {}, lastDrainTime: 0 };
     walkDataRef.current = {};
     if (pixiRef.current) pixiRef.current.clearNpcs();
     if (physicsRef.current) physicsRef.current.clear();
@@ -3433,12 +3442,6 @@ export default function App() {
             return [...prev, saber.id];
           });
           showMessage(`Znaleziono szabl\u0119: ${saber.name}! Załóż w ekwipunku.`, saber.color);
-        }
-        // 15% chance to drop magic wand if not owned
-        if (!hasWandRef.current && Math.random() < 0.15) {
-          setHasWand(true);
-          setLearnedSpells(prev => prev.includes("wand") ? prev : [...prev, "wand"]);
-          showMessage("Znaleziono Różdżkę Burzy! Nowy skill dostępny!", "#4080ff");
         }
         const t = pickTreasure(room); t.biome = biome.name; t.room = room;
         // greedy_merchant: x1.5 treasure value (nerfed from x2)
@@ -4108,6 +4111,29 @@ export default function App() {
   const stopRapidFire = useCallback(() => {
     if (rapidFireRef.current.intervalId) clearInterval(rapidFireRef.current.intervalId);
     rapidFireRef.current = { active: false, intervalId: null, lastPos: null };
+  }, []);
+
+  // ─── WAND: Press-and-hold to orbit lightning orbs ───
+  const isWandMode = selectedSpell === "wand" && hasWand;
+
+  const startWand = useCallback((e) => {
+    if (!isWandMode || !gameContainerRef.current) return;
+    if (wandActiveRef.current) return;
+    e.preventDefault();
+    const gr = gameContainerRef.current.getBoundingClientRect();
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    const cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100;
+    const cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100;
+    setWandActive(true);
+    wandOrbsRef.current = { active: true, startTime: Date.now(), cursorX, cursorY, hitCooldowns: {}, lastDrainTime: Date.now() };
+    sfxLightning();
+  }, [isWandMode, gameScale]);
+
+  const stopWand = useCallback(() => {
+    if (!wandActiveRef.current) return;
+    setWandActive(false);
+    wandOrbsRef.current.active = false;
   }, []);
 
   // ─── SABER: Swipe handlers (Fruit Ninja style) ───
@@ -4872,29 +4898,10 @@ export default function App() {
       return;
     }
 
-    // Wand: activate orbiting lightning orbs
+    // Wand: select/deselect wand mode (activates on press-and-hold in game area)
     if (spell && spell.isWand) {
-      if (wandActiveRef.current) {
-        showMessage("Różdżka już aktywna!", "#4080ff");
-        return;
-      }
-      if (!canCastSpell(spell)) {
-        showMessage("Za mało prochu!", "#c0a060");
-        return;
-      }
-      const manaCost = getSpellManaCost(spell);
-      manaRef.current -= manaCost;
-      setMana(m => Math.max(0, m - manaCost));
-      setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + spell.cooldown }));
-      setWandActive(true);
-      wandOrbsRef.current = { active: true, startTime: Date.now(), cursorX: 50, cursorY: 50, hitCooldowns: {} };
-      showMessage("Kule piorunów aktywne!", "#4080ff");
-      sfxLightning();
-      // Deactivate after 8 seconds
-      setTimeout(() => {
-        setWandActive(false);
-        wandOrbsRef.current.active = false;
-      }, 8000);
+      setSelectedSpell(prev => prev === spellId ? null : spellId);
+      setSkillshotMode(prev => prev ? prev : true);
       return;
     }
 
@@ -5253,14 +5260,14 @@ export default function App() {
 
       {/* Scaled game container – fills entire screen on mobile */}
       <div ref={gameContainerRef}
-        onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode) ? handleSkillshotClick : undefined}
-        onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : undefined}
+        onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode) ? handleSkillshotClick : undefined}
+        onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : undefined}
         onMouseMove={(e) => { if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
-        onMouseUp={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : undefined}
-        onMouseLeave={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : undefined}
-        onTouchStart={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : undefined}
+        onMouseUp={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : undefined}
+        onMouseLeave={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : undefined}
+        onTouchStart={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : undefined}
         onTouchMove={(e) => { if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (wandOrbsRef.current.active && gameContainerRef.current && e.touches[0]) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.touches[0].clientX; const cy = e.touches[0].clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
-        onTouchEnd={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : undefined}
+        onTouchEnd={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : undefined}
         style={{
         width: GAME_W, height: GAME_H,
         transform: `scale(${gameScale})`,
@@ -5269,7 +5276,7 @@ export default function App() {
         top: isMobile ? 0 : undefined,
         left: isMobile ? 0 : undefined,
         overflow: "hidden",
-        cursor: placingTrap ? "crosshair" : isSaberMode ? "none" : skillshotMode ? "crosshair" : "default",
+        cursor: placingTrap ? "crosshair" : isSaberMode ? "none" : isWandMode ? "crosshair" : skillshotMode ? "crosshair" : "default",
         animation: slowMotion
           ? "slowMoFlash 1s ease-out forwards"
           : screenShake ? "screenShake 0.08s infinite alternate" : "none",
@@ -5374,8 +5381,6 @@ export default function App() {
         const wo = wandOrbsRef.current;
         const now = Date.now();
         const elapsed = now - wo.startTime;
-        const remaining = Math.max(0, 8000 - elapsed);
-        const fade = remaining < 1500 ? remaining / 1500 : 1;
         return (
           <>
             {[0, 1, 2].map(i => {
@@ -5386,8 +5391,8 @@ export default function App() {
                 <div key={i} style={{
                   position: "absolute", left: orbX - 10, top: orbY - 10,
                   width: 20, height: 20, borderRadius: "50%", pointerEvents: "none", zIndex: 30,
-                  background: `radial-gradient(circle, rgba(100,180,255,${0.9 * fade}), rgba(40,100,255,${0.6 * fade}), rgba(20,50,200,${0.3 * fade}), transparent)`,
-                  boxShadow: `0 0 12px rgba(60,140,255,${0.7 * fade}), 0 0 24px rgba(40,100,255,${0.4 * fade}), 0 0 4px rgba(200,230,255,${0.9 * fade})`,
+                  background: "radial-gradient(circle, rgba(100,180,255,0.9), rgba(40,100,255,0.6), rgba(20,50,200,0.3), transparent)",
+                  boxShadow: "0 0 12px rgba(60,140,255,0.7), 0 0 24px rgba(40,100,255,0.4), 0 0 4px rgba(200,230,255,0.9)",
                   animation: "gemPulse 0.4s infinite",
                 }} />
               );
@@ -5396,8 +5401,8 @@ export default function App() {
               position: "absolute",
               left: (wo.cursorX / 100) * GAME_W - 25, top: (wo.cursorY / 100) * GAME_H - 25,
               width: 50, height: 50, borderRadius: "50%", pointerEvents: "none", zIndex: 29,
-              border: `1px solid rgba(60,140,255,${0.2 * fade})`,
-              boxShadow: `inset 0 0 10px rgba(60,140,255,${0.1 * fade})`,
+              border: "1px solid rgba(60,140,255,0.2)",
+              boxShadow: "inset 0 0 10px rgba(60,140,255,0.1)",
             }} />
           </>
         );
@@ -6711,15 +6716,14 @@ export default function App() {
         {/* Wand section */}
         {hasWand && (
           <>
-            <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#4080ff", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #1a2a4a", paddingBottom: 4 }}><Icon name="lightning" size={15} /> Różdżka</h3>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", marginBottom: 4, border: "1px solid #2a3a5a", background: "rgba(40,80,200,0.08)", backgroundImage: "linear-gradient(110deg, transparent 20%, rgba(64,128,255,0.08) 40%, rgba(128,192,255,0.15) 50%, rgba(64,128,255,0.08) 60%, transparent 80%)", backgroundSize: "200% 100%", animation: "saberShimmerEpic 4s ease infinite", boxShadow: "0 0 6px rgba(64,128,255,0.2)", overflow: "hidden", position: "relative" }}>
-              <span style={{ filter: "drop-shadow(0 0 5px rgba(64,128,255,0.7))" }}><Icon name="lightning" size={22} /></span>
+            <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#ffd700", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #5a4a18", paddingBottom: 4 }}><Icon name="lightning" size={15} /> Różdżka <span style={{ fontSize: 10, color: "#ffd700", fontWeight: "normal" }}>LEGENDARNA</span></h3>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", marginBottom: 4, border: "2px solid #ffd700", background: "rgba(255,215,0,0.05)", backgroundImage: "linear-gradient(110deg, transparent 20%, rgba(255,215,0,0.08) 40%, rgba(255,215,0,0.18) 50%, rgba(255,215,0,0.08) 60%, transparent 80%)", backgroundSize: "200% 100%", animation: "saberShimmerEpic 4s ease infinite", boxShadow: "0 0 8px rgba(255,215,0,0.3), inset 0 0 6px rgba(255,215,0,0.05)", overflow: "hidden", position: "relative" }}>
+              <span style={{ filter: "drop-shadow(0 0 5px rgba(255,215,0,0.7))" }}><Icon name="lightning" size={22} /></span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: "bold", fontSize: 13, color: "#4080ff", textShadow: "0 0 4px rgba(64,128,255,0.4)" }}>Różdżka Burzy</div>
-                <div style={{ fontSize: 10, color: "#5577aa" }}>3 kule piorunów wokół kursora (10 dmg)</div>
-                <div style={{ fontSize: 11, color: "#888" }}>Koszt: 5 prochu | Czas: 8s</div>
+                <div style={{ fontWeight: "bold", fontSize: 13, color: "#ffd700", textShadow: "0 0 4px rgba(255,215,0,0.4)" }}>Różdżka Burzy</div>
+                <div style={{ fontSize: 10, color: "#b8a050" }}>Trzymaj aby kule piorunów krążyły wokół kursora (10 dmg) | +1 proch/s</div>
               </div>
-              <span style={{ color: "#4080ff", fontWeight: "bold", fontSize: 11 }}>Wyposażona</span>
+              <span style={{ color: "#ffd700", fontWeight: "bold", fontSize: 11 }}>Wyposażona</span>
             </div>
           </>
         )}
@@ -6813,23 +6817,23 @@ export default function App() {
           );
         })}
 
-        {/* Magic Wand */}
-        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#4080ff", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #1a2a4a", paddingBottom: 4 }}><Icon name="lightning" size={15} /> Magiczne Przedmioty</h3>
+        {/* Magic Wand - Legendary */}
+        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#ffd700", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #5a4a18", paddingBottom: 4 }}><Icon name="lightning" size={15} /> Legendarne Przedmioty</h3>
         {(() => {
-          const wandPrice = { gold: 1 };
+          const wandPrice = { gold: 2 };
           const canAffordWand = totalCopper(money) >= totalCopper(wandPrice);
           return (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: `2px solid ${hasWand ? "#1a3a6a" : "#2a1e14"}`, marginBottom: 6, background: hasWand ? "rgba(40,80,200,0.08)" : "rgba(255,255,255,0.02)", backgroundImage: hasWand ? "none" : "linear-gradient(110deg, transparent 20%, rgba(64,128,255,0.08) 40%, rgba(128,192,255,0.15) 50%, rgba(64,128,255,0.08) 60%, transparent 80%)", backgroundSize: "200% 100%", animation: hasWand ? "none" : "saberShimmerEpic 4s ease infinite", boxShadow: hasWand ? "none" : "0 0 6px rgba(64,128,255,0.2)" }}>
-              <span style={{ filter: "drop-shadow(0 0 5px rgba(64,128,255,0.7))" }}><Icon name="lightning" size={28} /></span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: `2px solid ${hasWand ? "#8a7a30" : "#ffd700"}`, marginBottom: 6, background: hasWand ? "rgba(255,215,0,0.05)" : "rgba(255,215,0,0.03)", backgroundImage: "linear-gradient(110deg, transparent 20%, rgba(255,215,0,0.08) 40%, rgba(255,215,0,0.18) 50%, rgba(255,215,0,0.08) 60%, transparent 80%)", backgroundSize: "200% 100%", animation: "saberShimmerEpic 4s ease infinite", boxShadow: hasWand ? "0 0 4px rgba(255,215,0,0.15)" : "0 0 8px rgba(255,215,0,0.3), 0 0 16px rgba(255,215,0,0.1)" }}>
+              <span style={{ filter: "drop-shadow(0 0 6px rgba(255,215,0,0.7))" }}><Icon name="lightning" size={28} /></span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: "bold", fontSize: 14, color: "#4080ff" }}>Różdżka Burzy</div>
-                <div style={{ fontSize: 11, color: "#5577aa" }}>3 kule piorunów krążą wokół kursora zadając 10 obrażeń</div>
-                <div style={{ fontSize: 12, color: "#d4a030" }}><Icon name="gold" size={12} /> 1</div>
+                <div style={{ fontWeight: "bold", fontSize: 14, color: "#ffd700", textShadow: "0 0 6px rgba(255,215,0,0.3)" }}>Różdżka Burzy <span style={{ fontSize: 9, color: "#ffd700", background: "rgba(255,215,0,0.15)", padding: "1px 4px", borderRadius: 3, border: "1px solid rgba(255,215,0,0.3)" }}>LEGENDARNA</span></div>
+                <div style={{ fontSize: 11, color: "#b8a050" }}>Trzymaj aby kule piorunów krążyły wokół kursora (10 dmg) | +1 proch/s</div>
+                <div style={{ fontSize: 12, color: "#ffd700" }}><Icon name="gold" size={12} /> 2</div>
               </div>
               {hasWand ? (
-                <span style={{ color: "#4080ff", fontWeight: "bold", fontSize: 12 }}>Posiadasz</span>
+                <span style={{ color: "#ffd700", fontWeight: "bold", fontSize: 12 }}>Posiadasz</span>
               ) : (
-                <button onClick={() => { if (!canAffordWand) return; sfxBuy(); setMoney(copperToMoney(totalCopper(money) - totalCopper(wandPrice))); setHasWand(true); setLearnedSpells(prev => prev.includes("wand") ? prev : [...prev, "wand"]); showMessage("Kupiono Różdżkę Burzy! Nowy skill dostępny!", "#4080ff"); }} disabled={!canAffordWand} style={{ background: "none", border: `2px solid ${canAffordWand ? "#4080ff" : "#333"}`, color: canAffordWand ? "#4080ff" : "#555", fontSize: 13, padding: "3px 10px", cursor: canAffordWand ? "pointer" : "not-allowed", fontWeight: "bold" }}>Kup</button>
+                <button onClick={() => { if (!canAffordWand) return; sfxBuy(); setMoney(copperToMoney(totalCopper(money) - totalCopper(wandPrice))); setHasWand(true); setLearnedSpells(prev => prev.includes("wand") ? prev : [...prev, "wand"]); showMessage("Kupiono Różdżkę Burzy! Legendarny przedmiot!", "#ffd700"); }} disabled={!canAffordWand} style={{ background: "none", border: `2px solid ${canAffordWand ? "#ffd700" : "#333"}`, color: canAffordWand ? "#ffd700" : "#555", fontSize: 13, padding: "3px 10px", cursor: canAffordWand ? "pointer" : "not-allowed", fontWeight: "bold", textShadow: canAffordWand ? "0 0 4px rgba(255,215,0,0.3)" : "none" }}>Kup</button>
               )}
             </div>
           );
