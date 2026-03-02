@@ -199,6 +199,12 @@ export class PixiRenderer {
   spawnPoisonCloud(x, y) { this.combatParticles?.spawnPoisonCloud(x, y); }
   spawnArrowTrail(x, y, vx, vy) { this.combatParticles?.spawnArrowTrail(x, y, vx, vy); }
 
+  clearNpcs() {
+    for (const id of Object.keys(this.characters)) {
+      this.removeNpc(parseInt(id));
+    }
+  }
+
   destroy() {
     for (const id of Object.keys(this.characters)) {
       this.removeNpc(parseInt(id));
