@@ -198,6 +198,7 @@ export class PixiRenderer {
   spawnFireBreath(x, y, dirX) { this.combatParticles?.spawnFireBreath(x, y, dirX); }
   spawnPoisonCloud(x, y) { this.combatParticles?.spawnPoisonCloud(x, y); }
   spawnArrowTrail(x, y, vx, vy) { this.combatParticles?.spawnArrowTrail(x, y, vx, vy); }
+  spawnGoldCoins(x, y, intensity) { this.combatParticles?.spawnGoldCoins(x, y, intensity); }
 
   clearNpcs() {
     for (const id of Object.keys(this.characters)) {
