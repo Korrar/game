@@ -209,6 +209,28 @@ export class CombatEffects {
     }
   }
 
+  // ─── SLASH BLOOD (saber) ───
+  spawnSlashBlood(x, y, dirX, intensity = 1) {
+    this.spawnBlood(x, y, dirX, intensity * 1.5);
+  }
+
+  // ─── CRITICAL SLASH ───
+  spawnCritSlash(x, y, dirX) {
+    this.spawnBlood(x, y, dirX, 2.5);
+  }
+
+  // ─── GORE EXPLOSION (explosive kills) ───
+  spawnGoreExplosion(x, y) {
+    this.spawnBlood(x, y, 1, 3.0);
+    this.spawnBlood(x, y, -1, 3.0);
+    this.spawnFire(x, y);
+  }
+
+  // ─── SHOT BLOOD (gunshot) ───
+  spawnShotBlood(x, y, dirX) {
+    this.spawnBlood(x, y, dirX, 0.5);
+  }
+
   // ─── ARROW TRAIL ───
   spawnArrowTrail(x, y, vx, vy) {
     const count = this.mobile ? 2 : 4;

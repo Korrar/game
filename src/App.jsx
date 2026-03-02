@@ -590,6 +590,15 @@ export default function App() {
   const GAME_W = gameDims.w;
   const GAME_H = gameDims.h;
 
+  // Map spell to death visual effect type
+  const EXPLOSIVE_SPELLS = new Set(["fireball", "holybeam", "meteor", "earthquake"]);
+  const getDeathElement = (spell) => {
+    if (!spell) return "melee";
+    if (EXPLOSIVE_SPELLS.has(spell.id)) return "explosion";
+    if (spell.id === "lightning" || spell.id === "chainlightning") return "shot";
+    return spell.element || "melee";
+  };
+
   const canvasRef = useRef(null);
   const animCanvasRef = useRef(null);
   const physicsCanvasRef = useRef(null);
@@ -3772,7 +3781,7 @@ export default function App() {
       if (newHp <= 0) {
         sfxNpcDeath();
         if (walkDataRef.current[walkerId]) walkDataRef.current[walkerId].alive = false;
-        if (physicsRef.current) physicsRef.current.triggerRagdoll(walkerId, element, spellDirX);
+        if (physicsRef.current) physicsRef.current.triggerRagdoll(walkerId, getDeathElement(spell), spellDirX);
         addMoneyFn(npcData.loot);
         if (hasRelic("golden_reaper")) addMoneyFn(npcData.loot);
         if (hasSynergy("piracki_monopol") && Math.random() < 0.20) {
@@ -4028,20 +4037,34 @@ export default function App() {
       if (dx * dx + dy * dy < hitRadius * hitRadius) {
         saberHitIdsRef.current.add(w.id);
         sfxSaberHit();
+        // Crit chance: 20% to critically strike
+        const isCrit = Math.random() < 0.20;
         // Base damage from equipped saber
         let dmg = saberData.damage;
         dmg = Math.round(dmg * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
         if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
+        if (isCrit) dmg = Math.round(dmg * 2.5);
         // Execute effect: 2x dmg below threshold
         if (eff?.type === "execute" && w.hp / w.maxHp <= eff.threshold) {
           dmg = Math.round(dmg * eff.multiplier);
           spawnDmgPopup(w.id, `EGZEKUCJA ${dmg}`, "#cc2020");
+        } else if (isCrit) {
+          spawnDmgPopup(w.id, `KRYTYCZNY! ${dmg}`, "#ff4040");
         } else {
           spawnDmgPopup(w.id, `${dmg}`, saberData.color);
         }
         const px = (d.x / 100) * GAME_W, py = (d.y / 100) * GAME_H;
-        if (pixiRef.current) pixiRef.current.spawnMeleeSparks(px, py, d.x > 50 ? 1 : -1);
+        const slashDir = d.x > 50 ? 1 : -1;
+        // Blood effect on every saber hit
+        if (pixiRef.current) {
+          if (isCrit) {
+            pixiRef.current.spawnCritSlash(px, py, slashDir);
+          } else {
+            pixiRef.current.spawnSlashBlood(px, py, slashDir, 0.8);
+          }
+          pixiRef.current.spawnMeleeSparks(px, py, slashDir);
+        }
         // Saber effect: slow
         if (eff?.type === "slow" && d) {
           if (!d._origSpeed) d._origSpeed = d.speed;
@@ -4107,7 +4130,7 @@ export default function App() {
           if (newHp <= 0) {
             sfxNpcDeath();
             if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
-            if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, null, d.x > 50 ? 1 : -1);
+            if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, isCrit ? "saber_crit" : "saber", d.x > 50 ? 1 : -1);
             addMoneyFn(ww.npcData.loot);
             setKills(k => k + 1);
             handleCardDrop(ww.npcData);
@@ -4386,7 +4409,7 @@ export default function App() {
         if (newHp <= 0) {
           sfxNpcDeath();
           if (walkDataRef.current[wid]) walkDataRef.current[wid].alive = false;
-          if (physicsRef.current) physicsRef.current.triggerRagdoll(wid, spell.element, spellDirX);
+          if (physicsRef.current) physicsRef.current.triggerRagdoll(wid, getDeathElement(spell), spellDirX);
           addMoneyFn(npcData.loot);
           // golden_reaper: double loot
           if (hasRelic("golden_reaper")) addMoneyFn(npcData.loot);
@@ -4568,7 +4591,7 @@ export default function App() {
         if (newHp <= 0) {
           sfxNpcDeath();
           if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
-          if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, spell.element, spellDirX);
+          if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, getDeathElement(spell), spellDirX);
           addMoneyFn(npcData.loot);
           if (hasRelic("golden_reaper")) addMoneyFn(npcData.loot);
           if (hasSynergy("piracki_monopol") && Math.random() < 0.20) {

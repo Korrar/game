@@ -124,14 +124,35 @@ export class CharacterSprite {
       this.flashSprite.visible = false;
     }
 
-    // Ragdoll: tilt the sprite
+    // Ragdoll: tilt the sprite or slice-in-half
     if (entry.ragdoll) {
-      const rotAngle = (1 - alpha) * (Math.PI / 2);
-      this.iconSprite.rotation = rotAngle;
-      this.flashSprite.rotation = rotAngle;
+      if (entry.sliceEffect) {
+        // Slice in half: top drifts up-left, bottom drifts down-right
+        const t = Math.min(1, (entry.fadeTimer || 0) / 40);
+        const splitDist = t * 18;
+        const topAngle = -t * 0.6;
+        const botAngle = t * 0.5;
+        // Use mask/clip via sprite positioning to simulate split
+        this.iconSprite.position.set(tx - splitDist * 0.5, ty - splitDist);
+        this.iconSprite.rotation = topAngle;
+        this.flashSprite.position.set(tx + splitDist * 0.5, ty + splitDist * 0.8);
+        this.flashSprite.rotation = botAngle;
+        this.flashSprite.visible = true;
+        this.flashSprite.alpha = alpha * 0.7;
+        this.flashSprite.tint = 0xcc2020;
+        // Crop: top half of icon, bottom half of flash (approximate via anchor offset)
+        this.iconSprite.anchor.set(0.5, 0.5 + t * 0.25);
+        this.flashSprite.anchor.set(0.5, 0.5 - t * 0.25);
+      } else {
+        const rotAngle = (1 - alpha) * (Math.PI / 2);
+        this.iconSprite.rotation = rotAngle;
+        this.flashSprite.rotation = rotAngle;
+      }
     } else {
       this.iconSprite.rotation = 0;
       this.flashSprite.rotation = 0;
+      this.iconSprite.anchor.set(0.5, 0.5);
+      this.flashSprite.anchor.set(0.5, 0.5);
     }
 
     // Mirror based on direction

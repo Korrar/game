@@ -184,6 +184,130 @@ export class CombatParticles {
     });
   }
 
+  // Blood slash — saber cut blood spray
+  spawnSlashBlood(x, y, dirX, intensity = 1) {
+    // Dark blood droplets spraying to the side
+    const count = this._c(Math.round(20 * intensity));
+    this._emit(count, x, y, {
+      vx: () => dirX * (Math.random() * 6 + 3) + (Math.random() - 0.5) * 4,
+      vy: () => -(Math.random() * 6 + 2),
+      life: 30 + Math.random() * 20,
+      size: 2.5 + Math.random() * 2.5,
+      color: 0xaa1818,
+      gravity: 0.28,
+    });
+    // Bright red mist
+    this._emit(this._c(Math.round(8 * intensity)), x, y, {
+      vx: () => dirX * (Math.random() * 3) + (Math.random() - 0.5) * 5,
+      vy: () => -(Math.random() * 3 + 1),
+      life: 18 + Math.random() * 10,
+      size: 4 + Math.random() * 3,
+      color: 0xff3030,
+      gravity: -0.02,
+    });
+  }
+
+  // Critical saber hit — massive slash spray in two halves
+  spawnCritSlash(x, y, dirX) {
+    // Upward half
+    this._emit(this._c(18), x, y, {
+      vx: () => dirX * (Math.random() * 5 + 1) + (Math.random() - 0.5) * 6,
+      vy: () => -(Math.random() * 9 + 4),
+      life: 35 + Math.random() * 20,
+      size: 3 + Math.random() * 3,
+      color: 0xcc1010,
+      gravity: 0.22,
+    });
+    // Downward half
+    this._emit(this._c(14), x, y, {
+      vx: () => dirX * (Math.random() * 4 + 1) + (Math.random() - 0.5) * 5,
+      vy: () => (Math.random() * 5 + 2),
+      life: 30 + Math.random() * 15,
+      size: 2.5 + Math.random() * 2.5,
+      color: 0x881010,
+      gravity: 0.18,
+    });
+    // White flash at impact
+    this._emit(this._c(5), x, y, {
+      vx: () => (Math.random() - 0.5) * 2,
+      vy: () => (Math.random() - 0.5) * 2,
+      life: 6,
+      size: 8,
+      color: 0xffffff,
+    });
+  }
+
+  // Gore explosion — spectacular body parts + blood for explosive kills
+  spawnGoreExplosion(x, y) {
+    // Massive blood fountain
+    this._emit(this._c(35), x, y, {
+      vx: () => (Math.random() - 0.5) * 14,
+      vy: () => -(Math.random() * 12 + 4),
+      life: 45 + Math.random() * 25,
+      size: 3 + Math.random() * 3,
+      color: 0xcc1818,
+      gravity: 0.20,
+    });
+    // Bone/body chunks (light beige diamonds)
+    this._emit(this._c(12), x, y, {
+      vx: () => (Math.random() - 0.5) * 12,
+      vy: () => -(Math.random() * 10 + 5),
+      life: 50 + Math.random() * 25,
+      size: 3 + Math.random() * 3,
+      color: 0xd0b088,
+      gravity: 0.22,
+      type: "diamond",
+    });
+    // Dark gore chunks
+    this._emit(this._c(10), x, y, {
+      vx: () => (Math.random() - 0.5) * 10,
+      vy: () => -(Math.random() * 8 + 3),
+      life: 40 + Math.random() * 20,
+      size: 4 + Math.random() * 4,
+      color: 0x661010,
+      gravity: 0.25,
+    });
+    // Hot fire flash (from explosion)
+    this._emit(this._c(10), x, y, {
+      vx: () => (Math.random() - 0.5) * 8,
+      vy: () => -(Math.random() * 6 + 2),
+      life: 14 + Math.random() * 8,
+      size: 5 + Math.random() * 4,
+      color: 0xff8020,
+      gravity: -0.06,
+    });
+    // Smoke
+    this._emit(this._c(8), x, y, {
+      vx: () => (Math.random() - 0.5) * 4,
+      vy: () => -(Math.random() * 3 + 1),
+      life: 35 + Math.random() * 20,
+      size: 6 + Math.random() * 4,
+      color: 0x444444,
+      gravity: -0.04,
+    });
+  }
+
+  // Subtle shot blood — small impact for bullet kills
+  spawnShotBlood(x, y, dirX) {
+    this._emit(this._c(8), x, y, {
+      vx: () => dirX * (Math.random() * 3 + 1) + (Math.random() - 0.5) * 2,
+      vy: () => -(Math.random() * 3 + 1),
+      life: 18 + Math.random() * 10,
+      size: 1.5 + Math.random() * 1.5,
+      color: 0xaa2020,
+      gravity: 0.20,
+    });
+    // Small mist puff
+    this._emit(this._c(3), x, y, {
+      vx: () => dirX * (Math.random() * 1.5),
+      vy: () => -(Math.random() * 2),
+      life: 12 + Math.random() * 6,
+      size: 3 + Math.random() * 2,
+      color: 0x882020,
+      gravity: -0.01,
+    });
+  }
+
   spawnArrowTrail(x, y, vx, vy) {
     this._emit(this.mobile ? 1 : 3, x, y, {
       vx: () => (Math.random() - 0.5) * 0.5,
