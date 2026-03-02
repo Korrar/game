@@ -5,6 +5,21 @@ import { SPELL_ICON_MAP } from "../rendering/icons";
 
 const SPELLS_PER_PAGE = 6;
 
+// Inject pulsing glow animation for active spell
+const ACTIVE_GLOW_STYLE_ID = "spell-active-glow-style";
+if (typeof document !== "undefined" && !document.getElementById(ACTIVE_GLOW_STYLE_ID)) {
+  const style = document.createElement("style");
+  style.id = ACTIVE_GLOW_STYLE_ID;
+  style.textContent = `
+    @keyframes spellActiveGlow {
+      0% { box-shadow: 0 0 8px var(--glow-color), inset 0 0 6px var(--glow-color-dim); }
+      50% { box-shadow: 0 0 20px var(--glow-color), 0 0 36px var(--glow-color-dim), inset 0 0 12px var(--glow-color-dim); }
+      100% { box-shadow: 0 0 8px var(--glow-color), inset 0 0 6px var(--glow-color-dim); }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 // Determine which spells are visible:
 // - learned spells (Strzał) are always visible
 // - spells with ammoCost are visible only if player has ammo for them
@@ -81,10 +96,12 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
             <div key={spell.id} onClick={() => onSelect(spell.id)} style={{
               position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               padding: "3px 5px",
-              border: `1px solid ${isSelected ? spell.color : spell.color + "30"}`,
-              background: isSelected ? `${spell.color}15` : "rgba(10,6,4,0.6)",
+              border: `2px solid ${isSelected ? spell.color : spell.color + "30"}`,
+              background: isSelected ? `${spell.color}20` : "rgba(10,6,4,0.6)",
               minWidth: 48, minHeight: 48, overflow: "hidden", borderRadius: 3,
-              boxShadow: isSelected ? `0 0 8px ${spell.color}44, inset 0 0 6px ${spell.color}22` : "none",
+              "--glow-color": spell.color + "99", "--glow-color-dim": spell.color + "44",
+              animation: isSelected ? "spellActiveGlow 1.5s ease-in-out infinite" : "none",
+              boxShadow: isSelected ? `0 0 14px ${spell.color}66, inset 0 0 8px ${spell.color}33` : "none",
               WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
             }}>
               {onCooldown && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${cdPct * 100}%`, background: "rgba(0,0,0,0.65)", pointerEvents: "none", zIndex: 2 }} />}
@@ -153,12 +170,14 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
               style={{
                 position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                 padding: "5px 7px",
-                border: `1px solid ${isSelected ? spell.color : spell.color + "35"}`,
-                background: isSelected ? `${spell.color}12` : "rgba(10,6,4,0.6)",
+                border: `2px solid ${isSelected ? spell.color : spell.color + "35"}`,
+                background: isSelected ? `${spell.color}20` : "rgba(10,6,4,0.6)",
                 cursor: canCast ? "grab" : "not-allowed",
-                transition: "border-color 0.15s, background 0.15s, box-shadow 0.15s",
+                transition: isSelected ? "none" : "border-color 0.15s, background 0.15s, box-shadow 0.15s",
                 minWidth: 56, userSelect: "none", overflow: "hidden", borderRadius: 4,
-                boxShadow: isSelected ? `0 0 12px ${spell.color}44, inset 0 0 8px ${spell.color}18` : "inset 0 0 6px rgba(0,0,0,0.3)",
+                "--glow-color": spell.color + "99", "--glow-color-dim": spell.color + "44",
+                animation: isSelected ? "spellActiveGlow 1.5s ease-in-out infinite" : "none",
+                boxShadow: isSelected ? `0 0 16px ${spell.color}66, inset 0 0 10px ${spell.color}33` : "inset 0 0 6px rgba(0,0,0,0.3)",
               }}
               draggable={canCast && !isAoe}
               onDragStart={e => { if (!canCast || isAoe) { e.preventDefault(); return; } e.dataTransfer.setData("text/plain", spell.id); if (onDragStart) onDragStart(spell); }}
@@ -170,8 +189,8 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
               onMouseLeave={e => {
                 setHoveredSpell(null);
                 e.currentTarget.style.borderColor = isSelected ? spell.color : `${spell.color}35`;
-                e.currentTarget.style.background = isSelected ? `${spell.color}12` : "rgba(10,6,4,0.6)";
-                e.currentTarget.style.boxShadow = isSelected ? `0 0 12px ${spell.color}44, inset 0 0 8px ${spell.color}18` : "inset 0 0 6px rgba(0,0,0,0.3)";
+                e.currentTarget.style.background = isSelected ? `${spell.color}20` : "rgba(10,6,4,0.6)";
+                e.currentTarget.style.boxShadow = isSelected ? `0 0 16px ${spell.color}66, inset 0 0 10px ${spell.color}33` : "inset 0 0 6px rgba(0,0,0,0.3)";
               }}
             >
               {onCooldown && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${cdPct * 100}%`, background: "rgba(0,0,0,0.6)", pointerEvents: "none", zIndex: 2, transition: "height 0.1s linear" }} />}
