@@ -6816,7 +6816,7 @@ export default function App() {
         {/* Magic Wand */}
         <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#4080ff", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #1a2a4a", paddingBottom: 4 }}><Icon name="lightning" size={15} /> Magiczne Przedmioty</h3>
         {(() => {
-          const wandPrice = { silver: 5 };
+          const wandPrice = { gold: 1 };
           const canAffordWand = totalCopper(money) >= totalCopper(wandPrice);
           return (
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: `2px solid ${hasWand ? "#1a3a6a" : "#2a1e14"}`, marginBottom: 6, background: hasWand ? "rgba(40,80,200,0.08)" : "rgba(255,255,255,0.02)", backgroundImage: hasWand ? "none" : "linear-gradient(110deg, transparent 20%, rgba(64,128,255,0.08) 40%, rgba(128,192,255,0.15) 50%, rgba(64,128,255,0.08) 60%, transparent 80%)", backgroundSize: "200% 100%", animation: hasWand ? "none" : "saberShimmerEpic 4s ease infinite", boxShadow: hasWand ? "none" : "0 0 6px rgba(64,128,255,0.2)" }}>
@@ -6824,7 +6824,7 @@ export default function App() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: "bold", fontSize: 14, color: "#4080ff" }}>Różdżka Burzy</div>
                 <div style={{ fontSize: 11, color: "#5577aa" }}>3 kule piorunów krążą wokół kursora zadając 10 obrażeń</div>
-                <div style={{ fontSize: 12, color: "#888" }}><Icon name="silver" size={12} /> 5</div>
+                <div style={{ fontSize: 12, color: "#d4a030" }}><Icon name="gold" size={12} /> 1</div>
               </div>
               {hasWand ? (
                 <span style={{ color: "#4080ff", fontWeight: "bold", fontSize: 12 }}>Posiadasz</span>
