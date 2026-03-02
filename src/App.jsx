@@ -231,8 +231,8 @@ export default function App() {
   const [mana, setMana] = useState(50);
   const manaRef = useRef(50);
   manaRef.current = mana;
-  const [ammo, setAmmo] = useState({ dynamite: 5, harpoon: 5, cannonball: 3, rum: 3, chain: 3 });
-  const ammoRef = useRef({ dynamite: 5, harpoon: 5, cannonball: 3, rum: 3, chain: 3 });
+  const [ammo, setAmmo] = useState({});
+  const ammoRef = useRef({});
   ammoRef.current = ammo;
   const [cooldowns, setCooldowns] = useState({});
   const [selectedSpell, setSelectedSpell] = useState(null);
@@ -290,6 +290,8 @@ export default function App() {
 
   // ─── FEATURE: Saber Equipment ───
   const [ownedSabers, setOwnedSabers] = useState(["basic_saber"]);
+  const ownedSabersRef = useRef(["basic_saber"]);
+  ownedSabersRef.current = ownedSabers;
   const [equippedSaber, setEquippedSaber] = useState("basic_saber");
   const equippedSaberRef = useRef("basic_saber");
   equippedSaberRef.current = equippedSaber;
@@ -1613,16 +1615,20 @@ export default function App() {
           if (!w._lastBurnTick || dateNow - w._lastBurnTick >= 1000) {
             w._lastBurnTick = dateNow;
             const burnDmg = w._burnDps || 5;
-            const wObj = walkersRef.current.find(ww => ww.id === id);
+            const wObj = walkersRef.current.find(ww => ww.id === idNum);
             if (wObj && wObj.alive && !wObj.dying) {
               const nh = Math.max(0, wObj.hp - burnDmg);
-              spawnDmgPopup(id, `🔥${burnDmg}`, "#ff6020");
+              spawnDmgPopup(idNum, `🔥${burnDmg}`, "#ff6020");
               if (nh <= 0) {
                 sfxNpcDeath(); w.alive = false;
-                setWalkers(prev => prev.map(ww => ww.id === id ? { ...ww, hp: 0, dying: true, dyingAt: dateNow } : ww));
-                setTimeout(() => setWalkers(pp => pp.filter(ww => ww.id !== id)), 2500);
+                if (physicsRef.current) physicsRef.current.triggerRagdoll(idNum, "fire", w.dir || 1);
+                addMoneyFn(wObj.npcData.loot || {});
+                setKills(k => k + 1);
+                grantXp(wObj.isBoss ? 100 : wObj.isElite ? 50 : 10 + roomRef.current * 2);
+                setWalkers(prev => prev.map(ww => ww.id === idNum ? { ...ww, hp: 0, dying: true, dyingAt: dateNow } : ww));
+                setTimeout(() => setWalkers(pp => pp.filter(ww => ww.id !== idNum)), 2500);
               } else {
-                setWalkers(prev => prev.map(ww => ww.id === id ? { ...ww, hp: nh } : ww));
+                setWalkers(prev => prev.map(ww => ww.id === idNum ? { ...ww, hp: nh } : ww));
               }
             }
           }
@@ -1631,16 +1637,20 @@ export default function App() {
           if (!w._lastPoisonTick || dateNow - w._lastPoisonTick >= 1000) {
             w._lastPoisonTick = dateNow;
             const poisonDmg = w._poisonDps || 3;
-            const wObj = walkersRef.current.find(ww => ww.id === id);
+            const wObj = walkersRef.current.find(ww => ww.id === idNum);
             if (wObj && wObj.alive && !wObj.dying) {
               const nh = Math.max(0, wObj.hp - poisonDmg);
-              spawnDmgPopup(id, `☠${poisonDmg}`, "#44ff44");
+              spawnDmgPopup(idNum, `☠${poisonDmg}`, "#44ff44");
               if (nh <= 0) {
                 sfxNpcDeath(); w.alive = false;
-                setWalkers(prev => prev.map(ww => ww.id === id ? { ...ww, hp: 0, dying: true, dyingAt: dateNow } : ww));
-                setTimeout(() => setWalkers(pp => pp.filter(ww => ww.id !== id)), 2500);
+                if (physicsRef.current) physicsRef.current.triggerRagdoll(idNum, "shadow", w.dir || 1);
+                addMoneyFn(wObj.npcData.loot || {});
+                setKills(k => k + 1);
+                grantXp(wObj.isBoss ? 100 : wObj.isElite ? 50 : 10 + roomRef.current * 2);
+                setWalkers(prev => prev.map(ww => ww.id === idNum ? { ...ww, hp: 0, dying: true, dyingAt: dateNow } : ww));
+                setTimeout(() => setWalkers(pp => pp.filter(ww => ww.id !== idNum)), 2500);
               } else {
-                setWalkers(prev => prev.map(ww => ww.id === id ? { ...ww, hp: nh } : ww));
+                setWalkers(prev => prev.map(ww => ww.id === idNum ? { ...ww, hp: nh } : ww));
               }
             }
           }
@@ -3112,7 +3122,7 @@ export default function App() {
       }
       setKnowledgeUpgrades(s.knowledgeUpgrades || { manaPool: 0, spellPower: 0, manaRegen: 0 });
       setBossesDefeated(s.bossesDefeated || 0);
-      setAmmo(s.ammo || { dynamite: 5, harpoon: 5, cannonball: 3, rum: 3, chain: 3 });
+      setAmmo(s.ammo || {});
       setMana(s.mana || 50);
       // New systems
       if (s.activeSynergies) {
@@ -3415,11 +3425,14 @@ export default function App() {
       setTimeout(() => {
         setShowChest(false); setChestClicks(0);
         // 25% chance to drop a saber the player doesn't own
-        const unownedSabers = SABERS.filter(s => !s.starter && !ownedSabers.includes(s.id));
+        const unownedSabers = SABERS.filter(s => !s.starter && !ownedSabersRef.current.includes(s.id));
         if (unownedSabers.length > 0 && Math.random() < 0.25) {
           const saber = unownedSabers[Math.floor(Math.random() * unownedSabers.length)];
-          setOwnedSabers(prev => [...prev, saber.id]);
-          showMessage(`Znaleziono szabl\u0119: ${saber.name}! Zał\u00f3\u017c w ekwipunku.`, saber.color);
+          setOwnedSabers(prev => {
+            if (prev.includes(saber.id)) return prev;
+            return [...prev, saber.id];
+          });
+          showMessage(`Znaleziono szabl\u0119: ${saber.name}! Załóż w ekwipunku.`, saber.color);
         }
         // 15% chance to drop magic wand if not owned
         if (!hasWandRef.current && Math.random() < 0.15) {
@@ -4079,7 +4092,7 @@ export default function App() {
         return;
       }
       castSkillshot(sp, p.x, p.y);
-    }, 130); // ~8 shots/second
+    }, 160); // ~6 shots/second
     rapidFireRef.current = { active: true, intervalId: id, lastPos: pos };
   }, [isRapidFireMode, gameScale, castSkillshot, canCastSpell, showMessage]);
 
@@ -4993,12 +5006,12 @@ export default function App() {
   };
 
   const buySaber = (saberId) => {
-    if (ownedSabers.includes(saberId)) return;
+    if (ownedSabersRef.current.includes(saberId)) { showMessage("Już posiadasz tę szablę!", "#c0a060"); return; }
     const saber = SABERS.find(s => s.id === saberId); if (!saber) return;
     const tc = totalCopper(money); const need = saber.price * 100; // price in silver
     if (tc < need) { showMessage("Za mało monet!", "#b83030"); return; }
     sfxBuy(); setMoney(copperToMoney(tc - need));
-    setOwnedSabers(prev => [...prev, saberId]);
+    setOwnedSabers(prev => prev.includes(saberId) ? prev : [...prev, saberId]);
     setEquippedSaber(saberId);
     showMessage(`Zdobyto: ${saber.name}!`, saber.color);
   };
@@ -5024,11 +5037,14 @@ export default function App() {
   // 8% chance to drop a saber from monster kills
   const rollSaberDrop = () => {
     if (Math.random() > 0.08) return;
-    const unowned = SABERS.filter(s => !s.starter && !ownedSabers.includes(s.id));
+    const unowned = SABERS.filter(s => !s.starter && !ownedSabersRef.current.includes(s.id));
     if (unowned.length === 0) return;
     const saber = unowned[Math.floor(Math.random() * unowned.length)];
-    setOwnedSabers(prev => [...prev, saber.id]);
-    showMessage(`Zdobyto szabl\u0119: ${saber.name}!`, saber.color);
+    setOwnedSabers(prev => {
+      if (prev.includes(saber.id)) return prev;
+      return [...prev, saber.id];
+    });
+    showMessage(`Zdobyto szabl\u0119: ${saber.name}! Załóż w ekwipunku.`, saber.color);
   };
 
   const storeItem = (idx) => {
@@ -5514,40 +5530,8 @@ export default function App() {
       )}
 
       {/* Skillshot Mode Indicator — click to dismiss */}
-      {skillshotMode && skillshotSpell && !isSaberMode && (
-        <div onClick={() => { setSelectedSpell(null); setSkillshotMode(false); setSkillshotSpell(null); }} style={{
-          position: "absolute", bottom: isMobile ? 70 : 90, left: "50%", transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.8)", border: `2px solid ${skillshotSpell.color}`,
-          padding: "4px 16px", borderRadius: 6, zIndex: 25,
-          color: skillshotSpell.color, fontWeight: "bold", fontSize: isMobile ? 11 : 14,
-          textShadow: `0 0 8px ${skillshotSpell.color}88`,
-          animation: "gemPulse 1.5s ease-in-out infinite",
-          cursor: "pointer",
-        }}>
-          <Icon name={skillshotSpell.icon} size={16} style={{ marginRight: 6 }} />
-          CELUJ: {skillshotSpell.name}
-          <span style={{ color: "#888", fontSize: 10, marginLeft: 8 }}>[ESC] anuluj</span>
-        </div>
-      )}
-      {/* Saber Mode Indicator — click to dismiss */}
-      {isSaberMode && (() => {
-        const _sd = getEquippedSaberData();
-        return (
-        <div onClick={() => { setSelectedSpell(null); setSkillshotMode(false); setSkillshotSpell(null); }} style={{
-          position: "absolute", bottom: isMobile ? 70 : 90, left: "50%", transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.8)", border: `2px solid ${_sd.color}`,
-          padding: "4px 16px", borderRadius: 6, zIndex: 25,
-          color: _sd.color, fontWeight: "bold", fontSize: isMobile ? 11 : 14,
-          textShadow: `0 0 8px ${_sd.color}66`,
-          animation: "gemPulse 1.5s ease-in-out infinite",
-          cursor: "pointer",
-        }}>
-          <Icon name={_sd.icon} size={16} style={{ marginRight: 6 }} />
-          {_sd.name} — {isMobile ? "Przeciągnij palcem!" : "Przeciągnij myszką przez wrogów!"}
-          <span style={{ color: "#888", fontSize: 10, marginLeft: 8 }}>[ESC] anuluj</span>
-        </div>
-        );
-      })()}
+      {/* Skillshot tooltip removed — spell selection is clear from the SpellBar glow */}
+      {/* Saber mode indicator removed — spell bar glow is sufficient */}
 
       {/* Accuracy Display */}
       {(accuracy.hits > 0 || accuracy.misses > 0) && (
