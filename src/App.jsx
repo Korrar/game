@@ -229,6 +229,8 @@ export default function App() {
 
   // Mana & spell system
   const [mana, setMana] = useState(50);
+  const manaRef = useRef(50);
+  manaRef.current = mana;
   const [ammo, setAmmo] = useState({ dynamite: 5, harpoon: 5, cannonball: 3, rum: 3, chain: 3 });
   const ammoRef = useRef({ dynamite: 5, harpoon: 5, cannonball: 3, rum: 3, chain: 3 });
   ammoRef.current = ammo;
@@ -781,7 +783,7 @@ export default function App() {
         }
         setKills(k => k + 1);
         handleCardDrop(w.npcData);
-        rollAmmoDrop();
+        rollAmmoDrop(); rollSaberDrop();
         // Archer passive: ammo_drop — 15% chance for bonus ammo on kill
         if (fw && fw.mercType === "archer" && Math.random() < 0.15) {
           const ammoTypes = ["dynamite", "harpoon", "cannonball", "rum", "chain"];
@@ -3350,8 +3352,7 @@ export default function App() {
         if (unownedSabers.length > 0 && Math.random() < 0.25) {
           const saber = unownedSabers[Math.floor(Math.random() * unownedSabers.length)];
           setOwnedSabers(prev => [...prev, saber.id]);
-          setEquippedSaber(saber.id);
-          showMessage(`Znaleziono: ${saber.name}!`, saber.color);
+          showMessage(`Znaleziono szabl\u0119: ${saber.name}! Zał\u00f3\u017c w ekwipunku.`, saber.color);
         }
         const t = pickTreasure(room); t.biome = biome.name; t.room = room;
         // greedy_merchant: x1.5 treasure value (nerfed from x2)
@@ -3795,7 +3796,7 @@ export default function App() {
         }
         setKills(k => k + 1);
         handleCardDrop(npcData);
-        rollAmmoDrop();
+        rollAmmoDrop(); rollSaberDrop();
         const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
         grantXp(xpAmt);
         processKillStreak();
@@ -3987,12 +3988,20 @@ export default function App() {
       const p = rapidFireRef.current.lastPos;
       if (!p) return;
       const sp = SPELLS.find(s => s.id === "lightning");
-      if (sp && canCastSpell(sp)) {
-        castSkillshot(sp, p.x, p.y);
+      if (!sp) return;
+      if (!canCastSpell(sp)) {
+        // Out of gunpowder — stop rapid fire and notify
+        if (manaRef.current <= 0) {
+          showMessage("Za mało prochu!", "#c0a060");
+          if (rapidFireRef.current.intervalId) clearInterval(rapidFireRef.current.intervalId);
+          rapidFireRef.current = { active: false, intervalId: null, lastPos: null };
+        }
+        return;
       }
+      castSkillshot(sp, p.x, p.y);
     }, 130); // ~8 shots/second
     rapidFireRef.current = { active: true, intervalId: id, lastPos: pos };
-  }, [isRapidFireMode, gameScale, castSkillshot, canCastSpell]);
+  }, [isRapidFireMode, gameScale, castSkillshot, canCastSpell, showMessage]);
 
   const moveRapidFire = useCallback((e) => {
     if (!rapidFireRef.current.active || !gameContainerRef.current) return;
@@ -4134,20 +4143,19 @@ export default function App() {
             addMoneyFn(ww.npcData.loot);
             setKills(k => k + 1);
             handleCardDrop(ww.npcData);
-            rollAmmoDrop();
+            rollAmmoDrop(); rollSaberDrop();
             grantXp(ww.isBoss ? 100 : ww.isElite ? 50 : 10 + roomRef.current * 2);
             processKillStreak();
             // Shadow saber: summon skeleton on kill
             if (eff?.type === "summon_skeleton") {
-              const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
               setTimeout(() => {
                 const nid = ++walkerIdCounter;
                 const sx = d.x;
-                const nHp = Math.round(mt.hp * 0.6);
-                const nDmg = Math.round(mt.damage * 0.6);
-                const nd = { icon: "skull", name: "Szkielet", hp: nHp, resist: null, loot: {}, bodyColor: "#888888", armorColor: "#444444", weapon: mt.weapon };
+                const nHp = 40;
+                const nDmg = 8;
+                const nd = { icon: "skull", name: "Szkielet", hp: nHp, resist: null, loot: {}, bodyColor: "#c0b8a0", armorColor: "#8a7a60", bodyType: "humanoid", weapon: "sword" };
                 setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
-                walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
+                walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: 0.3, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: 2000, lungeFrames: 0, lungeOffset: 0, combatStyle: "melee", mercType: "skeleton", range: 35 };
                 if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
                 showMessage("Szkielet przywołany!", "#8844cc");
                 setTimeout(() => {
@@ -4427,7 +4435,7 @@ export default function App() {
           }
           setKills(k => k + 1);
           handleCardDrop(npcData);
-          rollAmmoDrop();
+          rollAmmoDrop(); rollSaberDrop();
           // XP grant on kill
           const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
           grantXp(xpAmt);
@@ -4605,7 +4613,7 @@ export default function App() {
           }
           setKills(k => k + 1);
           handleCardDrop(npcData);
-          rollAmmoDrop();
+          rollAmmoDrop(); rollSaberDrop();
           const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
           grantXp(xpAmt);
           processKillStreak();
@@ -4903,6 +4911,16 @@ export default function App() {
     }
   };
 
+  // 8% chance to drop a saber from monster kills
+  const rollSaberDrop = () => {
+    if (Math.random() > 0.08) return;
+    const unowned = SABERS.filter(s => !s.starter && !ownedSabers.includes(s.id));
+    if (unowned.length === 0) return;
+    const saber = unowned[Math.floor(Math.random() * unowned.length)];
+    setOwnedSabers(prev => [...prev, saber.id]);
+    showMessage(`Zdobyto szabl\u0119: ${saber.name}!`, saber.color);
+  };
+
   const storeItem = (idx) => {
     const hlvl = HIDEOUT_LEVELS[hideoutLevel];
     if (hideoutItems.length >= hlvl.slots) { showMessage("Baza pełna!", "#b83030"); return; }
@@ -5104,7 +5122,7 @@ export default function App() {
           playerLevel={playerLevel} playerXp={playerXp} xpNeeded={xpForLevel(playerLevel)}
           onCrew={() => togglePanel("crew")} onFactions={() => togglePanel("factions")}
           onJournal={() => togglePanel("journal")} onShip={() => togglePanel("ship")}
-          onFortifications={() => togglePanel("fortifications")} />
+          onFortifications={defenseMode ? null : () => togglePanel("fortifications")} />
       )}
 
       {/* Scaled game container – fills entire screen on mobile */}
@@ -5142,7 +5160,7 @@ export default function App() {
           playerLevel={playerLevel} playerXp={playerXp} xpNeeded={xpForLevel(playerLevel)}
           onCrew={() => togglePanel("crew")} onFactions={() => togglePanel("factions")}
           onJournal={() => togglePanel("journal")} onShip={() => togglePanel("ship")}
-          onFortifications={() => togglePanel("fortifications")} />
+          onFortifications={defenseMode ? null : () => togglePanel("fortifications")} />
       )}
       <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H }} />
       <canvas ref={animCanvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none" }} />
@@ -5208,34 +5226,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Defense Trap Placement Panel — visible during setup phase */}
-      {defenseMode && (defenseMode.phase === "setup" || defenseMode.phase === "inter_wave") && !placingTrap && (
-        <div style={{
-          position: "absolute", bottom: isMobile ? 70 : 100, left: "50%", transform: "translateX(-50%)",
-          display: "flex", gap: 6, zIndex: 30, pointerEvents: "auto",
-        }}>
-          {DEFENSE_TRAPS.map(trap => {
-            const costType = Object.keys(trap.cost)[0];
-            const costAmt = trap.cost[costType];
-            const hasAmmo = (ammo[costType] || 0) >= costAmt;
-            const count = playerTraps.filter(t => t.trapType === trap.id && t.active).length;
-            const maxed = count >= trap.maxCount || playerTraps.filter(t => t.active).length >= MAX_PLAYER_TRAPS;
-            return (
-              <div key={trap.id} onClick={() => hasAmmo && !maxed ? setPlacingTrap(trap) : null} style={{
-                background: "rgba(14,8,10,0.9)", border: `1px solid ${hasAmmo && !maxed ? "#40c0a0" : "#444"}`,
-                padding: "4px 10px", borderRadius: 6, cursor: hasAmmo && !maxed ? "pointer" : "not-allowed",
-                color: hasAmmo && !maxed ? "#40c0a0" : "#666", fontSize: isMobile ? 10 : 12,
-                opacity: hasAmmo && !maxed ? 1 : 0.5,
-                boxShadow: hasAmmo && !maxed ? "0 0 6px rgba(60,180,140,0.2)" : "none",
-                textAlign: "center", minWidth: 70,
-              }}>
-                <Icon name={trap.icon} size={12} /> {trap.name}
-                <div style={{ fontSize: 9, color: "#888" }}>{count}/{trap.maxCount} · {costAmt} {costType === "dynamite" ? "dyn" : costType === "cannonball" ? "kula" : "harp"}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* Defense Trap Placement Panel — REMOVED: traps auto-deploy now */}
 
       {/* Trap placement mode indicator */}
       {placingTrap && (
@@ -6564,6 +6555,29 @@ export default function App() {
           <ItemDetail item={inventory[selectedInv]} canStore={canStoreMore}
             onSell={() => sellItem(selectedInv)} onStore={() => storeItem(selectedInv)} />
         )}
+        {/* Saber equipment section */}
+        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#c0c0c0", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #3a2a18", paddingBottom: 4 }}><Icon name="swords" size={15} /> Szable ({ownedSabers.length})</h3>
+        <div style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>Aktywna: <span style={{ color: getEquippedSaberData().color, fontWeight: "bold" }}>{getEquippedSaberData().name}</span></div>
+        {ownedSabers.map(sid => {
+          const saber = SABERS.find(s => s.id === sid);
+          if (!saber) return null;
+          const isEquipped = equippedSaber === sid;
+          return (
+            <div key={sid} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", marginBottom: 4, border: `1px solid ${isEquipped ? saber.color + "60" : "#2a2a2a"}`, background: isEquipped ? `${saber.color}10` : "transparent" }}>
+              <span style={{ filter: isEquipped ? `drop-shadow(0 0 4px ${saber.color}66)` : "none" }}><Icon name={saber.icon} size={22} /></span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: "bold", fontSize: 13, color: SABER_RARITY_COLOR[saber.rarity] || "#888" }}>{saber.name}</div>
+                <div style={{ fontSize: 10, color: "#666" }}>{saber.desc}</div>
+                <div style={{ fontSize: 11, color: "#888" }}>Dmg: <span style={{ color: saber.color }}>{saber.damage}</span></div>
+              </div>
+              {isEquipped ? (
+                <span style={{ color: saber.color, fontWeight: "bold", fontSize: 11 }}>Aktywna</span>
+              ) : (
+                <button onClick={() => equipSaber(sid)} style={{ background: "none", border: `1px solid ${saber.color}`, color: saber.color, fontSize: 11, padding: "2px 8px", cursor: "pointer", fontWeight: "bold" }}>Za\u0142\u00f3\u017c</button>
+              )}
+            </div>
+          );
+        })}
       </SidePanel>
 
       {/* SHOP PANEL */}
