@@ -379,6 +379,7 @@ export class PhysicsWorld {
     this.playerSkillshots = []; // Player-aimed skillshot projectiles
     this.mines = [];            // Placed mines (earthquake spell)
     this.areaIndicators = [];   // Area target indicators (meteor/blizzard)
+    this.obstacleRects = [];    // Obstacle bounding boxes for projectile bounce
     this.combatEffects = new CombatEffects();
     this.canvas = null;
     this.ctx = null;
@@ -484,6 +485,59 @@ export class PhysicsWorld {
     this.playerSkillshots = [];
     this.mines = [];
     this.areaIndicators = [];
+    this.obstacleRects = [];
+  }
+
+  // Store obstacle bounding boxes (pixel coords) for projectile bounce
+  setObstacles(rects) {
+    this.obstacleRects = rects || [];
+  }
+
+  // Bounce a projectile off obstacle rects; returns true if bounced
+  _bounceOffObstacle(proj) {
+    if (!this.obstacleRects || !this.obstacleRects.length) return false;
+    if ((proj._bounces || 0) >= 3) return false; // max 3 bounces per projectile
+
+    for (let oi = 0; oi < this.obstacleRects.length; oi++) {
+      const r = this.obstacleRects[oi];
+      // Check if projectile center is inside the obstacle rect
+      if (proj.x >= r.x && proj.x <= r.x + r.w && proj.y >= r.y && proj.y <= r.y + r.h) {
+        // Determine closest face via minimum penetration depth
+        const penetL = proj.x - r.x;
+        const penetR = r.x + r.w - proj.x;
+        const penetT = proj.y - r.y;
+        const penetB = r.y + r.h - proj.y;
+        const minPenet = Math.min(penetL, penetR, penetT, penetB);
+
+        const damping = 0.75;
+        if (minPenet === penetL) {
+          proj.vx = -Math.abs(proj.vx) * damping;
+          proj.x = r.x - 1;
+        } else if (minPenet === penetR) {
+          proj.vx = Math.abs(proj.vx) * damping;
+          proj.x = r.x + r.w + 1;
+        } else if (minPenet === penetT) {
+          proj.vy = -Math.abs(proj.vy) * damping;
+          proj.y = r.y - 1;
+        } else {
+          proj.vy = Math.abs(proj.vy) * damping;
+          proj.y = r.y + r.h + 1;
+        }
+
+        // Slight random deflection for realism
+        proj.vx += (Math.random() - 0.5) * 0.5;
+        proj.vy += (Math.random() - 0.5) * 0.5;
+
+        proj._bounces = (proj._bounces || 0) + 1;
+
+        // Spawn spark effect at bounce point
+        const fx = this.pixiRenderer || this.combatEffects;
+        if (fx) fx.spawnMeleeSparks(proj.x, proj.y, Math.sign(proj.vx) || 1);
+
+        return true;
+      }
+    }
+    return false;
   }
 
   _halfH(bt) { return HALF_HEIGHTS[bt] || FIGURE_HALF_HEIGHT; }
@@ -988,6 +1042,9 @@ export class PhysicsWorld {
         proj.vx += this.windDeflection * 0.3;
       }
 
+      // Bounce off obstacles
+      this._bounceOffObstacle(proj);
+
       // Trail effects (throttled to reduce particle load)
       const trail = proj.trail;
       if (trail) {
@@ -1320,6 +1377,9 @@ export class PhysicsWorld {
         proj.vx += this.windDeflection * (0.5 + Math.sin(proj.age * 0.15) * 0.5);
         proj.vy += this.windDeflection * Math.sin(proj.age * 0.2) * 0.15;
       }
+
+      // Bounce off obstacles
+      this._bounceOffObstacle(proj);
 
       const fx = this.pixiRenderer || this.combatEffects;
       if (proj.type === "arrow" && proj.age % 3 === 0) fx.spawnArrowTrail(proj.x, proj.y, proj.vx, proj.vy);

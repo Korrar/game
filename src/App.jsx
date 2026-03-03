@@ -2093,6 +2093,34 @@ export default function App() {
     }
     setObstacles(newObstacles);
 
+    // Pass obstacle rects to physics for projectile bounce
+    if (physicsRef.current) {
+      const OBSTACLE_SIZES = {
+        fallen_log: { w: 50, h: 14 }, vine_wall: { w: 30, h: 40 }, ancient_totem: { w: 16, h: 44 }, moss_boulder: { w: 36, h: 28 },
+        shipwreck: { w: 55, h: 30 }, driftwood: { w: 44, h: 10 }, anchor_post: { w: 12, h: 38 },
+        cactus_cluster: { w: 20, h: 36 }, wagon_wreck: { w: 48, h: 28 }, sun_bleached_skull: { w: 22, h: 18 }, tumbleweed: { w: 24, h: 22 },
+        ice_pillar: { w: 14, h: 42 }, frozen_barrel: { w: 24, h: 28 }, snowdrift: { w: 40, h: 16 }, icicle_rock: { w: 30, h: 32 },
+        market_stall: { w: 40, h: 32 }, broken_wagon: { w: 50, h: 24 }, lamp_post: { w: 8, h: 48 }, sandbag_wall: { w: 44, h: 20 },
+        obsidian_pillar: { w: 14, h: 40 }, ash_mound: { w: 32, h: 16 },
+        haystack: { w: 30, h: 28 }, windmill: { w: 20, h: 50 }, scarecrow: { w: 18, h: 44 }, wooden_fence: { w: 46, h: 22 },
+        log_pile: { w: 38, h: 20 }, hunting_stand: { w: 22, h: 46 }, mushroom_ring: { w: 36, h: 14 }, fallen_tree: { w: 55, h: 16 },
+        flower_patch: { w: 34, h: 12 }, beehive: { w: 18, h: 24 }, stone_bridge: { w: 50, h: 14 }, well: { w: 22, h: 26 },
+        crystal_cluster: { w: 24, h: 30 }, giant_mushroom: { w: 28, h: 38 }, web_wall: { w: 40, h: 34 }, stalactite: { w: 12, h: 36 },
+        dead_tree: { w: 18, h: 44 },
+      };
+      // Non-solid obstacles (pools, vents, patches) — projectiles pass through
+      const NON_SOLID = new Set(["tide_pool", "lava_pool", "steam_vent", "fog_pool", "quicksand", "lily_pad"]);
+      const rects = newObstacles
+        .filter(obs => !NON_SOLID.has(obs.type) && OBSTACLE_SIZES[obs.type])
+        .map(obs => {
+          const sz = OBSTACLE_SIZES[obs.type];
+          const cx = (obs.x / 100) * GAME_W;
+          const bottomEdgeY = GAME_H * (1 - obs.y / 100);
+          return { x: cx - sz.w / 2, y: bottomEdgeY - sz.h, w: sz.w, h: sz.h };
+        });
+      physicsRef.current.setObstacles(rects);
+    }
+
     // ─── TRAPS ───
     const newTraps = [];
     let trapId = Date.now();
@@ -5963,9 +5991,11 @@ export default function App() {
             background: s.bg,
             borderRadius: s.radius,
             boxShadow: s.shadow,
+            border: "1.5px solid rgba(255,255,255,0.25)",
+            outline: "1px solid rgba(0,0,0,0.3)",
             pointerEvents: "none",
             zIndex: 5,
-            opacity: 0.7,
+            opacity: 0.85,
             transform: "translateX(-50%)",
           }} />
         );
