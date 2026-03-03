@@ -12,6 +12,7 @@ import { SKILLSHOT_TYPES, ACCURACY_COMBO_THRESHOLD, ACCURACY_COMBO_BONUS, HEADSH
 import { totalCopper, copperToMoney, pickTreasure, formatValHTML } from "./utils/helpers";
 import { rollRandomEvent } from "./data/randomEvents";
 import { rollWeather, applyWeatherDamage } from "./data/weather";
+import { OBSTACLE_DEFS, OBSTACLE_MATERIALS, WEAKNESS_MULT, RESIST_MULT as OBS_RESIST_MULT } from "./data/obstacles";
 import { renderBiome } from "./renderers/biomeRenderers";
 import { renderVault } from "./renderers/vaultRenderer";
 import { BiomeAnimator } from "./renderers/biomeAnimator";
@@ -175,8 +176,10 @@ export default function App() {
   const [mercCamp, setMercCamp] = useState(null);        // { x, biomeId }
   const [wizardPoi, setWizardPoi] = useState(null);      // { x, ammoType, ammoAmount }
   const nuggetRef = useRef({ active: false, intervalId: null });
-  // Decorative obstacles per room
-  const [obstacles, setObstacles] = useState([]);        // [{id, type, x, biomeId}]
+  // Destructible obstacles per room
+  const [obstacles, setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
+  const obstaclesRef = useRef(obstacles);
+  obstaclesRef.current = obstacles;
 
   // Traps system
   const [traps, setTraps] = useState([]);               // [{id, type, x, hp?, maxHp?, active, triggered?, cooldown?}]
@@ -1987,6 +1990,76 @@ export default function App() {
         setWandTick(t => t + 1);
       }
 
+      // ─── PROJECTILE vs OBSTACLE collision check ───
+      if (physicsRef.current && obstaclesRef.current.length > 0) {
+        const skillshots = physicsRef.current.getPlayerSkillshots();
+        if (skillshots.length > 0) {
+          const obs = obstaclesRef.current;
+          const _hitObsIds = new Set(); // avoid double-hitting same obstacle per frame
+          for (let si = 0; si < skillshots.length; si++) {
+            const proj = skillshots[si];
+            // Convert obstacle % coords to pixel coords for distance check
+            for (let oi = 0; oi < obs.length; oi++) {
+              const o = obs[oi];
+              if (!o.destructible || o.hp <= 0 || o.destroying) continue;
+              if (_hitObsIds.has(o.id)) continue;
+              const opx = (o.x / 100) * GAME_W;
+              const opy = GAME_H - (o.y / 100) * GAME_H;
+              const ddx = proj.x - opx, ddy = proj.y - opy;
+              const hitR = (proj.hitRadius || 20) + 12; // slightly generous for obstacles
+              if (ddx * ddx + ddy * ddy < hitR * hitR) {
+                _hitObsIds.add(o.id);
+                // Apply projectile damage to obstacle
+                const spellDmg = proj.damage || 20;
+                const spellEl = proj.element || null;
+                // Use a timeout to avoid calling setState during RAF
+                const _oid = o.id, _dmg = spellDmg, _el = spellEl;
+                setTimeout(() => {
+                  setObstacles(prev => {
+                    const target = prev.find(ob => ob.id === _oid);
+                    if (!target || !target.destructible || target.hp <= 0 || target.destroying) return prev;
+                    const matDef = OBSTACLE_MATERIALS[target.material] || OBSTACLE_MATERIALS.wood;
+                    let dmg = _dmg;
+                    if (matDef.weakTo && matDef.weakTo === _el) dmg = Math.round(dmg * WEAKNESS_MULT);
+                    if (matDef.resistTo && matDef.resistTo === _el) dmg = Math.round(dmg * OBS_RESIST_MULT);
+                    const newHp = Math.max(0, target.hp - dmg);
+                    const px = (target.x / 100) * GAME_W;
+                    const py = GAME_H - (target.y / 100) * GAME_H;
+                    if (pixiRef.current) {
+                      pixiRef.current.spawnObstacleHitSpark(px, py, matDef.color);
+                    }
+                    if (newHp <= 0) {
+                      if (pixiRef.current) {
+                        switch (matDef.particle) {
+                          case "splinter": pixiRef.current.spawnWoodSplinters(px, py); break;
+                          case "rubble":   pixiRef.current.spawnStoneRubble(px, py); break;
+                          case "shard":
+                            if (target.material === "ice") pixiRef.current.spawnIceShatter(px, py);
+                            else pixiRef.current.spawnCrystalShatter(px, py);
+                            break;
+                          case "leaf":     pixiRef.current.spawnLeafBurst(px, py); break;
+                          case "spark":    pixiRef.current.spawnMetalSparks(px, py); break;
+                          case "dust":     pixiRef.current.spawnDustBurst(px, py); break;
+                          default:         pixiRef.current.spawnWoodSplinters(px, py); break;
+                        }
+                        pixiRef.current.screenShake(matDef.shakeIntensity || 3);
+                        if (target.loot && Object.keys(target.loot).length > 0) {
+                          pixiRef.current.spawnGoldCoins(px, py, 0.4);
+                        }
+                      }
+                      if (target.loot && Object.keys(target.loot).length > 0) addMoneyFn(target.loot);
+                      setTimeout(() => setObstacles(p => p.filter(ob => ob.id !== _oid)), 400);
+                      return prev.map(ob => ob.id === _oid ? { ...ob, hp: 0, destroying: true, hitAnim: Date.now() } : ob);
+                    }
+                    return prev.map(ob => ob.id === _oid ? { ...ob, hp: newHp, hitAnim: Date.now() } : ob);
+                  });
+                }, 0);
+              }
+            }
+          }
+        }
+      }
+
       // Step physics simulation
       if (physicsRef.current) physicsRef.current.step();
     };
@@ -2179,7 +2252,7 @@ export default function App() {
     setMercCamp(newCamp);
     setWizardPoi(newWizard);
 
-    // ─── OBSTACLES (decorative per biome) ───
+    // ─── OBSTACLES (destructible per biome) ───
     const OBSTACLE_VARIANTS = {
       jungle:   ["fallen_log", "vine_wall", "ancient_totem", "moss_boulder"],
       island:   ["shipwreck", "driftwood", "tide_pool", "anchor_post"],
@@ -2194,16 +2267,33 @@ export default function App() {
       swamp:    ["quicksand", "dead_tree", "fog_pool", "lily_pad"],
       sunset_beach: ["driftwood", "tide_pool", "shipwreck", "anchor_post"],
       bamboo_falls: ["moss_boulder", "fallen_log", "vine_wall", "flower_patch"],
+      blue_lagoon: ["driftwood", "tide_pool", "anchor_post", "flower_patch"],
     };
     const biomeObstacles = OBSTACLE_VARIANTS[bid] || OBSTACLE_VARIANTS.desert;
     const newObstacles = [];
     if (!isDefenseRoom) {
-      const obsCount = 2 + Math.floor(Math.random() * 3); // 2-4 obstacles per room
+      const obsCount = 3 + Math.floor(Math.random() * 3); // 3-5 obstacles per room
       for (let i = 0; i < obsCount; i++) {
         const ox = 5 + Math.random() * 85;
-        const oy = 10 + Math.random() * 55; // spread across full NPC walking area
+        const oy = 10 + Math.random() * 55;
         const obsType = biomeObstacles[Math.floor(Math.random() * biomeObstacles.length)];
-        newObstacles.push({ id: i, type: obsType, x: ox, y: oy, biomeId: bid });
+        const def = OBSTACLE_DEFS[obsType] || { material: "wood", hp: 30, loot: {}, destructible: true };
+        const roomScale = 1 + Math.min(newRoom / 20, 0.5); // obstacles slightly tougher in later rooms
+        const scaledHp = def.destructible ? Math.round(def.hp * roomScale) : 0;
+        newObstacles.push({
+          id: Date.now() + i,
+          type: obsType,
+          x: ox,
+          y: oy,
+          biomeId: bid,
+          hp: scaledHp,
+          maxHp: scaledHp,
+          destructible: def.destructible,
+          material: def.material,
+          loot: def.loot,
+          hitAnim: 0,        // shake animation timer
+          destroying: false,  // destruction animation in progress
+        });
       }
     }
     setObstacles(newObstacles);
@@ -4320,7 +4410,7 @@ export default function App() {
         if (eff?.type === "knockback" && d) {
           const kbDir = d.x > 50 ? 1 : -1;
           d.x = Math.max(5, Math.min(95, d.x + kbDir * eff.force * 3));
-          if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "melee", kbDir);
+          if (physicsRef.current) physicsRef.current.applyHit(w.id, "melee", kbDir);
         }
         // Saber effect: gold bonus
         if (eff?.type === "gold_bonus") {
@@ -4416,6 +4506,81 @@ export default function App() {
     }
   }, [spawnDmgPopup, addMoneyFn, showMessage]);
 
+  // ─── OBSTACLE DAMAGE ───
+  const damageObstacle = useCallback((obsId, damage, element) => {
+    setObstacles(prev => prev.map(obs => {
+      if (obs.id !== obsId || !obs.destructible || obs.destroying || obs.hp <= 0) return obs;
+      const matDef = OBSTACLE_MATERIALS[obs.material] || OBSTACLE_MATERIALS.wood;
+      let dmg = damage;
+      // Element weakness: 2x damage
+      if (matDef.weakTo && matDef.weakTo === element) dmg = Math.round(dmg * WEAKNESS_MULT);
+      // Element resistance: 0.25x damage
+      if (matDef.resistTo && matDef.resistTo === element) dmg = Math.round(dmg * OBS_RESIST_MULT);
+      const newHp = Math.max(0, obs.hp - dmg);
+      const px = (obs.x / 100) * GAME_W;
+      const py = GAME_H - (obs.y / 100) * GAME_H;
+      // Hit spark effect on every hit
+      if (pixiRef.current) {
+        pixiRef.current.spawnObstacleHitSpark(px, py, matDef.color);
+      }
+      if (newHp <= 0) {
+        // ─── DESTRUCTION ───
+        if (pixiRef.current) {
+          // Spawn material-specific destruction particles
+          switch (matDef.particle) {
+            case "splinter": pixiRef.current.spawnWoodSplinters(px, py); break;
+            case "rubble":   pixiRef.current.spawnStoneRubble(px, py); break;
+            case "shard":
+              if (obs.material === "ice") pixiRef.current.spawnIceShatter(px, py);
+              else pixiRef.current.spawnCrystalShatter(px, py);
+              break;
+            case "leaf":     pixiRef.current.spawnLeafBurst(px, py); break;
+            case "spark":    pixiRef.current.spawnMetalSparks(px, py); break;
+            case "dust":     pixiRef.current.spawnDustBurst(px, py); break;
+            default:         pixiRef.current.spawnWoodSplinters(px, py); break;
+          }
+          pixiRef.current.screenShake(matDef.shakeIntensity || 3);
+        }
+        // Drop loot
+        if (obs.loot && Object.keys(obs.loot).length > 0) {
+          addMoneyFn(obs.loot);
+          if (pixiRef.current) pixiRef.current.spawnGoldCoins(px, py, 0.4);
+        }
+        // Mark as destroying for fade-out animation, then remove after delay
+        setTimeout(() => {
+          setObstacles(p => p.filter(o => o.id !== obsId));
+        }, 400);
+        return { ...obs, hp: 0, destroying: true, hitAnim: Date.now() };
+      }
+      return { ...obs, hp: newHp, hitAnim: Date.now() };
+    }));
+  }, [addMoneyFn]);
+
+  // Check obstacle hits during saber swipe
+  const saberCheckObstacleHits = useCallback((x, y) => {
+    const saberData = getEquippedSaberData();
+    const hitRadius = 7; // slightly larger than NPC hit radius
+    for (const obs of obstaclesRef.current) {
+      if (!obs.destructible || obs.hp <= 0 || obs.destroying) continue;
+      if (saberHitIdsRef.current.has(`obs_${obs.id}`)) continue;
+      const dx = obs.x - x, dy = (100 - obs.y) - y; // convert bottom% to top%
+      if (dx * dx + dy * dy < hitRadius * hitRadius) {
+        saberHitIdsRef.current.add(`obs_${obs.id}`);
+        const saberEff = saberData.effect;
+        let dmg = saberData.damage;
+        const isCrit = Math.random() < 0.20;
+        if (isCrit) dmg = Math.round(dmg * 2.5);
+        const element = saberEff?.element || null;
+        damageObstacle(obs.id, dmg, element);
+        sfxMeleeHit();
+        // Sparks on saber hit
+        const px = (obs.x / 100) * GAME_W;
+        const py = GAME_H - (obs.y / 100) * GAME_H;
+        if (pixiRef.current) pixiRef.current.spawnMeleeSparks(px, py, x > obs.x ? 1 : -1);
+      }
+    }
+  }, [damageObstacle]);
+
   const handleSaberDown = useCallback((e) => {
     if (!isSaberMode) return;
     if (Date.now() < saberCdRef.current) return;
@@ -4428,7 +4593,8 @@ export default function App() {
     setSaberTrail([{ x: pos.px, y: pos.py }]);
     sfxSaberSwipe();
     saberCheckHits(pos.x, pos.y);
-  }, [isSaberMode, saberGetGamePos, saberCheckHits]);
+    saberCheckObstacleHits(pos.x, pos.y);
+  }, [isSaberMode, saberGetGamePos, saberCheckHits, saberCheckObstacleHits]);
 
   const handleSaberMove = useCallback((e) => {
     if (!saberSwipingRef.current) return;
@@ -4438,7 +4604,8 @@ export default function App() {
     saberPointsRef.current.push({ x: pos.x, y: pos.y, time: Date.now() });
     setSaberTrail(prev => [...prev, { x: pos.px, y: pos.py }].slice(-30));
     saberCheckHits(pos.x, pos.y);
-  }, [saberGetGamePos, saberCheckHits]);
+    saberCheckObstacleHits(pos.x, pos.y);
+  }, [saberGetGamePos, saberCheckHits, saberCheckObstacleHits]);
 
   const handleSaberUp = useCallback(() => {
     if (!saberSwipingRef.current) return;
@@ -6221,7 +6388,7 @@ export default function App() {
         );
       })()}
 
-      {/* ─── DECORATIVE OBSTACLES ─── */}
+      {/* ─── DESTRUCTIBLE OBSTACLES ─── */}
       {obstacles.map(obs => {
         const obsStyles = {
           fallen_log: { w: 50, h: 14, bg: "linear-gradient(90deg,#5a3a18,#6a4a20,#4a3010)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
@@ -6270,21 +6437,93 @@ export default function App() {
           lily_pad: { w: 22, h: 10, bg: "radial-gradient(ellipse,#408040,#306030,#205020)", radius: "50%", shadow: "0 1px 3px rgba(0,0,0,0.3)" },
         };
         const s = obsStyles[obs.type] || obsStyles.moss_boulder;
+        const isHit = obs.hitAnim && (Date.now() - obs.hitAnim) < 300;
+        const hitAge = isHit ? (Date.now() - obs.hitAnim) : 300;
+        const shakeX = isHit ? Math.sin(hitAge * 0.06) * (3 - hitAge * 0.01) : 0;
+        const hpPct = obs.maxHp > 0 ? obs.hp / obs.maxHp : 1;
+        const damaged = obs.destructible && hpPct < 1;
+        const isDestroying = obs.destroying;
+        // Crack overlay intensity based on damage
+        const crackIntensity = damaged ? (1 - hpPct) : 0;
+        // HP bar color: green → yellow → red
+        const hpColor = hpPct > 0.5 ? `rgb(${Math.round(255 * (1 - hpPct) * 2)},200,40)` : `rgb(255,${Math.round(200 * hpPct * 2)},40)`;
+
         return (
           <div key={`obs-${obs.id}`} style={{
             position: "absolute",
             left: `${obs.x}%`,
             bottom: `${obs.y}%`,
-            width: s.w,
-            height: s.h,
-            background: s.bg,
-            borderRadius: s.radius,
-            boxShadow: s.shadow,
-            pointerEvents: "none",
             zIndex: 5,
-            opacity: 0.7,
-            transform: "translateX(-50%)",
-          }} />
+            transform: `translateX(-50%) translateX(${shakeX}px)`,
+            opacity: isDestroying ? 0 : (damaged ? 0.6 + hpPct * 0.35 : 0.85),
+            transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "opacity 0.2s",
+            pointerEvents: "none",
+          }}>
+            {/* Main obstacle body */}
+            <div style={{
+              width: s.w,
+              height: s.h,
+              background: s.bg,
+              borderRadius: s.radius,
+              boxShadow: isHit
+                ? `${s.shadow}, 0 0 8px rgba(255,200,100,0.6)`
+                : s.shadow,
+              position: "relative",
+              overflow: "hidden",
+              transform: isDestroying ? "scale(1.3)" : "none",
+              transition: isDestroying ? "transform 0.35s ease-out" : "none",
+            }}>
+              {/* Crack overlay - gets more intense as HP decreases */}
+              {crackIntensity > 0 && (
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: `repeating-linear-gradient(${45 + crackIntensity * 30}deg, transparent, transparent ${6 - crackIntensity * 3}px, rgba(0,0,0,${0.15 + crackIntensity * 0.25}) ${6 - crackIntensity * 3}px, transparent ${7 - crackIntensity * 3}px)`,
+                  borderRadius: s.radius,
+                  pointerEvents: "none",
+                }} />
+              )}
+              {/* Damage darkening overlay */}
+              {crackIntensity > 0.3 && (
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: `rgba(0,0,0,${crackIntensity * 0.3})`,
+                  borderRadius: s.radius,
+                  pointerEvents: "none",
+                }} />
+              )}
+              {/* Hit flash overlay */}
+              {isHit && hitAge < 100 && (
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: "rgba(255,220,150,0.4)",
+                  borderRadius: s.radius,
+                  pointerEvents: "none",
+                }} />
+              )}
+            </div>
+            {/* HP bar - only shown when damaged and destructible */}
+            {damaged && !isDestroying && (
+              <div style={{
+                position: "absolute",
+                bottom: -5,
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: Math.max(s.w * 0.8, 20),
+                height: 3,
+                background: "rgba(0,0,0,0.6)",
+                borderRadius: 2,
+                overflow: "hidden",
+              }}>
+                <div style={{
+                  width: `${hpPct * 100}%`,
+                  height: "100%",
+                  background: hpColor,
+                  borderRadius: 2,
+                  transition: "width 0.15s ease-out",
+                }} />
+              </div>
+            )}
+          </div>
         );
       })}
 
