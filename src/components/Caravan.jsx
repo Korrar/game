@@ -77,22 +77,23 @@ export default function Caravan({ initiative, maxInitiative, cost, canTravel, on
 
       {/* Initiative bar + Travel button */}
       <div onClick={onClick} style={{
-        display: "flex", alignItems: "center", gap: 4,
+        display: "flex", alignItems: "center", gap: 6,
         cursor: canTravel ? "pointer" : "not-allowed",
-        padding: m ? "2px 6px" : "3px 10px",
+        padding: m ? "5px 10px" : "6px 16px",
         background: canTravel
-          ? "linear-gradient(180deg, rgba(212,160,48,0.15), rgba(160,120,30,0.08))"
+          ? "linear-gradient(180deg, rgba(212,160,48,0.25), rgba(160,120,30,0.12))"
           : "rgba(0,0,0,0.2)",
-        border: `1px solid ${canTravel ? "#8a6020" : "#2a2018"}`,
-        borderRadius: 4,
+        border: `2px solid ${canTravel ? "#b88030" : "#2a2018"}`,
+        borderRadius: 6,
         transition: "all 0.2s",
         filter: canTravel ? "none" : "brightness(0.7)",
         flexShrink: 0,
+        boxShadow: canTravel ? "0 0 12px rgba(212,160,48,0.3), inset 0 1px 0 rgba(255,220,100,0.15)" : "none",
       }}>
-        <div style={{ width: m ? 40 : 60, position: "relative" }}>
+        <div style={{ width: m ? 50 : 70, position: "relative" }}>
           <div style={{
-            height: m ? 5 : 6, background: "rgba(0,0,0,0.7)",
-            border: "1px solid #3a2a18", borderRadius: 3,
+            height: m ? 7 : 8, background: "rgba(0,0,0,0.7)",
+            border: "1px solid #3a2a18", borderRadius: 4,
             overflow: "hidden",
           }}>
             <div style={{
@@ -100,23 +101,25 @@ export default function Caravan({ initiative, maxInitiative, cost, canTravel, on
               background: pct >= costPct
                 ? "linear-gradient(90deg,#d4a030,#e0c060)"
                 : "linear-gradient(90deg,#604820,#806030)",
-              borderRadius: 2, transition: "width 0.3s",
-              boxShadow: pct >= costPct ? "0 0 4px rgba(212,160,48,0.4)" : "none",
+              borderRadius: 3, transition: "width 0.3s",
+              boxShadow: pct >= costPct ? "0 0 6px rgba(212,160,48,0.5)" : "none",
             }} />
             <div style={{
               position: "absolute", top: 0, bottom: 0, left: `${costPct}%`,
-              width: 1, background: "rgba(255,255,255,0.35)",
+              width: 1, background: "rgba(255,255,255,0.4)",
             }} />
           </div>
         </div>
         <div style={{
-          fontSize: m ? 9 : 10, fontWeight: "bold",
-          color: canTravel ? "#d4a030" : "#555",
+          fontSize: m ? 13 : 15, fontWeight: "bold",
+          color: canTravel ? "#ffd050" : "#555",
           whiteSpace: "nowrap",
           animation: canTravel ? "doorGlow 2s ease-in-out infinite" : "none",
+          textShadow: canTravel ? "0 0 8px rgba(212,160,48,0.5)" : "none",
+          letterSpacing: 1,
         }}>
-          <CIcon name="convoy" size={m ? 9 : 10} /> Ruszaj
-          <span style={{ fontSize: 8, color: "#666", marginLeft: 2 }}><CIcon name="hourglass" size={8} />{cost}</span>
+          <CIcon name="convoy" size={m ? 14 : 16} /> RUSZAJ
+          <span style={{ fontSize: m ? 9 : 10, color: "#888", marginLeft: 4, fontWeight: "normal" }}><CIcon name="hourglass" size={9} />{cost}</span>
         </div>
       </div>
 

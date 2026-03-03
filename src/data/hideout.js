@@ -9,3 +9,61 @@ export const HIDEOUT_LEVELS = [
   { name: "Piracki Bastion", slots: 65, cost: { gold: 25 } },
   { name: "Pałac Złotego Cesarza", slots: 80, cost: { gold: 50 } },
 ];
+
+// Permanent upgrades purchasable in the hideout between rooms
+export const HIDEOUT_UPGRADES = [
+  {
+    id: "powder_reserve",
+    name: "Rezerwa Prochu",
+    icon: "fire",
+    desc: "Start z +5 prochu na początku każdego etapu",
+    maxLevel: 3,
+    costs: [{ silver: 3 }, { silver: 8 }, { gold: 1 }],
+    effect: { type: "startMana", perLevel: 5 },
+  },
+  {
+    id: "reinforced_caravan",
+    name: "Wzmocniona Karawana",
+    icon: "shield",
+    desc: "+10 HP karawany na stałe",
+    maxLevel: 5,
+    costs: [{ silver: 5 }, { silver: 12 }, { gold: 1 }, { gold: 3 }, { gold: 6 }],
+    effect: { type: "caravanHpBonus", perLevel: 10 },
+  },
+  {
+    id: "ammo_stash",
+    name: "Skrytka z Amunicją",
+    icon: "lightning",
+    desc: "+2 losowej amunicji na początku obrony",
+    maxLevel: 3,
+    costs: [{ silver: 4 }, { silver: 10 }, { gold: 2 }],
+    effect: { type: "startAmmo", perLevel: 2 },
+  },
+  {
+    id: "merchant_contacts",
+    name: "Kontakty Handlowe",
+    icon: "coin",
+    desc: "Ceny w sklepie -5% na poziom",
+    maxLevel: 4,
+    costs: [{ silver: 6 }, { silver: 15 }, { gold: 2 }, { gold: 5 }],
+    effect: { type: "shopDiscount", perLevel: 0.05 },
+  },
+  {
+    id: "scout_network",
+    name: "Sieć Zwiadowców",
+    icon: "eye",
+    desc: "+10% szans na wydarzenie losowe z nagrodą",
+    maxLevel: 3,
+    costs: [{ silver: 5 }, { gold: 1 }, { gold: 4 }],
+    effect: { type: "eventChanceBonus", perLevel: 0.10 },
+  },
+  {
+    id: "combat_training",
+    name: "Trening Bojowy",
+    icon: "swords",
+    desc: "Najemnicy zaczynają z +5% obrażeń na poziom",
+    maxLevel: 4,
+    costs: [{ silver: 8 }, { gold: 1 }, { gold: 3 }, { gold: 8 }],
+    effect: { type: "mercDmgBonus", perLevel: 0.05 },
+  },
+];
