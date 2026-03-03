@@ -47,12 +47,16 @@ export const SKILLSHOT_TYPES = {
     splashDamageMult: 0.6,
     trail: "fire",
   },
-  // Salwa Armatnia — player marks area, after 1s bombardment falls
+  // Salwa Armatnia — arc cannonballs from caravan to cursor (hold-to-cast)
   meteor: {
-    type: "area",
-    delay: 1000,       // ms before impact
-    splashRadius: 80,  // large AoE
-    indicatorColor: "#ff4020",
+    type: "arc",
+    speed: 7,
+    gravity: 0.12,
+    size: 10,
+    hitRadius: 20,
+    splashRadius: 45,
+    splashDamageMult: 0.5,
+    trail: "fire",
   },
   // Grad Kul — rain of bullets in targeted area
   blizzard: {
