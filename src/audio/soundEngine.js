@@ -35,163 +35,216 @@ function getCtx() {
 // drones: bass oscillators, df: drone filter Hz, pads: pad oscillators, pf: pad filter Hz,
 // wv: wind volume, wf: wind filter Hz, notes: chime note pool,
 // ct: chime tempo range [min,max] ms, cc: chime chance
+// ── Music Theory Reference ──
+// All biome music uses proper harmonic intervals:
+// - Drones: Root + Perfect Fifth (3:2) + Octave (2:1) = always consonant
+// - Pads: Third (major 5:4 or minor 6:5) + Fifth = harmonious
+// - Bass/Chimes: Pentatonic scales (no dissonant semitones)
+// - Modes per biome: Dorian (shanty), Mixolydian (adventure), Phrygian (exotic),
+//   Minor pentatonic (dark), Major pentatonic (bright), Lydian (dreamy)
 const BIOME_MUSIC = {
+  // ── G Dorian (minor w/ raised 6th) — mysterious tribal, pirate jungle ──
   jungle: {
-    drones: [{ freq: 110, dt: 0, vol: 0.22 }, { freq: 164.8, dt: 5, vol: 0.14 }, { freq: 220, dt: -3, vol: 0.09 }],
-    df: 480, pads: [{ freq: 329.6, vol: 0.08 }, { freq: 440, vol: 0.06 }], pf: 700,
+    // Drones: G2(root) + D3(perfect 5th) + G3(octave) — pure consonance
+    drones: [{ freq: 98, dt: 0, vol: 0.22 }, { freq: 146.83, dt: 5, vol: 0.14 }, { freq: 196, dt: -3, vol: 0.09 }],
+    df: 500, pads: [{ freq: 233.08, vol: 0.08 }, { freq: 293.66, vol: 0.06 }], pf: 700,
     wv: 0.03, wf: 350,
-    notes: [329.6, 392, 440, 523.3, 659.3], ct: [2500, 5000], cc: 0.65,
-    // Tribal drums - fast, syncopated
-    perc: { bpm: 130, vol: 0.12, kickVol: 0.14, hatVol: 0.06, swing: 0.15, pattern: "tribal" },
-    // Pentatonic bass melody
-    bass: { notes: [110, 130.8, 146.8, 196, 220], rate: 600, vol: 0.10, fHz: 350 },
+    // G Dorian pentatonic chimes: G4, Bb4, C5, D5, F5
+    notes: [392, 466.16, 523.25, 587.33, 698.46], ct: [2500, 5000], cc: 0.65,
+    perc: { bpm: 125, vol: 0.12, kickVol: 0.14, hatVol: 0.06, swing: 0.15, pattern: "tribal" },
+    // G Dorian bass: G2, Bb2, C3, D3, F3
+    bass: { notes: [98, 116.54, 130.81, 146.83, 174.61], rate: 600, vol: 0.10, fHz: 350 },
   },
+  // ── D Mixolydian (major w/ flat 7th) — classic sea shanty, adventure ──
   island: {
-    drones: [{ freq: 130.8, dt: 0, vol: 0.22 }, { freq: 196, dt: 3, vol: 0.14 }, { freq: 261.6, dt: -2, vol: 0.09 }],
-    df: 520, pads: [{ freq: 392, vol: 0.07 }, { freq: 523.3, vol: 0.06 }], pf: 750,
+    // Drones: D2(root) + A2(perfect 5th) + D3(octave)
+    drones: [{ freq: 73.42, dt: 0, vol: 0.22 }, { freq: 110, dt: 3, vol: 0.14 }, { freq: 146.83, dt: -2, vol: 0.09 }],
+    df: 520, pads: [{ freq: 185, vol: 0.07 }, { freq: 220, vol: 0.06 }], pf: 750,
     wv: 0.05, wf: 400,
-    notes: [523.3, 587.3, 659.3, 784, 880], ct: [2000, 4500], cc: 0.7,
-    // Sea shanty rhythm - bouncy, upbeat
+    // D Mixolydian pentatonic chimes: D4, E4, F#4, A4, C5
+    notes: [293.66, 329.63, 370, 440, 523.25], ct: [2000, 4500], cc: 0.7,
     perc: { bpm: 115, vol: 0.14, kickVol: 0.15, hatVol: 0.07, swing: 0.2, pattern: "shanty" },
-    bass: { notes: [130.8, 164.8, 196, 261.6, 196], rate: 520, vol: 0.12, fHz: 400 },
-    // Ocean wave pulse
+    // D Mixolydian bass: D2, E2, F#2, A2, C3
+    bass: { notes: [73.42, 82.41, 92.50, 110, 130.81], rate: 520, vol: 0.12, fHz: 400 },
     waves: { vol: 0.04, rate: 4.5 },
   },
+  // ── A Phrygian (exotic minor w/ flat 2nd) — Middle Eastern desert ──
   desert: {
-    drones: [{ freq: 73.4, dt: 0, vol: 0.26 }, { freq: 110, dt: 7, vol: 0.16 }, { freq: 146.8, dt: -5, vol: 0.11 }],
-    df: 380, pads: [{ freq: 293.7, vol: 0.07 }, { freq: 349.2, vol: 0.06 }], pf: 580,
+    // Drones: A1(root) + E2(perfect 5th) + A2(octave)
+    drones: [{ freq: 55, dt: 0, vol: 0.26 }, { freq: 82.41, dt: 7, vol: 0.16 }, { freq: 110, dt: -5, vol: 0.11 }],
+    df: 380, pads: [{ freq: 130.81, vol: 0.07 }, { freq: 164.81, vol: 0.06 }], pf: 580,
     wv: 0.06, wf: 250,
-    notes: [293.7, 311.1, 370, 440, 466.2], ct: [4000, 7500], cc: 0.45,
-    // Sparse, deep percussion
+    // A Phrygian dominant chimes: E4, F4, Ab4, A4, C5 (exotic intervals)
+    notes: [329.63, 349.23, 415.30, 440, 523.25], ct: [4000, 7500], cc: 0.45,
     perc: { bpm: 75, vol: 0.10, kickVol: 0.16, hatVol: 0.04, swing: 0.1, pattern: "sparse" },
-    bass: { notes: [73.4, 82.4, 98, 110, 82.4], rate: 900, vol: 0.09, fHz: 280 },
+    // A Phrygian bass: A2, Bb2, C3, D3, E3
+    bass: { notes: [110, 116.54, 130.81, 146.83, 164.81], rate: 900, vol: 0.09, fHz: 280 },
   },
+  // ── E minor pentatonic — cold, crystalline, ethereal ──
   winter: {
-    drones: [{ freq: 82.4, dt: 0, vol: 0.22 }, { freq: 123.5, dt: 4, vol: 0.14 }, { freq: 164.8, dt: -3, vol: 0.1 }],
-    df: 340, pads: [{ freq: 246.9, vol: 0.08 }, { freq: 329.6, vol: 0.06 }], pf: 520,
+    // Drones: E2(root) + B2(perfect 5th) + E3(octave)
+    drones: [{ freq: 82.41, dt: 0, vol: 0.22 }, { freq: 123.47, dt: 4, vol: 0.14 }, { freq: 164.81, dt: -3, vol: 0.10 }],
+    df: 340, pads: [{ freq: 196, vol: 0.08 }, { freq: 246.94, vol: 0.06 }], pf: 520,
     wv: 0.08, wf: 280,
-    notes: [329.6, 392, 493.9, 659.3, 784], ct: [4500, 9000], cc: 0.4,
-    // Gentle, sparse
+    // E minor pentatonic chimes: E4, G4, A4, B4, D5 (high, bell-like)
+    notes: [329.63, 392, 440, 493.88, 587.33], ct: [4500, 9000], cc: 0.4,
     perc: { bpm: 65, vol: 0.06, kickVol: 0.10, hatVol: 0.03, swing: 0.05, pattern: "sparse" },
-    bass: { notes: [82.4, 98, 110, 130.8, 98], rate: 1100, vol: 0.07, fHz: 250 },
+    // E minor pentatonic bass: E2, G2, A2, B2, D3
+    bass: { notes: [82.41, 98, 110, 123.47, 146.83], rate: 1100, vol: 0.07, fHz: 250 },
   },
+  // ── Bb Dorian — dark tavern, port city at night ──
   city: {
-    drones: [{ freq: 61.7, dt: 0, vol: 0.25 }, { freq: 92.5, dt: 6, vol: 0.15 }, { freq: 123.5, dt: -4, vol: 0.1 }],
-    df: 320, pads: [{ freq: 185, vol: 0.07 }, { freq: 246.9, vol: 0.06 }], pf: 480,
+    // Drones: Bb1(root) + F2(perfect 5th) + Bb2(octave)
+    drones: [{ freq: 58.27, dt: 0, vol: 0.25 }, { freq: 87.31, dt: 6, vol: 0.15 }, { freq: 116.54, dt: -4, vol: 0.10 }],
+    df: 320, pads: [{ freq: 138.59, vol: 0.07 }, { freq: 174.61, vol: 0.06 }], pf: 480,
     wv: 0.02, wf: 200,
-    notes: [246.9, 293.7, 349.2, 440, 523.3], ct: [3500, 7000], cc: 0.5,
-    // Tavern rhythm - moderate, jazzy
+    // Bb Dorian chimes: Bb3, C4, Db4, F4, G4
+    notes: [233.08, 261.63, 277.18, 349.23, 392], ct: [3500, 7000], cc: 0.5,
     perc: { bpm: 100, vol: 0.11, kickVol: 0.13, hatVol: 0.06, swing: 0.25, pattern: "tavern" },
-    bass: { notes: [61.7, 73.4, 82.4, 92.5, 73.4], rate: 700, vol: 0.10, fHz: 300 },
+    // Bb Dorian bass: Bb1, C2, Db2, F2, G2
+    bass: { notes: [58.27, 65.41, 69.30, 87.31, 98], rate: 700, vol: 0.10, fHz: 300 },
   },
+  // ── A Phrygian dominant — intense, ominous, volcanic ──
   volcano: {
-    drones: [{ freq: 55, dt: 0, vol: 0.30 }, { freq: 82.4, dt: 8, vol: 0.20 }, { freq: 110, dt: -5, vol: 0.13 }],
-    df: 300, pads: [{ freq: 164.8, vol: 0.08 }, { freq: 207.7, vol: 0.07 }], pf: 420,
+    // Drones: A1(root) + E2(perfect 5th) + A2(octave)
+    drones: [{ freq: 55, dt: 0, vol: 0.30 }, { freq: 82.41, dt: 8, vol: 0.20 }, { freq: 110, dt: -5, vol: 0.13 }],
+    df: 300, pads: [{ freq: 130.81, vol: 0.08 }, { freq: 164.81, vol: 0.07 }], pf: 420,
     wv: 0.04, wf: 220,
-    notes: [220, 261.6, 311.1, 370, 440], ct: [3500, 7500], cc: 0.4,
-    // Heavy war drums
+    // A Phrygian dominant chimes: C4, E4, F4, Ab4, A4
+    notes: [261.63, 329.63, 349.23, 415.30, 440], ct: [3500, 7500], cc: 0.4,
     perc: { bpm: 90, vol: 0.16, kickVol: 0.20, hatVol: 0.05, swing: 0.08, pattern: "war" },
-    bass: { notes: [55, 61.7, 73.4, 82.4, 55], rate: 800, vol: 0.12, fHz: 250 },
+    // A Phrygian dominant bass: A1, Bb1, Db2, D2, E2
+    bass: { notes: [55, 58.27, 69.30, 73.42, 82.41], rate: 800, vol: 0.12, fHz: 250 },
   },
+  // ── G major pentatonic — bright, breezy, cheerful summer ──
   summer: {
-    drones: [{ freq: 98, dt: 0, vol: 0.20 }, { freq: 146.8, dt: 4, vol: 0.13 }, { freq: 196, dt: -3, vol: 0.09 }],
-    df: 520, pads: [{ freq: 293.7, vol: 0.07 }, { freq: 392, vol: 0.06 }], pf: 650,
+    // Drones: G2(root) + D3(perfect 5th) + G3(octave)
+    drones: [{ freq: 98, dt: 0, vol: 0.20 }, { freq: 146.83, dt: 4, vol: 0.13 }, { freq: 196, dt: -3, vol: 0.09 }],
+    df: 520, pads: [{ freq: 246.94, vol: 0.07 }, { freq: 293.66, vol: 0.06 }], pf: 650,
     wv: 0.03, wf: 350,
-    notes: [392, 440, 523.3, 587.3, 659.3], ct: [2500, 5500], cc: 0.6,
-    // Light, breezy
+    // G major pentatonic chimes: G4, A4, B4, D5, E5
+    notes: [392, 440, 493.88, 587.33, 659.26], ct: [2500, 5500], cc: 0.6,
     perc: { bpm: 110, vol: 0.10, kickVol: 0.11, hatVol: 0.06, swing: 0.18, pattern: "shanty" },
-    bass: { notes: [98, 130.8, 146.8, 196, 146.8], rate: 550, vol: 0.09, fHz: 380 },
+    // G major pentatonic bass: G2, A2, B2, D3, E3
+    bass: { notes: [98, 110, 123.47, 146.83, 164.81], rate: 550, vol: 0.09, fHz: 380 },
   },
+  // ── D minor pentatonic — melancholic, falling leaves ──
   autumn: {
-    drones: [{ freq: 73.4, dt: 0, vol: 0.23 }, { freq: 110, dt: 5, vol: 0.15 }, { freq: 146.8, dt: -4, vol: 0.10 }],
-    df: 340, pads: [{ freq: 220, vol: 0.08 }, { freq: 293.7, vol: 0.06 }], pf: 480,
+    // Drones: D2(root) + A2(perfect 5th) + D3(octave)
+    drones: [{ freq: 73.42, dt: 0, vol: 0.23 }, { freq: 110, dt: 5, vol: 0.15 }, { freq: 146.83, dt: -4, vol: 0.10 }],
+    df: 340, pads: [{ freq: 174.61, vol: 0.08 }, { freq: 220, vol: 0.06 }], pf: 480,
     wv: 0.04, wf: 260,
-    notes: [220, 261.6, 293.7, 349.2, 440], ct: [4000, 8000], cc: 0.4,
-    // Melancholic, moderate
+    // D minor pentatonic chimes: D4, F4, G4, A4, C5
+    notes: [293.66, 349.23, 392, 440, 523.25], ct: [4000, 8000], cc: 0.4,
     perc: { bpm: 85, vol: 0.09, kickVol: 0.12, hatVol: 0.05, swing: 0.12, pattern: "sparse" },
-    bass: { notes: [73.4, 87.3, 98, 110, 87.3], rate: 850, vol: 0.08, fHz: 280 },
+    // D minor pentatonic bass: D2, F2, G2, A2, C3
+    bass: { notes: [73.42, 87.31, 98, 110, 130.81], rate: 850, vol: 0.08, fHz: 280 },
   },
+  // ── F major pentatonic — fresh, uplifting, spring breeze ──
   spring: {
-    drones: [{ freq: 87.3, dt: 0, vol: 0.20 }, { freq: 130.8, dt: 3, vol: 0.13 }, { freq: 174.6, dt: -2, vol: 0.09 }],
-    df: 480, pads: [{ freq: 261.6, vol: 0.07 }, { freq: 349.2, vol: 0.06 }], pf: 600,
+    // Drones: F2(root) + C3(perfect 5th) + F3(octave)
+    drones: [{ freq: 87.31, dt: 0, vol: 0.20 }, { freq: 130.81, dt: 3, vol: 0.13 }, { freq: 174.61, dt: -2, vol: 0.09 }],
+    df: 480, pads: [{ freq: 220, vol: 0.07 }, { freq: 261.63, vol: 0.06 }], pf: 600,
     wv: 0.04, wf: 320,
-    notes: [349.2, 392, 440, 523.3, 587.3, 659.3], ct: [2500, 5000], cc: 0.6,
-    // Light, playful
+    // F major pentatonic chimes: F4, G4, A4, C5, D5
+    notes: [349.23, 392, 440, 523.25, 587.33], ct: [2500, 5000], cc: 0.6,
     perc: { bpm: 120, vol: 0.10, kickVol: 0.11, hatVol: 0.06, swing: 0.2, pattern: "shanty" },
-    bass: { notes: [87.3, 110, 130.8, 174.6, 130.8], rate: 500, vol: 0.09, fHz: 350 },
+    // F major pentatonic bass: F2, G2, A2, C3, D3
+    bass: { notes: [87.31, 98, 110, 130.81, 146.83], rate: 500, vol: 0.09, fHz: 350 },
   },
+  // ── Eb Lydian (major w/ raised 4th) — whimsical, dreamy, enchanted ──
   mushroom: {
-    drones: [{ freq: 98, dt: 0, vol: 0.22 }, { freq: 146.8, dt: 5, vol: 0.13 }, { freq: 196, dt: -4, vol: 0.10 }],
-    df: 470, pads: [{ freq: 293.7, vol: 0.08 }, { freq: 392, vol: 0.07 }], pf: 720,
+    // Drones: Eb2(root) + Bb2(perfect 5th) + Eb3(octave)
+    drones: [{ freq: 77.78, dt: 0, vol: 0.22 }, { freq: 116.54, dt: 5, vol: 0.13 }, { freq: 155.56, dt: -4, vol: 0.10 }],
+    df: 470, pads: [{ freq: 196, vol: 0.08 }, { freq: 233.08, vol: 0.07 }], pf: 720,
     wv: 0.02, wf: 350,
-    notes: [392, 440, 523.3, 587.3, 698.5, 784], ct: [2500, 5000], cc: 0.65,
-    // Quirky, offbeat
+    // Eb Lydian pentatonic chimes: Eb4, F4, G4, Bb4, C5, D5
+    notes: [311.13, 349.23, 392, 466.16, 523.25, 587.33], ct: [2500, 5000], cc: 0.65,
     perc: { bpm: 105, vol: 0.10, kickVol: 0.12, hatVol: 0.07, swing: 0.3, pattern: "tavern" },
-    bass: { notes: [98, 123.5, 146.8, 196, 123.5], rate: 600, vol: 0.10, fHz: 350 },
+    // Eb Lydian bass: Eb2, F2, G2, Bb2, C3
+    bass: { notes: [77.78, 87.31, 98, 116.54, 130.81], rate: 600, vol: 0.10, fHz: 350 },
   },
+  // ── Eb minor pentatonic — dark, murky, oppressive ──
   swamp: {
-    drones: [{ freq: 77.8, dt: 0, vol: 0.26 }, { freq: 116.5, dt: 7, vol: 0.16 }, { freq: 155.6, dt: -5, vol: 0.11 }],
-    df: 300, pads: [{ freq: 233.1, vol: 0.07 }, { freq: 311.1, vol: 0.06 }], pf: 450,
+    // Drones: Eb2(root) + Bb2(perfect 5th) + Eb3(octave)
+    drones: [{ freq: 77.78, dt: 0, vol: 0.26 }, { freq: 116.54, dt: 7, vol: 0.16 }, { freq: 155.56, dt: -5, vol: 0.11 }],
+    df: 300, pads: [{ freq: 185, vol: 0.07 }, { freq: 233.08, vol: 0.06 }], pf: 450,
     wv: 0.04, wf: 250,
-    notes: [233.1, 277.2, 311.1, 370, 415.3], ct: [4000, 8500], cc: 0.4,
-    // Murky, slow
+    // Eb minor pentatonic chimes: Eb4, Gb4, Ab4, Bb4, Db5
+    notes: [311.13, 370, 415.30, 466.16, 554.37], ct: [4000, 8500], cc: 0.4,
     perc: { bpm: 70, vol: 0.08, kickVol: 0.14, hatVol: 0.04, swing: 0.15, pattern: "sparse" },
-    bass: { notes: [77.8, 87.3, 98, 116.5, 87.3], rate: 1000, vol: 0.08, fHz: 250 },
+    // Eb minor pentatonic bass: Eb2, Gb2, Ab2, Bb2, Db3
+    bass: { notes: [77.78, 92.50, 103.83, 116.54, 138.59], rate: 1000, vol: 0.08, fHz: 250 },
   },
+  // ── A major pentatonic — warm, tropical, paradise ──
   blue_lagoon: {
-    drones: [{ freq: 110, dt: 0, vol: 0.22 }, { freq: 165, dt: 4, vol: 0.14 }, { freq: 220, dt: -2, vol: 0.09 }],
-    df: 500, pads: [{ freq: 330, vol: 0.07 }, { freq: 440, vol: 0.06 }], pf: 720,
+    // Drones: A2(root) + E3(perfect 5th) + A3(octave)
+    drones: [{ freq: 110, dt: 0, vol: 0.22 }, { freq: 164.81, dt: 4, vol: 0.14 }, { freq: 220, dt: -2, vol: 0.09 }],
+    df: 500, pads: [{ freq: 277.18, vol: 0.07 }, { freq: 329.63, vol: 0.06 }], pf: 720,
     wv: 0.05, wf: 380,
-    notes: [330, 392, 440, 523.3, 659.3, 784], ct: [2000, 5000], cc: 0.6,
-    // Tropical shanty
+    // A major pentatonic chimes: A4, B4, Db5, E5, Gb5
+    notes: [440, 493.88, 554.37, 659.26, 740], ct: [2000, 5000], cc: 0.6,
     perc: { bpm: 112, vol: 0.13, kickVol: 0.14, hatVol: 0.07, swing: 0.22, pattern: "shanty" },
-    bass: { notes: [110, 130.8, 165, 220, 165], rate: 540, vol: 0.11, fHz: 400 },
+    // A major pentatonic bass: A2, B2, Db3, E3, Gb3
+    bass: { notes: [110, 123.47, 138.59, 164.81, 185], rate: 540, vol: 0.11, fHz: 400 },
     waves: { vol: 0.05, rate: 3.8 },
   },
 };
 
 function createDrone(freq, detune, vol, filterHz) {
   const c = getCtx();
+  // Main oscillator
   const osc = c.createOscillator();
   osc.type = "sine";
   osc.frequency.value = freq;
   osc.detune.value = detune;
 
+  // Slightly detuned chorus copy for warmth (~0.3Hz beating)
+  const osc2 = c.createOscillator();
+  osc2.type = "sine";
+  osc2.frequency.value = freq * 1.002;
+  osc2.detune.value = detune;
+
   const gain = c.createGain();
   gain.gain.value = vol;
+  const gain2 = c.createGain();
+  gain2.gain.value = vol * 0.5; // chorus copy quieter
 
   const filter = c.createBiquadFilter();
   filter.type = "lowpass";
   filter.frequency.value = filterHz || 400;
-  filter.Q.value = 2;
+  filter.Q.value = 1.5;
 
   osc.connect(filter);
+  osc2.connect(filter);
   filter.connect(gain);
   gain.connect(musicGain);
   osc.start();
+  osc2.start();
 
-  // Slow LFO modulation on filter
+  // Slow LFO modulation on filter for gentle movement
   const lfo = c.createOscillator();
   lfo.type = "sine";
-  lfo.frequency.value = 0.05 + Math.random() * 0.08;
+  lfo.frequency.value = 0.04 + Math.random() * 0.06;
   const lfoGain = c.createGain();
-  lfoGain.gain.value = 200;
+  lfoGain.gain.value = filterHz ? filterHz * 0.4 : 150;
   lfo.connect(lfoGain);
   lfoGain.connect(filter.frequency);
   lfo.start();
 
-  return { osc, gain, filter, lfo, lfoGain };
+  return { osc, osc2, gain, gain2, filter, lfo, lfoGain };
 }
 
 function createPad(baseFreq, vol, filterHz) {
   const c = getCtx();
+  // Triangle + sine detuned pair (concertina/accordion-like tone)
   const osc1 = c.createOscillator();
   osc1.type = "triangle";
   osc1.frequency.value = baseFreq;
 
   const osc2 = c.createOscillator();
   osc2.type = "sine";
-  osc2.frequency.value = baseFreq * 1.002; // slight detuning for richness
+  osc2.frequency.value = baseFreq * 1.003; // slight detuning for chorus
 
   const gain = c.createGain();
   gain.gain.value = vol;
@@ -208,17 +261,28 @@ function createPad(baseFreq, vol, filterHz) {
   osc1.start();
   osc2.start();
 
-  // Slow volume swell
+  // Slow volume swell for breathing quality
   const lfo = c.createOscillator();
   lfo.type = "sine";
   lfo.frequency.value = 0.03 + Math.random() * 0.04;
   const lfoGain = c.createGain();
-  lfoGain.gain.value = vol * 0.6;
+  lfoGain.gain.value = vol * 0.5;
   lfo.connect(lfoGain);
   lfoGain.connect(gain.gain);
   lfo.start();
 
-  return { osc1, osc2, gain, filter, lfo, lfoGain };
+  // Gentle vibrato (5-6Hz) for instrument-like quality
+  const vib = c.createOscillator();
+  vib.type = "sine";
+  vib.frequency.value = 5 + Math.random() * 1.5;
+  const vibGain = c.createGain();
+  vibGain.gain.value = baseFreq * 0.003; // subtle pitch variation
+  vib.connect(vibGain);
+  vibGain.connect(osc1.frequency);
+  vibGain.connect(osc2.frequency);
+  vib.start();
+
+  return { osc1, osc2, gain, filter, lfo, lfoGain, vib, vibGain };
 }
 
 function createWindNoise(vol, filterHz) {

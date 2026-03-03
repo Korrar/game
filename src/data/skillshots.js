@@ -50,11 +50,11 @@ export const SKILLSHOT_TYPES = {
   // Salwa Armatnia — arc cannonballs from caravan to cursor (hold-to-cast)
   meteor: {
     type: "arc",
-    speed: 7,
+    speed: 8,
     gravity: 0.12,
-    size: 10,
-    hitRadius: 20,
-    splashRadius: 45,
+    size: 12,
+    hitRadius: 24,
+    splashRadius: 55,
     splashDamageMult: 0.5,
     trail: "fire",
   },
