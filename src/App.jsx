@@ -1990,29 +1990,104 @@ export default function App() {
         setWandTick(t => t + 1);
       }
 
-      // ─── PROJECTILE vs OBSTACLE collision check ───
+      // ─── PROJECTILE vs OBSTACLE collision check (with bounce) ───
       if (physicsRef.current && obstaclesRef.current.length > 0) {
         const skillshots = physicsRef.current.getPlayerSkillshots();
         if (skillshots.length > 0) {
+          // Obstacle pixel sizes for AABB collision (must match visual obsStyles in render)
+          const _obsSizes = {
+            fallen_log:{w:50,h:14},vine_wall:{w:30,h:40},ancient_totem:{w:16,h:44},moss_boulder:{w:36,h:28},
+            shipwreck:{w:55,h:30},driftwood:{w:44,h:10},tide_pool:{w:32,h:16},anchor_post:{w:12,h:38},
+            cactus_cluster:{w:20,h:36},wagon_wreck:{w:48,h:28},sun_bleached_skull:{w:22,h:18},tumbleweed:{w:24,h:22},
+            ice_pillar:{w:14,h:42},frozen_barrel:{w:24,h:28},snowdrift:{w:40,h:16},icicle_rock:{w:30,h:32},
+            market_stall:{w:40,h:32},broken_wagon:{w:50,h:24},lamp_post:{w:8,h:48},sandbag_wall:{w:44,h:20},
+            lava_pool:{w:34,h:14},obsidian_pillar:{w:14,h:40},steam_vent:{w:18,h:12},ash_mound:{w:32,h:16},
+            haystack:{w:30,h:28},windmill:{w:20,h:50},scarecrow:{w:18,h:44},wooden_fence:{w:46,h:22},
+            log_pile:{w:38,h:20},hunting_stand:{w:22,h:46},mushroom_ring:{w:36,h:14},fallen_tree:{w:55,h:16},
+            flower_patch:{w:34,h:12},beehive:{w:18,h:24},stone_bridge:{w:50,h:14},well:{w:22,h:26},
+            crystal_cluster:{w:24,h:30},giant_mushroom:{w:28,h:38},web_wall:{w:40,h:34},stalactite:{w:12,h:36},
+            quicksand:{w:36,h:12},dead_tree:{w:18,h:44},fog_pool:{w:38,h:12},lily_pad:{w:22,h:10},
+          };
+          const _defaultSize = { w: 30, h: 20 };
           const obs = obstaclesRef.current;
           const _hitObsIds = new Set(); // avoid double-hitting same obstacle per frame
+
           for (let si = 0; si < skillshots.length; si++) {
             const proj = skillshots[si];
-            // Convert obstacle % coords to pixel coords for distance check
+            // Skip area/mine projectiles — only bounce linear/arc
+            if (proj.type !== "linear" && proj.type !== "arc") continue;
+            // Initialize bounce tracking on projectile
+            if (!proj._bounceIds) proj._bounceIds = new Set();
+            if (!proj._bounceCount) proj._bounceCount = 0;
+            const MAX_BOUNCES = 3;
+
             for (let oi = 0; oi < obs.length; oi++) {
               const o = obs[oi];
-              if (!o.destructible || o.hp <= 0 || o.destroying) continue;
+              if (o.hp <= 0 || o.destroying) continue;
               if (_hitObsIds.has(o.id)) continue;
-              const opx = (o.x / 100) * GAME_W;
-              const opy = GAME_H - (o.y / 100) * GAME_H;
-              const ddx = proj.x - opx, ddy = proj.y - opy;
-              const hitR = (proj.hitRadius || 20) + 12; // slightly generous for obstacles
-              if (ddx * ddx + ddy * ddy < hitR * hitR) {
-                _hitObsIds.add(o.id);
-                // Apply projectile damage to obstacle
+              // Skip if we just bounced off this obstacle
+              if (proj._bounceIds.has(o.id)) continue;
+
+              // AABB collision: obstacle center in pixel coords
+              const sz = _obsSizes[o.type] || _defaultSize;
+              const ocx = (o.x / 100) * GAME_W;
+              const ocy = GAME_H - (o.y / 100) * GAME_H;
+              const hw = sz.w / 2 + 4; // half-width + small padding
+              const hh = sz.h / 2 + 4; // half-height + small padding
+              const pr = proj.hitRadius || 8;
+
+              // Check AABB overlap between projectile circle and obstacle rect
+              const closestX = Math.max(ocx - hw, Math.min(proj.x, ocx + hw));
+              const closestY = Math.max(ocy - hh, Math.min(proj.y, ocy + hh));
+              const dx = proj.x - closestX, dy = proj.y - closestY;
+              if (dx * dx + dy * dy > pr * pr) continue;
+
+              _hitObsIds.add(o.id);
+
+              // ─── BOUNCE: reflect velocity based on penetration axis ───
+              if (proj._bounceCount < MAX_BOUNCES) {
+                // Determine which face was hit by checking overlap depth on each axis
+                const overlapL = (proj.x + pr) - (ocx - hw);
+                const overlapR = (ocx + hw) - (proj.x - pr);
+                const overlapT = (proj.y + pr) - (ocy - hh);
+                const overlapB = (ocy + hh) - (proj.y - pr);
+                const minOverlapX = Math.min(overlapL, overlapR);
+                const minOverlapY = Math.min(overlapT, overlapB);
+
+                if (minOverlapX < minOverlapY) {
+                  // Hit left or right face → reflect vx
+                  proj.vx = -proj.vx * 0.75;
+                  proj.vy *= 0.9;
+                  // Push projectile out of obstacle
+                  proj.x += overlapL < overlapR ? -minOverlapX : minOverlapX;
+                } else {
+                  // Hit top or bottom face → reflect vy
+                  proj.vy = -proj.vy * 0.75;
+                  proj.vx *= 0.9;
+                  proj.y += overlapT < overlapB ? -minOverlapY : minOverlapY;
+                }
+                proj._bounceCount++;
+                // Clear bounce tracking for other obstacles so it can bounce off them
+                proj._bounceIds.clear();
+                proj._bounceIds.add(o.id);
+                // Reduce damage on bounce
+                proj.damage = Math.round(proj.damage * 0.6);
+                // Extend max age so bounced projectile lives longer
+                proj.maxAge = Math.max(proj.maxAge, proj.age + 40);
+                // Disable arc target explosion after bounce (it's now a free-flying projectile)
+                proj.explodeAtTarget = false;
+
+                // Spawn spark effect at bounce point
+                if (pixiRef.current) {
+                  const matDef = OBSTACLE_MATERIALS[o.material] || OBSTACLE_MATERIALS.wood;
+                  pixiRef.current.spawnObstacleHitSpark(closestX, closestY, matDef.color);
+                }
+              }
+
+              // ─── DAMAGE: apply to destructible obstacles ───
+              if (o.destructible) {
                 const spellDmg = proj.damage || 20;
                 const spellEl = proj.element || null;
-                // Use a timeout to avoid calling setState during RAF
                 const _oid = o.id, _dmg = spellDmg, _el = spellEl;
                 setTimeout(() => {
                   setObstacles(prev => {
@@ -2055,6 +2130,7 @@ export default function App() {
                   });
                 }, 0);
               }
+              break; // one obstacle collision per projectile per frame
             }
           }
         }
@@ -6507,10 +6583,10 @@ export default function App() {
               overflow: "hidden",
               transform: isDestroying ? "scale(1.3)" : "none",
               transition: isDestroying ? "transform 0.35s ease-out" : "none",
-              outline: obs.destructible && !isDestroying
-                ? `1px solid rgba(255,255,255,${damaged ? 0.25 + crackIntensity * 0.15 : 0.12})`
+              border: obs.destructible && !isDestroying
+                ? `1.5px solid rgba(255,255,255,${damaged ? 0.25 + crackIntensity * 0.15 : 0.15})`
                 : "none",
-              outlineOffset: 1,
+              boxSizing: "border-box",
             }}>
               {/* Crack overlay - gets more intense as HP decreases */}
               {crackIntensity > 0 && (
