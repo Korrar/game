@@ -6576,17 +6576,21 @@ export default function App() {
               height: s.h,
               background: s.bg,
               borderRadius: s.radius,
-              boxShadow: isHit
-                ? `${s.shadow}, 0 0 8px rgba(255,200,100,0.6)`
-                : s.shadow,
+              boxShadow: (() => {
+                const baseShadow = s.shadow !== "none" ? s.shadow : "";
+                const hitGlow = isHit ? ", 0 0 8px rgba(255,200,100,0.6)" : "";
+                const outlineAlpha = obs.destructible && !isDestroying
+                  ? (damaged ? 0.3 + crackIntensity * 0.15 : 0.18)
+                  : 0;
+                const insetOutline = outlineAlpha > 0
+                  ? `inset 0 0 0 1.5px rgba(255,255,255,${outlineAlpha})`
+                  : "";
+                return [insetOutline, baseShadow, hitGlow ? hitGlow.slice(2) : ""].filter(Boolean).join(", ");
+              })(),
               position: "relative",
               overflow: "hidden",
               transform: isDestroying ? "scale(1.3)" : "none",
               transition: isDestroying ? "transform 0.35s ease-out" : "none",
-              border: obs.destructible && !isDestroying
-                ? `1.5px solid rgba(255,255,255,${damaged ? 0.25 + crackIntensity * 0.15 : 0.15})`
-                : "none",
-              boxSizing: "border-box",
             }}>
               {/* Crack overlay - gets more intense as HP decreases */}
               {crackIntensity > 0 && (
