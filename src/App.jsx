@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { BIOMES } from "./data/biomes";
 import { RARITY_C, RARITY_L } from "./data/treasures";
 import { rollCardDrop, ALL_NPCS, BIOME_NAMES } from "./data/bestiary";
-import { HIDEOUT_LEVELS } from "./data/hideout";
+import { HIDEOUT_LEVELS, HIDEOUT_UPGRADES } from "./data/hideout";
 import { CARAVAN_LEVELS } from "./data/caravanLevels";
 import { KNIGHT_LEVELS } from "./data/knightLevels";
 import { MERCENARY_TYPES } from "./data/mercenaries";
@@ -143,6 +143,7 @@ export default function App() {
   const [bossesDefeated, setBossesDefeated] = useState(0);
   const [gameOverStats, setGameOverStats] = useState(null);
   const [hideoutLevel, setHideoutLevel] = useState(0);
+  const [hideoutUpgrades, setHideoutUpgrades] = useState({}); // { upgradeId: level }
   const [chestPos, setChestPos] = useState(null);
   const [showChest, setShowChest] = useState(false);
   const [chestClicks, setChestClicks] = useState(0);
@@ -1672,6 +1673,16 @@ export default function App() {
           }
         } else if (w._poisonUntil) { delete w._poisonDps; delete w._poisonUntil; delete w._lastPoisonTick; }
 
+        // Fear: enemy flees in reverse direction at 2x speed
+        if (!w.friendly && w._fearUntil && dateNow < w._fearUntil) {
+          const fearSpeed = (w._origSpeed || w.speed || 0.02) * 2;
+          w.x += fearSpeed * (w._fearDir || 1);
+          w.x = Math.max(w.minX || 2, Math.min(w.maxX || 98, w.x));
+        } else if (w._fearUntil) {
+          if (w._origSpeed) { w.speed = w._origSpeed; delete w._origSpeed; }
+          delete w._fearUntil; delete w._fearDir;
+        }
+
         // Lunge animation decay
         if (w.lungeFrames > 0) {
           w.lungeFrames--;
@@ -3053,7 +3064,7 @@ export default function App() {
     // Reset all game state
     setRoom(0); setBiome(null); setDoors(0); setInitiative(MAX_INITIATIVE);
     setInventory([]); setHideoutItems([]); setMoney({ copper: 0, silver: 0, gold: 100 });
-    setTotalGoldEarned(0); setBossesDefeated(0); setHideoutLevel(0);
+    setTotalGoldEarned(0); setBossesDefeated(0); setHideoutLevel(0); setHideoutUpgrades({});
     setKills(0); setPanel(null); setLoot(null);
     setOwnedTools([]); setCaravanLevel(0); setCaravanHp(CARAVAN_LEVELS[0].hp);
     setKnightLevel(0); setMana(50); setBestiary({}); setKnowledge(0);
@@ -3101,7 +3112,7 @@ export default function App() {
   const saveGame = () => {
     const saveData = {
       room, money, mana, ammo, kills, doors, initiative, inventory, hideoutItems,
-      ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp,
+      ownedTools, hideoutLevel, hideoutUpgrades, knightLevel, caravanLevel, caravanHp,
       bestiary, knowledge, learnedSpells, activeRelics: activeRelics.map(r => r.id),
       knowledgeUpgrades, bossesDefeated,
       // New systems
@@ -3141,6 +3152,7 @@ export default function App() {
       setHideoutItems(s.hideoutItems || []);
       setOwnedTools(s.ownedTools || []);
       setHideoutLevel(s.hideoutLevel || 0);
+      setHideoutUpgrades(s.hideoutUpgrades || {});
       setKnightLevel(s.knightLevel || 0);
       setCaravanLevel(s.caravanLevel || 0);
       setCaravanHp(s.caravanHp || 100);
@@ -3824,6 +3836,47 @@ export default function App() {
       if (element) elementDebuffs.current[walkerId] = { element, timestamp: Date.now() };
       const wd = walkDataRef.current[walkerId];
       const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
+
+      // Apply combo status effects (stun, burn, fear)
+      if (comboText && comboText.status && wd) {
+        const statusNow = Date.now();
+        if (comboText.status === "stun") {
+          if (!wd._origSpeed) wd._origSpeed = wd.speed;
+          wd.speed = 0;
+          wd._stunnedUntil = statusNow + comboText.statusDuration;
+          spawnDmgPopup(walkerId, "OGŁUSZONY!", "#80d0ff");
+          setTimeout(() => {
+            const wdLater = walkDataRef.current[walkerId];
+            if (wdLater && wdLater._stunnedUntil) {
+              wdLater.speed = wdLater._origSpeed || 0.02;
+              delete wdLater._origSpeed; delete wdLater._stunnedUntil;
+            }
+          }, comboText.statusDuration);
+        } else if (comboText.status === "burn") {
+          wd._burnDps = comboText.statusDps;
+          wd._burnUntil = statusNow + comboText.statusDuration;
+          spawnDmgPopup(walkerId, "PODPALENIE!", "#ff6020");
+        } else if (comboText.status === "fear") {
+          if (!wd._origSpeed) wd._origSpeed = wd.speed;
+          wd._fearUntil = statusNow + comboText.statusDuration;
+          wd._fearDir = wd.x > 50 ? 1 : -1; // flee away from center
+          spawnDmgPopup(walkerId, "STRACH!", "#a040a0");
+          setTimeout(() => {
+            const wdLater = walkDataRef.current[walkerId];
+            if (wdLater && wdLater._fearUntil) {
+              if (wdLater._origSpeed) { wdLater.speed = wdLater._origSpeed; delete wdLater._origSpeed; }
+              delete wdLater._fearUntil; delete wdLater._fearDir;
+            }
+          }, comboText.statusDuration);
+        }
+      }
+
+      // Apply burn from fire spells (10% chance per hit)
+      if (element === "fire" && wd && !wd._burnUntil && Math.random() < 0.15) {
+        wd._burnDps = 5;
+        wd._burnUntil = Date.now() + 3000;
+        spawnDmgPopup(walkerId, "PODPALENIE!", "#ff6020");
+      }
 
       if (resistant) {
         const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
@@ -5141,6 +5194,19 @@ export default function App() {
     sfxUpgrade(); setMoney(copperToMoney(tc - need));
     setHideoutLevel(l => l + 1);
     showMessage(`Baza → ${HIDEOUT_LEVELS[hideoutLevel + 1].name}`, "#d4a030");
+  };
+
+  const purchaseHideoutUpgrade = (upgradeId) => {
+    const upg = HIDEOUT_UPGRADES.find(u => u.id === upgradeId);
+    if (!upg) return;
+    const currentLvl = hideoutUpgrades[upgradeId] || 0;
+    if (currentLvl >= upg.maxLevel) { showMessage("Już na max!", "#888"); return; }
+    const cost = upg.costs[currentLvl];
+    const tc = totalCopper(money); const need = totalCopper(cost);
+    if (tc < need) { showMessage("Za mało monet!", "#b83030"); return; }
+    sfxUpgrade(); setMoney(copperToMoney(tc - need));
+    setHideoutUpgrades(prev => ({ ...prev, [upgradeId]: currentLvl + 1 }));
+    showMessage(`${upg.name} → Poz. ${currentLvl + 1}!`, "#d4a030");
   };
 
   const upgradeKnight = () => {
@@ -6502,6 +6568,28 @@ export default function App() {
                 animation: "gemPulse 1.5s ease-in-out infinite",
               }}><Icon name="anchor" size={10} /> spowolniony</div>
             )}
+            {/* Status effect indicators on enemies */}
+            {w.alive && !w.dying && !isFriendly && walkDataRef.current[w.id]?._stunnedUntil && (
+              <div style={{
+                fontSize: 10, color: "#80d0ff", pointerEvents: "none", fontWeight: "bold",
+                textShadow: "0 0 6px #80d0ff, 0 0 12px #4060ff88",
+                animation: "gemPulse 0.5s ease-in-out infinite",
+              }}><Icon name="ice" size={10} /> OGŁUSZONY</div>
+            )}
+            {w.alive && !w.dying && !isFriendly && walkDataRef.current[w.id]?._burnUntil && (
+              <div style={{
+                fontSize: 10, color: "#ff6020", pointerEvents: "none", fontWeight: "bold",
+                textShadow: "0 0 6px #ff602088, 0 0 10px #ff400044",
+                animation: "gemPulse 0.4s ease-in-out infinite",
+              }}><Icon name="fire" size={10} /> PŁONIE</div>
+            )}
+            {w.alive && !w.dying && !isFriendly && walkDataRef.current[w.id]?._fearUntil && (
+              <div style={{
+                fontSize: 10, color: "#a040a0", pointerEvents: "none", fontWeight: "bold",
+                textShadow: "0 0 6px #a040a088, 0 0 10px #8020a044",
+                animation: "gemPulse 0.6s ease-in-out infinite",
+              }}><Icon name="moon" size={10} /> STRACH</div>
+            )}
             {/* Resist icon */}
             {w.alive && !w.dying && !isFriendly && w.npcData.resist && (
               <div style={{
@@ -7083,6 +7171,42 @@ export default function App() {
             </div>
           );
         })()}
+
+        {/* Permanent Upgrades */}
+        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, marginTop: 14, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="swords" size={16} /> Ulepszenia Permanentne</h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+          {HIDEOUT_UPGRADES.map(upg => {
+            const lvl = hideoutUpgrades[upg.id] || 0;
+            const maxed = lvl >= upg.maxLevel;
+            const cost = maxed ? null : upg.costs[lvl];
+            const canAfford = cost ? totalCopper(money) >= totalCopper(cost) : false;
+            return (
+              <div key={upg.id} style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                background: maxed ? "rgba(60,180,60,0.06)" : "rgba(0,0,0,0.25)",
+                border: `1px solid ${maxed ? "#2a5a2a" : "#2a2018"}`, borderRadius: 4,
+              }}>
+                <Icon name={upg.icon} size={18} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: "bold", fontSize: 12, color: maxed ? "#60c060" : "#d4a030" }}>{upg.name} <span style={{ fontSize: 10, color: "#888" }}>Poz. {lvl}/{upg.maxLevel}</span></div>
+                  <div style={{ fontSize: 10, color: "#999" }}>{upg.desc}</div>
+                </div>
+                {maxed ? (
+                  <span style={{ fontSize: 10, color: "#60c060", fontWeight: "bold" }}>MAX</span>
+                ) : (
+                  <button onClick={() => purchaseHideoutUpgrade(upg.id)} disabled={!canAfford}
+                    style={{
+                      background: "none", border: `1px solid ${canAfford ? "#8a6018" : "#333"}`,
+                      color: canAfford ? "#d4a030" : "#555", fontWeight: "bold", fontSize: 11,
+                      padding: "3px 8px", cursor: canAfford ? "pointer" : "not-allowed", borderRadius: 3, whiteSpace: "nowrap",
+                    }}>
+                    {formatValHTML(cost)}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
         <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="treasure" size={16} /> Schowek <span style={{ color: "#888", fontSize: 13 }}>(kliknij by zabrać)</span></h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
