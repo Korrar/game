@@ -6583,7 +6583,7 @@ export default function App() {
               transform: isDestroying ? "scale(1.3)" : "none",
               transition: isDestroying ? "transform 0.35s ease-out" : "none",
               border: obs.destructible && !isDestroying
-                ? `1.5px solid rgba(255,255,255,${damaged ? 0.3 + crackIntensity * 0.15 : 0.18})`
+                ? `2px solid red`
                 : "none",
             }}>
               {/* Crack overlay - gets more intense as HP decreases */}
