@@ -7,7 +7,7 @@ function WIcon({ name, size = 13 }) {
   return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block" }} alt={name} />;
 }
 
-export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxHp, relicChoices, boss, killStreak, powerSpikeWarning }) {
+export default function WaveOverlay({ defense, onDismiss, onRetreat, caravanHp, caravanMaxHp, relicChoices, boss, killStreak, powerSpikeWarning }) {
   const [dismissed, setDismissed] = useState(false);
   if (!defense) return null;
 
@@ -27,21 +27,40 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
   if (isActive && dismissed) {
     // Show only a tiny badge instead of the full overlay
     return (
-      <div
-        onClick={() => setDismissed(false)}
-        style={{
-          position: "absolute", top: isBossRoom && phase === "wave_active" ? 56 : 70,
-          right: 8, zIndex: 100, cursor: "pointer",
-          background: "rgba(14,8,10,0.85)", border: `1px solid ${borderColor}`,
-          padding: "3px 10px", borderRadius: 6, fontSize: 11,
-          color: borderColor, fontWeight: "bold",
-          boxShadow: `0 0 8px ${glowColor}`,
-        }}
-      >
-        {phase === "wave_active" && <><WIcon name="swords" size={11} /> {isBossRoom && boss ? boss.name : `${currentWave}/${totalWaves}`} — {enemiesRemaining}</>}
-        {phase === "setup" && <><WIcon name="hourglass" size={11} /> {timer}s</>}
-        {phase === "inter_wave" && <><WIcon name="hourglass" size={11} /> {timer}s</>}
-        {showCaravanHp && <span style={{ marginLeft: 6, color: chColor }}>{caravanHp}/{caravanMaxHp}</span>}
+      <div style={{
+        position: "absolute", top: isBossRoom && phase === "wave_active" ? 56 : 70,
+        right: 8, zIndex: 100, display: "flex", gap: 4, alignItems: "center",
+      }}>
+        {onRetreat && !isBossRoom && (phase === "wave_active" || phase === "inter_wave") && (
+          <div
+            onClick={onRetreat}
+            style={{
+              cursor: "pointer", background: "rgba(14,8,10,0.85)",
+              border: "1px solid #cc8040", padding: "3px 8px", borderRadius: 6,
+              fontSize: 10, color: "#cc8040", fontWeight: "bold",
+              boxShadow: "0 0 6px rgba(200,100,40,0.3)",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(60,30,10,0.9)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(14,8,10,0.85)"; }}
+          >
+            <WIcon name="anchor" size={9} /> Odwrót
+          </div>
+        )}
+        <div
+          onClick={() => setDismissed(false)}
+          style={{
+            cursor: "pointer",
+            background: "rgba(14,8,10,0.85)", border: `1px solid ${borderColor}`,
+            padding: "3px 10px", borderRadius: 6, fontSize: 11,
+            color: borderColor, fontWeight: "bold",
+            boxShadow: `0 0 8px ${glowColor}`,
+          }}
+        >
+          {phase === "wave_active" && <><WIcon name="swords" size={11} /> {isBossRoom && boss ? boss.name : `${currentWave}/${totalWaves}`} — {enemiesRemaining}</>}
+          {phase === "setup" && <><WIcon name="hourglass" size={11} /> {timer}s</>}
+          {phase === "inter_wave" && <><WIcon name="hourglass" size={11} /> {timer}s</>}
+          {showCaravanHp && <span style={{ marginLeft: 6, color: chColor }}>{caravanHp}/{caravanMaxHp}</span>}
+        </div>
       </div>
     );
   }
@@ -116,7 +135,25 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
                 </div>
               </>
             )}
-            <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>kliknij aby schować</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 4 }}>
+              <div style={{ fontSize: 10, color: "#666" }}>kliknij aby schować</div>
+              {onRetreat && !isBossRoom && (
+                <div
+                  onClick={(e) => { e.stopPropagation(); onRetreat(); }}
+                  style={{
+                    fontSize: 10, color: "#cc8040", cursor: "pointer",
+                    padding: "2px 8px", borderRadius: 4,
+                    border: "1px solid #cc804066",
+                    background: "rgba(120,60,20,0.2)",
+                    transition: "all 0.2s", fontWeight: "bold",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(120,60,20,0.4)"; e.currentTarget.style.borderColor = "#cc8040"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(120,60,20,0.2)"; e.currentTarget.style.borderColor = "#cc804066"; }}
+                >
+                  <WIcon name="anchor" size={9} /> Odwrót
+                </div>
+              )}
+            </div>
           </>
         )}
 
@@ -128,7 +165,25 @@ export default function WaveOverlay({ defense, onDismiss, caravanHp, caravanMaxH
             <div style={{ fontSize: 16, color: "#d4a030", fontWeight: "bold", textShadow: "0 0 10px rgba(212,160,48,0.3)" }}>
               Następna za <WIcon name="hourglass" size={16} /> {timer}s
             </div>
-            <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>kliknij aby schować</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 4 }}>
+              <div style={{ fontSize: 10, color: "#666" }}>kliknij aby schować</div>
+              {onRetreat && (
+                <div
+                  onClick={(e) => { e.stopPropagation(); onRetreat(); }}
+                  style={{
+                    fontSize: 10, color: "#cc8040", cursor: "pointer",
+                    padding: "2px 8px", borderRadius: 4,
+                    border: "1px solid #cc804066",
+                    background: "rgba(120,60,20,0.2)",
+                    transition: "all 0.2s", fontWeight: "bold",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(120,60,20,0.4)"; e.currentTarget.style.borderColor = "#cc8040"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(120,60,20,0.2)"; e.currentTarget.style.borderColor = "#cc804066"; }}
+                >
+                  <WIcon name="anchor" size={9} /> Odwrót
+                </div>
+              )}
+            </div>
           </>
         )}
 

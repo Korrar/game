@@ -3130,6 +3130,41 @@ export default function App() {
     setDefenseMode(null);
   }, []);
 
+  // ─── RETREAT FROM DEFENSE ───
+  // Player can flee during wave_active or inter_wave, but takes penalties
+  const retreatFromDefense = useCallback(() => {
+    if (!defenseMode || defenseMode.phase === "complete" || defenseMode.phase === "setup") return;
+    if (defenseMode.isBossRoom) return; // cannot flee from boss
+    // Penalty: lose 20% of caravan max HP
+    const maxHp = CARAVAN_LEVELS[caravanLevelRef.current].hp;
+    const penalty = Math.round(maxHp * 0.20);
+    setCaravanHp(prev => Math.max(1, prev - penalty));
+    showMessage(`Odwrót! Konwój traci ${penalty} HP!`, "#cc8040");
+    sfxCaravanHit();
+    // Partial reward: copper only, based on waves completed
+    const wavesCleared = defenseMode.currentWave - 1;
+    if (wavesCleared > 0) {
+      const partialReward = { copper: Math.round((10 + defenseMode.roomNumber * 2) * wavesCleared) };
+      addMoneyFn(partialReward);
+      showMessage(`Częściowa nagroda: ${partialReward.copper} miedzi`, "#d4a030");
+    }
+    // Clean up defense
+    setRelicChoices(null);
+    setUpgradeChoices(null);
+    setActiveBoss(null);
+    setPlayerTraps([]);
+    setPlacingTrap(null);
+    for (const [id, w] of Object.entries(walkDataRef.current)) {
+      if (!w.friendly || w.stationary) {
+        if (physicsRef.current) physicsRef.current.removeNpc(parseInt(id));
+        delete walkDataRef.current[id];
+      }
+    }
+    setWalkers(prev => prev.filter(w => w.friendly && !w.isBarricade));
+    setDefenseMode(null);
+    setInitiative(prev => Math.max(0, prev - 1)); // lose 1 initiative as additional penalty
+  }, [defenseMode, showMessage, addMoneyFn]);
+
   const selectRelic = useCallback((relic) => {
     setActiveRelics(prev => {
       const newRelics = [...prev, relic];
@@ -5615,7 +5650,7 @@ export default function App() {
         </div>
       )}
 
-      <WaveOverlay defense={defenseMode} onDismiss={dismissDefense}
+      <WaveOverlay defense={defenseMode} onDismiss={dismissDefense} onRetreat={retreatFromDefense}
         caravanHp={caravanHp} caravanMaxHp={CARAVAN_LEVELS[caravanLevel].hp}
         relicChoices={relicChoices} boss={activeBoss}
         killStreak={killStreak} powerSpikeWarning={powerSpikeWarning} />
@@ -6459,7 +6494,7 @@ export default function App() {
             transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "opacity 0.2s",
             pointerEvents: "none",
           }}>
-            {/* Main obstacle body */}
+            {/* Main obstacle body with hitbox outline */}
             <div style={{
               width: s.w,
               height: s.h,
@@ -6472,6 +6507,10 @@ export default function App() {
               overflow: "hidden",
               transform: isDestroying ? "scale(1.3)" : "none",
               transition: isDestroying ? "transform 0.35s ease-out" : "none",
+              outline: obs.destructible && !isDestroying
+                ? `1px solid rgba(255,255,255,${damaged ? 0.25 + crackIntensity * 0.15 : 0.12})`
+                : "none",
+              outlineOffset: 1,
             }}>
               {/* Crack overlay - gets more intense as HP decreases */}
               {crackIntensity > 0 && (
