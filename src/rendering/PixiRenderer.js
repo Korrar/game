@@ -197,6 +197,7 @@ export class PixiRenderer {
   spawnMeleeSparks(x, y, dirX) { this.combatParticles?.spawnMeleeSparks(x, y, dirX); }
   spawnFireBreath(x, y, dirX) { this.combatParticles?.spawnFireBreath(x, y, dirX); }
   spawnPoisonCloud(x, y) { this.combatParticles?.spawnPoisonCloud(x, y); }
+  spawnChainLightning(x1, y1, x2, y2) { this.combatParticles?.spawnChainLightning(x1, y1, x2, y2); }
   spawnArrowTrail(x, y, vx, vy) { this.combatParticles?.spawnArrowTrail(x, y, vx, vy); }
   spawnGoldCoins(x, y, intensity) { this.combatParticles?.spawnGoldCoins(x, y, intensity); }
   spawnSlashBlood(x, y, dirX, intensity) { this.combatParticles?.spawnSlashBlood(x, y, dirX, intensity); }

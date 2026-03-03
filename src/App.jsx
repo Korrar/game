@@ -697,7 +697,7 @@ export default function App() {
       const entry = physicsRef.current.bodies[wid];
       if (entry && entry.limbBodies && entry.limbBodies.torso) {
         const pos = entry.limbBodies.torso.translation();
-        const amount = parseInt(text) || 0;
+        const amount = parseInt(text.replace(/[^0-9]/g, "")) || 0;
         if (amount > 0) {
           pixiRef.current.spawnDamageNumber(pos.x, pos.y - 20, amount, element || "default", amount >= 40);
         }
@@ -1635,7 +1635,7 @@ export default function App() {
             const wObj = walkersRef.current.find(ww => ww.id === idNum);
             if (wObj && wObj.alive && !wObj.dying) {
               const nh = Math.max(0, wObj.hp - burnDmg);
-              spawnDmgPopup(idNum, `🔥${burnDmg}`, "#ff6020");
+              spawnDmgPopup(idNum, `🔥${burnDmg}`, "#ff6020", "fire");
               if (nh <= 0) {
                 sfxNpcDeath(); w.alive = false;
                 if (physicsRef.current) physicsRef.current.triggerRagdoll(idNum, "fire", w.dir || 1);
@@ -1657,7 +1657,7 @@ export default function App() {
             const wObj = walkersRef.current.find(ww => ww.id === idNum);
             if (wObj && wObj.alive && !wObj.dying) {
               const nh = Math.max(0, wObj.hp - poisonDmg);
-              spawnDmgPopup(idNum, `☠${poisonDmg}`, "#44ff44");
+              spawnDmgPopup(idNum, `☠${poisonDmg}`, "#44ff44", "poison");
               if (nh <= 0) {
                 sfxNpcDeath(); w.alive = false;
                 if (physicsRef.current) physicsRef.current.triggerRagdoll(idNum, "shadow", w.dir || 1);
@@ -4339,7 +4339,13 @@ export default function App() {
             if (!td) continue;
             const cdx = td.x - d.x, cdy = td.y - d.y;
             if (cdx * cdx + cdy * cdy < eff.chainRadius * eff.chainRadius) {
-              spawnDmgPopup(target.id, `⚡${eff.chainDamage}`, "#ffee00");
+              spawnDmgPopup(target.id, `⚡${eff.chainDamage}`, "#ffee00", "lightning");
+              // Visual lightning bolt between hit enemy and chain target
+              if (pixiRef.current) {
+                const srcPx = (d.x / 100) * GAME_W, srcPy = (d.y / 100) * GAME_H;
+                const tgtPx = (td.x / 100) * GAME_W, tgtPy = (td.y / 100) * GAME_H;
+                pixiRef.current.spawnChainLightning(srcPx, srcPy, tgtPx, tgtPy);
+              }
               setWalkers(prev2 => prev2.map(ww2 => {
                 if (ww2.id !== target.id || !ww2.alive || ww2.dying) return ww2;
                 const nh2 = Math.max(0, ww2.hp - eff.chainDamage);

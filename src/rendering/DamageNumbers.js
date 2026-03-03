@@ -5,6 +5,7 @@ const ELEMENT_COLORS = {
   fire: "#ff6030",
   ice: "#60c0ff",
   lightning: "#ffe040",
+  poison: "#44ff44",
   shadow: "#a050e0",
   holy: "#ffe080",
   melee: "#ff4040",

@@ -308,6 +308,31 @@ export class CombatParticles {
     });
   }
 
+  spawnChainLightning(x1, y1, x2, y2) {
+    // Sparks along the bolt path between source and chain target
+    const segments = this.mobile ? 4 : 8;
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const px = x1 + (x2 - x1) * t + (Math.random() - 0.5) * 12;
+      const py = y1 + (y2 - y1) * t + (Math.random() - 0.5) * 12;
+      this._emit(1, px, py, {
+        vx: () => (Math.random() - 0.5) * 3,
+        vy: () => (Math.random() - 0.5) * 3,
+        life: 10 + Math.random() * 6,
+        size: 2 + Math.random() * 2,
+        color: 0xffee00,
+      });
+    }
+    // Flash at target
+    this._emit(this._c(6), x2, y2, {
+      vx: () => (Math.random() - 0.5) * 6,
+      vy: () => (Math.random() - 0.5) * 6,
+      life: 12 + Math.random() * 6,
+      size: 2.5 + Math.random() * 1.5,
+      color: 0xffff80,
+    });
+  }
+
   spawnArrowTrail(x, y, vx, vy) {
     this._emit(this.mobile ? 1 : 3, x, y, {
       vx: () => (Math.random() - 0.5) * 0.5,
