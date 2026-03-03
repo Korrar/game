@@ -13,106 +13,98 @@ function getStage(clicks) {
 function GoldPile() {
   return (
     <g>
-      {/* Base gold pile - large mound */}
-      <ellipse cx="60" cy="95" rx="55" ry="14" fill="#b8860b" />
-      <ellipse cx="60" cy="93" rx="52" ry="12" fill="#d4a030" />
-      <ellipse cx="60" cy="91" rx="48" ry="10" fill="#e0b840" />
-      {/* Individual coins scattered on pile */}
+      {/* Subtle gold mound */}
+      <ellipse cx="40" cy="64" rx="32" ry="8" fill="#8a7040" />
+      <ellipse cx="40" cy="63" rx="29" ry="6" fill="#a08850" />
+      <ellipse cx="40" cy="62" rx="25" ry="5" fill="#b09860" />
+      {/* Small coins */}
       {[
-        { x: 18, y: 88, r: 4 }, { x: 30, y: 85, r: 3.5 }, { x: 45, y: 83, r: 4 },
-        { x: 70, y: 84, r: 3.5 }, { x: 85, y: 86, r: 4 }, { x: 100, y: 88, r: 3 },
-        { x: 25, y: 92, r: 3 }, { x: 55, y: 87, r: 3.5 }, { x: 78, y: 90, r: 3 },
-        { x: 40, y: 90, r: 2.5 }, { x: 65, y: 91, r: 2.5 }, { x: 92, y: 92, r: 3 },
-        { x: 12, y: 94, r: 3.5 }, { x: 108, y: 93, r: 3 },
+        { x: 20, y: 60, r: 2.2 }, { x: 30, y: 58, r: 2 }, { x: 42, y: 57, r: 2.2 },
+        { x: 54, y: 59, r: 2 }, { x: 64, y: 60, r: 2.2 },
+        { x: 26, y: 62, r: 1.8 }, { x: 48, y: 61, r: 1.8 },
       ].map((c, i) => (
         <g key={i}>
-          <ellipse cx={c.x} cy={c.y} rx={c.r} ry={c.r * 0.6} fill="#ffd700" stroke="#b8860b" strokeWidth="0.5" />
-          <ellipse cx={c.x - 0.5} cy={c.y - 0.5} rx={c.r * 0.5} ry={c.r * 0.3} fill="#ffe860" opacity="0.6" />
+          <ellipse cx={c.x} cy={c.y} rx={c.r} ry={c.r * 0.55} fill="#c0a050" stroke="#8a7040" strokeWidth="0.4" />
+          <ellipse cx={c.x - 0.3} cy={c.y - 0.3} rx={c.r * 0.4} ry={c.r * 0.2} fill="#d0b870" opacity="0.5" />
         </g>
       ))}
-      {/* Glitter spots */}
+      {/* Subtle glitters */}
       {[
-        { x: 35, y: 86 }, { x: 75, y: 85 }, { x: 50, y: 89 },
-        { x: 20, y: 91 }, { x: 95, y: 89 },
+        { x: 28, y: 59 }, { x: 50, y: 58 }, { x: 38, y: 61 },
       ].map((s, i) => (
-        <circle key={`gl${i}`} cx={s.x} cy={s.y} r="1" fill="#fff8dc" opacity="0.8">
-          <animate attributeName="opacity" values="0.3;1;0.3" dur={`${1.5 + i * 0.3}s`} repeatCount="indefinite" />
+        <circle key={`gl${i}`} cx={s.x} cy={s.y} r="0.7" fill="#e0d0a0" opacity="0.6">
+          <animate attributeName="opacity" values="0.2;0.7;0.2" dur={`${1.8 + i * 0.4}s`} repeatCount="indefinite" />
         </circle>
       ))}
     </g>
   );
 }
 
-function ChestBody({ stage, shaking }) {
-  // Lid lifts upward based on stage: 0=closed, 1=cracked, 2=half, 3=fully open
-  const lidLiftY = [0, -6, -20, -42][stage] || 0;
-  // Slight tilt when lifting
-  const lidTilt = [0, -3, -8, -15][stage] || 0;
-  // Glow inside when opening
-  const innerGlow = stage >= 1 ? Math.min(1, stage * 0.35) : 0;
+function ChestBody({ stage }) {
+  const lidLiftY = [0, -4, -14, -30][stage] || 0;
+  const lidTilt = [0, -2, -6, -12][stage] || 0;
+  const innerGlow = stage >= 1 ? Math.min(1, stage * 0.3) : 0;
 
   return (
-    <g transform={`translate(60, 20) ${shaking ? "" : ""}`}>
-      {/* Inner glow when chest starts opening */}
+    <g transform="translate(40, 14)">
+      {/* Inner glow when opening */}
       {innerGlow > 0 && (
-        <ellipse cx="0" cy="14" rx={30 + stage * 6} ry={10 + stage * 5}
-          fill="#ffd700" opacity={innerGlow * 0.45}
-          filter="url(#chestInnerGlow)" />
+        <ellipse cx="0" cy="10" rx={18 + stage * 4} ry={6 + stage * 3}
+          fill="#c0a050" opacity={innerGlow * 0.35}
+          filter="url(#chestGlow)" />
       )}
 
-      {/* Chest body (bottom part) */}
-      <rect x="-38" y="10" width="76" height="38" rx="3" fill="#5a3a18" stroke="#3a2410" strokeWidth="1.5" />
-      <rect x="-36" y="12" width="72" height="34" rx="2" fill="#6a4422" />
+      {/* Chest body */}
+      <rect x="-24" y="7" width="48" height="26" rx="2" fill="#4a3420" stroke="#33220e" strokeWidth="1" />
+      <rect x="-22" y="9" width="44" height="22" rx="1.5" fill="#5a4028" />
       {/* Wood grain */}
-      <line x1="-34" y1="22" x2="34" y2="22" stroke="#5a3618" strokeWidth="0.8" opacity="0.5" />
-      <line x1="-34" y1="32" x2="34" y2="32" stroke="#5a3618" strokeWidth="0.8" opacity="0.5" />
+      <line x1="-21" y1="16" x2="21" y2="16" stroke="#4a3418" strokeWidth="0.5" opacity="0.4" />
+      <line x1="-21" y1="23" x2="21" y2="23" stroke="#4a3418" strokeWidth="0.5" opacity="0.4" />
 
-      {/* Metal bands on body */}
-      <rect x="-40" y="10" width="80" height="4" rx="1" fill="url(#goldBandChest)" />
-      <rect x="-40" y="28" width="80" height="3" rx="1" fill="url(#goldBandChest)" />
-      <rect x="-40" y="44" width="80" height="4" rx="1" fill="url(#goldBandChest)" />
+      {/* Metal bands - aged bronze */}
+      <rect x="-25" y="7" width="50" height="3" rx="0.5" fill="url(#bandGrad)" />
+      <rect x="-25" y="19" width="50" height="2" rx="0.5" fill="url(#bandGrad)" />
+      <rect x="-25" y="30" width="50" height="3" rx="0.5" fill="url(#bandGrad)" />
       {/* Vertical band */}
-      <rect x="-3" y="10" width="6" height="38" fill="url(#goldBandChest)" />
+      <rect x="-2" y="7" width="4" height="26" fill="url(#bandGrad)" />
 
       {/* Corner rivets */}
-      {[-34, -18, 16, 32].map(cx => (
-        <circle key={cx} cx={cx} cy="12" r="3" fill="#d4a030" stroke="#a07020" strokeWidth="0.7" />
+      {[-20, -10, 8, 18].map(cx => (
+        <circle key={cx} cx={cx} cy="9" r="1.8" fill="#9a8050" stroke="#706030" strokeWidth="0.5" />
       ))}
 
       {/* Lock plate */}
-      <rect x="-8" y="5" width="16" height="14" rx="2" fill="#d4a030" stroke="#a07020" strokeWidth="1" />
-      <rect x="-3" y="10" width="6" height="5" rx="1" fill="#1a0e06" />
-      {stage < 3 && <circle cx="0" cy="12" r="1.5" fill="#ffd700" opacity="0.6" />}
+      <rect x="-5" y="3" width="10" height="10" rx="1.5" fill="#9a8050" stroke="#706030" strokeWidth="0.7" />
+      <rect x="-2" y="7" width="4" height="3.5" rx="0.7" fill="#1a0e06" />
+      {stage < 3 && <circle cx="0" cy="8.5" r="1" fill="#b8a060" opacity="0.5" />}
 
-      {/* Treasure visible inside when open */}
+      {/* Treasure visible inside */}
       {stage >= 2 && (
-        <g opacity={stage === 2 ? 0.5 : 1}>
-          {/* Gold glow inside */}
-          <rect x="-30" y="12" width="60" height="10" rx="2" fill="#ffd700" opacity="0.3" />
-          {/* Mini coins inside */}
+        <g opacity={stage === 2 ? 0.4 : 0.9}>
+          <rect x="-18" y="9" width="36" height="7" rx="1" fill="#b09860" opacity="0.25" />
           {[
-            { x: -18, y: 16 }, { x: -8, y: 14 }, { x: 5, y: 15 },
-            { x: 16, y: 16 }, { x: -12, y: 18 }, { x: 10, y: 18 },
+            { x: -10, y: 12 }, { x: -3, y: 11 }, { x: 4, y: 12 },
+            { x: 10, y: 11 },
           ].map((c, i) => (
-            <ellipse key={`ic${i}`} cx={c.x} cy={c.y} rx="3" ry="2" fill="#ffd700" stroke="#b8860b" strokeWidth="0.4" />
+            <ellipse key={`ic${i}`} cx={c.x} cy={c.y} rx="2" ry="1.2" fill="#c0a050" stroke="#8a7040" strokeWidth="0.3" />
           ))}
-          {/* Gem inside */}
-          <polygon points="-2,14 0,11 2,14 0,17" fill="#ff4444" stroke="#aa0000" strokeWidth="0.3" />
-          <polygon points="12,13 14,11 16,13 14,16" fill="#44aaff" stroke="#0066aa" strokeWidth="0.3" />
+          {/* Small gems */}
+          <polygon points="-1,11 0,9.5 1,11 0,12.5" fill="#c06060" stroke="#904040" strokeWidth="0.2" />
+          <polygon points="7,10 8,9 9,10 8,11.5" fill="#6090b0" stroke="#405868" strokeWidth="0.2" />
         </g>
       )}
 
-      {/* Lid - lifts upward with slight tilt */}
-      <g style={{ transition: "transform 0.3s ease-out" }} transform={`translate(0, ${lidLiftY}) rotate(${lidTilt}, 0, 10)`}>
-        <path d="M-40,10 L-34,-8 L34,-8 L40,10 Z" fill="#6a4420" stroke="#3a2410" strokeWidth="1.5" />
-        <path d="M-36,8 L-30,-4 L30,-4 L36,8 Z" fill="#7a5430" />
+      {/* Lid */}
+      <g style={{ transition: "transform 0.3s ease-out" }} transform={`translate(0, ${lidLiftY}) rotate(${lidTilt}, 0, 7)`}>
+        <path d="M-25,7 L-21,-5 L21,-5 L25,7 Z" fill="#5a4028" stroke="#33220e" strokeWidth="1" />
+        <path d="M-22,5.5 L-18,-2.5 L18,-2.5 L22,5.5 Z" fill="#65482e" />
         {/* Lid band */}
-        <rect x="-40" y="6" width="80" height="4" rx="1" fill="url(#goldBandChest)" />
+        <rect x="-25" y="4" width="50" height="3" rx="0.5" fill="url(#bandGrad)" />
         {/* Lid vertical band */}
-        <rect x="-3" y="-8" width="6" height="18" fill="url(#goldBandChest)" />
+        <rect x="-2" y="-5" width="4" height="12" fill="url(#bandGrad)" />
         {/* Lid rivets */}
-        {[-32, -16, 14, 30].map(cx => (
-          <circle key={`lr${cx}`} cx={cx} cy="8" r="2.5" fill="#d4a030" stroke="#a07020" strokeWidth="0.6" />
+        {[-19, -9, 7, 17].map(cx => (
+          <circle key={`lr${cx}`} cx={cx} cy="5.5" r="1.5" fill="#9a8050" stroke="#706030" strokeWidth="0.4" />
         ))}
       </g>
     </g>
@@ -144,40 +136,40 @@ export default function Chest({ pos, onClick, clicks = 0, maxClicks = CLICKS_TO_
         top: `${pos.y}%`,
         zIndex: 15,
         cursor: isOpen ? "default" : "pointer",
-        filter: `drop-shadow(0 0 ${12 + stage * 4}px rgba(212,160,48,${0.4 + stage * 0.15}))`,
+        filter: `drop-shadow(0 0 ${6 + stage * 3}px rgba(160,128,60,${0.3 + stage * 0.12}))`,
         animation: isOpen ? "none" : "chestG 2.5s ease-in-out infinite",
         userSelect: "none",
-        transform: `translate(-50%, -50%) ${shaking ? `translate(${Math.random() > 0.5 ? 3 : -3}px, ${Math.random() > 0.5 ? 2 : -2}px)` : ""}`,
+        transform: `translate(-50%, -50%) ${shaking ? `translate(${Math.random() > 0.5 ? 2 : -2}px, ${Math.random() > 0.5 ? 1 : -1}px)` : ""}`,
         transition: shaking ? "none" : "filter 0.3s",
       }}
     >
-      <svg width="120" height="110" viewBox="0 0 120 110">
+      <svg width="80" height="72" viewBox="0 0 80 72">
         <defs>
-          <linearGradient id="goldBandChest" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#e8d060" />
-            <stop offset="50%" stopColor="#d4a030" />
-            <stop offset="100%" stopColor="#a07020" />
+          <linearGradient id="bandGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#b0985a" />
+            <stop offset="50%" stopColor="#9a8050" />
+            <stop offset="100%" stopColor="#706030" />
           </linearGradient>
-          <filter id="chestInnerGlow">
-            <feGaussianBlur stdDeviation="6" />
+          <filter id="chestGlow">
+            <feGaussianBlur stdDeviation="4" />
           </filter>
         </defs>
         <GoldPile />
-        <ChestBody stage={stage} shaking={shaking} />
+        <ChestBody stage={stage} />
       </svg>
 
       {/* Click progress indicator */}
       {!isOpen && clicks > 0 && (
         <div style={{
-          position: "absolute", bottom: -8, left: "50%", transform: "translateX(-50%)",
-          width: 60, height: 5, background: "rgba(0,0,0,0.5)", borderRadius: 3,
-          border: "1px solid rgba(212,160,48,0.4)",
+          position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%)",
+          width: 44, height: 4, background: "rgba(0,0,0,0.45)", borderRadius: 2,
+          border: "1px solid rgba(160,128,60,0.35)",
         }}>
           <div style={{
             width: `${progress * 100}%`, height: "100%",
-            background: "linear-gradient(90deg, #d4a030, #ffd700)",
-            borderRadius: 3, transition: "width 0.15s",
-            boxShadow: "0 0 4px rgba(255,215,0,0.6)",
+            background: "linear-gradient(90deg, #9a8050, #c0a050)",
+            borderRadius: 2, transition: "width 0.15s",
+            boxShadow: "0 0 3px rgba(192,160,80,0.4)",
           }} />
         </div>
       )}
@@ -185,9 +177,9 @@ export default function Chest({ pos, onClick, clicks = 0, maxClicks = CLICKS_TO_
       {/* "Click!" hint */}
       {!isOpen && clicks === 0 && (
         <div style={{
-          position: "absolute", bottom: -14, left: "50%", transform: "translateX(-50%)",
-          color: "#ffd700", fontSize: 11, fontWeight: "bold", whiteSpace: "nowrap",
-          textShadow: "0 0 6px rgba(255,215,0,0.5), 0 1px 2px rgba(0,0,0,0.8)",
+          position: "absolute", bottom: -10, left: "50%", transform: "translateX(-50%)",
+          color: "#c0a060", fontSize: 10, fontWeight: "bold", whiteSpace: "nowrap",
+          textShadow: "0 0 4px rgba(160,128,60,0.4), 0 1px 2px rgba(0,0,0,0.8)",
           animation: "chestHint 1.5s ease-in-out infinite",
         }}>
           Kliknij!
