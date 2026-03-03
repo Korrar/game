@@ -315,7 +315,7 @@ export default function App() {
   const [salvaActive, setSalvaActive] = useState(false);
   const salvaActiveRef = useRef(false);
   salvaActiveRef.current = salvaActive;
-  const salvaRef = useRef({ active: false, cursorX: 50, cursorY: 50, lastShotTime: 0, hitCooldowns: {}, fallingBullets: [] });
+  const salvaRef = useRef({ active: false, cursorX: 50, cursorY: 50, lastShotTime: 0 });
   const [salvaTick, setSalvaTick] = useState(0);
 
   // ─── FEATURE: Combo Visual Feedback ───
@@ -2014,31 +2014,13 @@ export default function App() {
         setWandTick(t => t + 1);
       }
 
-      // ─── SALWA ARMATNIA: hold-to-cast cannon barrage ───
+      // ─── SALWA ARMATNIA: hold-to-cast cannon barrage (real projectiles) ───
       if (salvaRef.current.active) {
         const sv = salvaRef.current;
         const SALVA_FIRE_RATE = 600; // ms between shots
-        const SALVA_SPLASH = 8; // % of screen - splash radius
         const SALVA_DMG = 20;
         const SALVA_MANA_COST = 5;
-        // Update falling bullet animations
-        for (let bi = sv.fallingBullets.length - 1; bi >= 0; bi--) {
-          const b = sv.fallingBullets[bi];
-          b.progress = Math.min(1, (dateNow - b.startTime) / 400);
-          if (b.progress >= 1 && !b.impacted) {
-            b.impacted = true;
-            // Spawn impact particles
-            if (pixiRef.current) {
-              const impX = (b.targetX / 100) * GAME_W;
-              const impY = (b.targetY / 100) * GAME_H;
-              pixiRef.current.spawnExplosion(impX, impY, "#ff4020", 0.4);
-            }
-          }
-          if (dateNow - b.startTime > 600) {
-            sv.fallingBullets.splice(bi, 1);
-          }
-        }
-        // Fire a new bullet if enough time elapsed and resources available
+        // Fire a new projectile if enough time elapsed and resources available
         if (dateNow - sv.lastShotTime >= SALVA_FIRE_RATE) {
           const hasAmmo = (ammoRef.current.cannonball || 0) >= 1;
           const hasMana = manaRef.current >= SALVA_MANA_COST;
@@ -2048,66 +2030,29 @@ export default function App() {
             manaRef.current -= SALVA_MANA_COST;
             setMana(m => Math.max(0, m - SALVA_MANA_COST));
             setAmmo(prev => ({ ...prev, cannonball: (prev.cannonball || 0) - 1 }));
-            // Spawn falling bullet with slight random offset
-            const offX = (Math.random() - 0.5) * 6;
-            const offY = (Math.random() - 0.5) * 4;
-            sv.fallingBullets.push({
-              startTime: dateNow,
-              targetX: sv.cursorX + offX,
-              targetY: sv.cursorY + offY,
-              progress: 0,
-              impacted: false,
-            });
+            // Slight random offset on target
+            const offX = (Math.random() - 0.5) * 40;
+            const offY = (Math.random() - 0.5) * 30;
+            const tgtPx = (sv.cursorX / 100) * GAME_W + offX;
+            const tgtPy = (sv.cursorY / 100) * GAME_H + offY;
+            // Spawn real arc projectile via physics
+            if (physicsRef.current) {
+              physicsRef.current.spawnPlayerSkillshot(
+                "meteor", tgtPx, tgtPy,
+                SALVA_DMG, "fire",
+                // onHit
+                (hitId, damage, element, isHeadshot) => {
+                  setAccuracy(prev => ({ ...prev, hits: prev.hits + 1, headshots: isHeadshot ? prev.headshots + 1 : prev.headshots }));
+                  setAccuracyStreak(prev => prev + 1);
+                },
+                // onMiss
+                () => { setAccuracy(prev => ({ ...prev, misses: prev.misses + 1 })); setAccuracyStreak(0); },
+                // onHeadshot
+                null
+              );
+            }
             // Play sound
             sfxMeteorImpact();
-            // Screen shake
-            setScreenShake(true);
-            setTimeout(() => setScreenShake(false), 100);
-            // Damage enemies in splash radius
-            const spX = sv.cursorX + offX;
-            const spY = sv.cursorY + offY;
-            for (const w of walkersRef.current) {
-              if (!w.alive || w.dying || w.friendly) continue;
-              const d = wd[w.id];
-              if (!d || !d.alive) continue;
-              const dx2 = d.x - spX, dy2 = d.y - spY;
-              if (dx2 * dx2 + dy2 * dy2 < SALVA_SPLASH * SALVA_SPLASH) {
-                let dmg = SALVA_DMG;
-                dmg = Math.round(dmg * perkSpellDmgMult);
-                if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
-                if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
-                const npcData = w.npcData;
-                const resistant = npcData.resist && npcData.resist === "fire";
-                if (resistant) dmg = Math.round(dmg * RESIST_MULT);
-                dmg = Math.round(dmg * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
-                spawnDmgPopup(w.id, resistant ? `${dmg} BLOK` : `💣${dmg}`, resistant ? "#6688aa" : "#ff4020");
-                if (pixiRef.current) {
-                  pixiRef.current.spawnMeleeSparks((d.x / 100) * GAME_W, (d.y / 100) * GAME_H, Math.sign(d.x - 50) || 1);
-                }
-                setWalkers(prev => prev.map(ww => {
-                  if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
-                  const nh = Math.max(0, ww.hp - dmg);
-                  if (ww.isBoss && activeBossRef.current) {
-                    setActiveBoss(prev2 => prev2 ? { ...prev2, currentHp: nh } : null);
-                  }
-                  if (nh <= 0) {
-                    sfxNpcDeath();
-                    if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
-                    if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "fire", Math.sign(d.x - 50) || 1);
-                    addMoneyFn(ww.npcData.loot || {});
-                    setKills(k => k + 1);
-                    handleCardDrop(ww.npcData);
-                    rollAmmoDrop(); rollSaberDrop();
-                    grantXp(ww.isBoss ? 100 : ww.isElite ? 50 : 10 + roomRef.current * 2);
-                    processKillStreak();
-                    setTimeout(() => setWalkers(pr => pr.filter(www => www.id !== w.id)), 2500);
-                    return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
-                  }
-                  if (physicsRef.current) physicsRef.current.applyHit(w.id, "fire", Math.sign(d.x - 50) || 1);
-                  return { ...ww, hp: nh };
-                }));
-              }
-            }
           } else {
             // Out of resources - auto stop
             setSalvaActive(false);
@@ -2173,9 +2118,20 @@ export default function App() {
 
               _hitObsIds.add(o.id);
 
-              // ─── BOUNCE: reflect velocity based on penetration axis ───
-              if (proj._bounceCount < MAX_BOUNCES) {
-                // Determine which face was hit by checking overlap depth on each axis
+              // ─── EXPLOSIVE projectiles: explode on obstacle impact (no bounce) ───
+              const isExplosive = (proj.splashRadius || 0) > 0;
+              if (isExplosive) {
+                // Explosion particles at impact point
+                if (pixiRef.current) {
+                  pixiRef.current.spawnFire(closestX, closestY);
+                  pixiRef.current.spawnGoreExplosion(closestX, closestY);
+                  const matDef = OBSTACLE_MATERIALS[o.material] || OBSTACLE_MATERIALS.wood;
+                  pixiRef.current.spawnObstacleHitSpark(closestX, closestY, matDef.color);
+                }
+                // Kill the projectile (consumed by explosion)
+                proj.age = proj.maxAge + 1;
+              } else if (proj._bounceCount < MAX_BOUNCES) {
+                // ─── BOUNCE: non-explosive projectiles reflect velocity ───
                 const overlapL = (proj.x + pr) - (ocx - hw);
                 const overlapR = (ocx + hw) - (proj.x - pr);
                 const overlapT = (proj.y + pr) - (ocy - hh);
@@ -2184,29 +2140,21 @@ export default function App() {
                 const minOverlapY = Math.min(overlapT, overlapB);
 
                 if (minOverlapX < minOverlapY) {
-                  // Hit left or right face → reflect vx
                   proj.vx = -proj.vx * 0.75;
                   proj.vy *= 0.9;
-                  // Push projectile out of obstacle
                   proj.x += overlapL < overlapR ? -minOverlapX : minOverlapX;
                 } else {
-                  // Hit top or bottom face → reflect vy
                   proj.vy = -proj.vy * 0.75;
                   proj.vx *= 0.9;
                   proj.y += overlapT < overlapB ? -minOverlapY : minOverlapY;
                 }
                 proj._bounceCount++;
-                // Clear bounce tracking for other obstacles so it can bounce off them
                 proj._bounceIds.clear();
                 proj._bounceIds.add(o.id);
-                // Reduce damage on bounce
                 proj.damage = Math.round(proj.damage * 0.6);
-                // Extend max age so bounced projectile lives longer
                 proj.maxAge = Math.max(proj.maxAge, proj.age + 40);
-                // Disable arc target explosion after bounce (it's now a free-flying projectile)
                 proj.explodeAtTarget = false;
 
-                // Spawn spark effect at bounce point
                 if (pixiRef.current) {
                   const matDef = OBSTACLE_MATERIALS[o.material] || OBSTACLE_MATERIALS.wood;
                   pixiRef.current.spawnObstacleHitSpark(closestX, closestY, matDef.color);
@@ -2214,8 +2162,10 @@ export default function App() {
               }
 
               // ─── DAMAGE: apply to destructible obstacles ───
+              // Explosive projectiles deal extra damage from splash
+              const obsDmgMult = isExplosive ? 1.5 : 1;
               if (o.destructible) {
-                const spellDmg = proj.damage || 20;
+                const spellDmg = Math.round((proj.damage || 20) * obsDmgMult);
                 const spellEl = proj.element || null;
                 const _oid = o.id, _dmg = spellDmg, _el = spellEl;
                 setTimeout(() => {
@@ -3422,7 +3372,7 @@ export default function App() {
     setOwnedArtifacts([]); setTotalDiscoveries(0); setSecretRoom(null); setShowJournal(false);
     setOwnedSabers(["basic_saber"]); setEquippedSaber("basic_saber");
     setHasWand(false); setWandActive(false); wandOrbsRef.current = { active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {}, lastDrainTime: 0 };
-    setSalvaActive(false); salvaRef.current = { active: false, cursorX: 50, cursorY: 50, lastShotTime: 0, hitCooldowns: {}, fallingBullets: [] };
+    setSalvaActive(false); salvaRef.current = { active: false, cursorX: 50, cursorY: 50, lastShotTime: 0 };
     walkDataRef.current = {};
     if (pixiRef.current) pixiRef.current.clearNpcs();
     if (physicsRef.current) physicsRef.current.clear();
@@ -4607,7 +4557,7 @@ export default function App() {
     if ((ammoRef.current.cannonball || 0) < 1) { showMessage("Brak kul armatnich!", "#c04040"); return; }
     if (manaRef.current < 5) { showMessage("Za mało prochu!", "#c0a060"); return; }
     setSalvaActive(true);
-    salvaRef.current = { active: true, cursorX, cursorY, lastShotTime: 0, hitCooldowns: {}, fallingBullets: [] };
+    salvaRef.current = { active: true, cursorX, cursorY, lastShotTime: 0 };
   }, [isSalvaMode, gameScale]);
 
   const moveSalva = useCallback((e) => {
@@ -6077,7 +6027,7 @@ export default function App() {
         );
       })()}
 
-      {/* Salva Armatnia: crosshair + falling bullets */}
+      {/* Salva Armatnia: red crosshair overlay (projectiles rendered by PixiJS) */}
       {salvaActive && (() => {
         const sv = salvaRef.current;
         const cx = (sv.cursorX / 100) * GAME_W;
@@ -6087,9 +6037,9 @@ export default function App() {
           <>
             {/* Flickering red crosshair */}
             <svg style={{ position: "absolute", left: 0, top: 0, width: GAME_W, height: GAME_H, pointerEvents: "none", zIndex: 30 }}>
-              {/* Outer circle */}
+              {/* Outer dashed circle */}
               <circle cx={cx} cy={cy} r="28" fill="none" stroke={`rgba(255,60,30,${pulse * 0.5})`} strokeWidth="1.5" strokeDasharray="6 4" />
-              {/* Inner circle */}
+              {/* Inner fill circle */}
               <circle cx={cx} cy={cy} r="12" fill={`rgba(255,40,20,${pulse * 0.12})`} stroke={`rgba(255,60,30,${pulse * 0.7})`} strokeWidth="1" />
               {/* Cross lines */}
               <line x1={cx - 20} y1={cy} x2={cx - 8} y2={cy} stroke={`rgba(255,60,30,${pulse * 0.8})`} strokeWidth="1.5" />
@@ -6099,48 +6049,6 @@ export default function App() {
               {/* Center dot */}
               <circle cx={cx} cy={cy} r="2" fill={`rgba(255,80,40,${pulse})`} />
             </svg>
-            {/* Falling cannonballs */}
-            {sv.fallingBullets.map((b, i) => {
-              const bx = (b.targetX / 100) * GAME_W;
-              const by = (b.targetY / 100) * GAME_H;
-              const startY = by - 120;
-              const currentY = startY + (by - startY) * b.progress;
-              const size = 6 + b.progress * 2;
-              const opacity = b.impacted ? Math.max(0, 1 - (b.progress - 0.8) * 5) : 1;
-              return (
-                <div key={`sb${i}`} style={{ position: "absolute", pointerEvents: "none", zIndex: 31 }}>
-                  {/* Falling ball */}
-                  {!b.impacted && (
-                    <div style={{
-                      position: "absolute",
-                      left: bx - size / 2, top: currentY - size / 2,
-                      width: size, height: size, borderRadius: "50%",
-                      background: "radial-gradient(circle at 35% 35%, #666, #222)",
-                      boxShadow: "0 0 6px rgba(255,80,20,0.6), 0 2px 4px rgba(0,0,0,0.8)",
-                    }} />
-                  )}
-                  {/* Trail */}
-                  {!b.impacted && b.progress < 0.9 && (
-                    <div style={{
-                      position: "absolute",
-                      left: bx - 1, top: currentY - 30,
-                      width: 2, height: 25 * (1 - b.progress),
-                      background: "linear-gradient(180deg, transparent, rgba(255,100,30,0.5), rgba(255,60,20,0.8))",
-                      borderRadius: 1,
-                    }} />
-                  )}
-                  {/* Impact flash */}
-                  {b.impacted && (
-                    <div style={{
-                      position: "absolute",
-                      left: bx - 16, top: by - 16,
-                      width: 32, height: 32, borderRadius: "50%",
-                      background: `radial-gradient(circle, rgba(255,120,40,${opacity * 0.6}), rgba(255,60,20,${opacity * 0.3}), transparent)`,
-                    }} />
-                  )}
-                </div>
-              );
-            })}
           </>
         );
       })()}
