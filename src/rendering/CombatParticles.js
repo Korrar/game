@@ -333,6 +333,209 @@ export class CombatParticles {
     });
   }
 
+  // ─── OBSTACLE DESTRUCTION PARTICLES ───
+
+  // Wood splinters — brown/tan chunks flying outward with gravity
+  spawnWoodSplinters(x, y) {
+    // Large splinters
+    this._emit(this._c(16), x, y, {
+      vx: () => (Math.random() - 0.5) * 12,
+      vy: () => -(Math.random() * 8 + 3),
+      life: 40 + Math.random() * 20,
+      size: 3 + Math.random() * 2,
+      color: 0x8a6030,
+      gravity: 0.22,
+      type: "diamond",
+    });
+    // Small wood dust
+    this._emit(this._c(10), x, y, {
+      vx: () => (Math.random() - 0.5) * 8,
+      vy: () => -(Math.random() * 5 + 2),
+      life: 25 + Math.random() * 15,
+      size: 2 + Math.random() * 1.5,
+      color: 0xb08850,
+      gravity: 0.15,
+    });
+    // Sawdust cloud
+    this._emit(this._c(6), x, y, {
+      vx: () => (Math.random() - 0.5) * 4,
+      vy: () => -(Math.random() * 2 + 1),
+      life: 30 + Math.random() * 15,
+      size: 5 + Math.random() * 3,
+      color: 0xc0a870,
+      gravity: -0.02,
+    });
+  }
+
+  // Stone rubble — grey chunks with heavy gravity
+  spawnStoneRubble(x, y) {
+    // Heavy chunks
+    this._emit(this._c(12), x, y, {
+      vx: () => (Math.random() - 0.5) * 10,
+      vy: () => -(Math.random() * 7 + 4),
+      life: 45 + Math.random() * 20,
+      size: 3 + Math.random() * 3,
+      color: 0x6a6a6a,
+      gravity: 0.28,
+      type: "diamond",
+    });
+    // Smaller pebbles
+    this._emit(this._c(10), x, y, {
+      vx: () => (Math.random() - 0.5) * 12,
+      vy: () => -(Math.random() * 6 + 2),
+      life: 35 + Math.random() * 15,
+      size: 2 + Math.random() * 1.5,
+      color: 0x8a8a8a,
+      gravity: 0.25,
+    });
+    // Dust cloud
+    this._emit(this._c(8), x, y, {
+      vx: () => (Math.random() - 0.5) * 5,
+      vy: () => -(Math.random() * 2 + 0.5),
+      life: 35 + Math.random() * 20,
+      size: 6 + Math.random() * 4,
+      color: 0x9a9080,
+      gravity: -0.02,
+    });
+  }
+
+  // Ice shard explosion — bright blue diamonds scattering
+  spawnIceShatter(x, y) {
+    // Bright shards
+    this._emit(this._c(14), x, y, {
+      vx: () => (Math.random() - 0.5) * 14,
+      vy: () => -(Math.random() * 9 + 3),
+      life: 35 + Math.random() * 15,
+      size: 2.5 + Math.random() * 2.5,
+      color: 0x80d0ff,
+      gravity: 0.18,
+      type: "diamond",
+    });
+    // White core flash
+    this._emit(this._c(4), x, y, {
+      vx: () => (Math.random() - 0.5) * 2,
+      vy: () => (Math.random() - 0.5) * 2,
+      life: 8,
+      size: 10,
+      color: 0xe0f0ff,
+    });
+    // Frost mist
+    this._emit(this._c(8), x, y, {
+      vx: () => (Math.random() - 0.5) * 6,
+      vy: () => -(Math.random() * 2),
+      life: 25 + Math.random() * 15,
+      size: 4 + Math.random() * 3,
+      color: 0xa0d8f0,
+      gravity: -0.03,
+    });
+  }
+
+  // Crystal shatter — purple/pink glowing shards
+  spawnCrystalShatter(x, y) {
+    this._emit(this._c(12), x, y, {
+      vx: () => (Math.random() - 0.5) * 12,
+      vy: () => -(Math.random() * 8 + 4),
+      life: 40 + Math.random() * 20,
+      size: 3 + Math.random() * 2,
+      color: 0xc080ff,
+      gravity: 0.16,
+      type: "diamond",
+    });
+    // Sparkle dust
+    this._emit(this._c(10), x, y, {
+      vx: () => (Math.random() - 0.5) * 8,
+      vy: () => -(Math.random() * 5 + 2),
+      life: 30 + Math.random() * 15,
+      size: 2 + Math.random(),
+      color: 0xffa0ff,
+      gravity: 0.10,
+    });
+    // Glow flash
+    this._emit(this._c(3), x, y, {
+      vx: () => 0,
+      vy: () => 0,
+      life: 10,
+      size: 12,
+      color: 0xe0c0ff,
+    });
+  }
+
+  // Leaf burst — green particles drifting
+  spawnLeafBurst(x, y) {
+    this._emit(this._c(14), x, y, {
+      vx: () => (Math.random() - 0.5) * 10,
+      vy: () => -(Math.random() * 6 + 2),
+      life: 40 + Math.random() * 25,
+      size: 3 + Math.random() * 2,
+      color: 0x50a030,
+      gravity: 0.08,
+      type: "diamond",
+    });
+    // Small green mist
+    this._emit(this._c(6), x, y, {
+      vx: () => (Math.random() - 0.5) * 4,
+      vy: () => -(Math.random() * 2 + 0.5),
+      life: 35 + Math.random() * 15,
+      size: 5 + Math.random() * 3,
+      color: 0x80c060,
+      gravity: -0.02,
+    });
+  }
+
+  // Metal sparks — bright yellow/white with fast scatter
+  spawnMetalSparks(x, y) {
+    this._emit(this._c(18), x, y, {
+      vx: () => (Math.random() - 0.5) * 16,
+      vy: () => -(Math.random() * 10 + 4),
+      life: 20 + Math.random() * 15,
+      size: 1.5 + Math.random() * 1.5,
+      color: 0xffe060,
+      gravity: 0.30,
+    });
+    // Hot white sparks
+    this._emit(this._c(8), x, y, {
+      vx: () => (Math.random() - 0.5) * 12,
+      vy: () => -(Math.random() * 8 + 3),
+      life: 12 + Math.random() * 8,
+      size: 1 + Math.random(),
+      color: 0xffffff,
+      gravity: 0.25,
+    });
+  }
+
+  // Sand/dust burst — light particles rising
+  spawnDustBurst(x, y) {
+    this._emit(this._c(12), x, y, {
+      vx: () => (Math.random() - 0.5) * 8,
+      vy: () => -(Math.random() * 4 + 2),
+      life: 35 + Math.random() * 20,
+      size: 4 + Math.random() * 3,
+      color: 0xc4a860,
+      gravity: 0.06,
+    });
+    // Fine dust
+    this._emit(this._c(8), x, y, {
+      vx: () => (Math.random() - 0.5) * 5,
+      vy: () => -(Math.random() * 2 + 0.5),
+      life: 30 + Math.random() * 20,
+      size: 6 + Math.random() * 4,
+      color: 0xd8c090,
+      gravity: -0.01,
+    });
+  }
+
+  // Small hit spark on non-destruction damage to obstacle
+  spawnObstacleHitSpark(x, y, materialColor) {
+    this._emit(this._c(5), x, y, {
+      vx: () => (Math.random() - 0.5) * 6,
+      vy: () => -(Math.random() * 4 + 1),
+      life: 10 + Math.random() * 6,
+      size: 2 + Math.random(),
+      color: materialColor || 0xc0a060,
+      gravity: 0.15,
+    });
+  }
+
   spawnArrowTrail(x, y, vx, vy) {
     this._emit(this.mobile ? 1 : 3, x, y, {
       vx: () => (Math.random() - 0.5) * 0.5,

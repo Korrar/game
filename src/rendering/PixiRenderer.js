@@ -205,6 +205,16 @@ export class PixiRenderer {
   spawnGoreExplosion(x, y) { this.combatParticles?.spawnGoreExplosion(x, y); }
   spawnShotBlood(x, y, dirX) { this.combatParticles?.spawnShotBlood(x, y, dirX); }
 
+  // ─── OBSTACLE DESTRUCTION PARTICLES (delegated) ───
+  spawnWoodSplinters(x, y) { this.combatParticles?.spawnWoodSplinters(x, y); }
+  spawnStoneRubble(x, y) { this.combatParticles?.spawnStoneRubble(x, y); }
+  spawnIceShatter(x, y) { this.combatParticles?.spawnIceShatter(x, y); }
+  spawnCrystalShatter(x, y) { this.combatParticles?.spawnCrystalShatter(x, y); }
+  spawnLeafBurst(x, y) { this.combatParticles?.spawnLeafBurst(x, y); }
+  spawnMetalSparks(x, y) { this.combatParticles?.spawnMetalSparks(x, y); }
+  spawnDustBurst(x, y) { this.combatParticles?.spawnDustBurst(x, y); }
+  spawnObstacleHitSpark(x, y, color) { this.combatParticles?.spawnObstacleHitSpark(x, y, color); }
+
   clearNpcs() {
     for (const id of Object.keys(this.characters)) {
       this.removeNpc(parseInt(id));
