@@ -110,31 +110,32 @@ export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp,
 
       {/* HP bar */}
       <div style={{
-        width: "100%", height: 16, background: "rgba(0,0,0,0.85)",
-        border: "1px solid #88444488", borderRadius: 5,
+        width: "100%", height: 22, background: "rgba(0,0,0,0.9)",
+        border: "1px solid #aa444466", borderRadius: 5,
         overflow: "hidden", position: "relative",
-        boxShadow: "0 0 8px rgba(200,40,20,0.2), inset 0 0 6px rgba(0,0,0,0.5)",
+        boxShadow: "0 0 8px rgba(200,40,20,0.25), inset 0 0 6px rgba(0,0,0,0.5)",
       }}>
         <div style={{
           height: "100%", width: `${hpPct}%`,
           background: hpPct > 50
-            ? "linear-gradient(90deg, #c04040, #e06030)"
+            ? "linear-gradient(180deg, #e05040 0%, #c03030 100%)"
             : hpPct > 25
-            ? "linear-gradient(90deg, #c08020, #e0a030)"
-            : "linear-gradient(90deg, #cc2020, #e03030)",
+            ? "linear-gradient(180deg, #e0a030 0%, #c08020 100%)"
+            : "linear-gradient(180deg, #e03030 0%, #a01515 100%)",
           borderRadius: 4, transition: "width 0.3s, background 0.3s",
           boxShadow: hpPct <= 25
-            ? "0 0 12px rgba(200,30,30,0.6)"
-            : "0 0 8px rgba(200,60,20,0.4)",
+            ? "0 0 12px rgba(200,30,30,0.6), inset 0 1px 0 rgba(255,255,255,0.15)"
+            : "0 0 8px rgba(200,60,20,0.4), inset 0 1px 0 rgba(255,255,255,0.15)",
         }} />
         {/* HP text overlay */}
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 11, fontWeight: "bold", color: "#fff",
-          textShadow: "1px 1px 0 #000, 0 0 4px rgba(0,0,0,0.8)", fontFamily: "'Segoe UI', monospace",
+          fontSize: 13, fontWeight: "bold", color: "#fff",
+          textShadow: "1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 0 6px rgba(0,0,0,0.9)",
+          fontFamily: "'Segoe UI', monospace", letterSpacing: 0.5,
         }}>
-          {currentHp}/{maxHp}
+          {Math.round(currentHp)} / {maxHp}
         </div>
       </div>
     </div>

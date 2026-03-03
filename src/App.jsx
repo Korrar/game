@@ -1333,10 +1333,13 @@ export default function App() {
             }
           }
 
-          // Boss phase tracking
+          // Boss phase tracking — read HP from walker state (walkersRef), not walkDataRef
           if (w.isBoss && activeBossRef.current) {
             const boss = activeBossRef.current;
-            const hpRatio = w.hp / w.maxHp;
+            const bossWalker = walkersRef.current.find(ww => ww.id === idNum && ww.isBoss);
+            const bossHp = bossWalker ? bossWalker.hp : boss.currentHp;
+            const bossMaxHp = bossWalker ? bossWalker.maxHp : boss.maxHp;
+            const hpRatio = bossMaxHp > 0 ? bossHp / bossMaxHp : 1;
 
             // Phase 1 → Phase 2
             if (boss.phase === 1 && boss.phase2 && hpRatio <= boss.phase2.hpThreshold) {
@@ -1385,10 +1388,9 @@ export default function App() {
               spawnDmgPopup(idNum, "FAZA 3!", "#e040e0");
             }
 
-            // Sync HP to state for BossHpBar — use functional update to avoid stale mutation
-            if (w.hp !== boss.currentHp) {
-              const syncHp = w.hp;
-              setActiveBoss(prev => prev ? { ...prev, currentHp: syncHp } : null);
+            // Sync HP to state for BossHpBar
+            if (bossHp !== boss.currentHp) {
+              setActiveBoss(prev => prev ? { ...prev, currentHp: bossHp } : null);
             }
           }
 
@@ -5379,78 +5381,91 @@ export default function App() {
         </div>
       )}
 
-      {/* Wand orbiting lightning balls */}
+      {/* Wand orbiting lightning balls — CSS-driven smooth rotation */}
       {wandActive && (() => {
         const wo = wandOrbsRef.current;
-        const now = Date.now();
-        const elapsed = now - wo.startTime;
         const centerX = (wo.cursorX / 100) * GAME_W;
         const centerY = (wo.cursorY / 100) * GAME_H;
+        const orbRadius = GAME_W * 0.08;
+        const yRatio = (GAME_H * 0.056) / orbRadius;
+        const yInv = 1 / yRatio;
+        // Static orb positions at 120° apart on a unit circle (before elliptical squash)
+        const orbPos = [0, 1, 2].map(i => {
+          const a = i * Math.PI * 2 / 3;
+          return { x: Math.cos(a) * orbRadius, y: Math.sin(a) * orbRadius };
+        });
         return (
           <>
-            {[0, 1, 2].map(i => {
-              const angle = (elapsed / 600) + (i * Math.PI * 2 / 3);
-              const orbX = centerX + Math.cos(angle) * GAME_W * 0.08;
-              const orbY = centerY + Math.sin(angle) * GAME_H * 0.056;
-              return (
-                <div key={i} style={{ position: "absolute", left: orbX - 14, top: orbY - 14, width: 28, height: 28, pointerEvents: "none", zIndex: 30 }}>
-                  {/* Outer lightning glow */}
-                  <div style={{
-                    position: "absolute", inset: -8, borderRadius: "50%",
-                    background: "radial-gradient(circle, rgba(60,140,255,0.4) 0%, rgba(30,80,220,0.15) 50%, transparent 70%)",
-                    animation: "wandOrbPulse 0.3s ease-in-out infinite alternate",
-                  }} />
-                  {/* Core orb - bright blue */}
-                  <div style={{
-                    position: "absolute", inset: 4, borderRadius: "50%",
-                    background: "radial-gradient(circle at 35% 35%, #e0f0ff, #60b0ff 30%, #2060ff 60%, #1040cc 90%)",
-                    boxShadow: "0 0 8px rgba(80,160,255,1), 0 0 16px rgba(40,120,255,0.8), 0 0 32px rgba(30,80,255,0.5), 0 0 48px rgba(20,60,220,0.3), inset 0 0 6px rgba(200,230,255,0.8)",
-                  }} />
-                  {/* Lightning sparks radiating from orb */}
-                  <svg style={{ position: "absolute", left: -6, top: -6, width: 40, height: 40, pointerEvents: "none", overflow: "visible" }} viewBox="0 0 40 40">
-                    {[0, 1, 2, 3].map(s => {
-                      const sa = angle * 3 + s * Math.PI / 2 + Math.sin(elapsed * 0.01 + s) * 0.5;
-                      const len = 8 + Math.sin(elapsed * 0.008 + s * 2.1) * 4;
-                      const midLen = len * 0.5;
-                      const jitter = Math.sin(elapsed * 0.015 + s * 1.7) * 3;
-                      return (
-                        <polyline key={s}
-                          points={`20,20 ${20 + Math.cos(sa) * midLen + jitter},${20 + Math.sin(sa) * midLen - jitter} ${20 + Math.cos(sa) * len},${20 + Math.sin(sa) * len}`}
-                          fill="none" stroke="#80c8ff" strokeWidth="1.5" opacity={0.6 + Math.sin(elapsed * 0.012 + s) * 0.4}
-                          style={{ filter: "drop-shadow(0 0 2px #4090ff)" }}
-                        />
-                      );
-                    })}
-                  </svg>
-                </div>
-              );
-            })}
-            {/* Lightning arcs between orbs */}
-            <svg style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, zIndex: 29, pointerEvents: "none", overflow: "visible" }}>
-              <defs>
-                <filter id="wandArcGlow">
-                  <feGaussianBlur stdDeviation="3" result="blur" />
-                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                </filter>
-              </defs>
-              {[0, 1, 2].map(i => {
-                const a1 = (elapsed / 600) + (i * Math.PI * 2 / 3);
-                const a2 = (elapsed / 600) + (((i + 1) % 3) * Math.PI * 2 / 3);
-                const x1 = centerX + Math.cos(a1) * GAME_W * 0.08;
-                const y1 = centerY + Math.sin(a1) * GAME_H * 0.056;
-                const x2 = centerX + Math.cos(a2) * GAME_W * 0.08;
-                const y2 = centerY + Math.sin(a2) * GAME_H * 0.056;
-                const mx = (x1 + x2) / 2 + Math.sin(elapsed * 0.007 + i * 2) * 6;
-                const my = (y1 + y2) / 2 + Math.cos(elapsed * 0.009 + i * 1.5) * 6;
-                return (
-                  <polyline key={i}
-                    points={`${x1},${y1} ${mx},${my} ${x2},${y2}`}
-                    fill="none" stroke="#60b0ff" strokeWidth="1" opacity={0.3 + Math.sin(elapsed * 0.01 + i * 2) * 0.2}
-                    filter="url(#wandArcGlow)"
-                  />
-                );
-              })}
-            </svg>
+            {/* Elliptical squash wrapper + CSS rotation */}
+            <div style={{
+              position: "absolute", left: centerX, top: centerY,
+              width: 0, height: 0, pointerEvents: "none", zIndex: 30,
+              transform: `scaleY(${yRatio})`,
+            }}>
+              <div style={{
+                width: 0, height: 0,
+                animation: "wandOrbSpin 3.77s linear infinite",
+              }}>
+                {orbPos.map((orb, i) => (
+                  <div key={i} style={{
+                    position: "absolute", left: orb.x - 14, top: orb.y - 14,
+                    width: 28, height: 28, pointerEvents: "none",
+                    transform: `scaleY(${yInv})`,
+                  }}>
+                    {/* Outer lightning glow */}
+                    <div style={{
+                      position: "absolute", inset: -8, borderRadius: "50%",
+                      background: "radial-gradient(circle, rgba(60,140,255,0.4) 0%, rgba(30,80,220,0.15) 50%, transparent 70%)",
+                      animation: "wandOrbPulse 0.3s ease-in-out infinite alternate",
+                    }} />
+                    {/* Core orb - bright blue */}
+                    <div style={{
+                      position: "absolute", inset: 4, borderRadius: "50%",
+                      background: "radial-gradient(circle at 35% 35%, #e0f0ff, #60b0ff 30%, #2060ff 60%, #1040cc 90%)",
+                      boxShadow: "0 0 8px rgba(80,160,255,1), 0 0 16px rgba(40,120,255,0.8), 0 0 32px rgba(30,80,255,0.5), 0 0 48px rgba(20,60,220,0.3), inset 0 0 6px rgba(200,230,255,0.8)",
+                    }} />
+                    {/* Lightning sparks radiating from orb */}
+                    <svg style={{ position: "absolute", left: -6, top: -6, width: 40, height: 40, pointerEvents: "none", overflow: "visible" }} viewBox="0 0 40 40">
+                      {[0, 1, 2, 3].map(s => {
+                        const sa = s * Math.PI / 2;
+                        return (
+                          <polyline key={s}
+                            points={`20,20 ${20 + Math.cos(sa) * 6},${20 + Math.sin(sa) * 6} ${20 + Math.cos(sa) * 11},${20 + Math.sin(sa) * 11}`}
+                            fill="none" stroke="#80c8ff" strokeWidth="1.5"
+                            style={{
+                              filter: "drop-shadow(0 0 2px #4090ff)",
+                              animation: `wandSparkFlicker ${0.15 + s * 0.07}s ease-in-out infinite alternate`,
+                            }}
+                          />
+                        );
+                      })}
+                    </svg>
+                  </div>
+                ))}
+                {/* Lightning arcs between orbs — rotate with container */}
+                <svg style={{ position: "absolute", left: 0, top: 0, width: 0, height: 0, overflow: "visible", pointerEvents: "none" }}>
+                  <defs>
+                    <filter id="wandArcGlow">
+                      <feGaussianBlur stdDeviation="3" result="blur" />
+                      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                    </filter>
+                  </defs>
+                  {[0, 1, 2].map(i => {
+                    const o1 = orbPos[i], o2 = orbPos[(i + 1) % 3];
+                    const mx = (o1.x + o2.x) / 2 * 0.7;
+                    const my = (o1.y + o2.y) / 2 * 0.7;
+                    return (
+                      <polyline key={i}
+                        points={`${o1.x},${o1.y} ${mx},${my} ${o2.x},${o2.y}`}
+                        fill="none" stroke="#60b0ff" strokeWidth="1"
+                        filter="url(#wandArcGlow)"
+                        style={{ animation: `wandArcFlicker ${0.6 + i * 0.2}s ease-in-out infinite alternate` }}
+                      />
+                    );
+                  })}
+                </svg>
+              </div>
+            </div>
             {/* Center orbit ring */}
             <div style={{
               position: "absolute",
