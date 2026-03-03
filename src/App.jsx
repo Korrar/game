@@ -678,6 +678,15 @@ export default function App() {
 
   useEffect(() => { activeBossRef.current = activeBoss; }, [activeBoss]);
 
+  // Auto-sync boss HP bar from walker state on every walkers change
+  useEffect(() => {
+    if (!activeBossRef.current) return;
+    const bossWalker = walkers.find(w => w.isBoss && w.alive);
+    if (bossWalker && bossWalker.hp !== activeBossRef.current.currentHp) {
+      setActiveBoss(prev => prev ? { ...prev, currentHp: bossWalker.hp } : null);
+    }
+  }, [walkers]);
+
   // (showMessage & addMoneyFn moved before grantXp / selectPerk)
 
   // Spawn a floating damage popup at walker's current position
@@ -779,6 +788,10 @@ export default function App() {
     setWalkers(prev => prev.map(w => {
       if (w.id !== enemyId || !w.alive || w.friendly) return w;
       const newHp = Math.max(0, w.hp - actualDamage);
+      // Sync boss HP bar immediately on melee damage
+      if (w.isBoss && activeBossRef.current) {
+        setActiveBoss(prev2 => prev2 ? { ...prev2, currentHp: newHp } : null);
+      }
       if (newHp <= 0) {
         sfxNpcDeath();
         if (walkDataRef.current[enemyId]) walkDataRef.current[enemyId].alive = false;
@@ -1935,6 +1948,10 @@ export default function App() {
               setWalkers(prev => prev.map(ww => {
                 if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
                 const nh = Math.max(0, ww.hp - dmg);
+                // Sync boss HP bar on wand lightning damage
+                if (ww.isBoss && activeBossRef.current) {
+                  setActiveBoss(prev2 => prev2 ? { ...prev2, currentHp: nh } : null);
+                }
                 if (nh <= 0) {
                   sfxNpcDeath();
                   if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
@@ -3873,6 +3890,10 @@ export default function App() {
       }
 
       const newHp = Math.max(0, w.hp - dmg);
+      // Sync boss HP immediately on any damage
+      if (w.isBoss && activeBossRef.current) {
+        setActiveBoss(prev => prev ? { ...prev, currentHp: newHp } : null);
+      }
       if (newHp <= 0) {
         sfxNpcDeath();
         if (walkDataRef.current[walkerId]) walkDataRef.current[walkerId].alive = false;
@@ -3924,6 +3945,10 @@ export default function App() {
         showMessage(`${npcData.name} pokonany! +${formatLootText(npcData.loot)}`, "#e05040");
         setTimeout(() => setWalkers(pr => pr.map(ww => ww.id === walkerId ? { ...ww, alive: false } : ww)), 2500);
         return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
+      }
+      // Sync boss HP bar immediately on damage
+      if (w.isBoss && activeBossRef.current) {
+        setActiveBoss(prev => prev ? { ...prev, currentHp: newHp } : null);
       }
       if (physicsRef.current) physicsRef.current.applyHit(walkerId, element, spellDirX);
       return { ...w, hp: newHp };
@@ -4071,6 +4096,11 @@ export default function App() {
 
   const startRapidFire = useCallback((e) => {
     if (!isRapidFireMode || !gameContainerRef.current) return;
+    // Stop wand if active — can't use both simultaneously
+    if (wandOrbsRef.current.active) {
+      setWandActive(false);
+      wandOrbsRef.current.active = false;
+    }
     e.preventDefault();
     const spell = SPELLS.find(s => s.id === "lightning");
     if (!spell) return;
@@ -4124,6 +4154,11 @@ export default function App() {
   const startWand = useCallback((e) => {
     if (!isWandMode || !gameContainerRef.current) return;
     if (wandActiveRef.current) return;
+    // Stop rapid fire if active — can't use both simultaneously
+    if (rapidFireRef.current.active) {
+      if (rapidFireRef.current.intervalId) clearInterval(rapidFireRef.current.intervalId);
+      rapidFireRef.current = { active: false, intervalId: null, lastPos: null };
+    }
     e.preventDefault();
     const gr = gameContainerRef.current.getBoundingClientRect();
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
@@ -4139,6 +4174,30 @@ export default function App() {
     if (!wandActiveRef.current) return;
     setWandActive(false);
     wandOrbsRef.current.active = false;
+  }, []);
+
+  // Stop wand when spell selection changes away from wand
+  useEffect(() => {
+    if (selectedSpell !== "wand" && wandOrbsRef.current.active) {
+      setWandActive(false);
+      wandOrbsRef.current.active = false;
+    }
+  }, [selectedSpell]);
+
+  // Global mouseup/touchend to stop wand when user releases anywhere (not just game area)
+  useEffect(() => {
+    const handleGlobalRelease = () => {
+      if (wandOrbsRef.current.active) {
+        setWandActive(false);
+        wandOrbsRef.current.active = false;
+      }
+    };
+    window.addEventListener("mouseup", handleGlobalRelease);
+    window.addEventListener("touchend", handleGlobalRelease);
+    return () => {
+      window.removeEventListener("mouseup", handleGlobalRelease);
+      window.removeEventListener("touchend", handleGlobalRelease);
+    };
   }, []);
 
   // ─── SABER: Swipe handlers (Fruit Ninja style) ───
@@ -5381,91 +5440,83 @@ export default function App() {
         </div>
       )}
 
-      {/* Wand orbiting lightning balls — CSS-driven smooth rotation */}
+      {/* Wand orbiting lightning balls — time-based smooth rotation */}
       {wandActive && (() => {
         const wo = wandOrbsRef.current;
         const centerX = (wo.cursorX / 100) * GAME_W;
         const centerY = (wo.cursorY / 100) * GAME_H;
         const orbRadius = GAME_W * 0.08;
-        const yRatio = (GAME_H * 0.056) / orbRadius;
-        const yInv = 1 / yRatio;
-        // Static orb positions at 120° apart on a unit circle (before elliptical squash)
+        const ySquash = 0.55;
+        // Time-based angle matching physics calculation (elapsed / 600)
+        const elapsed = Date.now() - wo.startTime;
+        const baseAngle = elapsed / 600;
+        // Compute each orb position from time, perfectly synced with hit detection
         const orbPos = [0, 1, 2].map(i => {
-          const a = i * Math.PI * 2 / 3;
-          return { x: Math.cos(a) * orbRadius, y: Math.sin(a) * orbRadius };
+          const a = baseAngle + i * Math.PI * 2 / 3;
+          return {
+            x: centerX + Math.cos(a) * orbRadius,
+            y: centerY + Math.sin(a) * orbRadius * ySquash,
+          };
         });
         return (
           <>
-            {/* Elliptical squash wrapper + CSS rotation */}
-            <div style={{
-              position: "absolute", left: centerX, top: centerY,
-              width: 0, height: 0, pointerEvents: "none", zIndex: 30,
-              transform: `scaleY(${yRatio})`,
-            }}>
-              <div style={{
-                width: 0, height: 0,
-                animation: "wandOrbSpin 3.77s linear infinite",
+            {orbPos.map((orb, i) => (
+              <div key={i} style={{
+                position: "absolute", left: orb.x - 14, top: orb.y - 14,
+                width: 28, height: 28, pointerEvents: "none", zIndex: 30,
               }}>
-                {orbPos.map((orb, i) => (
-                  <div key={i} style={{
-                    position: "absolute", left: orb.x - 14, top: orb.y - 14,
-                    width: 28, height: 28, pointerEvents: "none",
-                    transform: `scaleY(${yInv})`,
-                  }}>
-                    {/* Outer lightning glow */}
-                    <div style={{
-                      position: "absolute", inset: -8, borderRadius: "50%",
-                      background: "radial-gradient(circle, rgba(60,140,255,0.4) 0%, rgba(30,80,220,0.15) 50%, transparent 70%)",
-                      animation: "wandOrbPulse 0.3s ease-in-out infinite alternate",
-                    }} />
-                    {/* Core orb - bright blue */}
-                    <div style={{
-                      position: "absolute", inset: 4, borderRadius: "50%",
-                      background: "radial-gradient(circle at 35% 35%, #e0f0ff, #60b0ff 30%, #2060ff 60%, #1040cc 90%)",
-                      boxShadow: "0 0 8px rgba(80,160,255,1), 0 0 16px rgba(40,120,255,0.8), 0 0 32px rgba(30,80,255,0.5), 0 0 48px rgba(20,60,220,0.3), inset 0 0 6px rgba(200,230,255,0.8)",
-                    }} />
-                    {/* Lightning sparks radiating from orb */}
-                    <svg style={{ position: "absolute", left: -6, top: -6, width: 40, height: 40, pointerEvents: "none", overflow: "visible" }} viewBox="0 0 40 40">
-                      {[0, 1, 2, 3].map(s => {
-                        const sa = s * Math.PI / 2;
-                        return (
-                          <polyline key={s}
-                            points={`20,20 ${20 + Math.cos(sa) * 6},${20 + Math.sin(sa) * 6} ${20 + Math.cos(sa) * 11},${20 + Math.sin(sa) * 11}`}
-                            fill="none" stroke="#80c8ff" strokeWidth="1.5"
-                            style={{
-                              filter: "drop-shadow(0 0 2px #4090ff)",
-                              animation: `wandSparkFlicker ${0.15 + s * 0.07}s ease-in-out infinite alternate`,
-                            }}
-                          />
-                        );
-                      })}
-                    </svg>
-                  </div>
-                ))}
-                {/* Lightning arcs between orbs — rotate with container */}
-                <svg style={{ position: "absolute", left: 0, top: 0, width: 0, height: 0, overflow: "visible", pointerEvents: "none" }}>
-                  <defs>
-                    <filter id="wandArcGlow">
-                      <feGaussianBlur stdDeviation="3" result="blur" />
-                      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                    </filter>
-                  </defs>
-                  {[0, 1, 2].map(i => {
-                    const o1 = orbPos[i], o2 = orbPos[(i + 1) % 3];
-                    const mx = (o1.x + o2.x) / 2 * 0.7;
-                    const my = (o1.y + o2.y) / 2 * 0.7;
+                {/* Outer lightning glow */}
+                <div style={{
+                  position: "absolute", inset: -8, borderRadius: "50%",
+                  background: "radial-gradient(circle, rgba(60,140,255,0.4) 0%, rgba(30,80,220,0.15) 50%, transparent 70%)",
+                  animation: "wandOrbPulse 0.3s ease-in-out infinite alternate",
+                }} />
+                {/* Core orb */}
+                <div style={{
+                  position: "absolute", inset: 4, borderRadius: "50%",
+                  background: "radial-gradient(circle at 35% 35%, #e0f0ff, #60b0ff 30%, #2060ff 60%, #1040cc 90%)",
+                  boxShadow: "0 0 8px rgba(80,160,255,1), 0 0 16px rgba(40,120,255,0.8), 0 0 32px rgba(30,80,255,0.5), 0 0 48px rgba(20,60,220,0.3), inset 0 0 6px rgba(200,230,255,0.8)",
+                }} />
+                {/* Lightning sparks */}
+                <svg style={{ position: "absolute", left: -6, top: -6, width: 40, height: 40, pointerEvents: "none", overflow: "visible" }} viewBox="0 0 40 40">
+                  {[0, 1, 2, 3].map(s => {
+                    const sa = s * Math.PI / 2;
                     return (
-                      <polyline key={i}
-                        points={`${o1.x},${o1.y} ${mx},${my} ${o2.x},${o2.y}`}
-                        fill="none" stroke="#60b0ff" strokeWidth="1"
-                        filter="url(#wandArcGlow)"
-                        style={{ animation: `wandArcFlicker ${0.6 + i * 0.2}s ease-in-out infinite alternate` }}
+                      <polyline key={s}
+                        points={`20,20 ${20 + Math.cos(sa) * 6},${20 + Math.sin(sa) * 6} ${20 + Math.cos(sa) * 11},${20 + Math.sin(sa) * 11}`}
+                        fill="none" stroke="#80c8ff" strokeWidth="1.5"
+                        style={{
+                          filter: "drop-shadow(0 0 2px #4090ff)",
+                          animation: `wandSparkFlicker ${0.15 + s * 0.07}s ease-in-out infinite alternate`,
+                        }}
                       />
                     );
                   })}
                 </svg>
               </div>
-            </div>
+            ))}
+            {/* Lightning arcs between orbs */}
+            <svg style={{ position: "absolute", left: 0, top: 0, width: GAME_W, height: GAME_H, overflow: "visible", pointerEvents: "none", zIndex: 30 }}>
+              <defs>
+                <filter id="wandArcGlow">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
+              {[0, 1, 2].map(i => {
+                const o1 = orbPos[i], o2 = orbPos[(i + 1) % 3];
+                const mx = (o1.x + o2.x) / 2 * 0.85 + centerX * 0.15;
+                const my = (o1.y + o2.y) / 2 * 0.85 + centerY * 0.15;
+                return (
+                  <polyline key={i}
+                    points={`${o1.x},${o1.y} ${mx},${my} ${o2.x},${o2.y}`}
+                    fill="none" stroke="#60b0ff" strokeWidth="1"
+                    filter="url(#wandArcGlow)"
+                    style={{ opacity: 0.3 + Math.sin(elapsed * 0.003 + i * 2) * 0.25 }}
+                  />
+                );
+              })}
+            </svg>
             {/* Center orbit ring */}
             <div style={{
               position: "absolute",
