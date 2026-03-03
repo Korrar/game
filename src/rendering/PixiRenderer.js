@@ -214,6 +214,7 @@ export class PixiRenderer {
   spawnMetalSparks(x, y) { this.combatParticles?.spawnMetalSparks(x, y); }
   spawnDustBurst(x, y) { this.combatParticles?.spawnDustBurst(x, y); }
   spawnObstacleHitSpark(x, y, color) { this.combatParticles?.spawnObstacleHitSpark(x, y, color); }
+  spawnBounceSpark(x, y, vx, vy, color) { this.combatParticles?.spawnBounceSpark(x, y, vx, vy, color); }
 
   clearNpcs() {
     for (const id of Object.keys(this.characters)) {

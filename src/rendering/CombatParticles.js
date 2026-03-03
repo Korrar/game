@@ -536,6 +536,31 @@ export class CombatParticles {
     });
   }
 
+  // Prominent bounce spark — directional sparks along reflected velocity
+  spawnBounceSpark(x, y, vx, vy, materialColor) {
+    const speed = Math.sqrt(vx * vx + vy * vy) || 1;
+    const nx = vx / speed, ny = vy / speed;
+    // Main directional sparks along bounce direction
+    this._emit(this._c(8), x, y, {
+      vx: () => nx * (2 + Math.random() * 4) + (Math.random() - 0.5) * 3,
+      vy: () => ny * (2 + Math.random() * 4) + (Math.random() - 0.5) * 3,
+      life: 12 + Math.random() * 8,
+      size: 2.5 + Math.random() * 1.5,
+      color: materialColor || 0xc0a060,
+      gravity: 0.12,
+      shrink: true,
+    });
+    // Bright flash at impact point
+    this._emit(1, x, y, {
+      vx: () => 0,
+      vy: () => 0,
+      life: 6,
+      size: 6,
+      color: 0xffffff,
+      shrink: true,
+    });
+  }
+
   spawnArrowTrail(x, y, vx, vy) {
     this._emit(this.mobile ? 1 : 3, x, y, {
       vx: () => (Math.random() - 0.5) * 0.5,

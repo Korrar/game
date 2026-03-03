@@ -2163,7 +2163,7 @@ export default function App() {
 
                 if (pixiRef.current) {
                   const matDef = OBSTACLE_MATERIALS[o.material] || OBSTACLE_MATERIALS.wood;
-                  pixiRef.current.spawnObstacleHitSpark(closestX, closestY, matDef.color);
+                  pixiRef.current.spawnBounceSpark(closestX, closestY, proj.vx, proj.vy, matDef.color);
                 }
               }
 
@@ -6636,6 +6636,16 @@ export default function App() {
 
       {/* ─── DESTRUCTIBLE OBSTACLES ─── */}
       {obstacles.map(obs => {
+        // Material outline colors for obstacle visibility
+        const _matOutline = {
+          wood: { color: "#a07040", glow: "rgba(160,112,64,0.4)" },
+          stone: { color: "#9a9a9a", glow: "rgba(154,154,154,0.3)" },
+          ice: { color: "#a0d8f8", glow: "rgba(160,216,248,0.5)" },
+          crystal: { color: "#b070f0", glow: "rgba(176,112,240,0.5)" },
+          organic: { color: "#5aa040", glow: "rgba(90,160,64,0.35)" },
+          metal: { color: "#a0a0b0", glow: "rgba(160,160,176,0.35)" },
+          sand: { color: "#d4b870", glow: "rgba(212,184,112,0.3)" },
+        };
         const obsStyles = {
           fallen_log: { w: 50, h: 14, bg: "linear-gradient(90deg,#5a3a18,#6a4a20,#4a3010)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
           vine_wall: { w: 30, h: 40, bg: "linear-gradient(180deg,#2a6a10,#1a4a08,#0e3004)", radius: "6px 6px 2px 2px", shadow: "0 2px 8px rgba(0,0,0,0.4)" },
@@ -6683,6 +6693,7 @@ export default function App() {
           lily_pad: { w: 22, h: 10, bg: "radial-gradient(ellipse,#408040,#306030,#205020)", radius: "50%", shadow: "0 1px 3px rgba(0,0,0,0.3)" },
         };
         const s = obsStyles[obs.type] || obsStyles.moss_boulder;
+        const matOL = _matOutline[obs.material] || _matOutline.wood;
         const isHit = obs.hitAnim > 0 && (Date.now() - obs.hitAnim) < 300;
         const hitAge = isHit ? (Date.now() - obs.hitAnim) : 300;
         const shakeX = isHit ? Math.sin(hitAge * 0.06) * (3 - hitAge * 0.01) : 0;
@@ -6712,16 +6723,20 @@ export default function App() {
               background: s.bg,
               borderRadius: s.radius,
               boxShadow: isHit
-                ? `${s.shadow}, 0 0 8px rgba(255,200,100,0.6)`
-                : s.shadow,
+                ? `${s.shadow}, 0 0 8px rgba(255,200,100,0.6), 0 0 12px ${matOL.glow}`
+                : obs.destructible
+                  ? `${s.shadow}, 0 0 6px ${matOL.glow}`
+                  : s.shadow,
               position: "relative",
               overflow: "hidden",
               transform: isDestroying ? "scale(1.3)" : "none",
               transition: isDestroying ? "transform 0.35s ease-out" : "none",
               opacity: damaged ? 0.6 + hpPct * 0.35 : 0.85,
               border: obs.destructible && !isDestroying
-                ? `1.5px solid rgba(255,255,255,${damaged ? 0.3 + crackIntensity * 0.15 : 0.18})`
-                : "none",
+                ? `1.5px solid ${matOL.color}`
+                : !obs.destructible
+                  ? `1px dashed rgba(255,255,255,0.12)`
+                  : "none",
             }}>
               {/* Crack overlay - gets more intense as HP decreases */}
               {crackIntensity > 0 && (
