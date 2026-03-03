@@ -4320,7 +4320,7 @@ export default function App() {
         if (eff?.type === "knockback" && d) {
           const kbDir = d.x > 50 ? 1 : -1;
           d.x = Math.max(5, Math.min(95, d.x + kbDir * eff.force * 3));
-          if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "melee", kbDir);
+          if (physicsRef.current) physicsRef.current.applyHit(w.id, "melee", kbDir);
         }
         // Saber effect: gold bonus
         if (eff?.type === "gold_bonus") {
