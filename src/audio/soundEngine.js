@@ -51,7 +51,6 @@ const BIOME_MUSIC = {
     wv: 0.03, wf: 350,
     // G Dorian pentatonic chimes: G4, Bb4, C5, D5, F5
     notes: [392, 466.16, 523.25, 587.33, 698.46], ct: [2500, 5000], cc: 0.65,
-    perc: { bpm: 125, vol: 0.12, kickVol: 0.14, hatVol: 0.06, swing: 0.15, pattern: "tribal" },
     // G Dorian bass: G2, Bb2, C3, D3, F3
     bass: { notes: [98, 116.54, 130.81, 146.83, 174.61], rate: 600, vol: 0.10, fHz: 350 },
   },
@@ -63,7 +62,6 @@ const BIOME_MUSIC = {
     wv: 0.05, wf: 400,
     // D Mixolydian pentatonic chimes: D4, E4, F#4, A4, C5
     notes: [293.66, 329.63, 370, 440, 523.25], ct: [2000, 4500], cc: 0.7,
-    perc: { bpm: 115, vol: 0.14, kickVol: 0.15, hatVol: 0.07, swing: 0.2, pattern: "shanty" },
     // D Mixolydian bass: D2, E2, F#2, A2, C3
     bass: { notes: [73.42, 82.41, 92.50, 110, 130.81], rate: 520, vol: 0.12, fHz: 400 },
     waves: { vol: 0.04, rate: 4.5 },
@@ -76,7 +74,6 @@ const BIOME_MUSIC = {
     wv: 0.06, wf: 250,
     // A Phrygian dominant chimes: E4, F4, Ab4, A4, C5 (exotic intervals)
     notes: [329.63, 349.23, 415.30, 440, 523.25], ct: [4000, 7500], cc: 0.45,
-    perc: { bpm: 75, vol: 0.10, kickVol: 0.16, hatVol: 0.04, swing: 0.1, pattern: "sparse" },
     // A Phrygian bass: A2, Bb2, C3, D3, E3
     bass: { notes: [110, 116.54, 130.81, 146.83, 164.81], rate: 900, vol: 0.09, fHz: 280 },
   },
@@ -88,7 +85,6 @@ const BIOME_MUSIC = {
     wv: 0.08, wf: 280,
     // E minor pentatonic chimes: E4, G4, A4, B4, D5 (high, bell-like)
     notes: [329.63, 392, 440, 493.88, 587.33], ct: [4500, 9000], cc: 0.4,
-    perc: { bpm: 65, vol: 0.06, kickVol: 0.10, hatVol: 0.03, swing: 0.05, pattern: "sparse" },
     // E minor pentatonic bass: E2, G2, A2, B2, D3
     bass: { notes: [82.41, 98, 110, 123.47, 146.83], rate: 1100, vol: 0.07, fHz: 250 },
   },
@@ -100,7 +96,6 @@ const BIOME_MUSIC = {
     wv: 0.02, wf: 200,
     // Bb Dorian chimes: Bb3, C4, Db4, F4, G4
     notes: [233.08, 261.63, 277.18, 349.23, 392], ct: [3500, 7000], cc: 0.5,
-    perc: { bpm: 100, vol: 0.11, kickVol: 0.13, hatVol: 0.06, swing: 0.25, pattern: "tavern" },
     // Bb Dorian bass: Bb1, C2, Db2, F2, G2
     bass: { notes: [58.27, 65.41, 69.30, 87.31, 98], rate: 700, vol: 0.10, fHz: 300 },
   },
@@ -112,7 +107,6 @@ const BIOME_MUSIC = {
     wv: 0.04, wf: 220,
     // A Phrygian dominant chimes: C4, E4, F4, Ab4, A4
     notes: [261.63, 329.63, 349.23, 415.30, 440], ct: [3500, 7500], cc: 0.4,
-    perc: { bpm: 90, vol: 0.16, kickVol: 0.20, hatVol: 0.05, swing: 0.08, pattern: "war" },
     // A Phrygian dominant bass: A1, Bb1, Db2, D2, E2
     bass: { notes: [55, 58.27, 69.30, 73.42, 82.41], rate: 800, vol: 0.12, fHz: 250 },
   },
@@ -124,7 +118,6 @@ const BIOME_MUSIC = {
     wv: 0.03, wf: 350,
     // G major pentatonic chimes: G4, A4, B4, D5, E5
     notes: [392, 440, 493.88, 587.33, 659.26], ct: [2500, 5500], cc: 0.6,
-    perc: { bpm: 110, vol: 0.10, kickVol: 0.11, hatVol: 0.06, swing: 0.18, pattern: "shanty" },
     // G major pentatonic bass: G2, A2, B2, D3, E3
     bass: { notes: [98, 110, 123.47, 146.83, 164.81], rate: 550, vol: 0.09, fHz: 380 },
   },
@@ -136,7 +129,6 @@ const BIOME_MUSIC = {
     wv: 0.04, wf: 260,
     // D minor pentatonic chimes: D4, F4, G4, A4, C5
     notes: [293.66, 349.23, 392, 440, 523.25], ct: [4000, 8000], cc: 0.4,
-    perc: { bpm: 85, vol: 0.09, kickVol: 0.12, hatVol: 0.05, swing: 0.12, pattern: "sparse" },
     // D minor pentatonic bass: D2, F2, G2, A2, C3
     bass: { notes: [73.42, 87.31, 98, 110, 130.81], rate: 850, vol: 0.08, fHz: 280 },
   },
@@ -148,7 +140,6 @@ const BIOME_MUSIC = {
     wv: 0.04, wf: 320,
     // F major pentatonic chimes: F4, G4, A4, C5, D5
     notes: [349.23, 392, 440, 523.25, 587.33], ct: [2500, 5000], cc: 0.6,
-    perc: { bpm: 120, vol: 0.10, kickVol: 0.11, hatVol: 0.06, swing: 0.2, pattern: "shanty" },
     // F major pentatonic bass: F2, G2, A2, C3, D3
     bass: { notes: [87.31, 98, 110, 130.81, 146.83], rate: 500, vol: 0.09, fHz: 350 },
   },
@@ -160,7 +151,6 @@ const BIOME_MUSIC = {
     wv: 0.02, wf: 350,
     // Eb Lydian pentatonic chimes: Eb4, F4, G4, Bb4, C5, D5
     notes: [311.13, 349.23, 392, 466.16, 523.25, 587.33], ct: [2500, 5000], cc: 0.65,
-    perc: { bpm: 105, vol: 0.10, kickVol: 0.12, hatVol: 0.07, swing: 0.3, pattern: "tavern" },
     // Eb Lydian bass: Eb2, F2, G2, Bb2, C3
     bass: { notes: [77.78, 87.31, 98, 116.54, 130.81], rate: 600, vol: 0.10, fHz: 350 },
   },
@@ -172,7 +162,6 @@ const BIOME_MUSIC = {
     wv: 0.04, wf: 250,
     // Eb minor pentatonic chimes: Eb4, Gb4, Ab4, Bb4, Db5
     notes: [311.13, 370, 415.30, 466.16, 554.37], ct: [4000, 8500], cc: 0.4,
-    perc: { bpm: 70, vol: 0.08, kickVol: 0.14, hatVol: 0.04, swing: 0.15, pattern: "sparse" },
     // Eb minor pentatonic bass: Eb2, Gb2, Ab2, Bb2, Db3
     bass: { notes: [77.78, 92.50, 103.83, 116.54, 138.59], rate: 1000, vol: 0.08, fHz: 250 },
   },
@@ -184,7 +173,6 @@ const BIOME_MUSIC = {
     wv: 0.05, wf: 380,
     // A major pentatonic chimes: A4, B4, Db5, E5, Gb5
     notes: [440, 493.88, 554.37, 659.26, 740], ct: [2000, 5000], cc: 0.6,
-    perc: { bpm: 112, vol: 0.13, kickVol: 0.14, hatVol: 0.07, swing: 0.22, pattern: "shanty" },
     // A major pentatonic bass: A2, B2, Db3, E3, Gb3
     bass: { notes: [110, 123.47, 138.59, 164.81, 185], rate: 540, vol: 0.11, fHz: 400 },
     waves: { vol: 0.05, rate: 3.8 },
@@ -322,106 +310,7 @@ function createWindNoise(vol, filterHz) {
   return { noise, filter, gain, lfo, lfoGain };
 }
 
-// Rhythmic percussion loop - kick drum + hi-hat pattern
-let percTimer = null;
-function createPercussion(cfg, isNight) {
-  if (!cfg) return null;
-  const c = getCtx();
-  const beatMs = 60000 / cfg.bpm;
-  const vol = cfg.vol * (isNight ? 0.5 : 1);
-  const kickVol = cfg.kickVol * (isNight ? 0.5 : 1);
-  const hatVol = cfg.hatVol * (isNight ? 0.4 : 1);
-  let beat = 0;
-  let stopped = false;
-
-  const playKick = () => {
-    if (stopped || !musicPlaying || muted) return;
-    const now = c.currentTime;
-    const osc = c.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(150, now);
-    osc.frequency.exponentialRampToValueAtTime(40, now + 0.12);
-    const g = c.createGain();
-    g.gain.setValueAtTime(kickVol, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-    const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 200;
-    osc.connect(f); f.connect(g); g.connect(musicGain);
-    osc.start(now); osc.stop(now + 0.18);
-  };
-
-  const playHat = () => {
-    if (stopped || !musicPlaying || muted) return;
-    const now = c.currentTime;
-    const bufLen = Math.floor(c.sampleRate * 0.04);
-    const buf = c.createBuffer(1, bufLen, c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 4);
-    const n = c.createBufferSource(); n.buffer = buf;
-    const f = c.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 7000;
-    const g = c.createGain();
-    g.gain.setValueAtTime(hatVol, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-    n.connect(f); f.connect(g); g.connect(musicGain);
-    n.start(now);
-  };
-
-  const playSnare = () => {
-    if (stopped || !musicPlaying || muted) return;
-    const now = c.currentTime;
-    // Noise burst
-    const bufLen = Math.floor(c.sampleRate * 0.08);
-    const buf = c.createBuffer(1, bufLen, c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 2);
-    const n = c.createBufferSource(); n.buffer = buf;
-    const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 3000; f.Q.value = 1;
-    const g = c.createGain();
-    g.gain.setValueAtTime(vol * 0.8, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-    n.connect(f); f.connect(g); g.connect(musicGain);
-    n.start(now);
-    // Body tone
-    const osc = c.createOscillator(); osc.type = "triangle";
-    osc.frequency.setValueAtTime(200, now);
-    osc.frequency.exponentialRampToValueAtTime(120, now + 0.05);
-    const g2 = c.createGain();
-    g2.gain.setValueAtTime(vol * 0.6, now);
-    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-    osc.connect(g2); g2.connect(musicGain);
-    osc.start(now); osc.stop(now + 0.1);
-  };
-
-  // Pattern definitions (8-beat patterns)
-  // K=kick, H=hat, S=snare, .=rest
-  const patterns = {
-    shanty:  ["K", ".", "H", "K", "S", ".", "H", "."],   // bouncy 3+3+2
-    tribal:  ["K", "H", "K", "H", "S", "H", "K", "H"],   // fast tribal
-    war:     ["K", ".", "K", ".", "S", ".", "K", "S"],     // heavy war drums
-    tavern:  ["K", ".", "H", "S", ".", "H", "K", "H"],    // tavern jig
-    sparse:  ["K", ".", ".", ".", "S", ".", ".", "."],      // minimal
-  };
-  const pat = patterns[cfg.pattern] || patterns.shanty;
-
-  const tick = () => {
-    if (stopped || !musicPlaying) return;
-    const swing = cfg.swing || 0;
-    const swingDelay = (beat % 2 === 1) ? beatMs * swing * 0.5 : 0;
-
-    const step = pat[beat % pat.length];
-    if (step === "K") playKick();
-    else if (step === "H") playHat();
-    else if (step === "S") playSnare();
-
-    beat++;
-    percTimer = setTimeout(tick, (beatMs / 2) + swingDelay);
-  };
-  tick();
-
-  return {
-    stop: () => { stopped = true; },
-    disconnect: () => { stopped = true; },
-  };
-}
+let percTimer = null; // kept for cleanup compatibility
 
 // Repeating bass melody line
 let bassTimer = null;
@@ -591,12 +480,6 @@ function _createBiomeNodes(biomeId, isNight) {
     musicNodes.push(createPad(p.freq, p.vol, cfg.pf * nm));
   });
   musicNodes.push(createWindNoise(cfg.wv * (isNight ? 1.5 : 1), cfg.wf * nm));
-
-  // Percussion layer
-  if (cfg.perc) {
-    const percNode = createPercussion(cfg.perc, isNight);
-    if (percNode) musicNodes.push(percNode);
-  }
 
   // Bass melody line
   if (cfg.bass) {

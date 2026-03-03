@@ -241,8 +241,6 @@ export default function App() {
   const [cooldowns, setCooldowns] = useState({});
   const [selectedSpell, setSelectedSpell] = useState(null);
   const [dragHighlight, setDragHighlight] = useState(null);
-  const [autoAttackTarget, setAutoAttackTarget] = useState(null); // { walkerId, spellId }
-  const autoAttackRef = useRef(null);
 
   // Floating damage popups
   const [dmgPopups, setDmgPopups] = useState([]);
@@ -2615,7 +2613,6 @@ export default function App() {
     walkDataRef.current = { ...preservedData, ...newWalkData };
     npcElsRef.current = {};
     setSelectedSpell(null);
-    setAutoAttackTarget(null);
     setDragHighlight(null);
     setDmgPopups([]);
     setInspectedNpc(null);
@@ -5387,46 +5384,9 @@ export default function App() {
     const spUps = spellUpgradesRef.current[spell.id] || [];
     if (spUps.includes("aoe")) { castAoeSpell(spell); return; }
 
-    // First cast immediately (legacy non-skillshot)
+    // Cast spell on target (legacy non-skillshot)
     castSpellOnTarget(spell, walker);
-
-    // Enable auto-attack on this target with the selected spell
-    setAutoAttackTarget({ walkerId: walker.id, spellId: selectedSpell });
   };
-
-  // Auto-attack interval — repeatedly casts selected spell on target
-  useEffect(() => {
-    if (autoAttackRef.current) {
-      clearInterval(autoAttackRef.current);
-      autoAttackRef.current = null;
-    }
-    if (!autoAttackTarget) return;
-
-    const { walkerId, spellId } = autoAttackTarget;
-    autoAttackRef.current = setInterval(() => {
-      const spell = SPELLS.find(s => s.id === spellId);
-      if (!spell) { setAutoAttackTarget(null); return; }
-
-      // Find the walker - still alive?
-      const target = walkersRef.current.find(w => w.id === walkerId && w.alive && !w.dying);
-      if (!target) { setAutoAttackTarget(null); return; }
-
-      // Try to cast (checks mana + cooldown internally)
-      const spUps = spellUpgradesRef.current[spell.id] || [];
-      if (spell.aoe || spUps.includes("aoe")) {
-        castAoeSpell(spell);
-      } else {
-        castSpellOnTarget(spell, target);
-      }
-    }, 600); // Check every 600ms
-
-    return () => {
-      if (autoAttackRef.current) {
-        clearInterval(autoAttackRef.current);
-        autoAttackRef.current = null;
-      }
-    };
-  }, [autoAttackTarget, castSpellOnTarget, castAoeSpell]);
 
   const handleSelectSpell = (spellId) => {
     if (spellId === "summon") {
@@ -5485,19 +5445,12 @@ export default function App() {
         if (spell) handleSelectSpellRef.current(spell.id);
         return;
       }
-      // Escape to cancel selection + auto-attack + skillshot mode + trap placement
+      // Escape to cancel selection + skillshot mode + trap placement
       if (e.key === "Escape") {
         setSelectedSpell(null);
-        setAutoAttackTarget(null);
         setSkillshotMode(false);
         setSkillshotSpell(null);
         setPlacingTrap(null);
-        return;
-      }
-      // Q to toggle auto-attack off
-      if (e.key === "q" || e.key === "Q") {
-        setAutoAttackTarget(null);
-        showMessage("Auto-atak wyłączony", "#888");
         return;
       }
     };
@@ -7025,16 +6978,6 @@ export default function App() {
             onDrop={isFriendly ? undefined : e => handleSpellDrop(e, w)}
             onClick={isFriendly ? undefined : () => handleNpcClick(w)}
           >
-            {/* Auto-attack target indicator */}
-            {autoAttackTarget?.walkerId === w.id && w.alive && !w.dying && (
-              <div style={{
-                position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)",
-                fontSize: 12, color: "#ffaa00", fontWeight: "bold",
-                animation: "gemPulse 1s ease-in-out infinite",
-                pointerEvents: "none", zIndex: 20,
-                textShadow: "0 0 8px rgba(255,170,0,0.6)",
-              }}><Icon name="swords" size={12} /> AUTO</div>
-            )}
             {/* Elite enemy aura indicator */}
             {w.alive && !w.dying && w.isElite && w.eliteMod && (
               <div style={{
