@@ -311,6 +311,13 @@ export default function App() {
   const wandOrbsRef = useRef({ active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {}, lastDrainTime: 0 });
   const [wandTick, setWandTick] = useState(0);
 
+  // ─── FEATURE: Salwa Armatnia (hold-to-cast cannon barrage) ───
+  const [salvaActive, setSalvaActive] = useState(false);
+  const salvaActiveRef = useRef(false);
+  salvaActiveRef.current = salvaActive;
+  const salvaRef = useRef({ active: false, cursorX: 50, cursorY: 50, lastShotTime: 0, hitCooldowns: {}, fallingBullets: [] });
+  const [salvaTick, setSalvaTick] = useState(0);
+
   // ─── FEATURE: Combo Visual Feedback ───
   const [comboCounter, setComboCounter] = useState(0);
   const comboCounterRef = useRef(0);
@@ -609,7 +616,7 @@ export default function App() {
   const GAME_H = gameDims.h;
 
   // Map spell to death visual effect type
-  const EXPLOSIVE_SPELLS = new Set(["fireball", "holybeam", "meteor", "earthquake"]);
+  const EXPLOSIVE_SPELLS = new Set(["fireball", "holybeam", "earthquake"]);
   const getDeathElement = (spell) => {
     if (!spell) return "melee";
     if (EXPLOSIVE_SPELLS.has(spell.id)) return "explosion";
@@ -2007,6 +2014,111 @@ export default function App() {
         setWandTick(t => t + 1);
       }
 
+      // ─── SALWA ARMATNIA: hold-to-cast cannon barrage ───
+      if (salvaRef.current.active) {
+        const sv = salvaRef.current;
+        const SALVA_FIRE_RATE = 600; // ms between shots
+        const SALVA_SPLASH = 8; // % of screen - splash radius
+        const SALVA_DMG = 20;
+        const SALVA_MANA_COST = 5;
+        // Update falling bullet animations
+        for (let bi = sv.fallingBullets.length - 1; bi >= 0; bi--) {
+          const b = sv.fallingBullets[bi];
+          b.progress = Math.min(1, (dateNow - b.startTime) / 400);
+          if (b.progress >= 1 && !b.impacted) {
+            b.impacted = true;
+            // Spawn impact particles
+            if (pixiRef.current) {
+              const impX = (b.targetX / 100) * GAME_W;
+              const impY = (b.targetY / 100) * GAME_H;
+              pixiRef.current.spawnExplosion(impX, impY, "#ff4020", 0.4);
+            }
+          }
+          if (dateNow - b.startTime > 600) {
+            sv.fallingBullets.splice(bi, 1);
+          }
+        }
+        // Fire a new bullet if enough time elapsed and resources available
+        if (dateNow - sv.lastShotTime >= SALVA_FIRE_RATE) {
+          const hasAmmo = (ammoRef.current.cannonball || 0) >= 1;
+          const hasMana = manaRef.current >= SALVA_MANA_COST;
+          if (hasAmmo && hasMana) {
+            sv.lastShotTime = dateNow;
+            // Deduct costs
+            manaRef.current -= SALVA_MANA_COST;
+            setMana(m => Math.max(0, m - SALVA_MANA_COST));
+            setAmmo(prev => ({ ...prev, cannonball: (prev.cannonball || 0) - 1 }));
+            // Spawn falling bullet with slight random offset
+            const offX = (Math.random() - 0.5) * 6;
+            const offY = (Math.random() - 0.5) * 4;
+            sv.fallingBullets.push({
+              startTime: dateNow,
+              targetX: sv.cursorX + offX,
+              targetY: sv.cursorY + offY,
+              progress: 0,
+              impacted: false,
+            });
+            // Play sound
+            sfxMeteorImpact();
+            // Screen shake
+            setScreenShake(true);
+            setTimeout(() => setScreenShake(false), 100);
+            // Damage enemies in splash radius
+            const spX = sv.cursorX + offX;
+            const spY = sv.cursorY + offY;
+            for (const w of walkersRef.current) {
+              if (!w.alive || w.dying || w.friendly) continue;
+              const d = wd[w.id];
+              if (!d || !d.alive) continue;
+              const dx2 = d.x - spX, dy2 = d.y - spY;
+              if (dx2 * dx2 + dy2 * dy2 < SALVA_SPLASH * SALVA_SPLASH) {
+                let dmg = SALVA_DMG;
+                dmg = Math.round(dmg * perkSpellDmgMult);
+                if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
+                if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
+                const npcData = w.npcData;
+                const resistant = npcData.resist && npcData.resist === "fire";
+                if (resistant) dmg = Math.round(dmg * RESIST_MULT);
+                dmg = Math.round(dmg * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
+                spawnDmgPopup(w.id, resistant ? `${dmg} BLOK` : `💣${dmg}`, resistant ? "#6688aa" : "#ff4020");
+                if (pixiRef.current) {
+                  pixiRef.current.spawnMeleeSparks((d.x / 100) * GAME_W, (d.y / 100) * GAME_H, Math.sign(d.x - 50) || 1);
+                }
+                setWalkers(prev => prev.map(ww => {
+                  if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
+                  const nh = Math.max(0, ww.hp - dmg);
+                  if (ww.isBoss && activeBossRef.current) {
+                    setActiveBoss(prev2 => prev2 ? { ...prev2, currentHp: nh } : null);
+                  }
+                  if (nh <= 0) {
+                    sfxNpcDeath();
+                    if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
+                    if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "fire", Math.sign(d.x - 50) || 1);
+                    addMoneyFn(ww.npcData.loot || {});
+                    setKills(k => k + 1);
+                    handleCardDrop(ww.npcData);
+                    rollAmmoDrop(); rollSaberDrop();
+                    grantXp(ww.isBoss ? 100 : ww.isElite ? 50 : 10 + roomRef.current * 2);
+                    processKillStreak();
+                    setTimeout(() => setWalkers(pr => pr.filter(www => www.id !== w.id)), 2500);
+                    return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                  }
+                  if (physicsRef.current) physicsRef.current.applyHit(w.id, "fire", Math.sign(d.x - 50) || 1);
+                  return { ...ww, hp: nh };
+                }));
+              }
+            }
+          } else {
+            // Out of resources - auto stop
+            setSalvaActive(false);
+            sv.active = false;
+            if (!hasAmmo) showMessage("Brak kul armatnich!", "#c04040");
+            else if (!hasMana) showMessage("Za mało prochu!", "#c0a060");
+          }
+        }
+        setSalvaTick(t => t + 1);
+      }
+
       // ─── PROJECTILE vs OBSTACLE collision check (with bounce) ───
       if (physicsRef.current && obstaclesRef.current.length > 0) {
         const skillshots = physicsRef.current.getPlayerSkillshots();
@@ -3310,6 +3422,7 @@ export default function App() {
     setOwnedArtifacts([]); setTotalDiscoveries(0); setSecretRoom(null); setShowJournal(false);
     setOwnedSabers(["basic_saber"]); setEquippedSaber("basic_saber");
     setHasWand(false); setWandActive(false); wandOrbsRef.current = { active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {}, lastDrainTime: 0 };
+    setSalvaActive(false); salvaRef.current = { active: false, cursorX: 50, cursorY: 50, lastShotTime: 0, hitCooldowns: {}, fallingBullets: [] };
     walkDataRef.current = {};
     if (pixiRef.current) pixiRef.current.clearNpcs();
     if (physicsRef.current) physicsRef.current.clear();
@@ -4425,11 +4538,12 @@ export default function App() {
   const startWand = useCallback((e) => {
     if (!isWandMode || !gameContainerRef.current) return;
     if (wandActiveRef.current) return;
-    // Stop rapid fire if active — can't use both simultaneously
+    // Stop rapid fire and salva if active
     if (rapidFireRef.current.active) {
       if (rapidFireRef.current.intervalId) clearInterval(rapidFireRef.current.intervalId);
       rapidFireRef.current = { active: false, intervalId: null, lastPos: null };
     }
+    if (salvaRef.current.active) { setSalvaActive(false); salvaRef.current.active = false; }
     e.preventDefault();
     const gr = gameContainerRef.current.getBoundingClientRect();
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
@@ -4469,6 +4583,65 @@ export default function App() {
       window.removeEventListener("mouseup", handleGlobalRelease);
       window.removeEventListener("touchend", handleGlobalRelease);
     };
+  }, []);
+
+  // ─── SALVA: Press-and-hold cannon barrage ───
+  const isSalvaMode = selectedSpell === "meteor";
+
+  const startSalva = useCallback((e) => {
+    if (!isSalvaMode || !gameContainerRef.current) return;
+    if (salvaActiveRef.current) return;
+    // Stop other hold modes
+    if (wandOrbsRef.current.active) { setWandActive(false); wandOrbsRef.current.active = false; }
+    if (rapidFireRef.current.active) {
+      if (rapidFireRef.current.intervalId) clearInterval(rapidFireRef.current.intervalId);
+      rapidFireRef.current = { active: false, intervalId: null, lastPos: null };
+    }
+    e.preventDefault();
+    const gr = gameContainerRef.current.getBoundingClientRect();
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    const cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100;
+    const cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100;
+    // Check initial resources
+    if ((ammoRef.current.cannonball || 0) < 1) { showMessage("Brak kul armatnich!", "#c04040"); return; }
+    if (manaRef.current < 5) { showMessage("Za mało prochu!", "#c0a060"); return; }
+    setSalvaActive(true);
+    salvaRef.current = { active: true, cursorX, cursorY, lastShotTime: 0, hitCooldowns: {}, fallingBullets: [] };
+  }, [isSalvaMode, gameScale]);
+
+  const moveSalva = useCallback((e) => {
+    if (!salvaRef.current.active) return;
+    const gr = gameContainerRef.current?.getBoundingClientRect();
+    if (!gr) return;
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    salvaRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100;
+    salvaRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100;
+  }, [gameScale]);
+
+  const stopSalva = useCallback(() => {
+    if (!salvaActiveRef.current) return;
+    setSalvaActive(false);
+    salvaRef.current.active = false;
+  }, []);
+
+  // Stop salva when spell selection changes
+  useEffect(() => {
+    if (selectedSpell !== "meteor" && salvaRef.current.active) {
+      setSalvaActive(false);
+      salvaRef.current.active = false;
+    }
+  }, [selectedSpell]);
+
+  // Global release to stop salva
+  useEffect(() => {
+    const handleRelease = () => {
+      if (salvaRef.current.active) { setSalvaActive(false); salvaRef.current.active = false; }
+    };
+    window.addEventListener("mouseup", handleRelease);
+    window.addEventListener("touchend", handleRelease);
+    return () => { window.removeEventListener("mouseup", handleRelease); window.removeEventListener("touchend", handleRelease); };
   }, []);
 
   // ─── SABER: Swipe handlers (Fruit Ninja style) ───
@@ -5699,14 +5872,14 @@ export default function App() {
 
       {/* Scaled game container – fills entire screen on mobile */}
       <div ref={gameContainerRef}
-        onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode) ? handleSkillshotClick : undefined}
-        onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : undefined}
-        onMouseMove={(e) => { if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
-        onMouseUp={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : undefined}
-        onMouseLeave={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : undefined}
-        onTouchStart={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : undefined}
-        onTouchMove={(e) => { if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (wandOrbsRef.current.active && gameContainerRef.current && e.touches[0]) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.touches[0].clientX; const cy = e.touches[0].clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
-        onTouchEnd={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : undefined}
+        onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode && !isSalvaMode) ? handleSkillshotClick : undefined}
+        onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : undefined}
+        onMouseMove={(e) => { if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
+        onMouseUp={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : isSalvaMode ? stopSalva : undefined}
+        onMouseLeave={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : isSalvaMode ? stopSalva : undefined}
+        onTouchStart={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : undefined}
+        onTouchMove={(e) => { if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active && e.touches[0]) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current && e.touches[0]) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.touches[0].clientX; const cy = e.touches[0].clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
+        onTouchEnd={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : isSalvaMode ? stopSalva : undefined}
         style={{
         width: GAME_W, height: GAME_H,
         transform: `scale(${gameScale})`,
@@ -5900,6 +6073,74 @@ export default function App() {
               border: "1px solid rgba(60,140,255,0.25)",
               boxShadow: "inset 0 0 12px rgba(60,140,255,0.15), 0 0 8px rgba(40,100,255,0.1)",
             }} />
+          </>
+        );
+      })()}
+
+      {/* Salva Armatnia: crosshair + falling bullets */}
+      {salvaActive && (() => {
+        const sv = salvaRef.current;
+        const cx = (sv.cursorX / 100) * GAME_W;
+        const cy = (sv.cursorY / 100) * GAME_H;
+        const pulse = Math.sin(Date.now() * 0.012) * 0.3 + 0.7;
+        return (
+          <>
+            {/* Flickering red crosshair */}
+            <svg style={{ position: "absolute", left: 0, top: 0, width: GAME_W, height: GAME_H, pointerEvents: "none", zIndex: 30 }}>
+              {/* Outer circle */}
+              <circle cx={cx} cy={cy} r="28" fill="none" stroke={`rgba(255,60,30,${pulse * 0.5})`} strokeWidth="1.5" strokeDasharray="6 4" />
+              {/* Inner circle */}
+              <circle cx={cx} cy={cy} r="12" fill={`rgba(255,40,20,${pulse * 0.12})`} stroke={`rgba(255,60,30,${pulse * 0.7})`} strokeWidth="1" />
+              {/* Cross lines */}
+              <line x1={cx - 20} y1={cy} x2={cx - 8} y2={cy} stroke={`rgba(255,60,30,${pulse * 0.8})`} strokeWidth="1.5" />
+              <line x1={cx + 8} y1={cy} x2={cx + 20} y2={cy} stroke={`rgba(255,60,30,${pulse * 0.8})`} strokeWidth="1.5" />
+              <line x1={cx} y1={cy - 20} x2={cx} y2={cy - 8} stroke={`rgba(255,60,30,${pulse * 0.8})`} strokeWidth="1.5" />
+              <line x1={cx} y1={cy + 8} x2={cx} y2={cy + 20} stroke={`rgba(255,60,30,${pulse * 0.8})`} strokeWidth="1.5" />
+              {/* Center dot */}
+              <circle cx={cx} cy={cy} r="2" fill={`rgba(255,80,40,${pulse})`} />
+            </svg>
+            {/* Falling cannonballs */}
+            {sv.fallingBullets.map((b, i) => {
+              const bx = (b.targetX / 100) * GAME_W;
+              const by = (b.targetY / 100) * GAME_H;
+              const startY = by - 120;
+              const currentY = startY + (by - startY) * b.progress;
+              const size = 6 + b.progress * 2;
+              const opacity = b.impacted ? Math.max(0, 1 - (b.progress - 0.8) * 5) : 1;
+              return (
+                <div key={`sb${i}`} style={{ position: "absolute", pointerEvents: "none", zIndex: 31 }}>
+                  {/* Falling ball */}
+                  {!b.impacted && (
+                    <div style={{
+                      position: "absolute",
+                      left: bx - size / 2, top: currentY - size / 2,
+                      width: size, height: size, borderRadius: "50%",
+                      background: "radial-gradient(circle at 35% 35%, #666, #222)",
+                      boxShadow: "0 0 6px rgba(255,80,20,0.6), 0 2px 4px rgba(0,0,0,0.8)",
+                    }} />
+                  )}
+                  {/* Trail */}
+                  {!b.impacted && b.progress < 0.9 && (
+                    <div style={{
+                      position: "absolute",
+                      left: bx - 1, top: currentY - 30,
+                      width: 2, height: 25 * (1 - b.progress),
+                      background: "linear-gradient(180deg, transparent, rgba(255,100,30,0.5), rgba(255,60,20,0.8))",
+                      borderRadius: 1,
+                    }} />
+                  )}
+                  {/* Impact flash */}
+                  {b.impacted && (
+                    <div style={{
+                      position: "absolute",
+                      left: bx - 16, top: by - 16,
+                      width: 32, height: 32, borderRadius: "50%",
+                      background: `radial-gradient(circle, rgba(255,120,40,${opacity * 0.6}), rgba(255,60,20,${opacity * 0.3}), transparent)`,
+                    }} />
+                  )}
+                </div>
+              );
+            })}
           </>
         );
       })()}
@@ -8226,7 +8467,7 @@ export default function App() {
       <style>{`
         @keyframes lockP{0%,100%{opacity:1;transform:translateX(-50%) scale(1)}50%{opacity:.6;transform:translateX(-50%) scale(1.1)}}
         @keyframes keyF{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-        @keyframes chestG{0%,100%{filter:drop-shadow(0 0 8px rgba(160,120,40,0.4))}50%{filter:drop-shadow(0 0 18px rgba(212,160,48,0.7))}}
+        @keyframes chestG{0%,100%{filter:drop-shadow(0 0 5px rgba(140,110,50,0.3))}50%{filter:drop-shadow(0 0 12px rgba(160,128,60,0.5))}}
         @keyframes chestHint{0%,100%{opacity:0.6;transform:translateX(-50%) translateY(0)}50%{opacity:1;transform:translateX(-50%) translateY(-4px)}}
         @keyframes resNode{0%,100%{transform:scale(1) translateY(0)}50%{transform:scale(1.08) translateY(-4px)}}
         @keyframes waterFlow{0%{background-position:0 0}100%{background-position:0 20px}}
