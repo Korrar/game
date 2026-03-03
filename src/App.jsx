@@ -6566,8 +6566,8 @@ export default function App() {
             bottom: `${obs.y}%`,
             zIndex: 5,
             transform: `translateX(-50%) translateX(${shakeX}px)`,
-            opacity: isDestroying ? 0 : (damaged ? 0.6 + hpPct * 0.35 : 0.85),
-            transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "opacity 0.2s",
+            transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "none",
+            opacity: isDestroying ? 0 : 1,
             pointerEvents: "none",
           }}>
             {/* Main obstacle body */}
@@ -6580,10 +6580,12 @@ export default function App() {
                 ? `${s.shadow}, 0 0 8px rgba(255,200,100,0.6)`
                 : s.shadow,
               position: "relative",
+              overflow: "hidden",
               transform: isDestroying ? "scale(1.3)" : "none",
               transition: isDestroying ? "transform 0.35s ease-out" : "none",
+              opacity: damaged ? 0.6 + hpPct * 0.35 : 0.85,
               border: obs.destructible && !isDestroying
-                ? `2px solid red`
+                ? `1.5px solid rgba(255,255,255,${damaged ? 0.3 + crackIntensity * 0.15 : 0.18})`
                 : "none",
             }}>
               {/* Crack overlay - gets more intense as HP decreases */}
