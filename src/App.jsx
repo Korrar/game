@@ -130,6 +130,25 @@ const AMMO_DROP_TABLE = [
   { type: "chain", chance: 0.06, amount: 1 },
 ];
 
+// Obstacle dimensions (w/h in pixels) — used for physics collision rects
+const OBSTACLE_DIMS = {
+  fallen_log: { w: 50, h: 14 }, vine_wall: { w: 30, h: 40 }, ancient_totem: { w: 16, h: 44 },
+  moss_boulder: { w: 36, h: 28 }, shipwreck: { w: 55, h: 30 }, driftwood: { w: 44, h: 10 },
+  tide_pool: { w: 32, h: 16 }, anchor_post: { w: 12, h: 38 }, cactus_cluster: { w: 20, h: 36 },
+  wagon_wreck: { w: 48, h: 28 }, sun_bleached_skull: { w: 22, h: 18 }, tumbleweed: { w: 24, h: 22 },
+  ice_pillar: { w: 14, h: 42 }, frozen_barrel: { w: 24, h: 28 }, snowdrift: { w: 40, h: 16 },
+  icicle_rock: { w: 30, h: 32 }, market_stall: { w: 40, h: 32 }, broken_wagon: { w: 50, h: 24 },
+  lamp_post: { w: 8, h: 48 }, sandbag_wall: { w: 44, h: 20 }, lava_pool: { w: 34, h: 14 },
+  obsidian_pillar: { w: 14, h: 40 }, steam_vent: { w: 18, h: 12 }, ash_mound: { w: 32, h: 16 },
+  haystack: { w: 30, h: 28 }, windmill: { w: 20, h: 50 }, scarecrow: { w: 18, h: 44 },
+  wooden_fence: { w: 46, h: 22 }, log_pile: { w: 38, h: 20 }, hunting_stand: { w: 22, h: 46 },
+  mushroom_ring: { w: 36, h: 14 }, fallen_tree: { w: 55, h: 16 }, flower_patch: { w: 34, h: 12 },
+  beehive: { w: 18, h: 24 }, stone_bridge: { w: 50, h: 14 }, well: { w: 22, h: 26 },
+  crystal_cluster: { w: 24, h: 30 }, giant_mushroom: { w: 28, h: 38 }, web_wall: { w: 40, h: 34 },
+  stalactite: { w: 12, h: 36 }, quicksand: { w: 36, h: 12 }, dead_tree: { w: 18, h: 44 },
+  fog_pool: { w: 38, h: 12 }, lily_pad: { w: 22, h: 10 },
+};
+
 export default function App() {
   const [screen, setScreen] = useState("intro");
   const [room, setRoom] = useState(0);
@@ -2493,6 +2512,23 @@ export default function App() {
   useEffect(() => {
     if (physicsRef.current) physicsRef.current.setWeather(weather);
   }, [weather]);
+
+  // Obstacles → physics (collision rects for projectile bounce)
+  useEffect(() => {
+    if (!physicsRef.current) return;
+    const rects = obstacles.map(obs => {
+      const dims = OBSTACLE_DIMS[obs.type] || { w: 36, h: 28 };
+      const cx = (obs.x / 100) * GAME_W;
+      const bottomY = GAME_H - (obs.y / 100) * GAME_H;
+      return {
+        x1: cx - dims.w / 2,
+        y1: bottomY - dims.h,
+        x2: cx + dims.w / 2,
+        y2: bottomY,
+      };
+    });
+    physicsRef.current.obstacleRects = rects;
+  }, [obstacles, GAME_W, GAME_H]);
 
   // Vault renderer
   useEffect(() => {
@@ -5963,9 +5999,11 @@ export default function App() {
             background: s.bg,
             borderRadius: s.radius,
             boxShadow: s.shadow,
+            border: "1.5px solid rgba(255,255,255,0.35)",
+            outline: "1px solid rgba(0,0,0,0.4)",
             pointerEvents: "none",
             zIndex: 5,
-            opacity: 0.7,
+            opacity: 0.85,
             transform: "translateX(-50%)",
           }} />
         );

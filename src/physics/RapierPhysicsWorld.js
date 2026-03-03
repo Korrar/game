@@ -387,6 +387,7 @@ export class PhysicsWorld {
     this.GY = 0;
     this.windDeflection = 0;
     this.fogVisibility = 0;
+    this.obstacleRects = []; // [{x1,y1,x2,y2}] for projectile bounce
     this._groundCollider = null;
     this._wallLCollider = null;
     this._wallRCollider = null;
@@ -484,6 +485,7 @@ export class PhysicsWorld {
     this.playerSkillshots = [];
     this.mines = [];
     this.areaIndicators = [];
+    this.obstacleRects = [];
   }
 
   _halfH(bt) { return HALF_HEIGHTS[bt] || FIGURE_HALF_HEIGHT; }
@@ -988,6 +990,30 @@ export class PhysicsWorld {
         proj.vx += this.windDeflection * 0.3;
       }
 
+      // Bounce off obstacles
+      if (this.obstacleRects.length > 0 && (proj.bounceCount || 0) < 3) {
+        for (let oi = 0; oi < this.obstacleRects.length; oi++) {
+          const r = this.obstacleRects[oi];
+          if (proj.x >= r.x1 && proj.x <= r.x2 && proj.y >= r.y1 && proj.y <= r.y2) {
+            // Determine which face was penetrated (smallest overlap = entry side)
+            const oL = proj.x - r.x1, oR = r.x2 - proj.x;
+            const oT = proj.y - r.y1, oB = r.y2 - proj.y;
+            const minH = Math.min(oL, oR), minV = Math.min(oT, oB);
+            if (minH < minV) {
+              proj.vx = -proj.vx;
+              proj.x += proj.vx * 2;
+            } else {
+              proj.vy = -proj.vy;
+              proj.y += proj.vy * 2;
+            }
+            proj.bounceCount = (proj.bounceCount || 0) + 1;
+            // Spark effect on bounce
+            fx.spawnMeleeSparks(proj.x, proj.y, Math.sign(proj.vx) || 1);
+            break;
+          }
+        }
+      }
+
       // Trail effects (throttled to reduce particle load)
       const trail = proj.trail;
       if (trail) {
@@ -1319,6 +1345,27 @@ export class PhysicsWorld {
       if (this.windDeflection) {
         proj.vx += this.windDeflection * (0.5 + Math.sin(proj.age * 0.15) * 0.5);
         proj.vy += this.windDeflection * Math.sin(proj.age * 0.2) * 0.15;
+      }
+
+      // Bounce off obstacles
+      if (this.obstacleRects.length > 0 && (proj.bounceCount || 0) < 2) {
+        for (let oi = 0; oi < this.obstacleRects.length; oi++) {
+          const r = this.obstacleRects[oi];
+          if (proj.x >= r.x1 && proj.x <= r.x2 && proj.y >= r.y1 && proj.y <= r.y2) {
+            const oL = proj.x - r.x1, oR = r.x2 - proj.x;
+            const oT = proj.y - r.y1, oB = r.y2 - proj.y;
+            const minH = Math.min(oL, oR), minV = Math.min(oT, oB);
+            if (minH < minV) {
+              proj.vx = -proj.vx;
+              proj.x += proj.vx * 2;
+            } else {
+              proj.vy = -proj.vy;
+              proj.y += proj.vy * 2;
+            }
+            proj.bounceCount = (proj.bounceCount || 0) + 1;
+            break;
+          }
+        }
       }
 
       const fx = this.pixiRenderer || this.combatEffects;
