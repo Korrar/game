@@ -1623,11 +1623,28 @@ export default function App() {
           }
         }
 
-        // Alchemist slow passive: restore speed after slow duration expires
+        // Ice saber freeze → slow transition: unfreeze after freeze ends, apply slow speed
+        if (!w.friendly && w._frozenUntil) {
+          if (dateNow < w._frozenUntil) {
+            w.speed = 0; // completely frozen
+            if (!w._origYSpeed && w.ySpeed) w._origYSpeed = w.ySpeed;
+            w.ySpeed = 0;
+          } else {
+            // Freeze ended, restore to slow speed
+            delete w._frozenUntil;
+            if (w._origYSpeed) { w.ySpeed = w._origYSpeed * 0.5; }
+            if (w._origSpeed && w._slowedUntil && dateNow < w._slowedUntil) {
+              w.speed = w._origSpeed * 0.5; // transition to slow
+            }
+          }
+        }
+        // Restore speed after slow duration expires
         if (!w.friendly && w._slowedUntil && w._origSpeed && dateNow > w._slowedUntil) {
           w.speed = w._origSpeed;
+          if (w._origYSpeed) { w.ySpeed = w._origYSpeed; delete w._origYSpeed; }
           delete w._origSpeed;
           delete w._slowedUntil;
+          delete w._frozenUntil;
         }
 
         // Saber burn/poison DOT processing
@@ -4511,11 +4528,19 @@ export default function App() {
           }
           pixiRef.current.spawnMeleeSparks(px, py, slashDir);
         }
-        // Saber effect: slow
+        // Saber effect: ice slow + freeze
         if (eff?.type === "slow" && d) {
           if (!d._origSpeed) d._origSpeed = d.speed;
           d.speed = d._origSpeed * eff.value;
           d._slowedUntil = Date.now() + eff.duration;
+          // Brief freeze (complete stop) for 0.8s on each hit
+          d._frozenUntil = Date.now() + 800;
+          d.speed = 0;
+          // Frost visual effect
+          if (pixiRef.current) {
+            pixiRef.current.spawnIceShards(px, py, slashDir);
+          }
+          spawnDmgPopup(w.id, `❄ Mróz!`, "#80d0ff", "ice");
         }
         // Saber effect: knockback
         if (eff?.type === "knockback" && d) {
@@ -6548,7 +6573,7 @@ export default function App() {
           lily_pad: { w: 22, h: 10, bg: "radial-gradient(ellipse,#408040,#306030,#205020)", radius: "50%", shadow: "0 1px 3px rgba(0,0,0,0.3)" },
         };
         const s = obsStyles[obs.type] || obsStyles.moss_boulder;
-        const isHit = obs.hitAnim && (Date.now() - obs.hitAnim) < 300;
+        const isHit = obs.hitAnim > 0 && (Date.now() - obs.hitAnim) < 300;
         const hitAge = isHit ? (Date.now() - obs.hitAnim) : 300;
         const shakeX = isHit ? Math.sin(hitAge * 0.06) * (3 - hitAge * 0.01) : 0;
         const hpPct = obs.maxHp > 0 ? obs.hp / obs.maxHp : 1;
@@ -6942,6 +6967,20 @@ export default function App() {
                 textShadow: "0 0 6px #ff602088, 0 0 10px #ff400044",
                 animation: "gemPulse 0.4s ease-in-out infinite",
               }}><Icon name="fire" size={10} /> PŁONIE</div>
+            )}
+            {w.alive && !w.dying && !isFriendly && walkDataRef.current[w.id]?._frozenUntil && (
+              <div style={{
+                fontSize: 10, color: "#80d0ff", pointerEvents: "none", fontWeight: "bold",
+                textShadow: "0 0 6px #80d0ff, 0 0 12px #4060ff88",
+                animation: "gemPulse 0.5s ease-in-out infinite",
+              }}><Icon name="ice" size={10} /> ZAMROŻONY</div>
+            )}
+            {w.alive && !w.dying && !isFriendly && !walkDataRef.current[w.id]?._frozenUntil && walkDataRef.current[w.id]?._slowedUntil && (
+              <div style={{
+                fontSize: 10, color: "#60bbff", pointerEvents: "none", fontWeight: "bold",
+                textShadow: "0 0 4px #60bbff88",
+                animation: "gemPulse 1s ease-in-out infinite",
+              }}><Icon name="ice" size={10} /> SPOWOLNIONY</div>
             )}
             {w.alive && !w.dying && !isFriendly && walkDataRef.current[w.id]?._fearUntil && (
               <div style={{

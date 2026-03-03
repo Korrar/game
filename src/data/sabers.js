@@ -24,7 +24,7 @@ export const SABERS = [
     icon: "ice",
     color: "#4488ff",
     trailColor: "#60bbff",
-    desc: "Spowalnia trafione cele o 50% na 3s i zostawia mroźny efekt.",
+    desc: "Zamraża cel na 0.8s, potem spowalnia o 50% na 3s. Lodowe odłamki!",
     damage: 8,
     rarity: "rare",
     price: 80,
