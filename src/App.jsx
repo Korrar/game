@@ -6570,23 +6570,15 @@ export default function App() {
             transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "opacity 0.2s",
             pointerEvents: "none",
           }}>
-            {/* Main obstacle body with hitbox outline */}
+            {/* Main obstacle body */}
             <div style={{
               width: s.w,
               height: s.h,
               background: s.bg,
               borderRadius: s.radius,
-              boxShadow: (() => {
-                const baseShadow = s.shadow !== "none" ? s.shadow : "";
-                const hitGlow = isHit ? ", 0 0 8px rgba(255,200,100,0.6)" : "";
-                const outlineAlpha = obs.destructible && !isDestroying
-                  ? (damaged ? 0.3 + crackIntensity * 0.15 : 0.18)
-                  : 0;
-                const insetOutline = outlineAlpha > 0
-                  ? `inset 0 0 0 1.5px rgba(255,255,255,${outlineAlpha})`
-                  : "";
-                return [insetOutline, baseShadow, hitGlow ? hitGlow.slice(2) : ""].filter(Boolean).join(", ");
-              })(),
+              boxShadow: isHit
+                ? `${s.shadow}, 0 0 8px rgba(255,200,100,0.6)`
+                : s.shadow,
               position: "relative",
               overflow: "hidden",
               transform: isDestroying ? "scale(1.3)" : "none",
@@ -6620,6 +6612,18 @@ export default function App() {
                 }} />
               )}
             </div>
+            {/* Outline overlay - separate element to avoid overflow:hidden artifacts */}
+            {obs.destructible && !isDestroying && (
+              <div style={{
+                position: "absolute",
+                top: -1, left: -1,
+                width: s.w + 2,
+                height: s.h + 2,
+                borderRadius: s.radius,
+                border: `1.5px solid rgba(255,255,255,${damaged ? 0.3 + crackIntensity * 0.15 : 0.18})`,
+                pointerEvents: "none",
+              }} />
+            )}
             {/* HP bar - only shown when damaged and destructible */}
             {damaged && !isDestroying && (
               <div style={{
