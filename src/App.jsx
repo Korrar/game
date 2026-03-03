@@ -2017,8 +2017,8 @@ export default function App() {
       // ─── SALWA ARMATNIA: hold-to-cast cannon barrage (real projectiles) ───
       if (salvaRef.current.active) {
         const sv = salvaRef.current;
-        const SALVA_FIRE_RATE = 600; // ms between shots
-        const SALVA_DMG = 20;
+        const SALVA_FIRE_RATE = 500; // ms between shots
+        const SALVA_DMG = 35;
         const SALVA_MANA_COST = 5;
         // Fire a new projectile if enough time elapsed and resources available
         if (dateNow - sv.lastShotTime >= SALVA_FIRE_RATE) {
@@ -2037,6 +2037,7 @@ export default function App() {
             const tgtPy = (sv.cursorY / 100) * GAME_H + offY;
             // Spawn real arc projectile via physics
             if (physicsRef.current) {
+              const salvaSpell = SPELLS.find(s => s.id === "meteor");
               physicsRef.current.spawnPlayerSkillshot(
                 "meteor", tgtPx, tgtPy,
                 SALVA_DMG, "fire",
@@ -2044,11 +2045,18 @@ export default function App() {
                 (hitId, damage, element, isHeadshot) => {
                   setAccuracy(prev => ({ ...prev, hits: prev.hits + 1, headshots: isHeadshot ? prev.headshots + 1 : prev.headshots }));
                   setAccuracyStreak(prev => prev + 1);
+                  if (isHeadshot) showMessage("HEADSHOT! +50% obrażeń!", "#ff4040");
+                  processSkillshotHit(salvaSpell, hitId, damage, element, isHeadshot);
                 },
                 // onMiss
                 () => { setAccuracy(prev => ({ ...prev, misses: prev.misses + 1 })); setAccuracyStreak(0); },
                 // onHeadshot
-                null
+                (hitId, damage, element) => {
+                  setAccuracy(prev => ({ ...prev, hits: prev.hits + 1, headshots: prev.headshots + 1 }));
+                  setAccuracyStreak(prev => prev + 1);
+                  showMessage("HEADSHOT! +50% obrażeń!", "#ff4040");
+                  processSkillshotHit(salvaSpell, hitId, damage, element, true);
+                }
               );
             }
             // Play sound
