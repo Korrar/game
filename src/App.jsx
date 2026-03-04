@@ -2233,8 +2233,8 @@ export default function App() {
     return () => { if (walkRafRef.current) cancelAnimationFrame(walkRafRef.current); };
   }, []);
 
-  const enterRoom = useCallback((newRoom, tools) => {
-    const b = BIOMES[Math.floor(Math.random() * BIOMES.length)];
+  const enterRoom = useCallback((newRoom, tools, forcedBiome) => {
+    const b = forcedBiome || BIOMES[Math.floor(Math.random() * BIOMES.length)];
     setBiome(b);
     // Generate next room preview for spyglass
     const nextB = BIOMES[Math.floor(Math.random() * BIOMES.length)];
@@ -3544,7 +3544,8 @@ export default function App() {
     // River ship segment on every room transition
     const nextRoom = room + 1;
     if (!riverSegment) {
-      setTimeout(() => { setRiverSegment(true); setTransitioning(false); }, 400);
+      const destBiome = BIOMES[Math.floor(Math.random() * BIOMES.length)];
+      setTimeout(() => { setRiverSegment({ destBiome }); setTransitioning(false); }, 400);
       return;
     }
     // Sea event when entering a boss room (biome transition)
@@ -3575,6 +3576,7 @@ export default function App() {
 
   // River ship segment completion handler
   const handleRiverComplete = useCallback((result) => {
+    const destBiome = riverSegment?.destBiome || null;
     setRiverSegment(false);
     if (result.rewards) {
       addMoneyFn(result.rewards);
@@ -3585,12 +3587,12 @@ export default function App() {
     if (result.success) {
       setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + 10));
     }
-    // Continue to next room after segment
+    // Continue to next room — use the destination biome from river segment
     setTimeout(() => {
-      enterRoom(room + 1, ownedTools);
+      enterRoom(room + 1, ownedTools, destBiome);
       setTimeout(() => setTransitioning(false), 150);
     }, 300);
-  }, [room, ownedTools, addMoneyFn, showMessage]);
+  }, [room, ownedTools, addMoneyFn, showMessage, riverSegment]);
 
   const spawnFreeMerc = useCallback((mercType, hpFraction = 1) => {
     const wid = ++walkerIdCounter;
@@ -8277,6 +8279,7 @@ export default function App() {
             onComplete={handleRiverComplete}
             isMobile={isMobile}
             shipUpgrades={shipUpgrades}
+            destBiome={riverSegment.destBiome}
           />
         </div>
       )}
