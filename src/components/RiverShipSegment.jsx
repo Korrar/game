@@ -54,7 +54,8 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
   const [hud, setHud] = useState({ hp: 100, maxHp: 100, time: 0, maxTime: 15 });
   const keysRef = useRef({ left: false, right: false });
   const touchRef = useRef({ active: false, x: 0 });
-  const shoreColors = getBiomeShoreColors(destBiome);
+  const shoreColorsRef = useRef(getBiomeShoreColors(destBiome));
+  shoreColorsRef.current = getBiomeShoreColors(destBiome);
 
   useEffect(() => {
     const cfg = getRiverSegmentConfig(roomNumber);
@@ -321,7 +322,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [roomNumber, onComplete, shoreColors]);
+  }, [roomNumber, onComplete]);
 
   // ── RENDERING ──
   const render = useCallback((s, progress) => {
@@ -403,7 +404,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       ctx.globalAlpha = shoreAlpha;
 
       // Shore ground
-      ctx.fillStyle = shoreColors.ground;
+      ctx.fillStyle = shoreColorsRef.current.ground;
       ctx.beginPath();
       ctx.moveTo(0, 0);
       for (let x = 0; x <= CANVAS_W; x += 12) {
@@ -416,7 +417,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
 
       // Darker ground inner
       const innerGrad = ctx.createLinearGradient(0, 0, 0, shoreH * 0.6);
-      innerGrad.addColorStop(0, shoreColors.groundDark);
+      innerGrad.addColorStop(0, shoreColorsRef.current.groundDark);
       innerGrad.addColorStop(1, "transparent");
       ctx.fillStyle = innerGrad;
       ctx.fillRect(0, 0, CANVAS_W, shoreH * 0.6);
@@ -440,11 +441,11 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         const ts = 10 + treeRng() * 16;
         ctx.fillStyle = "#5a3a1a";
         ctx.fillRect(tx - 2, ty, 4, ts * 0.45);
-        ctx.fillStyle = shoreColors.foliage;
+        ctx.fillStyle = shoreColorsRef.current.foliage;
         ctx.beginPath();
         ctx.arc(tx, ty - 2, ts * 0.42, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = shoreColors.foliageDark;
+        ctx.fillStyle = shoreColorsRef.current.foliageDark;
         ctx.beginPath();
         ctx.arc(tx + 3, ty + 2, ts * 0.32, 0, Math.PI * 2);
         ctx.fill();
@@ -519,7 +520,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       ctx.fillStyle = pg;
       ctx.fillRect(0, 0, CANVAS_W * progress, 6);
     }
-  }, [shoreColors, destBiome, roomNumber]);
+  }, [destBiome, roomNumber]);
 
   // ── BANK DRAWING ──
   function drawBank(ctx, s, bankBase, side) {
