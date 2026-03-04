@@ -3553,7 +3553,7 @@ export default function App() {
     const event = rollRandomEvent(room + 1);
     if (event) {
       setTimeout(() => {
-        const sfxMap = { merchant: sfxMerchant, ambush: sfxAmbush, altar: sfxAltar, wounded: sfxEventAppear };
+        const sfxMap = { merchant: sfxMerchant, altar: sfxAltar, wounded: sfxEventAppear };
         (sfxMap[event.id] || sfxEventAppear)();
         setRandomEvent(event);
       }, 450);
@@ -3623,20 +3623,6 @@ export default function App() {
         break;
       }
       case "merchantSkip": break;
-      case "ambushWin":
-        sfxEventSuccess();
-        addMoneyFn(outcome.reward);
-        showMessage(`Bandyci pokonani! +${outcome.reward.copper} Cu`, "#40e060");
-        break;
-      case "ambushLose": {
-        sfxEventFail();
-        const loss = totalCopper(outcome.loss);
-        const current = totalCopper(money);
-        const actual = Math.min(loss, current);
-        setMoney(copperToMoney(current - actual));
-        showMessage(`Bandyci okradli cię! -${actual} Cu`, "#cc3030");
-        break;
-      }
       case "altar": {
         const eff = outcome.effect;
         if (eff.type === "buff") {
