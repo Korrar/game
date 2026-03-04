@@ -7314,7 +7314,7 @@ export default function App() {
           initiative={initiative}
           maxInitiative={MAX_INITIATIVE}
           cost={CARAVAN_COST}
-          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete")}
+          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !riverSegment}
           onClick={travelCaravan}
           hp={caravanHp}
           maxHp={CARAVAN_LEVELS[caravanLevel].hp}
@@ -8271,9 +8271,9 @@ export default function App() {
         </div>
       )}
 
-      {/* RIVER SHIP SEGMENT — mini-game overlay */}
+      {/* RIVER SHIP SEGMENT — mini-game overlay (fixed, above all UI including Caravan zIndex:9000) */}
       {riverSegment && (
-        <div style={{ position: "absolute", inset: 0, zIndex: 1500, background: "#000" }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "#000" }}>
           <RiverShipSegment
             roomNumber={room}
             onComplete={handleRiverComplete}
