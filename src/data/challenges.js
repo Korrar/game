@@ -36,7 +36,7 @@ export const CHALLENGE_TYPES = [
   {
     id: "no_caravan_dmg",
     name: "Żelazna Obrona",
-    desc: "Zero obrażeń karawany",
+    desc: "Zero obrażeń statku",
     icon: "shield",
     type: "restriction",
     reward: { silver: 1 },

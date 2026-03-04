@@ -32,15 +32,15 @@ export default function Caravan({ initiative, maxInitiative, cost, canTravel, on
       {/* Gold accent line */}
       <div style={{ position: "absolute", top: 0, left: 20, right: 20, height: 1, background: "linear-gradient(90deg, transparent, rgba(212,160,48,0.25), transparent)" }} />
 
-      {/* Mini caravan icon + name */}
+      {/* Mini ship icon + name */}
       <div style={{
         display: "flex", alignItems: "center", gap: 4,
         flexShrink: 0,
       }}>
-        <MiniCaravan size={m ? 24 : 30} />
+        <MiniShip size={m ? 24 : 30} />
         {!m && (
           <div style={{ fontSize: 10, color: "#a08040", fontWeight: "bold", lineHeight: 1.1, whiteSpace: "nowrap" }}>
-            <div style={{ color: "#d4a030", fontSize: 11 }}>{caravanName || "Konwój"}</div>
+            <div style={{ color: "#d4a030", fontSize: 11 }}>{caravanName || "Statek"}</div>
             <div style={{ fontSize: 9, color: "#6a5030" }}>Poz. {(caravanLevel || 0) + 1}</div>
           </div>
         )}
@@ -118,7 +118,7 @@ export default function Caravan({ initiative, maxInitiative, cost, canTravel, on
           textShadow: canTravel ? "0 0 8px rgba(212,160,48,0.5)" : "none",
           letterSpacing: 1,
         }}>
-          <CIcon name="convoy" size={m ? 14 : 16} /> RUSZAJ
+          <CIcon name="anchor" size={m ? 14 : 16} /> RUSZAJ
           <span style={{ fontSize: m ? 9 : 10, color: "#888", marginLeft: 4, fontWeight: "normal" }}><CIcon name="hourglass" size={9} />{cost}</span>
         </div>
       </div>
@@ -163,63 +163,68 @@ export default function Caravan({ initiative, maxInitiative, cost, canTravel, on
   );
 }
 
-/* Compact mini caravan icon for the bar */
-function MiniCaravan({ size = 30 }) {
+/* Compact mini pirate ship icon for the bar */
+function MiniShip({ size = 30 }) {
   const s = size;
-  const horseW = s * 0.3;
-  const wagonW = s * 0.55;
+  const hullW = s * 0.8;
+  const hullH = s * 0.22;
   return (
-    <div style={{ position: "relative", width: s, height: s * 0.7, flexShrink: 0 }}>
-      {/* Horse */}
+    <div style={{ position: "relative", width: s, height: s * 0.75, flexShrink: 0 }}>
+      {/* Waves */}
       <div style={{
-        position: "absolute", left: 0, bottom: s * 0.15,
-        width: horseW, height: horseW * 0.7,
-        background: "linear-gradient(180deg,#6a4a2a,#503a1a)",
-        borderRadius: `${s * 0.08}px ${s * 0.1}px 1px 1px`,
+        position: "absolute", bottom: 0, left: -s * 0.05, right: -s * 0.05,
+        height: s * 0.1,
+        background: "linear-gradient(180deg, #2060a0, #103060)",
+        borderRadius: `0 0 ${s * 0.1}px ${s * 0.1}px`,
+        opacity: 0.6,
+      }} />
+      {/* Hull */}
+      <div style={{
+        position: "absolute", left: (s - hullW) / 2, bottom: s * 0.08,
+        width: hullW, height: hullH,
+        background: "linear-gradient(180deg, #6a4a2a, #3a2210)",
+        borderRadius: `0 0 ${s * 0.15}px ${s * 0.15}px`,
+        border: "1px solid #8a6a40",
+        borderTop: "2px solid #a08030",
+      }} />
+      {/* Mast */}
+      <div style={{
+        position: "absolute", left: s * 0.48, bottom: s * 0.28,
+        width: 2, height: s * 0.48,
+        background: "linear-gradient(180deg, #8a6a40, #5a3a18)",
+      }} />
+      {/* Sail */}
+      <div style={{
+        position: "absolute", left: s * 0.25, bottom: s * 0.38,
+        width: s * 0.35, height: s * 0.32,
+        background: "linear-gradient(180deg, #f0e0c0, #c0a878)",
+        borderRadius: `0 ${s * 0.08}px ${s * 0.06}px 0`,
+        border: "1px solid #a09070",
+        boxShadow: "inset -2px 0 4px rgba(0,0,0,0.15)",
+      }} />
+      {/* Flag */}
+      <div style={{
+        position: "absolute", left: s * 0.50, top: s * 0.02,
+        width: s * 0.2, height: s * 0.12,
+        background: "#1a1a1a",
+        borderRadius: 1,
       }}>
-        {/* Head */}
+        {/* Skull on flag */}
         <div style={{
-          position: "absolute", top: -s * 0.12, left: -s * 0.03,
-          width: s * 0.12, height: s * 0.12,
-          background: "#5a3a1a",
-          borderRadius: `${s * 0.06}px ${s * 0.08}px 2px 3px`,
-          transform: "rotate(-10deg)",
+          position: "absolute", left: "50%", top: "50%",
+          width: s * 0.06, height: s * 0.06,
+          background: "#ddd", borderRadius: "50%",
+          transform: "translate(-50%, -50%)",
         }} />
-        {/* Legs */}
-        <div style={{ position: "absolute", bottom: -s * 0.1, left: s * 0.02, width: 2, height: s * 0.12, background: "#503a1a" }} />
-        <div style={{ position: "absolute", bottom: -s * 0.1, right: s * 0.02, width: 2, height: s * 0.12, background: "#503a1a" }} />
       </div>
-      {/* Harness */}
+      {/* Bowsprit */}
       <div style={{
-        position: "absolute", left: horseW - 1, bottom: s * 0.28,
-        width: s * 0.1, height: 1, background: "#a08030",
+        position: "absolute", left: s * 0.05, bottom: s * 0.28,
+        width: s * 0.15, height: 1,
+        background: "#8a6a40",
+        transform: "rotate(-15deg)",
+        transformOrigin: "right center",
       }} />
-      {/* Wagon */}
-      <div style={{
-        position: "absolute", right: 0, bottom: s * 0.12,
-        width: wagonW, height: s * 0.35,
-        background: "linear-gradient(180deg,#5a3a18,#3a2210)",
-        border: "1px solid #7a5a30", borderRadius: "2px 2px 0 0",
-      }}>
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: "linear-gradient(90deg, #a08030, #d4a030, #a08030)" }} />
-      </div>
-      {/* Canvas */}
-      <div style={{
-        position: "absolute", right: 1, bottom: s * 0.45,
-        width: wagonW - 2, height: s * 0.2,
-        background: "linear-gradient(180deg,#a09070,#806848)",
-        borderRadius: `${s * 0.08}px ${s * 0.08}px 0 0`,
-        border: "1px solid #7a6040", borderBottom: "none",
-      }} />
-      {/* Wheels */}
-      {[s * 0.18, s * 0.5].map((x, i) => (
-        <div key={i} style={{
-          position: "absolute", right: x, bottom: 0,
-          width: s * 0.15, height: s * 0.15,
-          border: "1px solid #a08030", borderRadius: "50%",
-          background: "radial-gradient(circle at 40% 40%,#6a5030,#3a2010)",
-        }} />
-      ))}
     </div>
   );
 }

@@ -251,7 +251,7 @@ export default function WaveOverlay({ defense, onDismiss, onRetreat, caravanHp, 
               textShadow: "0 0 10px rgba(200,40,40,0.4)",
             }}>
               {isBossRoom && boss ? (
-                <>Konwój zniszczony przez {boss.name}!</>
+                <>Statek zniszczony przez {boss.name}!</>
               ) : (
                 <>OBRONA PRZEGRANA</>
               )}

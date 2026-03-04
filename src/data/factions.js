@@ -55,11 +55,11 @@ export const FACTIONS = [
       { minRep: 10,  desc: "+10% obrażeń cienia",        effect: { shadowDmgMult: 1.10 } },
       { minRep: 30,  desc: "+20% obrażeń cienia, mroczna regeneracja", effect: { shadowDmgMult: 1.20, darkRegen: 1 } },
       { minRep: 60,  desc: "+30% obrażeń, wskrzeszanie wrogów jako sojuszników", effect: { shadowDmgMult: 1.30, necroChance: 0.15 } },
-      { minRep: 100, desc: "Cienie chronią konwój — 20% szans na unik obrażeń", effect: { shadowDmgMult: 1.30, necroChance: 0.15, shadowDodge: 0.20 } },
+      { minRep: 100, desc: "Cienie chronią statek — 20% szans na unik obrażeń", effect: { shadowDmgMult: 1.30, necroChance: 0.15, shadowDodge: 0.20 } },
     ],
     exclusiveItems: [
       { icon: "skull", name: "Nekromancki Gryf", desc: "Zabici wrogowie mogą walczyć za ciebie", cost: { silver: 4 }, reward: { necroChance: 0.25 }, type: "passive" },
-      { icon: "vortex", name: "Mroczny Portal", desc: "Teleportuje konwój — pomiń 2 pokoje", cost: { silver: 6 }, reward: { skipRooms: 2 }, type: "teleport" },
+      { icon: "vortex", name: "Mroczny Portal", desc: "Teleportuje statek — pomiń 2 pokoje", cost: { silver: 6 }, reward: { skipRooms: 2 }, type: "teleport" },
     ],
     hostileNpcs: [
       { icon: "ghost", name: "Widmowy Strażnik", hp: 60, resist: "shadow", loot: { copper: 30 }, rarity: "rare", bodyColor: "#6040a0", armorColor: "#402060", bodyType: "floating", ability: { type: "shadowBolt", damage: 14, cooldown: 3500, element: "shadow", range: 30 } },
@@ -73,13 +73,13 @@ export const FACTIONS = [
     color: "#4060c0",
     bgColor: "rgba(64,96,192,0.15)",
     bonuses: [
-      { minRep: 10,  desc: "Konwój +1 pancerza",          effect: { caravanArmorBonus: 1 } },
-      { minRep: 30,  desc: "+2 pancerza, +20 HP konwoju",  effect: { caravanArmorBonus: 2, caravanHpBonus: 20 } },
+      { minRep: 10,  desc: "Statek +1 pancerza",          effect: { caravanArmorBonus: 1 } },
+      { minRep: 30,  desc: "+2 pancerza, +20 HP statku",  effect: { caravanArmorBonus: 2, caravanHpBonus: 20 } },
       { minRep: 60,  desc: "+3 pancerza, najemnicy +15% HP", effect: { caravanArmorBonus: 3, caravanHpBonus: 20, mercHpMult: 1.15 } },
       { minRep: 100, desc: "Eskorta wojskowa — 2 darmowych najemników", effect: { caravanArmorBonus: 3, caravanHpBonus: 30, mercHpMult: 1.15, freeEscort: 2 } },
     ],
     exclusiveItems: [
-      { icon: "shield", name: "Królewski Pancerz", desc: "Konwój +5 pancerza na 5 pokoi", cost: { silver: 3 }, reward: { tempArmor: 5, duration: 5 }, type: "buff" },
+      { icon: "shield", name: "Królewski Pancerz", desc: "Statek +5 pancerza na 5 pokoi", cost: { silver: 3 }, reward: { tempArmor: 5, duration: 5 }, type: "buff" },
       { icon: "cannon", name: "Armata Królewska", desc: "+30% obrażeń armat na 10 pokoi", cost: { silver: 5 }, reward: { cannonDmgMult: 1.30, duration: 10 }, type: "buff" },
     ],
     hostileNpcs: [
@@ -104,7 +104,7 @@ export const FACTION_QUESTS = [
     factionId: "merchants_guild",
     id: "deliver_goods",
     name: "Dostawa Towaru",
-    desc: "Dostarcz ładunek przez 3 pokoje bez utraty HP konwoju",
+    desc: "Dostarcz ładunek przez 3 pokoje bez utraty HP statku",
     icon: "treasure",
     requirement: { surviveRooms: 3, noCaravanDamage: true },
     reward: { rep: 20, silver: 3 },

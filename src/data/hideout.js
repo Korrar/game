@@ -23,9 +23,9 @@ export const HIDEOUT_UPGRADES = [
   },
   {
     id: "reinforced_caravan",
-    name: "Wzmocniona Karawana",
+    name: "Wzmocniony Statek",
     icon: "shield",
-    desc: "+10 HP karawany na stałe",
+    desc: "+10 HP statku na stałe",
     maxLevel: 5,
     costs: [{ silver: 5 }, { silver: 12 }, { gold: 1 }, { gold: 3 }, { gold: 6 }],
     effect: { type: "caravanHpBonus", perLevel: 10 },

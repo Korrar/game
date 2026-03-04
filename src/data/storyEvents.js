@@ -31,7 +31,7 @@ export const STORY_ARCS = [
         desc: "Odnaleziono kotwicę! Wybierz swój los:",
         icon: "ghost",
         choices: [
-          { label: "Oddaj kotwicę duchom", desc: "Duchy błogosławią cię — +3 pancerza konwoju na 5 pokoi", reward: { caravanArmorBuff: 3, duration: 5 }, icon: "shield" },
+          { label: "Oddaj kotwicę duchom", desc: "Duchy błogosławią cię — +3 pancerza statku na 5 pokoi", reward: { caravanArmorBuff: 3, duration: 5 }, icon: "shield" },
           { label: "Zatrzymaj kotwicę", desc: "Sprzedajesz ją za dużo złota — ale duchy mszczą się", reward: { gold: 2 }, penalty: { enemyBuff: 5 }, icon: "gold" },
         ],
       },
@@ -42,7 +42,7 @@ export const STORY_ARCS = [
     name: "Rywalska Załoga",
     icon: "pirate",
     themeColor: "#cc3030",
-    desc: "Konkurencyjna załoga piracka tropi twoją karawanę",
+    desc: "Konkurencyjna załoga piracka tropi twój statek",
     totalSteps: 4,
     stepChance: 0.22,
     steps: [
@@ -70,13 +70,13 @@ export const STORY_ARCS = [
     stepChance: 0.18,
     steps: [
       { desc: "Znajdujesz dziwny posążek — emanuje mocą...", reward: { spellDmgBuff: 0.15, duration: 5 }, icon: "skull" },
-      { desc: "Idol szepcze w nocy — karawana traci HP, ale zyskujesz moc.", effect: "idol_drain", reward: { spellDmgBuff: 0.25, duration: 5 }, penalty: { caravanDmg: 20 }, icon: "skull" },
+      { desc: "Idol szepcze w nocy — statek traci HP, ale zyskujesz moc.", effect: "idol_drain", reward: { spellDmgBuff: 0.25, duration: 5 }, penalty: { caravanDmg: 20 }, icon: "skull" },
       {
         desc: "Idol żąda ofiary!",
         icon: "skull",
         choices: [
-          { label: "Zniszcz idol", desc: "Koniec klątwy — bonus obrażeń znika", reward: { copper: 50 }, effect: "remove_buff", icon: "shield" },
-          { label: "Nakarm idol", desc: "Ofiaruj 50 HP konwoju — idol daje +40% obrażeń do końca gry", cost: { caravanHp: 50 }, reward: { permSpellDmgBuff: 0.40 }, icon: "skull" },
+          { label: "Zniszcz idol", desc: "Klątwa przełamana — bonus obrażeń znika", reward: { copper: 50 }, effect: "remove_buff", icon: "shield" },
+          { label: "Nakarm idol", desc: "Ofiaruj 50 HP statku — idol daje +40% obrażeń do końca gry", cost: { caravanHp: 50 }, reward: { permSpellDmgBuff: 0.40 }, icon: "skull" },
         ],
       },
     ],
