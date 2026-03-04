@@ -49,6 +49,7 @@ import { rollChallenge } from "./data/challenges";
 import { CREW_ROLES, CREW_RELATIONS, getLoyaltyLevel } from "./data/crew";
 import { STORY_ARCS, MORAL_DILEMMAS, rollStoryStep, rollNewStoryArc, rollMoralDilemma } from "./data/storyEvents";
 import { SHIP_UPGRADES, rollSeaEvent, rollIslandDiscovery } from "./data/sailing";
+import RiverShipSegment from "./components/RiverShipSegment";
 import { FORTIFICATION_TREE, TRAP_COMBOS } from "./data/advancedTraps";
 import { FACTIONS, getFactionBonus, getFactionHostility, rollFactionQuest, rollFactionEvent } from "./data/factions";
 import { ARTIFACT_SETS, DISCOVERY_MILESTONES, JOURNAL_CATEGORIES, getDiscoveryMilestone, rollSecretRoom, getCompletedSetBonuses } from "./data/discovery";
@@ -439,6 +440,7 @@ export default function App() {
   const [shipUpgrades, setShipUpgrades] = useState([]);     // IDs of bought upgrades
   const [seaEvent, setSeaEvent] = useState(null);           // current sea event
   const [discoveredIslands, setDiscoveredIslands] = useState([]);
+  const [riverSegment, setRiverSegment] = useState(false);   // true when river ship mini-game is active
 
   // ─── FEATURE: Advanced Traps & Fortifications ───
   const [unlockedFortifications, setUnlockedFortifications] = useState(["wooden_wall", "spike_pit", "alarm_bell"]);
@@ -2238,7 +2240,8 @@ export default function App() {
     const nextB = BIOMES[Math.floor(Math.random() * BIOMES.length)];
     const nextIsDefense = (newRoom + 1) > 0 && (newRoom + 1) % 5 === 0;
     const nextIsBoss = (newRoom + 1) > 0 && (newRoom + 1) % 10 === 0;
-    setNextRoomPreview({ biome: nextB, isDefense: nextIsDefense, isBoss: nextIsBoss, room: newRoom + 1 });
+    const nextIsRiver = (newRoom + 1) > 1 && (newRoom + 1) % 7 === 0;
+    setNextRoomPreview({ biome: nextB, isDefense: nextIsDefense, isBoss: nextIsBoss, isRiver: nextIsRiver, room: newRoom + 1 });
     setRoom(newRoom);
     const isDefenseRoom = newRoom > 0 && newRoom % 5 === 0;
 
@@ -3371,7 +3374,7 @@ export default function App() {
     // Reset new gameplay systems
     setCrew([]); setCrewRecruitOffer(null);
     setActiveStory(null); setCompletedStories([]); setStoryEvent(null); setMoralDilemma(null);
-    setShipUpgrades([]); setSeaEvent(null); setDiscoveredIslands([]);
+    setShipUpgrades([]); setSeaEvent(null); setDiscoveredIslands([]); setRiverSegment(false);
     setUnlockedFortifications(["wooden_wall", "spike_pit", "alarm_bell"]);
     setActiveFortifications([]); setFortificationPhase(false);
     setFactionRep({ merchants_guild: 0, treasure_hunters: 0, shadow_council: 0, royal_navy: 0 });
@@ -3538,8 +3541,13 @@ export default function App() {
     const navBonus = getCrewBonus("initiativeMult");
     if (navBonus > 0) setInitiative(prev => Math.min(MAX_INITIATIVE, prev + Math.round(navBonus * 5)));
     sfxDoor(); setTransitioning(true); setDoors(d => d + 1);
-    // Sea event when entering a boss room (biome transition)
+    // River ship segment every 7 rooms (room 7, 14, 21, 28...)
     const nextRoom = room + 1;
+    if (nextRoom > 1 && nextRoom % 7 === 0 && !riverSegment) {
+      setTimeout(() => { setRiverSegment(true); setTransitioning(false); }, 400);
+      return;
+    }
+    // Sea event when entering a boss room (biome transition)
     if (nextRoom % 10 === 1 && nextRoom > 1) {
       const seaEvt = rollSeaEvent();
       if (seaEvt) {
@@ -3564,6 +3572,25 @@ export default function App() {
       setTimeout(() => { enterRoom(room + 1, ownedTools); setTimeout(() => setTransitioning(false), 150); }, 450);
     }
   };
+
+  // River ship segment completion handler
+  const handleRiverComplete = useCallback((result) => {
+    setRiverSegment(false);
+    if (result.rewards) {
+      addMoneyFn(result.rewards);
+      if (result.rewards.copper) showMessage(`+${result.rewards.copper} miedzi`, "#d4a030");
+      if (result.rewards.silver) showMessage(`+${result.rewards.silver} srebra`, "#c0c0c0");
+    }
+    // Heal caravan slightly on success
+    if (result.success) {
+      setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + 10));
+    }
+    // Continue to next room after segment
+    setTimeout(() => {
+      enterRoom(room + 1, ownedTools);
+      setTimeout(() => setTransitioning(false), 150);
+    }, 300);
+  }, [room, ownedTools, addMoneyFn, showMessage]);
 
   const spawnFreeMerc = useCallback((mercType, hpFraction = 1) => {
     const wid = ++walkerIdCounter;
@@ -7150,6 +7177,7 @@ export default function App() {
           <div>Etap #{nextRoomPreview.room}: <Icon name={nextRoomPreview.biome.icon} size={12} /> {nextRoomPreview.biome.name}</div>
           {nextRoomPreview.isDefense && <div style={{ color: "#e05040", fontWeight: "bold" }}><Icon name="swords" size={11} /> Obrona statku!</div>}
           {nextRoomPreview.isBoss && <div style={{ color: "#ff4040", fontWeight: "bold" }}><Icon name="skull" size={11} /> Boss!</div>}
+          {nextRoomPreview.isRiver && <div style={{ color: "#4080c0", fontWeight: "bold" }}><Icon name="anchor" size={11} /> Przeprawa morska!</div>}
         </div>
       )}
 
@@ -8238,6 +8266,18 @@ export default function App() {
           <button onClick={() => setSecretRoom(null)} style={{ marginTop: 8, padding: "6px 12px", background: "none", border: "1px solid #555", color: "#888", fontSize: 11, cursor: "pointer" }}>
             Odejdź
           </button>
+        </div>
+      )}
+
+      {/* RIVER SHIP SEGMENT — mini-game overlay */}
+      {riverSegment && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 1500, background: "#000" }}>
+          <RiverShipSegment
+            roomNumber={room}
+            onComplete={handleRiverComplete}
+            isMobile={isMobile}
+            shipUpgrades={shipUpgrades}
+          />
         </div>
       )}
 
