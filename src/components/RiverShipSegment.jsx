@@ -46,6 +46,649 @@ function getBiomeShoreColors(biome) {
   return m[id] || { ground: "#c8b070", groundDark: "#a09050", foliage: "#2a5a18", foliageDark: "#1a3a10" };
 }
 
+// ── PURE DRAWING FUNCTIONS (no React state, only parameters) ──
+
+function drawBank(ctx, s, bankBase, side) {
+  const isLeft = side === "left";
+  ctx.fillStyle = "#1a3a10";
+  ctx.beginPath();
+  if (isLeft) {
+    ctx.moveTo(0, 0);
+    for (let y = 0; y <= CANVAS_H; y += 15) {
+      const bx = bankBase + Math.sin((y + s.waterOffset) * 0.04) * 10 + Math.sin((y + s.waterOffset) * 0.09) * 4;
+      ctx.lineTo(bx, y);
+    }
+    ctx.lineTo(0, CANVAS_H);
+  } else {
+    ctx.moveTo(CANVAS_W, 0);
+    for (let y = 0; y <= CANVAS_H; y += 15) {
+      const bx = CANVAS_W - bankBase - Math.sin((y + s.waterOffset + 100) * 0.035) * 10 - Math.sin((y + s.waterOffset) * 0.08) * 5;
+      ctx.lineTo(bx, y);
+    }
+    ctx.lineTo(CANVAS_W, CANVAS_H);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Vegetation
+  ctx.fillStyle = "#2a5a18";
+  for (let y = -20 + (s.waterOffset % 40); y < CANVAS_H + 20; y += 40) {
+    const bx = isLeft
+      ? bankBase + Math.sin((y + s.waterOffset) * 0.04) * 10
+      : CANVAS_W - bankBase - Math.sin((y + s.waterOffset + 100) * 0.035) * 10;
+    ctx.beginPath();
+    ctx.arc(isLeft ? bx + 2 : bx - 2, y, 12 + Math.sin(y * 0.3) * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Foam edge
+  ctx.strokeStyle = "rgba(180,220,255,0.2)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let y = 0; y <= CANVAS_H; y += 4) {
+    const bx = isLeft
+      ? bankBase + Math.sin((y + s.waterOffset) * 0.04) * 10 + Math.sin((y + s.waterOffset) * 0.09) * 4 + 3
+      : CANVAS_W - bankBase - Math.sin((y + s.waterOffset + 100) * 0.035) * 10 - Math.sin((y + s.waterOffset) * 0.08) * 5 - 3;
+    y === 0 ? ctx.moveTo(bx, y) : ctx.lineTo(bx, y);
+  }
+  ctx.stroke();
+}
+
+function drawObstacle(ctx, ob, time) {
+  if (ob.pulls) {
+    ctx.rotate(ob.rotation);
+    const r = ob.width * 0.45;
+    for (let ring = 0; ring < 5; ring++) {
+      ctx.strokeStyle = `rgba(40,120,200,${0.5 - ring * 0.08})`;
+      ctx.lineWidth = 2.5 - ring * 0.3;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * (ring + 1) / 5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(60,160,220,0.4)";
+    ctx.lineWidth = 2;
+    for (let arm = 0; arm < 3; arm++) {
+      ctx.beginPath();
+      for (let a = 0; a < Math.PI * 3; a += 0.15) {
+        const sr = 4 + a * (r / (Math.PI * 3));
+        const angle = a + (arm * Math.PI * 2 / 3);
+        a === 0 ? ctx.moveTo(Math.cos(angle) * sr, Math.sin(angle) * sr) : ctx.lineTo(Math.cos(angle) * sr, Math.sin(angle) * sr);
+      }
+      ctx.stroke();
+    }
+    const cg = ctx.createRadialGradient(0, 0, 0, 0, 0, 12);
+    cg.addColorStop(0, "rgba(5,15,30,0.8)");
+    cg.addColorStop(1, "transparent");
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.arc(0, 0, 12, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (ob.id.startsWith("island")) {
+    ctx.fillStyle = "rgba(0,20,40,0.3)";
+    ctx.beginPath();
+    ctx.ellipse(4, 4, ob.width * 0.48, ob.height * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = ob.hitFlash > 0 ? "#fff" : "#c8b070";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, ob.width * 0.45, ob.height * 0.38, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(220,240,255,0.4)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, ob.width * 0.47, ob.height * 0.4, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    const rng = seededRand(ob.rockSeed);
+    const tc = ob.id === "island_large" ? 5 : 3;
+    for (let t = 0; t < tc; t++) {
+      const tx = (rng() - 0.5) * ob.width * 0.5;
+      const ty = (rng() - 0.5) * ob.height * 0.4;
+      const ts = 8 + rng() * 10;
+      ctx.fillStyle = "#5a3a1a";
+      ctx.fillRect(tx - 1.5, ty, 3, ts * 0.6);
+      ctx.fillStyle = `rgb(${30 + rng() * 40},${80 + rng() * 60},${20 + rng() * 30})`;
+      ctx.beginPath();
+      ctx.arc(tx, ty - 2, ts * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (ob.id === "mine") {
+    const f = ob.hitFlash > 0;
+    ctx.fillStyle = f ? "#fff" : "#2a2a2a";
+    ctx.beginPath();
+    ctx.arc(0, 0, ob.width * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#4a4a4a";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    for (let h = 0; h < 6; h++) {
+      const angle = (h / 6) * Math.PI * 2;
+      ctx.fillStyle = f ? "#ff8040" : "#5a5a5a";
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * ob.width * 0.38, Math.sin(angle) * ob.width * 0.38, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * (ob.width * 0.38 + 7), Math.sin(angle) * (ob.width * 0.38 + 7), 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#ff2020";
+    ctx.shadowColor = "#ff0000";
+    ctx.shadowBlur = Math.sin(time * 6) > 0 ? 10 : 3;
+    ctx.beginPath();
+    ctx.arc(0, -2, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  } else if (ob.id === "barrel" || ob.id === "wreck") {
+    const f = ob.hitFlash > 0;
+    if (ob.id === "wreck") {
+      ctx.fillStyle = f ? "#fff" : "#4a3020";
+      ctx.beginPath();
+      ctx.moveTo(-ob.width * 0.4, -ob.height * 0.1);
+      ctx.quadraticCurveTo(-ob.width * 0.35, ob.height * 0.35, 0, ob.height * 0.3);
+      ctx.quadraticCurveTo(ob.width * 0.35, ob.height * 0.25, ob.width * 0.3, -ob.height * 0.15);
+      ctx.lineTo(ob.width * 0.15, -ob.height * 0.35);
+      ctx.lineTo(-ob.width * 0.2, -ob.height * 0.3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#2a1810";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = f ? "#fff" : "#7a5a28";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, ob.width * 0.38, ob.height * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = f ? "#fff" : "#aaa";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(0, -ob.height * 0.18, ob.width * 0.35, 3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(0, ob.height * 0.14, ob.width * 0.35, 3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      if (ob.loot) {
+        ctx.fillStyle = "#ffd700";
+        ctx.globalAlpha = 0.5 + Math.sin(time * 5) * 0.3;
+        ctx.beginPath();
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+  } else {
+    // Rock
+    const f = ob.hitFlash > 0;
+    const rng = seededRand(ob.rockSeed);
+    const pts = 9;
+    // Shadow
+    ctx.fillStyle = "rgba(0,15,30,0.4)";
+    ctx.beginPath();
+    for (let i = 0; i < pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const r = ob.width * 0.38 + rng() * ob.width * 0.1;
+      const px = Math.cos(a) * r + 4;
+      const py = Math.sin(a) * r * 0.8 + 4;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    // Body
+    const rng2 = seededRand(ob.rockSeed);
+    ctx.fillStyle = f ? "#fff" : ob.id === "rock_large" ? "#4a4848" : "#5e5c5a";
+    ctx.beginPath();
+    for (let i = 0; i < pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const r = ob.width * 0.38 + rng2() * ob.width * 0.1;
+      i === 0 ? ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r * 0.8) : ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r * 0.8);
+    }
+    ctx.closePath();
+    ctx.fill();
+    if (!f) {
+      ctx.fillStyle = "rgba(255,255,255,0.12)";
+      ctx.beginPath();
+      ctx.ellipse(-ob.width * 0.08, -ob.height * 0.1, ob.width * 0.18, ob.height * 0.12, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Foam around base
+    ctx.strokeStyle = "rgba(200,230,255,0.3)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    const fp = time * 2 + ob.rockSeed;
+    for (let a = -0.8; a < 0.8; a += 0.15) {
+      const fx = Math.cos(a + Math.PI * 0.5) * (ob.width * 0.42 + Math.sin(fp + a * 3) * 3);
+      const fy = Math.sin(a + Math.PI * 0.5) * (ob.height * 0.38 + Math.sin(fp + a * 3) * 3);
+      a === -0.8 ? ctx.moveTo(fx, fy) : ctx.lineTo(fx, fy);
+    }
+    ctx.stroke();
+  }
+}
+
+function drawShip(ctx, x, y, steer, time) {
+  ctx.save();
+  ctx.translate(x, y);
+  const lean = steer * 0.06;
+  ctx.rotate(lean);
+
+  const W = SHIP_W;
+  const H = SHIP_H;
+
+  // Bow spray
+  ctx.strokeStyle = "rgba(180,220,255,0.25)";
+  ctx.lineWidth = 1.5;
+  for (let side = -1; side <= 1; side += 2) {
+    ctx.beginPath();
+    ctx.moveTo(side * 6, -H * 0.44);
+    ctx.quadraticCurveTo(side * W * 0.35, -H * 0.52 + Math.sin(time * 7 + side) * 3, side * W * 0.45, -H * 0.38);
+    ctx.stroke();
+  }
+
+  // Hull shadow
+  ctx.fillStyle = "rgba(0,20,40,0.25)";
+  ctx.beginPath();
+  ctx.ellipse(3, H * 0.1, W * 0.46, H * 0.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hull
+  ctx.fillStyle = "#5a3018";
+  ctx.beginPath();
+  ctx.moveTo(0, -H * 0.47);
+  ctx.bezierCurveTo(-W * 0.12, -H * 0.42, -W * 0.35, -H * 0.3, -W * 0.44, -H * 0.05);
+  ctx.bezierCurveTo(-W * 0.48, H * 0.15, -W * 0.42, H * 0.38, -W * 0.3, H * 0.46);
+  ctx.bezierCurveTo(-W * 0.15, H * 0.5, W * 0.15, H * 0.5, W * 0.3, H * 0.46);
+  ctx.bezierCurveTo(W * 0.42, H * 0.38, W * 0.48, H * 0.15, W * 0.44, -H * 0.05);
+  ctx.bezierCurveTo(W * 0.35, -H * 0.3, W * 0.12, -H * 0.42, 0, -H * 0.47);
+  ctx.closePath();
+  ctx.fill();
+
+  // Hull dark accent
+  ctx.strokeStyle = "#3a2010";
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  // Plank lines
+  ctx.strokeStyle = "rgba(40,25,10,0.3)";
+  ctx.lineWidth = 0.8;
+  for (let py = -H * 0.32; py < H * 0.4; py += H * 0.1) {
+    const halfW = W * 0.4 * (1 - Math.pow(Math.abs(py) / (H * 0.5), 1.5));
+    if (halfW > 5) {
+      ctx.beginPath();
+      ctx.moveTo(-halfW, py);
+      ctx.lineTo(halfW, py);
+      ctx.stroke();
+    }
+  }
+
+  // Gunwale
+  ctx.strokeStyle = "#7a5028";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -H * 0.47);
+  ctx.bezierCurveTo(-W * 0.12, -H * 0.42, -W * 0.35, -H * 0.3, -W * 0.44, -H * 0.05);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, -H * 0.47);
+  ctx.bezierCurveTo(W * 0.12, -H * 0.42, W * 0.35, -H * 0.3, W * 0.44, -H * 0.05);
+  ctx.stroke();
+
+  // Bow figurehead
+  ctx.fillStyle = "#d4a030";
+  ctx.beginPath();
+  ctx.moveTo(0, -H * 0.5);
+  ctx.lineTo(-5, -H * 0.44);
+  ctx.lineTo(5, -H * 0.44);
+  ctx.closePath();
+  ctx.fill();
+
+  // Stern castle
+  ctx.fillStyle = "#4a2818";
+  const scW = W * 0.52;
+  ctx.beginPath();
+  ctx.moveTo(-scW / 2, H * 0.22);
+  ctx.quadraticCurveTo(-scW / 2 - 2, H * 0.44, -scW / 2 + 8, H * 0.46);
+  ctx.lineTo(scW / 2 - 8, H * 0.46);
+  ctx.quadraticCurveTo(scW / 2 + 2, H * 0.44, scW / 2, H * 0.22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#3a2010";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // Windows
+  ctx.fillStyle = "#ffc850";
+  ctx.globalAlpha = 0.5 + Math.sin(time * 2) * 0.15;
+  for (let wx = -1; wx <= 1; wx++) {
+    ctx.beginPath();
+    ctx.arc(wx * 11, H * 0.34, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Mast
+  ctx.fillStyle = "#3a2518";
+  ctx.fillRect(-2.5, -H * 0.38, 5, H * 0.62);
+
+  // Main sail
+  const sailBillow = 5 + Math.sin(time * 1.5) * 2.5;
+  ctx.fillStyle = "#e8dcc8";
+  ctx.beginPath();
+  ctx.moveTo(-W * 0.3, -H * 0.35);
+  ctx.quadraticCurveTo(-W * 0.12, -H * 0.15 + sailBillow, -W * 0.28, -H * 0.0);
+  ctx.lineTo(W * 0.28, -H * 0.0);
+  ctx.quadraticCurveTo(W * 0.12, -H * 0.15 + sailBillow, W * 0.3, -H * 0.35);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#a09080";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(120,100,80,0.25)";
+  ctx.beginPath();
+  ctx.moveTo(0, -H * 0.35);
+  ctx.lineTo(0, -H * 0.0);
+  ctx.stroke();
+
+  // Cross spars
+  ctx.strokeStyle = "#3a2518";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(-W * 0.32, -H * 0.35);
+  ctx.lineTo(W * 0.32, -H * 0.35);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-W * 0.3, -H * 0.0);
+  ctx.lineTo(W * 0.3, -H * 0.0);
+  ctx.stroke();
+
+  // Rigging
+  ctx.strokeStyle = "rgba(80,60,40,0.35)";
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(-W * 0.32, -H * 0.35);
+  ctx.lineTo(-W * 0.43, H * 0.05);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(W * 0.32, -H * 0.35);
+  ctx.lineTo(W * 0.43, H * 0.05);
+  ctx.stroke();
+
+  // Crow's nest / flag pole
+  ctx.fillStyle = "#3a2518";
+  ctx.fillRect(-1.5, -H * 0.43, 3, H * 0.08);
+  const flagWave = Math.sin(time * 3) * 3;
+  ctx.fillStyle = "#1a1a1a";
+  ctx.beginPath();
+  ctx.moveTo(1.5, -H * 0.43);
+  ctx.lineTo(16, -H * 0.47 + flagWave);
+  ctx.lineTo(16, -H * 0.39 + flagWave);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#ddd";
+  ctx.beginPath();
+  ctx.arc(10, -H * 0.43 + flagWave * 0.5, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawHelm(ctx, angle, steerInput) {
+  const hx = CANVAS_W - 85;
+  const hy = CANVAS_H - 75;
+  const r = 35;
+
+  ctx.save();
+  ctx.translate(hx, hy);
+
+  ctx.fillStyle = "rgba(10,5,2,0.7)";
+  ctx.beginPath();
+  ctx.arc(0, 0, r + 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#5a4030";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.rotate(angle);
+
+  ctx.strokeStyle = "#7a5a30";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#5a3a18";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.4, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#6a4a28";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r * 0.4, Math.sin(a) * r * 0.4);
+    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#8a6a38";
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * (r + 5), Math.sin(a) * (r + 5), 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "#4a3018";
+  ctx.beginPath();
+  ctx.arc(0, 0, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#8a6a38";
+  ctx.beginPath();
+  ctx.arc(0, 0, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  ctx.fillStyle = steerInput < 0 ? "#ffd700" : "rgba(200,180,140,0.3)";
+  ctx.font = "bold 18px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("◄", hx - r - 18, hy + 6);
+  ctx.fillStyle = steerInput > 0 ? "#ffd700" : "rgba(200,180,140,0.3)";
+  ctx.fillText("►", hx + r + 18, hy + 6);
+}
+
+function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  const isDocking = s.docking;
+  const shipY = CANVAS_H - 90;
+
+  // ── OCEAN ──
+  const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+  grad.addColorStop(0, "#04203a");
+  grad.addColorStop(0.4, "#083050");
+  grad.addColorStop(0.8, "#0a2848");
+  grad.addColorStop(1, "#061828");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Caustics
+  ctx.globalAlpha = 0.035;
+  for (let i = 0; i < 10; i++) {
+    const cx = (i * 137 + s.elapsed * 25) % (CANVAS_W + 200) - 100;
+    const cy = (i * 193 + s.waterOffset * 2) % (CANVAS_H + 100) - 50;
+    const r = 35 + Math.sin(s.elapsed * 0.7 + i * 2.3) * 15;
+    const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    cg.addColorStop(0, "#60c0ff");
+    cg.addColorStop(1, "transparent");
+    ctx.fillStyle = cg;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+  }
+  ctx.globalAlpha = 1;
+
+  // Wave layers
+  for (let layer = 0; layer < 3; layer++) {
+    const alpha = [0.07, 0.05, 0.035][layer];
+    const freq = [0.008, 0.013, 0.019][layer];
+    const amp = [10, 7, 4][layer];
+    const speed = [50, 75, 100][layer];
+    ctx.strokeStyle = `rgba(100,180,240,${alpha})`;
+    ctx.lineWidth = [3, 2, 1.5][layer];
+    for (let y = -40 + (s.waterOffset * (layer + 1) * 0.5 % 50); y < CANVAS_H + 40; y += 30 + layer * 8) {
+      ctx.beginPath();
+      for (let x = 0; x <= CANVAS_W; x += 8) {
+        const wy = y + Math.sin((x + s.elapsed * speed) * freq) * amp
+                     + Math.sin((x * 0.7 + s.elapsed * speed * 0.6) * freq * 1.5) * amp * 0.4;
+        x === 0 ? ctx.moveTo(x, wy) : ctx.lineTo(x, wy);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // Foam sparkles
+  ctx.fillStyle = "rgba(200,230,255,0.25)";
+  for (let y = -20 + (s.waterOffset % 60); y < CANVAS_H + 20; y += 60) {
+    for (let x = 0; x < CANVAS_W; x += 45) {
+      const sparkle = Math.sin(s.elapsed * 3 + x * 0.05 + y * 0.03);
+      if (sparkle > 0.72) {
+        ctx.globalAlpha = (sparkle - 0.72) * 2.5;
+        const wy = y + Math.sin((x + s.elapsed * 50) * 0.01) * 6;
+        ctx.beginPath();
+        ctx.arc(x + Math.sin(y) * 8, wy, 1.5 + sparkle, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // ── RIVER BANKS ──
+  const bankBase = 35;
+  drawBank(ctx, s, bankBase, "left");
+  drawBank(ctx, s, bankBase, "right");
+
+  // ── DESTINATION SHORE ──
+  const destAlpha = Math.min(1, Math.max(0, progress - 0.65) / 0.35);
+  if (destAlpha > 0 || isDocking) {
+    const shoreAlpha = isDocking ? 1 : destAlpha;
+    const shoreH = isDocking ? 160 : 20 + destAlpha * 110;
+    ctx.globalAlpha = shoreAlpha;
+
+    ctx.fillStyle = shoreColors.ground;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    for (let x = 0; x <= CANVAS_W; x += 12) {
+      const sy = shoreH + Math.sin((x + s.elapsed * 12) * 0.025) * 6 + Math.sin(x * 0.06) * 4;
+      ctx.lineTo(x, sy);
+    }
+    ctx.lineTo(CANVAS_W, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    const innerGrad = ctx.createLinearGradient(0, 0, 0, shoreH * 0.6);
+    innerGrad.addColorStop(0, shoreColors.groundDark);
+    innerGrad.addColorStop(1, "transparent");
+    ctx.fillStyle = innerGrad;
+    ctx.fillRect(0, 0, CANVAS_W, shoreH * 0.6);
+
+    ctx.strokeStyle = "rgba(230,240,255,0.6)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let x = 0; x <= CANVAS_W; x += 5) {
+      const fy = shoreH + Math.sin((x + s.elapsed * 35) * 0.022) * 4 + 4;
+      x === 0 ? ctx.moveTo(x, fy) : ctx.lineTo(x, fy);
+    }
+    ctx.stroke();
+
+    // Trees
+    const treeRng = seededRand(roomNum * 7 + 42);
+    const treeCount = isDocking ? 16 : Math.floor(destAlpha * 16);
+    for (let t = 0; t < treeCount; t++) {
+      const tx = treeRng() * CANVAS_W;
+      const ty = treeRng() * (shoreH - 25) + 5;
+      const ts = 10 + treeRng() * 16;
+      ctx.fillStyle = "#5a3a1a";
+      ctx.fillRect(tx - 2, ty, 4, ts * 0.45);
+      ctx.fillStyle = shoreColors.foliage;
+      ctx.beginPath();
+      ctx.arc(tx, ty - 2, ts * 0.42, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = shoreColors.foliageDark;
+      ctx.beginPath();
+      ctx.arc(tx + 3, ty + 2, ts * 0.32, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Biome name
+    if (isDocking) {
+      ctx.globalAlpha = Math.min(1, s.dockTimer / 1.0);
+      ctx.fillStyle = "#ffd700";
+      ctx.font = "bold 26px monospace";
+      ctx.textAlign = "center";
+      ctx.shadowColor = "#000";
+      ctx.shadowBlur = 6;
+      ctx.fillText(destBiomeName || "Nowy Ląd", CANVAS_W / 2, 28);
+      ctx.shadowBlur = 0;
+    } else if (destAlpha > 0.3) {
+      ctx.globalAlpha = destAlpha * 0.7;
+      ctx.fillStyle = "#ffd700";
+      ctx.font = "bold 20px monospace";
+      ctx.textAlign = "center";
+      ctx.shadowColor = "#000";
+      ctx.shadowBlur = 4;
+      ctx.fillText(destBiomeName ? `${destBiomeName} na horyzoncie!` : "Ląd na horyzoncie!", CANVAS_W / 2, shoreH + 30);
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ── WAKES ──
+  for (const w of s.wakes) {
+    ctx.globalAlpha = w.life * 0.3;
+    ctx.strokeStyle = "rgba(180,220,255,0.5)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(w.x, w.y, w.size, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // ── OBSTACLES ──
+  for (const ob of s.obstacles) {
+    ctx.save();
+    ctx.translate(ob.x, ob.y);
+    drawObstacle(ctx, ob, s.elapsed);
+    ctx.restore();
+  }
+
+  // ── PARTICLES ──
+  for (const p of s.particles) {
+    ctx.globalAlpha = Math.max(0, p.life * 2);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * Math.min(1, p.life * 2), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // ── SHIP ──
+  const blink = s.invulnTimer > 0 && Math.sin(s.invulnTimer * 20) > 0;
+  if (!blink) drawShip(ctx, s.shipX, shipY, s.steerInput, s.elapsed);
+
+  // ── HELM WHEEL ──
+  drawHelm(ctx, s.helmAngle, s.steerInput);
+
+  // ── PROGRESS BAR ──
+  if (!isDocking) {
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(0, 0, CANVAS_W, 6);
+    const pg = ctx.createLinearGradient(0, 0, CANVAS_W * progress, 0);
+    pg.addColorStop(0, "#2080c0");
+    pg.addColorStop(1, "#40c0ff");
+    ctx.fillStyle = pg;
+    ctx.fillRect(0, 0, CANVAS_W * progress, 6);
+  }
+}
+
+// ── COMPONENT ──
+
 export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shipUpgrades = [], destBiome }) {
   const canvasRef = useRef(null);
   const stateRef = useRef(null);
@@ -54,9 +697,19 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
   const [hud, setHud] = useState({ hp: 100, maxHp: 100, time: 0, maxTime: 15 });
   const keysRef = useRef({ left: false, right: false });
   const touchRef = useRef({ active: false, x: 0 });
+
+  // Store props in refs so the game loop always accesses latest values
+  // without needing them in the useEffect dependency array
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const destBiomeRef = useRef(destBiome);
+  destBiomeRef.current = destBiome;
+  const roomNumberRef = useRef(roomNumber);
+  roomNumberRef.current = roomNumber;
   const shoreColorsRef = useRef(getBiomeShoreColors(destBiome));
   shoreColorsRef.current = getBiomeShoreColors(destBiome);
 
+  // State initialization
   useEffect(() => {
     const cfg = getRiverSegmentConfig(roomNumber);
     const hpBonus = (shipUpgrades.includes("hull_1") ? 15 : 0) + (shipUpgrades.includes("hull_2") ? 30 : 0);
@@ -79,9 +732,8 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       invulnTimer: 0,
       done: false,
       waterOffset: 0,
-      helmAngle: 0, // visual helm rotation
-      steerInput: 0, // -1 left, 0 neutral, 1 right
-      // Docking
+      helmAngle: 0,
+      steerInput: 0,
       docking: false,
       dockTimer: 0,
       dockDuration: 2.5,
@@ -120,10 +772,16 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
   }, []);
   const handleTouchEnd = useCallback(() => { touchRef.current.active = false; }, []);
 
-  // Main game loop
+  // ── MAIN GAME LOOP ──
+  // All rendering happens inline via renderFrame(). All props accessed via refs.
+  // This effect only depends on roomNumber (to restart on room change).
   useEffect(() => {
     let lastTime = performance.now();
+    let hudTimer = 0;
+    let alive = true; // guard against StrictMode double-invoke
+
     const loop = (now) => {
+      if (!alive) return;
       const s = stateRef.current;
       if (!s || s.done) return;
       const dt = Math.min((now - lastTime) / 1000, 0.05);
@@ -135,18 +793,12 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         s.elapsed += dt * 0.2;
         const t = Math.min(1, s.dockTimer / s.dockDuration);
 
-        // Slow down scrolling to stop
         s.scrollSpeed = Math.max(0, s.scrollSpeed * (1 - dt * 1.5));
         s.waterOffset = (s.waterOffset + s.scrollSpeed * 60 * dt) % 80;
-
-        // Helm returns to center
         s.helmAngle *= 0.95;
         s.steerInput = 0;
-
-        // Ship gently drifts to center
         s.shipX += (CANVAS_W / 2 - s.shipX) * dt * 0.8;
 
-        // Update wakes (fading)
         for (let i = s.wakes.length - 1; i >= 0; i--) {
           s.wakes[i].life -= dt * 0.8;
           s.wakes[i].size += dt * 4;
@@ -156,20 +808,21 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
           s.particles[i].life -= dt;
           if (s.particles[i].life <= 0) s.particles.splice(i, 1);
         }
-        // Move remaining obstacles out
         for (let i = s.obstacles.length - 1; i >= 0; i--) {
           s.obstacles[i].y += s.scrollSpeed * 60 * dt;
           if (s.obstacles[i].y > CANVAS_H + 100) s.obstacles.splice(i, 1);
         }
 
-        render(s, 1.0);
+        renderFrame(canvasRef.current, s, 1.0, shoreColorsRef.current, roomNumberRef.current, destBiomeRef.current?.name);
 
         if (t >= 1) {
           s.done = true;
           setPhase("complete");
-          const rewards = getRiverRewards(roomNumber, s.shipHp, s.shipMaxHp, Math.floor(s.segmentLength * 3));
+          const rewards = getRiverRewards(roomNumberRef.current, s.shipHp, s.shipMaxHp, Math.floor(s.segmentLength * 3));
           setHud(h => ({ ...h, hp: s.shipHp, time: s.segmentLength }));
-          setTimeout(() => onComplete({ success: true, rewards, hpRemaining: s.shipHp, maxHp: s.shipMaxHp, score: Math.floor(s.segmentLength * 3) }), 1500);
+          setTimeout(() => {
+            if (alive) onCompleteRef.current({ success: true, rewards, hpRemaining: s.shipHp, maxHp: s.shipMaxHp, score: Math.floor(s.segmentLength * 3) });
+          }, 1500);
         }
         rafRef.current = requestAnimationFrame(loop);
         return;
@@ -183,7 +836,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         s.docking = true;
         s.dockTimer = 0;
         setPhase("docking");
-        render(s, 1.0);
+        renderFrame(canvasRef.current, s, 1.0, shoreColorsRef.current, roomNumberRef.current, destBiomeRef.current?.name);
         rafRef.current = requestAnimationFrame(loop);
         return;
       }
@@ -194,7 +847,6 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       if (k.left) steer = -1;
       if (k.right) steer = 1;
 
-      // Touch steering
       if (touchRef.current.active && canvasRef.current) {
         const rect = canvasRef.current.getBoundingClientRect();
         const touchNorm = touchRef.current.x / rect.width;
@@ -207,15 +859,12 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       const spd = s.shipSpeed * 60 * dt;
       s.shipX += steer * spd;
 
-      // Helm wheel visual rotation (smooth)
       const targetHelm = steer * 0.8;
       s.helmAngle += (targetHelm - s.helmAngle) * 0.15;
 
-      // Clamp ship X
       const margin = SHIP_W / 2 + 50;
       s.shipX = Math.max(margin, Math.min(CANVAS_W - margin, s.shipX));
 
-      // Scroll water
       s.waterOffset = (s.waterOffset + s.scrollSpeed * 60 * dt) % 80;
 
       // Wake trail
@@ -233,7 +882,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         if (s.wakes[i].life <= 0) s.wakes.splice(i, 1);
       }
 
-      // Spawn obstacles (stop near end)
+      // Spawn obstacles
       if (progress < 0.88) {
         s.spawnTimer -= dt * 1000;
         if (s.spawnTimer <= 0) {
@@ -261,7 +910,6 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         if (ob.pulls) ob.rotation += dt * 2.5;
         if (ob.hitFlash > 0) ob.hitFlash -= dt * 5;
 
-        // Whirlpool pull (horizontal only)
         if (ob.pulls) {
           const dx = ob.x - s.shipX;
           const dy = ob.y - shipY;
@@ -274,7 +922,6 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
 
         if (ob.y > CANVAS_H + 100) { s.obstacles.splice(i, 1); continue; }
 
-        // Collision
         if (s.invulnTimer <= 0) {
           const dx = ob.x - s.shipX;
           const dy = ob.y - shipY;
@@ -298,7 +945,9 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
               s.shipHp = 0; s.done = true;
               setPhase("failed");
               setHud(h => ({ ...h, hp: 0, time: s.elapsed }));
-              setTimeout(() => onComplete({ success: false, rewards: { copper: Math.floor(s.elapsed * 1.5) }, hpRemaining: 0, maxHp: s.shipMaxHp, score: 0 }), 2000);
+              setTimeout(() => {
+                if (alive) onCompleteRef.current({ success: false, rewards: { copper: Math.floor(s.elapsed * 1.5) }, hpRemaining: 0, maxHp: s.shipMaxHp, score: 0 });
+              }, 2000);
               return;
             }
           }
@@ -316,672 +965,23 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         if (p.life <= 0) s.particles.splice(i, 1);
       }
 
-      setHud({ hp: s.shipHp, maxHp: s.shipMaxHp, time: Math.round(s.elapsed), maxTime: s.segmentLength });
-      render(s, progress);
+      // Throttle HUD updates to ~6 per second instead of every frame
+      hudTimer += dt;
+      if (hudTimer > 0.15) {
+        hudTimer = 0;
+        setHud({ hp: s.shipHp, maxHp: s.shipMaxHp, time: Math.round(s.elapsed), maxTime: s.segmentLength });
+      }
+
+      renderFrame(canvasRef.current, s, progress, shoreColorsRef.current, roomNumberRef.current, destBiomeRef.current?.name);
       rafRef.current = requestAnimationFrame(loop);
     };
+
     rafRef.current = requestAnimationFrame(loop);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [roomNumber, onComplete]);
-
-  // ── RENDERING ──
-  const render = useCallback((s, progress) => {
-    const c = canvasRef.current;
-    if (!c) return;
-    const ctx = c.getContext("2d");
-    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    const isDocking = s.docking;
-    const shipY = CANVAS_H - 90;
-
-    // ── OCEAN ──
-    const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
-    grad.addColorStop(0, "#04203a");
-    grad.addColorStop(0.4, "#083050");
-    grad.addColorStop(0.8, "#0a2848");
-    grad.addColorStop(1, "#061828");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-
-    // Caustics
-    ctx.globalAlpha = 0.035;
-    for (let i = 0; i < 10; i++) {
-      const cx = (i * 137 + s.elapsed * 25) % (CANVAS_W + 200) - 100;
-      const cy = (i * 193 + s.waterOffset * 2) % (CANVAS_H + 100) - 50;
-      const r = 35 + Math.sin(s.elapsed * 0.7 + i * 2.3) * 15;
-      const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-      cg.addColorStop(0, "#60c0ff");
-      cg.addColorStop(1, "transparent");
-      ctx.fillStyle = cg;
-      ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-    }
-    ctx.globalAlpha = 1;
-
-    // Wave layers
-    for (let layer = 0; layer < 3; layer++) {
-      const alpha = [0.07, 0.05, 0.035][layer];
-      const freq = [0.008, 0.013, 0.019][layer];
-      const amp = [10, 7, 4][layer];
-      const speed = [50, 75, 100][layer];
-      ctx.strokeStyle = `rgba(100,180,240,${alpha})`;
-      ctx.lineWidth = [3, 2, 1.5][layer];
-      for (let y = -40 + (s.waterOffset * (layer + 1) * 0.5 % 50); y < CANVAS_H + 40; y += 30 + layer * 8) {
-        ctx.beginPath();
-        for (let x = 0; x <= CANVAS_W; x += 8) {
-          const wy = y + Math.sin((x + s.elapsed * speed) * freq) * amp
-                       + Math.sin((x * 0.7 + s.elapsed * speed * 0.6) * freq * 1.5) * amp * 0.4;
-          x === 0 ? ctx.moveTo(x, wy) : ctx.lineTo(x, wy);
-        }
-        ctx.stroke();
-      }
-    }
-
-    // Foam sparkles
-    ctx.fillStyle = "rgba(200,230,255,0.25)";
-    for (let y = -20 + (s.waterOffset % 60); y < CANVAS_H + 20; y += 60) {
-      for (let x = 0; x < CANVAS_W; x += 45) {
-        const sparkle = Math.sin(s.elapsed * 3 + x * 0.05 + y * 0.03);
-        if (sparkle > 0.72) {
-          ctx.globalAlpha = (sparkle - 0.72) * 2.5;
-          const wy = y + Math.sin((x + s.elapsed * 50) * 0.01) * 6;
-          ctx.beginPath();
-          ctx.arc(x + Math.sin(y) * 8, wy, 1.5 + sparkle, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    }
-    ctx.globalAlpha = 1;
-
-    // ── RIVER BANKS ──
-    const bankBase = 35;
-    drawBank(ctx, s, bankBase, "left");
-    drawBank(ctx, s, bankBase, "right");
-
-    // ── DESTINATION SHORE ──
-    const destAlpha = Math.min(1, Math.max(0, progress - 0.65) / 0.35);
-    if (destAlpha > 0 || isDocking) {
-      const shoreAlpha = isDocking ? 1 : destAlpha;
-      const shoreH = isDocking ? 160 : 20 + destAlpha * 110;
-      ctx.globalAlpha = shoreAlpha;
-
-      // Shore ground
-      ctx.fillStyle = shoreColorsRef.current.ground;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      for (let x = 0; x <= CANVAS_W; x += 12) {
-        const sy = shoreH + Math.sin((x + s.elapsed * 12) * 0.025) * 6 + Math.sin(x * 0.06) * 4;
-        ctx.lineTo(x, sy);
-      }
-      ctx.lineTo(CANVAS_W, 0);
-      ctx.closePath();
-      ctx.fill();
-
-      // Darker ground inner
-      const innerGrad = ctx.createLinearGradient(0, 0, 0, shoreH * 0.6);
-      innerGrad.addColorStop(0, shoreColorsRef.current.groundDark);
-      innerGrad.addColorStop(1, "transparent");
-      ctx.fillStyle = innerGrad;
-      ctx.fillRect(0, 0, CANVAS_W, shoreH * 0.6);
-
-      // Foam lines
-      ctx.strokeStyle = "rgba(230,240,255,0.6)";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      for (let x = 0; x <= CANVAS_W; x += 5) {
-        const fy = shoreH + Math.sin((x + s.elapsed * 35) * 0.022) * 4 + 4;
-        x === 0 ? ctx.moveTo(x, fy) : ctx.lineTo(x, fy);
-      }
-      ctx.stroke();
-
-      // Trees
-      const treeRng = seededRand(roomNumber * 7 + 42);
-      const treeCount = isDocking ? 16 : Math.floor(destAlpha * 16);
-      for (let t = 0; t < treeCount; t++) {
-        const tx = treeRng() * CANVAS_W;
-        const ty = treeRng() * (shoreH - 25) + 5;
-        const ts = 10 + treeRng() * 16;
-        ctx.fillStyle = "#5a3a1a";
-        ctx.fillRect(tx - 2, ty, 4, ts * 0.45);
-        ctx.fillStyle = shoreColorsRef.current.foliage;
-        ctx.beginPath();
-        ctx.arc(tx, ty - 2, ts * 0.42, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = shoreColorsRef.current.foliageDark;
-        ctx.beginPath();
-        ctx.arc(tx + 3, ty + 2, ts * 0.32, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Biome name
-      if (isDocking) {
-        ctx.globalAlpha = Math.min(1, s.dockTimer / 1.0);
-        ctx.fillStyle = "#ffd700";
-        ctx.font = "bold 26px monospace";
-        ctx.textAlign = "center";
-        ctx.shadowColor = "#000";
-        ctx.shadowBlur = 6;
-        ctx.fillText(destBiome ? destBiome.name : "Nowy Ląd", CANVAS_W / 2, 28);
-        ctx.shadowBlur = 0;
-      } else if (destAlpha > 0.3) {
-        ctx.globalAlpha = destAlpha * 0.7;
-        ctx.fillStyle = "#ffd700";
-        ctx.font = "bold 20px monospace";
-        ctx.textAlign = "center";
-        ctx.shadowColor = "#000";
-        ctx.shadowBlur = 4;
-        ctx.fillText(destBiome ? `${destBiome.name} na horyzoncie!` : "Ląd na horyzoncie!", CANVAS_W / 2, shoreH + 30);
-        ctx.shadowBlur = 0;
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    // ── WAKES ──
-    for (const w of s.wakes) {
-      ctx.globalAlpha = w.life * 0.3;
-      ctx.strokeStyle = "rgba(180,220,255,0.5)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(w.x, w.y, w.size, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-
-    // ── OBSTACLES ──
-    for (const ob of s.obstacles) {
-      ctx.save();
-      ctx.translate(ob.x, ob.y);
-      drawObstacle(ctx, ob, s.elapsed);
-      ctx.restore();
-    }
-
-    // ── PARTICLES ──
-    for (const p of s.particles) {
-      ctx.globalAlpha = Math.max(0, p.life * 2);
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * Math.min(1, p.life * 2), 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-
-    // ── SHIP (always at bottom center area, only moves horizontally) ──
-    const blink = s.invulnTimer > 0 && Math.sin(s.invulnTimer * 20) > 0;
-    if (!blink) drawShip(ctx, s.shipX, shipY, s.steerInput, s.elapsed);
-
-    // ── HELM WHEEL UI (bottom-right corner) ──
-    drawHelm(ctx, s.helmAngle, s.steerInput);
-
-    // ── PROGRESS BAR ──
-    if (!isDocking) {
-      ctx.fillStyle = "rgba(0,0,0,0.5)";
-      ctx.fillRect(0, 0, CANVAS_W, 6);
-      const pg = ctx.createLinearGradient(0, 0, CANVAS_W * progress, 0);
-      pg.addColorStop(0, "#2080c0");
-      pg.addColorStop(1, "#40c0ff");
-      ctx.fillStyle = pg;
-      ctx.fillRect(0, 0, CANVAS_W * progress, 6);
-    }
-  }, [destBiome, roomNumber]);
-
-  // ── BANK DRAWING ──
-  function drawBank(ctx, s, bankBase, side) {
-    const isLeft = side === "left";
-    ctx.fillStyle = "#1a3a10";
-    ctx.beginPath();
-    if (isLeft) {
-      ctx.moveTo(0, 0);
-      for (let y = 0; y <= CANVAS_H; y += 15) {
-        const bx = bankBase + Math.sin((y + s.waterOffset) * 0.04) * 10 + Math.sin((y + s.waterOffset) * 0.09) * 4;
-        ctx.lineTo(bx, y);
-      }
-      ctx.lineTo(0, CANVAS_H);
-    } else {
-      ctx.moveTo(CANVAS_W, 0);
-      for (let y = 0; y <= CANVAS_H; y += 15) {
-        const bx = CANVAS_W - bankBase - Math.sin((y + s.waterOffset + 100) * 0.035) * 10 - Math.sin((y + s.waterOffset) * 0.08) * 5;
-        ctx.lineTo(bx, y);
-      }
-      ctx.lineTo(CANVAS_W, CANVAS_H);
-    }
-    ctx.closePath();
-    ctx.fill();
-
-    // Vegetation
-    ctx.fillStyle = "#2a5a18";
-    for (let y = -20 + (s.waterOffset % 40); y < CANVAS_H + 20; y += 40) {
-      const bx = isLeft
-        ? bankBase + Math.sin((y + s.waterOffset) * 0.04) * 10
-        : CANVAS_W - bankBase - Math.sin((y + s.waterOffset + 100) * 0.035) * 10;
-      ctx.beginPath();
-      ctx.arc(isLeft ? bx + 2 : bx - 2, y, 12 + Math.sin(y * 0.3) * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Foam edge
-    ctx.strokeStyle = "rgba(180,220,255,0.2)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let y = 0; y <= CANVAS_H; y += 4) {
-      const bx = isLeft
-        ? bankBase + Math.sin((y + s.waterOffset) * 0.04) * 10 + Math.sin((y + s.waterOffset) * 0.09) * 4 + 3
-        : CANVAS_W - bankBase - Math.sin((y + s.waterOffset + 100) * 0.035) * 10 - Math.sin((y + s.waterOffset) * 0.08) * 5 - 3;
-      y === 0 ? ctx.moveTo(bx, y) : ctx.lineTo(bx, y);
-    }
-    ctx.stroke();
-  }
-
-  // ── OBSTACLE DRAWING ──
-  function drawObstacle(ctx, ob, time) {
-    if (ob.pulls) {
-      ctx.rotate(ob.rotation);
-      const r = ob.width * 0.45;
-      for (let ring = 0; ring < 5; ring++) {
-        ctx.strokeStyle = `rgba(40,120,200,${0.5 - ring * 0.08})`;
-        ctx.lineWidth = 2.5 - ring * 0.3;
-        ctx.beginPath();
-        ctx.arc(0, 0, r * (ring + 1) / 5, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.strokeStyle = "rgba(60,160,220,0.4)";
-      ctx.lineWidth = 2;
-      for (let arm = 0; arm < 3; arm++) {
-        ctx.beginPath();
-        for (let a = 0; a < Math.PI * 3; a += 0.15) {
-          const sr = 4 + a * (r / (Math.PI * 3));
-          const angle = a + (arm * Math.PI * 2 / 3);
-          a === 0 ? ctx.moveTo(Math.cos(angle) * sr, Math.sin(angle) * sr) : ctx.lineTo(Math.cos(angle) * sr, Math.sin(angle) * sr);
-        }
-        ctx.stroke();
-      }
-      const cg = ctx.createRadialGradient(0, 0, 0, 0, 0, 12);
-      cg.addColorStop(0, "rgba(5,15,30,0.8)");
-      cg.addColorStop(1, "transparent");
-      ctx.fillStyle = cg;
-      ctx.beginPath();
-      ctx.arc(0, 0, 12, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (ob.id.startsWith("island")) {
-      ctx.fillStyle = "rgba(0,20,40,0.3)";
-      ctx.beginPath();
-      ctx.ellipse(4, 4, ob.width * 0.48, ob.height * 0.42, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = ob.hitFlash > 0 ? "#fff" : "#c8b070";
-      ctx.beginPath();
-      ctx.ellipse(0, 0, ob.width * 0.45, ob.height * 0.38, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(220,240,255,0.4)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, ob.width * 0.47, ob.height * 0.4, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      const rng = seededRand(ob.rockSeed);
-      const tc = ob.id === "island_large" ? 5 : 3;
-      for (let t = 0; t < tc; t++) {
-        const tx = (rng() - 0.5) * ob.width * 0.5;
-        const ty = (rng() - 0.5) * ob.height * 0.4;
-        const ts = 8 + rng() * 10;
-        ctx.fillStyle = "#5a3a1a";
-        ctx.fillRect(tx - 1.5, ty, 3, ts * 0.6);
-        ctx.fillStyle = `rgb(${30 + rng() * 40},${80 + rng() * 60},${20 + rng() * 30})`;
-        ctx.beginPath();
-        ctx.arc(tx, ty - 2, ts * 0.55, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (ob.id === "mine") {
-      const f = ob.hitFlash > 0;
-      ctx.fillStyle = f ? "#fff" : "#2a2a2a";
-      ctx.beginPath();
-      ctx.arc(0, 0, ob.width * 0.38, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#4a4a4a";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      for (let h = 0; h < 6; h++) {
-        const angle = (h / 6) * Math.PI * 2;
-        ctx.fillStyle = f ? "#ff8040" : "#5a5a5a";
-        ctx.beginPath();
-        ctx.arc(Math.cos(angle) * ob.width * 0.38, Math.sin(angle) * ob.width * 0.38, 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(Math.cos(angle) * (ob.width * 0.38 + 7), Math.sin(angle) * (ob.width * 0.38 + 7), 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.fillStyle = "#ff2020";
-      ctx.shadowColor = "#ff0000";
-      ctx.shadowBlur = Math.sin(time * 6) > 0 ? 10 : 3;
-      ctx.beginPath();
-      ctx.arc(0, -2, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    } else if (ob.id === "barrel" || ob.id === "wreck") {
-      const f = ob.hitFlash > 0;
-      if (ob.id === "wreck") {
-        ctx.fillStyle = f ? "#fff" : "#4a3020";
-        ctx.beginPath();
-        ctx.moveTo(-ob.width * 0.4, -ob.height * 0.1);
-        ctx.quadraticCurveTo(-ob.width * 0.35, ob.height * 0.35, 0, ob.height * 0.3);
-        ctx.quadraticCurveTo(ob.width * 0.35, ob.height * 0.25, ob.width * 0.3, -ob.height * 0.15);
-        ctx.lineTo(ob.width * 0.15, -ob.height * 0.35);
-        ctx.lineTo(-ob.width * 0.2, -ob.height * 0.3);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = "#2a1810";
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = f ? "#fff" : "#7a5a28";
-        ctx.beginPath();
-        ctx.ellipse(0, 0, ob.width * 0.38, ob.height * 0.42, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = f ? "#fff" : "#aaa";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(0, -ob.height * 0.18, ob.width * 0.35, 3, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.ellipse(0, ob.height * 0.14, ob.width * 0.35, 3, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        if (ob.loot) {
-          ctx.fillStyle = "#ffd700";
-          ctx.globalAlpha = 0.5 + Math.sin(time * 5) * 0.3;
-          ctx.beginPath();
-          ctx.arc(0, 0, 4, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-      }
-    } else {
-      // Rock
-      const f = ob.hitFlash > 0;
-      const rng = seededRand(ob.rockSeed);
-      const pts = 9;
-      // Shadow
-      ctx.fillStyle = "rgba(0,15,30,0.4)";
-      ctx.beginPath();
-      for (let i = 0; i < pts; i++) {
-        const a = (i / pts) * Math.PI * 2;
-        const r = ob.width * 0.38 + rng() * ob.width * 0.1;
-        const px = Math.cos(a) * r + 4;
-        const py = Math.sin(a) * r * 0.8 + 4;
-        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.fill();
-      // Body
-      const rng2 = seededRand(ob.rockSeed);
-      ctx.fillStyle = f ? "#fff" : ob.id === "rock_large" ? "#4a4848" : "#5e5c5a";
-      ctx.beginPath();
-      for (let i = 0; i < pts; i++) {
-        const a = (i / pts) * Math.PI * 2;
-        const r = ob.width * 0.38 + rng2() * ob.width * 0.1;
-        i === 0 ? ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r * 0.8) : ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r * 0.8);
-      }
-      ctx.closePath();
-      ctx.fill();
-      if (!f) {
-        ctx.fillStyle = "rgba(255,255,255,0.12)";
-        ctx.beginPath();
-        ctx.ellipse(-ob.width * 0.08, -ob.height * 0.1, ob.width * 0.18, ob.height * 0.12, -0.4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // Foam around base
-      ctx.strokeStyle = "rgba(200,230,255,0.3)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      const fp = time * 2 + ob.rockSeed;
-      for (let a = -0.8; a < 0.8; a += 0.15) {
-        const fx = Math.cos(a + Math.PI * 0.5) * (ob.width * 0.42 + Math.sin(fp + a * 3) * 3);
-        const fy = Math.sin(a + Math.PI * 0.5) * (ob.height * 0.38 + Math.sin(fp + a * 3) * 3);
-        a === -0.8 ? ctx.moveTo(fx, fy) : ctx.lineTo(fx, fy);
-      }
-      ctx.stroke();
-    }
-  }
-
-  // ── SHIP DRAWING (top-down, always facing up, slight lean on steering) ──
-  function drawShip(ctx, x, y, steer, time) {
-    ctx.save();
-    ctx.translate(x, y);
-    // Subtle lean when steering (not a full rotation — just a slight perspective shift)
-    const lean = steer * 0.06;
-    ctx.rotate(lean);
-
-    const W = SHIP_W;
-    const H = SHIP_H;
-
-    // Bow spray
-    ctx.strokeStyle = "rgba(180,220,255,0.25)";
-    ctx.lineWidth = 1.5;
-    for (let side = -1; side <= 1; side += 2) {
-      ctx.beginPath();
-      ctx.moveTo(side * 6, -H * 0.44);
-      ctx.quadraticCurveTo(side * W * 0.35, -H * 0.52 + Math.sin(time * 7 + side) * 3, side * W * 0.45, -H * 0.38);
-      ctx.stroke();
-    }
-
-    // Hull shadow
-    ctx.fillStyle = "rgba(0,20,40,0.25)";
-    ctx.beginPath();
-    ctx.ellipse(3, H * 0.1, W * 0.46, H * 0.2, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // ── HULL ──
-    ctx.fillStyle = "#5a3018";
-    ctx.beginPath();
-    ctx.moveTo(0, -H * 0.47);
-    ctx.bezierCurveTo(-W * 0.12, -H * 0.42, -W * 0.35, -H * 0.3, -W * 0.44, -H * 0.05);
-    ctx.bezierCurveTo(-W * 0.48, H * 0.15, -W * 0.42, H * 0.38, -W * 0.3, H * 0.46);
-    ctx.bezierCurveTo(-W * 0.15, H * 0.5, W * 0.15, H * 0.5, W * 0.3, H * 0.46);
-    ctx.bezierCurveTo(W * 0.42, H * 0.38, W * 0.48, H * 0.15, W * 0.44, -H * 0.05);
-    ctx.bezierCurveTo(W * 0.35, -H * 0.3, W * 0.12, -H * 0.42, 0, -H * 0.47);
-    ctx.closePath();
-    ctx.fill();
-
-    // Hull dark accent
-    ctx.strokeStyle = "#3a2010";
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-
-    // Plank lines
-    ctx.strokeStyle = "rgba(40,25,10,0.3)";
-    ctx.lineWidth = 0.8;
-    for (let py = -H * 0.32; py < H * 0.4; py += H * 0.1) {
-      const halfW = W * 0.4 * (1 - Math.pow(Math.abs(py) / (H * 0.5), 1.5));
-      if (halfW > 5) {
-        ctx.beginPath();
-        ctx.moveTo(-halfW, py);
-        ctx.lineTo(halfW, py);
-        ctx.stroke();
-      }
-    }
-
-    // Gunwale (darker top edge)
-    ctx.strokeStyle = "#7a5028";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(0, -H * 0.47);
-    ctx.bezierCurveTo(-W * 0.12, -H * 0.42, -W * 0.35, -H * 0.3, -W * 0.44, -H * 0.05);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, -H * 0.47);
-    ctx.bezierCurveTo(W * 0.12, -H * 0.42, W * 0.35, -H * 0.3, W * 0.44, -H * 0.05);
-    ctx.stroke();
-
-    // Bow figurehead
-    ctx.fillStyle = "#d4a030";
-    ctx.beginPath();
-    ctx.moveTo(0, -H * 0.5);
-    ctx.lineTo(-5, -H * 0.44);
-    ctx.lineTo(5, -H * 0.44);
-    ctx.closePath();
-    ctx.fill();
-
-    // ── STERN CASTLE ──
-    ctx.fillStyle = "#4a2818";
-    const scW = W * 0.52;
-    ctx.beginPath();
-    ctx.moveTo(-scW / 2, H * 0.22);
-    ctx.quadraticCurveTo(-scW / 2 - 2, H * 0.44, -scW / 2 + 8, H * 0.46);
-    ctx.lineTo(scW / 2 - 8, H * 0.46);
-    ctx.quadraticCurveTo(scW / 2 + 2, H * 0.44, scW / 2, H * 0.22);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "#3a2010";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    // Windows
-    ctx.fillStyle = "#ffc850";
-    ctx.globalAlpha = 0.5 + Math.sin(time * 2) * 0.15;
-    for (let wx = -1; wx <= 1; wx++) {
-      ctx.beginPath();
-      ctx.arc(wx * 11, H * 0.34, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-
-    // ── MAST ──
-    ctx.fillStyle = "#3a2518";
-    ctx.fillRect(-2.5, -H * 0.38, 5, H * 0.62);
-
-    // ── MAIN SAIL ──
-    const sailBillow = 5 + Math.sin(time * 1.5) * 2.5;
-    ctx.fillStyle = "#e8dcc8";
-    ctx.beginPath();
-    ctx.moveTo(-W * 0.3, -H * 0.35);
-    ctx.quadraticCurveTo(-W * 0.12, -H * 0.15 + sailBillow, -W * 0.28, -H * 0.0);
-    ctx.lineTo(W * 0.28, -H * 0.0);
-    ctx.quadraticCurveTo(W * 0.12, -H * 0.15 + sailBillow, W * 0.3, -H * 0.35);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "#a09080";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    // Sail center line
-    ctx.strokeStyle = "rgba(120,100,80,0.25)";
-    ctx.beginPath();
-    ctx.moveTo(0, -H * 0.35);
-    ctx.lineTo(0, -H * 0.0);
-    ctx.stroke();
-
-    // Cross spars
-    ctx.strokeStyle = "#3a2518";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(-W * 0.32, -H * 0.35);
-    ctx.lineTo(W * 0.32, -H * 0.35);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-W * 0.3, -H * 0.0);
-    ctx.lineTo(W * 0.3, -H * 0.0);
-    ctx.stroke();
-
-    // Rigging
-    ctx.strokeStyle = "rgba(80,60,40,0.35)";
-    ctx.lineWidth = 0.7;
-    ctx.beginPath();
-    ctx.moveTo(-W * 0.32, -H * 0.35);
-    ctx.lineTo(-W * 0.43, H * 0.05);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(W * 0.32, -H * 0.35);
-    ctx.lineTo(W * 0.43, H * 0.05);
-    ctx.stroke();
-
-    // Crow's nest / flag pole
-    ctx.fillStyle = "#3a2518";
-    ctx.fillRect(-1.5, -H * 0.43, 3, H * 0.08);
-    // Flag
-    const flagWave = Math.sin(time * 3) * 3;
-    ctx.fillStyle = "#1a1a1a";
-    ctx.beginPath();
-    ctx.moveTo(1.5, -H * 0.43);
-    ctx.lineTo(16, -H * 0.47 + flagWave);
-    ctx.lineTo(16, -H * 0.39 + flagWave);
-    ctx.closePath();
-    ctx.fill();
-    // Skull on flag
-    ctx.fillStyle = "#ddd";
-    ctx.beginPath();
-    ctx.arc(10, -H * 0.43 + flagWave * 0.5, 2.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  // ── HELM WHEEL ──
-  function drawHelm(ctx, angle, steerInput) {
-    const hx = CANVAS_W - 85;
-    const hy = CANVAS_H - 75;
-    const r = 35;
-
-    ctx.save();
-    ctx.translate(hx, hy);
-
-    // Background circle
-    ctx.fillStyle = "rgba(10,5,2,0.7)";
-    ctx.beginPath();
-    ctx.arc(0, 0, r + 10, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#5a4030";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Wheel rotation
-    ctx.rotate(angle);
-
-    // Outer ring
-    ctx.strokeStyle = "#7a5a30";
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Inner ring
-    ctx.strokeStyle = "#5a3a18";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.4, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Spokes (8)
-    ctx.strokeStyle = "#6a4a28";
-    ctx.lineWidth = 3;
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * r * 0.4, Math.sin(a) * r * 0.4);
-      ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-      ctx.stroke();
-    }
-
-    // Handle pegs (at end of each spoke)
-    ctx.fillStyle = "#8a6a38";
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.arc(Math.cos(a) * (r + 5), Math.sin(a) * (r + 5), 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Center hub
-    ctx.fillStyle = "#4a3018";
-    ctx.beginPath();
-    ctx.arc(0, 0, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#8a6a38";
-    ctx.beginPath();
-    ctx.arc(0, 0, 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-
-    // Direction indicators
-    ctx.fillStyle = steerInput < 0 ? "#ffd700" : "rgba(200,180,140,0.3)";
-    ctx.font = "bold 18px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText("◄", hx - r - 18, hy + 6);
-    ctx.fillStyle = steerInput > 0 ? "#ffd700" : "rgba(200,180,140,0.3)";
-    ctx.fillText("►", hx + r + 18, hy + 6);
-  }
+    return () => {
+      alive = false;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [roomNumber]);
 
   // ── RESULT SCREEN ──
   if (phase === "complete" || phase === "failed") {
