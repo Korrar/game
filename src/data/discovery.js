@@ -27,7 +27,7 @@ export const ARTIFACT_SETS = [
       { id: "pk_compass", icon: "compass",   name: "Kompas Zaginionych Mórz", desc: "Wskazuje nie północ, a pragnienia", lore: "Stworzony przez ślepego nawigatora. Kompas prowadzi do tego, czego serce najbardziej pragnie." },
       { id: "pk_flag",    icon: "pirate",    name: "Flaga Ostatniego Rejsu",  desc: "Szepcze o zapomnianych wyspach", lore: "Flaga Czarnej Perły — ostatni okręt, który widział Koniec Świata i wrócił." },
     ],
-    setBonus: { desc: "Komplet: +25% obrażeń, +2 pancerza konwoju, podwójny łup z bossów", effect: { dmgMult: 1.25, caravanArmor: 2, bossLootMult: 2.0 } },
+    setBonus: { desc: "Komplet: +25% obrażeń, +2 pancerza statku, podwójny łup z bossów", effect: { dmgMult: 1.25, caravanArmor: 2, bossLootMult: 2.0 } },
   },
   {
     id: "sea_gods",
@@ -113,7 +113,7 @@ export const SECRET_ROOMS = [
       type: "trade",
       desc: "Wybierz co ofiarujesz duchom w zamian za moc",
       trades: [
-        { offer: "50 HP konwoju",  cost: { caravanHp: 50 },  reward: { permDmgBuff: 0.15 }, rewardDesc: "+15% obrażeń permanentnie" },
+        { offer: "50 HP statku",  cost: { caravanHp: 50 },  reward: { permDmgBuff: 0.15 }, rewardDesc: "+15% obrażeń permanentnie" },
         { offer: "30 prochu",      cost: { mana: 30 },       reward: { artifact: true },     rewardDesc: "Fragment artefaktu" },
         { offer: "1 srebrny",      cost: { silver: 1 },      reward: { mercRevive: true },   rewardDesc: "Wskrzeszenie najemnika" },
       ],

@@ -2,7 +2,7 @@
 // Each spell gets a skillshot type that determines how the projectile travels
 
 export const SKILLSHOT_TYPES = {
-  // Dynamit — arc trajectory (parabola), leci lobem z karawany do celu, splash damage
+  // Dynamit — arc trajectory (parabola), leci lobem ze statku do celu, splash damage
   fireball: {
     type: "arc",
     speed: 6,
@@ -36,7 +36,7 @@ export const SKILLSHOT_TYPES = {
     pierce: true,
     maxPierce: 1,
   },
-  // Strzał z Armaty — wolny lob z karawany, duży splash damage
+  // Strzał z Armaty — wolny lob ze statku, duży splash damage
   holybeam: {
     type: "arc",
     speed: 5,

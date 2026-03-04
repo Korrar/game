@@ -3299,7 +3299,7 @@ export default function App() {
     const maxHp = CARAVAN_LEVELS[caravanLevelRef.current].hp;
     const penalty = Math.round(maxHp * 0.20);
     setCaravanHp(prev => Math.max(1, prev - penalty));
-    showMessage(`Odwrót! Konwój traci ${penalty} HP!`, "#cc8040");
+    showMessage(`Odwrót! Statek traci ${penalty} HP!`, "#cc8040");
     sfxCaravanHit();
     // Partial reward: copper only, based on waves completed
     const wavesCleared = defenseMode.currentWave - 1;
@@ -3679,7 +3679,7 @@ export default function App() {
             }
             setInventory(prev => [...prev, ...newTreasures]);
             setLoot(newTreasures[0]);
-            showMessage("Ofiara przyjęta! 3 skarby za krew konwoju!", "#e0a040");
+            showMessage("Ofiara przyjęta! 3 skarby za krew statku!", "#e0a040");
           } else if (rEff.effect === "doubleDamage") {
             setPlayerDoubleDmgRooms(2);
             setEnemyBuffRooms(prev => prev + 2);
@@ -4683,7 +4683,7 @@ export default function App() {
         // Saber effect: cursed self-damage
         if (eff?.type === "cursed" && Math.random() < eff.selfDamageChance) {
           setCaravanHp(prev => Math.max(1, prev - eff.selfDamage));
-          showMessage("Klątwa! Konwój traci HP!", "#cc44cc");
+          showMessage("Klątwa! Statek traci HP!", "#cc44cc");
         }
         // Saber effect: chain lightning
         if (eff?.type === "chain_lightning" && Math.random() < eff.chance) {
@@ -5624,7 +5624,7 @@ export default function App() {
     setMoney(copperToMoney(tc - need));
     setCaravanLevel(l => l + 1);
     setCaravanHp(next.hp);
-    showMessage(`Konwój → ${next.name}! (HP:${next.hp}, Armor:${next.armor})`, "#d4a030");
+    showMessage(`Statek → ${next.name}! (HP:${next.hp}, Armor:${next.armor})`, "#d4a030");
   };
 
   const buyKnowledgeUpgrade = (upgradeId) => {
@@ -5655,7 +5655,7 @@ export default function App() {
         <div style={{ color: "#3a2a1a", letterSpacing: 8, marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Icon name="star" size={20} /> ─── <Icon name="star" size={20} /> ─── <Icon name="star" size={20} /></div>
         <div style={{ fontSize: 60, marginBottom: 16, filter: "drop-shadow(0 0 16px rgba(212,160,48,0.25))", display: "flex", gap: 8, justifyContent: "center" }}><Icon name="skull" size={60} /><Icon name="anchor" size={60} /><Icon name="skull" size={60} /></div>
         <h1 style={{ fontSize: 32, fontWeight: "bold", color: "#d4a030", textShadow: "3px 3px 0 #000, 0 0 25px rgba(212,160,48,0.25)", marginBottom: 8, textAlign: "center" }}>Szlak Fortuny</h1>
-        <p style={{ fontSize: 18, color: "#6a5a4a", marginBottom: 36 }}>Eskortuj konwój • Pokonaj bandytów • Zdobądź skarby</p>
+        <p style={{ fontSize: 18, color: "#6a5a4a", marginBottom: 36 }}>Prowadź statek • Pokonaj bandytów • Zdobądź skarby</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
           <button onClick={startGame} style={{
             fontWeight: "bold", fontSize: 20, background: "none", border: "3px solid #d4a030", color: "#d4a030",
@@ -5693,7 +5693,7 @@ export default function App() {
             <Icon name="skull" size={isMobile ? 36 : 48} />
           </div>
           <div style={{ fontSize: isMobile ? 11 : 13, color: "#8c4040", letterSpacing: 3, marginBottom: 4, fontWeight: "bold" }}>
-            KONWÓJ ZNISZCZONY
+            STATEK ZNISZCZONY
           </div>
           <h2 style={{
             fontSize: isMobile ? 22 : 28, fontWeight: "bold", color: "#cc3030",
@@ -5715,7 +5715,7 @@ export default function App() {
               ["doors", "Otwarte wrota", s.doors],
               ["scroll", "Lista Gończa", `${s.bestiary} wrogów`],
               ["star", "Relikty", s.relics],
-              ["convoy", "Poziom karawany", CARAVAN_LEVELS[s.caravanLevel]?.name || `Lv.${s.caravanLevel}`],
+              ["convoy", "Poziom statku", CARAVAN_LEVELS[s.caravanLevel]?.name || `Lv.${s.caravanLevel}`],
             ].map(([iconName, label, val], i) => (
               <div key={i} style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
@@ -7146,7 +7146,7 @@ export default function App() {
         }}>
           <div style={{ fontWeight: "bold", color: "#d4a030", marginBottom: 2, fontSize: isMobile ? 9 : 12 }}><Icon name="spyglass" size={isMobile ? 9 : 12} /> Zwiad</div>
           <div>Etap #{nextRoomPreview.room}: <Icon name={nextRoomPreview.biome.icon} size={12} /> {nextRoomPreview.biome.name}</div>
-          {nextRoomPreview.isDefense && <div style={{ color: "#e05040", fontWeight: "bold" }}><Icon name="swords" size={11} /> Obrona karawany!</div>}
+          {nextRoomPreview.isDefense && <div style={{ color: "#e05040", fontWeight: "bold" }}><Icon name="swords" size={11} /> Obrona statku!</div>}
           {nextRoomPreview.isBoss && <div style={{ color: "#ff4040", fontWeight: "bold" }}><Icon name="skull" size={11} /> Boss!</div>}
         </div>
       )}
@@ -7324,8 +7324,8 @@ export default function App() {
             <div style={{ fontSize: 13, color: "#888", marginBottom: 8, letterSpacing: 2 }}>PRZEWODNIK ({tutorialStep + 1}/5)</div>
             {tutorialStep === 0 && <>
               <div style={{ marginBottom: 8 }}><Icon name="convoy" size={32} /></div>
-              <div style={{ fontSize: 16, fontWeight: "bold", color: "#d4a030", marginBottom: 8 }}>Konwój</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Kliknij konwój aby podróżować do następnego etapu. Potrzebujesz inicjatywy (regeneruje się z czasem). Chroń konwój przed bandytami!</div>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "#d4a030", marginBottom: 8 }}>Statek</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Kliknij statek aby podróżować do następnego etapu. Potrzebujesz inicjatywy (regeneruje się z czasem). Chroń statek przed bandytami!</div>
             </>}
             {tutorialStep === 1 && <>
               <div style={{ marginBottom: 8 }}><Icon name="gunpowder" size={32} /></div>
@@ -7345,7 +7345,7 @@ export default function App() {
             {tutorialStep === 4 && <>
               <div style={{ marginBottom: 8, display: "flex", gap: 4, justifyContent: "center" }}><Icon name="shop" size={32} /><Icon name="base" size={32} /></div>
               <div style={{ fontSize: 16, fontWeight: "bold", color: "#d4a030", marginBottom: 8 }}>Bazar i Baza</div>
-              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Na Bazarze Portowym kupuj narzędzia i zapasy prochu. W Bazie ulepszaj konwój, najemników i przechowuj skarby. Co 5 etapów czeka obrona konwoju, co 10 - boss!</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>Na Bazarze Portowym kupuj narzędzia i zapasy prochu. W Bazie ulepszaj statek, najemników i przechowuj skarby. Co 5 etapów czeka obrona statku, co 10 - boss!</div>
             </>}
             <div style={{ marginTop: 12, fontSize: 11, color: "#666" }}>Kliknij aby kontynuować →</div>
           </div>
@@ -7639,7 +7639,7 @@ export default function App() {
         })()}
 
         {/* Caravan upgrade section */}
-        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="convoy" size={16} /> Konwój</h3>
+        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="anchor" size={16} /> Statek</h3>
         {(() => {
           const cl = CARAVAN_LEVELS[caravanLevel];
           const nextCl = caravanLevel < CARAVAN_LEVELS.length - 1 ? CARAVAN_LEVELS[caravanLevel + 1] : null;
@@ -8258,7 +8258,7 @@ export default function App() {
                     showMessage("Legendarne skarby znalezione!", "#d4a030");
                   } else {
                     setCaravanHp(prev => Math.max(1, prev - 30));
-                    showMessage("Pułapka! Konwój uszkodzony!", "#cc4040");
+                    showMessage("Pułapka! Statek uszkodzony!", "#cc4040");
                   }
                 }
                 if (choice.risk?.caravanDmg && choice.reward?.legendaryTreasure) {

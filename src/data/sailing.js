@@ -97,7 +97,7 @@ export const SEA_EVENTS = [
     themeColor: "#4080c0",
     desc: "Spokojna podróż. Załoga odpoczywa.",
     effect: { type: "heal", value: 15 },
-    resultText: "Konwój regeneruje +15 HP dzięki spokojnemu rejsowi.",
+    resultText: "Statek regeneruje +15 HP dzięki spokojnemu rejsowi.",
   },
   {
     id: "storm",
@@ -107,7 +107,7 @@ export const SEA_EVENTS = [
     themeColor: "#404060",
     desc: "Potężna burza szarpie statkiem! Unikaj fal!",
     effect: { type: "damage", value: 25 },
-    resultText: "Sztorm uszkadza konwój — -25 HP.",
+    resultText: "Sztorm uszkadza statek — -25 HP.",
     dodgeable: true, // gracz może klikać żeby unikać
     dodgeReduction: 0.6, // udany unik = 60% mniej obrażeń
   },

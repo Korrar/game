@@ -23,16 +23,16 @@ export const CREW_ROLES = [
     id: "cook",
     icon: "rum",
     name: "Kucharz Okrętowy",
-    desc: "Gotuje posiłki regenerujące HP konwoju między walkami",
+    desc: "Gotuje posiłki regenerujące HP statku między walkami",
     cost: { silver: 4 },
     rarity: "uncommon",
     bodyColor: "#8a6a40",
     armorColor: "#6a4a20",
-    passive: { id: "meal_prep", desc: "+5 HP konwoju po każdym pokoju", healPerRoom: 5 },
+    passive: { id: "meal_prep", desc: "+5 HP statku po każdym pokoju", healPerRoom: 5 },
     skills: [
-      { level: 1, name: "Sycący Posiłek", desc: "+8 HP konwoju po pokoju", effect: { healPerRoom: 8 } },
-      { level: 2, name: "Rum na Zdrowie", desc: "+15 HP konwoju, +10 prochu po bossie", effect: { healPerRoom: 15, manaAfterBoss: 10 } },
-      { level: 3, name: "Uczta Kapitańska", desc: "+20 HP konwoju, +20% HP najemników", effect: { healPerRoom: 20, mercHpMult: 1.20 } },
+      { level: 1, name: "Sycący Posiłek", desc: "+8 HP statku po pokoju", effect: { healPerRoom: 8 } },
+      { level: 2, name: "Rum na Zdrowie", desc: "+15 HP statku, +10 prochu po bossie", effect: { healPerRoom: 15, manaAfterBoss: 10 } },
+      { level: 3, name: "Uczta Kapitańska", desc: "+20 HP statku, +20% HP najemników", effect: { healPerRoom: 20, mercHpMult: 1.20 } },
     ],
   },
   {
@@ -113,7 +113,7 @@ export const LOYALTY_LEVELS = [
 
 // Relacje między członkami załogi (synergie i konflikty)
 export const CREW_RELATIONS = [
-  { pair: ["cook", "surgeon"],        type: "synergy",  name: "Zdrowa Załoga",     desc: "Regeneracja konwoju x1.5", effect: { caravanHealMult: 1.5 } },
+  { pair: ["cook", "surgeon"],        type: "synergy",  name: "Zdrowa Załoga",     desc: "Regeneracja statku x1.5", effect: { caravanHealMult: 1.5 } },
   { pair: ["navigator", "quartermaster"], type: "synergy", name: "Złoty Szlak",   desc: "+25% łupu z ukrytych pokoi", effect: { hiddenLootMult: 1.25 } },
   { pair: ["gunsmith", "shanty_singer"], type: "synergy", name: "Zbrojne Pieśni",  desc: "+10% obrażeń broni + szybkość ataku", effect: { weaponDmgMult: 1.10, attackSpeedMult: 0.90 } },
   { pair: ["cook", "quartermaster"],  type: "conflict", name: "Spór o Zapasy",   desc: "Kucharz -10% efektywności", effect: { penaltyRole: "cook", effectPenalty: 0.90 } },

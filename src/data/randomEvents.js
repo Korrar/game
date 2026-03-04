@@ -28,7 +28,7 @@ export const ALTAR_EFFECTS = [
   { type: "debuff", icon: "skull", text: "Mroczna klątwa osłabia cię...",     effect: "manaLoss",   value: 20,  desc: "-20 prochu" },
   { type: "buff",   icon: "star", text: "Błogosławieństwo kapitanów!",       effect: "freeMerc",   value: null, desc: "Darmowy najemnik" },
   // Risk vs reward altar effects
-  { type: "risky",  icon: "skull", text: "Ofiara z konwoju...",               effect: "caravanSacrifice", value: null, desc: "Utrata 50% HP konwoju za 3 skarby" },
+  { type: "risky",  icon: "skull", text: "Ofiara z statku...",               effect: "caravanSacrifice", value: null, desc: "Utrata 50% HP statku za 3 skarby" },
   { type: "risky",  icon: "fire",  text: "Podwójna moc, podwójne ryzyko!",   effect: "doubleDamage",    value: null, desc: "x2 obrażenia obu stron na 2 pokoje" },
 ];
 
