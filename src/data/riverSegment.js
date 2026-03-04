@@ -23,7 +23,7 @@ export const RIVER_WAVE_PATTERNS = [
 export function getRiverSegmentConfig(roomNumber) {
   const difficulty = Math.min(3, Math.floor(roomNumber / 10) + 1);
   return {
-    segmentLength: 12 + difficulty * 3, // seconds to survive
+    segmentLength: 18 + difficulty * 5, // seconds to survive (~50% longer)
     shipHp: 80 + difficulty * 10,
     shipSpeed: 4.0,
     cannonDamage: 2,

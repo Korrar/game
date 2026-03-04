@@ -2240,7 +2240,7 @@ export default function App() {
     const nextB = BIOMES[Math.floor(Math.random() * BIOMES.length)];
     const nextIsDefense = (newRoom + 1) > 0 && (newRoom + 1) % 5 === 0;
     const nextIsBoss = (newRoom + 1) > 0 && (newRoom + 1) % 10 === 0;
-    const nextIsRiver = (newRoom + 1) > 1 && (newRoom + 1) % 7 === 0;
+    const nextIsRiver = true; // river segment on every transition
     setNextRoomPreview({ biome: nextB, isDefense: nextIsDefense, isBoss: nextIsBoss, isRiver: nextIsRiver, room: newRoom + 1 });
     setRoom(newRoom);
     const isDefenseRoom = newRoom > 0 && newRoom % 5 === 0;
@@ -3541,9 +3541,9 @@ export default function App() {
     const navBonus = getCrewBonus("initiativeMult");
     if (navBonus > 0) setInitiative(prev => Math.min(MAX_INITIATIVE, prev + Math.round(navBonus * 5)));
     sfxDoor(); setTransitioning(true); setDoors(d => d + 1);
-    // River ship segment every 7 rooms (room 7, 14, 21, 28...)
+    // River ship segment on every room transition
     const nextRoom = room + 1;
-    if (nextRoom > 1 && nextRoom % 7 === 0 && !riverSegment) {
+    if (!riverSegment) {
       setTimeout(() => { setRiverSegment(true); setTransitioning(false); }, 400);
       return;
     }
