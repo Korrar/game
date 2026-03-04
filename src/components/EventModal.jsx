@@ -70,7 +70,7 @@ function MerchantView({ event, money, onResolve }) {
       <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(200,150,50,0.4))" }}><EIcon name={event.icon} size={46} /></div>
       <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
       <div style={{ fontSize: 14, color: "#a89878", marginBottom: 18, fontStyle: "italic" }}>
-        Wyłarty płaszcz, ciężka torba... kupiec oferuje rzadkie towary.
+        Wytarty płaszcz, ciężka torba... kupiec oferuje rzadkie towary.
       </div>
       <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 18 }}>
         {event.items.map((item, i) => {

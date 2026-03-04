@@ -2106,7 +2106,7 @@ export class BiomeAnimator {
   _spawnLanterns() {
     if (this.time % 120 !== 0 || Math.random() > 0.6) return;
     this._spawn("lantern", {
-      x: W * 0.1 + Math.random() * this.W * 0.8,
+      x: this.W * 0.1 + Math.random() * this.W * 0.8,
       y: this.H * 0.8,
       speed: -(0.15 + Math.random() * 0.2),
       drift: (Math.random() - 0.5) * 0.2,

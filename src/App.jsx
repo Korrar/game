@@ -139,7 +139,7 @@ export default function App() {
   const [initiative, setInitiative] = useState(MAX_INITIATIVE);
   const [inventory, setInventory] = useState([]);
   const [hideoutItems, setHideoutItems] = useState([]);
-  const [money, setMoney] = useState({ copper: 0, silver: 0, gold: 100 });
+  const [money, setMoney] = useState({ copper: 50, silver: 0, gold: 0 });
   const [totalGoldEarned, setTotalGoldEarned] = useState(0);
   const [bossesDefeated, setBossesDefeated] = useState(0);
   const [gameOverStats, setGameOverStats] = useState(null);
@@ -2087,6 +2087,9 @@ export default function App() {
             flower_patch:{w:34,h:12},beehive:{w:18,h:24},stone_bridge:{w:50,h:14},well:{w:22,h:26},
             crystal_cluster:{w:24,h:30},giant_mushroom:{w:28,h:38},web_wall:{w:40,h:34},stalactite:{w:12,h:36},
             quicksand:{w:36,h:12},dead_tree:{w:18,h:44},fog_pool:{w:38,h:12},lily_pad:{w:22,h:10},
+            crystal_geode:{w:26,h:24},barrel_stack:{w:30,h:26},cannon_wreck:{w:44,h:22},treasure_pile:{w:32,h:20},
+            coral_reef:{w:36,h:18},fishing_net:{w:42,h:10},rope_coil:{w:20,h:18},barnacle_rock:{w:30,h:26},
+            rusted_cage:{w:28,h:32},mast_fragment:{w:14,h:48},powder_keg:{w:20,h:22},whirlpool:{w:34,h:14},seaweed_patch:{w:36,h:14},
           };
           const _defaultSize = { w: 30, h: 20 };
           const obs = obstaclesRef.current;
@@ -2415,20 +2418,20 @@ export default function App() {
 
     // ─── OBSTACLES (destructible per biome) ───
     const OBSTACLE_VARIANTS = {
-      jungle:   ["fallen_log", "vine_wall", "ancient_totem", "moss_boulder"],
-      island:   ["shipwreck", "driftwood", "tide_pool", "anchor_post"],
-      desert:   ["cactus_cluster", "wagon_wreck", "sun_bleached_skull", "tumbleweed"],
-      winter:   ["ice_pillar", "frozen_barrel", "snowdrift", "icicle_rock"],
-      city:     ["market_stall", "broken_wagon", "lamp_post", "sandbag_wall"],
-      volcano:  ["lava_pool", "obsidian_pillar", "steam_vent", "ash_mound"],
-      summer:   ["haystack", "windmill", "scarecrow", "wooden_fence"],
-      autumn:   ["log_pile", "hunting_stand", "mushroom_ring", "fallen_tree"],
-      spring:   ["flower_patch", "beehive", "stone_bridge", "well"],
-      mushroom: ["crystal_cluster", "giant_mushroom", "web_wall", "stalactite"],
-      swamp:    ["quicksand", "dead_tree", "fog_pool", "lily_pad"],
-      sunset_beach: ["driftwood", "tide_pool", "shipwreck", "anchor_post"],
-      bamboo_falls: ["moss_boulder", "fallen_log", "vine_wall", "flower_patch"],
-      blue_lagoon: ["driftwood", "tide_pool", "anchor_post", "flower_patch"],
+      jungle:   ["fallen_log", "vine_wall", "ancient_totem", "moss_boulder", "giant_mushroom", "coral_reef", "rope_coil", "fallen_tree"],
+      island:   ["shipwreck", "driftwood", "tide_pool", "anchor_post", "barrel_stack", "cannon_wreck", "fishing_net", "barnacle_rock"],
+      desert:   ["cactus_cluster", "wagon_wreck", "sun_bleached_skull", "tumbleweed", "sandbag_wall", "rope_coil", "rusted_cage", "dead_tree"],
+      winter:   ["ice_pillar", "frozen_barrel", "snowdrift", "icicle_rock", "barnacle_rock", "mast_fragment", "crystal_geode", "moss_boulder"],
+      city:     ["market_stall", "broken_wagon", "lamp_post", "sandbag_wall", "barrel_stack", "rusted_cage", "rope_coil", "powder_keg"],
+      volcano:  ["lava_pool", "obsidian_pillar", "steam_vent", "ash_mound", "crystal_cluster", "crystal_geode", "barnacle_rock", "rusted_cage"],
+      summer:   ["haystack", "windmill", "scarecrow", "wooden_fence", "flower_patch", "beehive", "log_pile", "well"],
+      autumn:   ["log_pile", "hunting_stand", "mushroom_ring", "fallen_tree", "dead_tree", "moss_boulder", "haystack", "wooden_fence"],
+      spring:   ["flower_patch", "beehive", "stone_bridge", "well", "vine_wall", "lily_pad", "fallen_log", "giant_mushroom"],
+      mushroom: ["crystal_cluster", "giant_mushroom", "web_wall", "stalactite", "crystal_geode", "fog_pool", "vine_wall", "mushroom_ring"],
+      swamp:    ["quicksand", "dead_tree", "fog_pool", "lily_pad", "vine_wall", "fishing_net", "coral_reef", "seaweed_patch"],
+      sunset_beach: ["driftwood", "tide_pool", "shipwreck", "anchor_post", "barrel_stack", "coral_reef", "fishing_net", "barnacle_rock"],
+      bamboo_falls: ["moss_boulder", "fallen_log", "vine_wall", "flower_patch", "coral_reef", "rope_coil", "giant_mushroom", "lily_pad"],
+      blue_lagoon:  ["driftwood", "tide_pool", "anchor_post", "flower_patch", "coral_reef", "seaweed_patch", "fishing_net", "barnacle_rock"],
     };
     const biomeObstacles = OBSTACLE_VARIANTS[bid] || OBSTACLE_VARIANTS.desert;
     const newObstacles = [];
@@ -3348,7 +3351,7 @@ export default function App() {
   const restartGame = () => {
     // Reset all game state
     setRoom(0); setBiome(null); setDoors(0); setInitiative(MAX_INITIATIVE);
-    setInventory([]); setHideoutItems([]); setMoney({ copper: 0, silver: 0, gold: 100 });
+    setInventory([]); setHideoutItems([]); setMoney({ copper: 50, silver: 0, gold: 0 });
     setTotalGoldEarned(0); setBossesDefeated(0); setHideoutLevel(0); setHideoutUpgrades({});
     setKills(0); setPanel(null); setLoot(null);
     setOwnedTools([]); setCaravanLevel(0); setCaravanHp(CARAVAN_LEVELS[0].hp);
@@ -6667,6 +6670,19 @@ export default function App() {
           dead_tree: { w: 18, h: 44, bg: "linear-gradient(180deg,#4a3a28,#3a2a18,#2a1a10)", radius: "3px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
           fog_pool: { w: 38, h: 12, bg: "radial-gradient(ellipse,rgba(100,140,100,0.4),rgba(60,100,60,0.15))", radius: "50%", shadow: "0 0 10px rgba(80,120,80,0.3)" },
           lily_pad: { w: 22, h: 10, bg: "radial-gradient(ellipse,#408040,#306030,#205020)", radius: "50%", shadow: "0 1px 3px rgba(0,0,0,0.3)" },
+          crystal_geode: { w: 26, h: 24, bg: "radial-gradient(ellipse,#c080ff,#9050d0,#6030a0)", radius: "30%", shadow: "0 0 12px rgba(180,100,255,0.4), 0 2px 6px rgba(0,0,0,0.4)" },
+          barrel_stack: { w: 30, h: 26, bg: "linear-gradient(180deg,#7a5a30,#6a4a20,#5a3a18)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
+          cannon_wreck: { w: 44, h: 22, bg: "linear-gradient(180deg,#5a5a5a,#3a3a3a,#2a2a2a)", radius: "4px 12px 4px 4px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
+          treasure_pile: { w: 32, h: 20, bg: "radial-gradient(ellipse,#ffd700,#c0a020,#8a7010)", radius: "30%", shadow: "0 0 10px rgba(255,215,0,0.3), 0 2px 6px rgba(0,0,0,0.4)" },
+          coral_reef: { w: 36, h: 18, bg: "radial-gradient(ellipse,#e06080,#c04060,#802040)", radius: "40%", shadow: "0 0 8px rgba(200,60,100,0.3)" },
+          fishing_net: { w: 42, h: 10, bg: "linear-gradient(90deg,rgba(140,130,100,0.4),rgba(160,150,120,0.5),rgba(140,130,100,0.4))", radius: "2px", shadow: "none" },
+          rope_coil: { w: 20, h: 18, bg: "radial-gradient(ellipse,#a09060,#806840,#604830)", radius: "50%", shadow: "0 1px 4px rgba(0,0,0,0.4)" },
+          barnacle_rock: { w: 30, h: 26, bg: "radial-gradient(ellipse,#6a7a7a,#4a5a5a,#3a4a4a)", radius: "35%", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
+          rusted_cage: { w: 28, h: 32, bg: "linear-gradient(180deg,#8a6040,#6a4a30,#4a3020)", radius: "3px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
+          mast_fragment: { w: 14, h: 48, bg: "linear-gradient(180deg,#8a7050,#6a5030,#5a4020)", radius: "3px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
+          powder_keg: { w: 20, h: 22, bg: "radial-gradient(ellipse,#5a3a18,#4a2a10,#3a1a08)", radius: "20%", shadow: "0 0 6px rgba(255,100,20,0.2), 0 2px 6px rgba(0,0,0,0.5)" },
+          whirlpool: { w: 34, h: 14, bg: "radial-gradient(ellipse,rgba(60,140,200,0.5),rgba(30,80,140,0.3),rgba(10,40,80,0.1))", radius: "50%", shadow: "0 0 10px rgba(60,140,200,0.3)" },
+          seaweed_patch: { w: 36, h: 14, bg: "radial-gradient(ellipse,rgba(40,120,60,0.5),rgba(20,80,40,0.3))", radius: "50%", shadow: "0 0 6px rgba(40,120,60,0.2)" },
         };
         const s = obsStyles[obs.type] || obsStyles.moss_boulder;
         const isHit = obs.hitAnim > 0 && (Date.now() - obs.hitAnim) < 300;
