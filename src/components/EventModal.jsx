@@ -102,100 +102,6 @@ function MerchantView({ event, money, onResolve }) {
   );
 }
 
-// ─── AMBUSH ───
-function AmbushView({ event, onResolve }) {
-  const [clicks, setClicks] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(5000);
-  const [result, setResult] = useState(null);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    if (result) return;
-    const iv = setInterval(() => {
-      const elapsed = Date.now() - startRef.current;
-      const remaining = Math.max(0, 5000 - elapsed);
-      setTimeLeft(remaining);
-      if (remaining <= 0) {
-        setResult("lose");
-        clearInterval(iv);
-        setTimeout(() => onResolve({ type: "ambushLose", loss: event.moneyLoss }), 1500);
-      }
-    }, 50);
-    return () => clearInterval(iv);
-  }, [result, event, onResolve]);
-
-  useEffect(() => {
-    if (clicks >= event.requiredClicks && !result) {
-      setResult("win");
-      setTimeout(() => onResolve({ type: "ambushWin", reward: { copper: 10 } }), 1500);
-    }
-  }, [clicks, event.requiredClicks, result, onResolve]);
-
-  const progress = Math.min(1, clicks / event.requiredClicks);
-
-  return (
-    <div>
-      <SectionHeader event={event} />
-      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(200,40,40,0.5))" }}><EIcon name={event.icon} size={46} /></div>
-      <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
-      <div style={{ fontSize: 14, color: "#a89878", marginBottom: 14, fontStyle: "italic" }}>
-        Z cienia wyskakują bandyci! Walcz lub stracisz monety!
-      </div>
-
-      {!result && (
-        <>
-          {/* Fight bar */}
-          <div style={{
-            width: "100%", height: 30, background: "rgba(10,4,4,0.8)", border: "2px solid #6a1a1a",
-            borderRadius: 6, overflow: "hidden", marginBottom: 10, position: "relative",
-            boxShadow: "inset 0 0 10px rgba(0,0,0,0.5), 0 0 8px rgba(200,40,40,0.2)",
-          }}>
-            <div style={{
-              width: `${progress * 100}%`, height: "100%",
-              background: `linear-gradient(90deg, #cc3030, #ff6040)`,
-              transition: "width 0.1s", borderRadius: 4,
-              boxShadow: "0 0 8px rgba(255,60,40,0.4)",
-            }} />
-            <div style={{
-              position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 14, fontWeight: "bold", color: "#fff", textShadow: "0 0 6px #000",
-            }}>{clicks}/{event.requiredClicks}</div>
-          </div>
-
-          <div style={{ fontSize: 13, color: "#cc6040", marginBottom: 10, fontWeight: "bold" }}>
-            <EIcon name="hourglass" size={13} /> {(timeLeft / 1000).toFixed(1)}s
-          </div>
-
-          <button
-            onClick={() => setClicks(c => c + 1)}
-            style={{
-              ...btnBase, borderColor: "#cc3030", color: "#fff",
-              background: "linear-gradient(180deg, #8a2020, #4a1010)",
-              fontSize: 18, padding: "14px 40px",
-              boxShadow: "0 0 12px rgba(200,40,40,0.3)",
-            }}
-            onMouseDown={e => { e.currentTarget.style.transform = "scale(0.95)"; }}
-            onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-          ><EIcon name="swords" size={18} /> WALCZ!</button>
-        </>
-      )}
-
-      {result === "win" && (
-        <div style={{ fontSize: 22, fontWeight: "bold", color: "#40e060", animation: "eventAppear 0.3s ease-out", textShadow: "0 0 12px rgba(60,200,80,0.4)" }}>
-          Zwycięstwo! +10 <EIcon name="coin" size={22} />
-        </div>
-      )}
-      {result === "lose" && (
-        <div style={{ fontSize: 22, fontWeight: "bold", color: "#cc3030", animation: "eventAppear 0.3s ease-out", textShadow: "0 0 12px rgba(200,40,40,0.4)" }}>
-          Porażka! -{event.moneyLoss.copper} <EIcon name="coin" size={22} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-
 // ─── ALTAR ───
 function AltarView({ event, onResolve }) {
   const [revealed, setRevealed] = useState(false);
@@ -386,7 +292,6 @@ export default function EventModal({ event, money, onResolve }) {
     <div style={frameStyle}>
       <div style={cardStyle(event)}>
         {event.id === "merchant" && <MerchantView event={event} money={money} onResolve={onResolve} />}
-        {event.id === "ambush" && <AmbushView event={event} onResolve={onResolve} />}
         {event.id === "altar" && <AltarView event={event} onResolve={onResolve} />}
         {event.id === "wounded" && <WoundedView event={event} onResolve={onResolve} />}
         {event.id === "cursed_chest" && <CursedChestView event={event} onResolve={onResolve} />}

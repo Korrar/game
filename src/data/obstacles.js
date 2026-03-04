@@ -60,7 +60,20 @@ export const OBSTACLE_DEFS = {
   lily_pad:      { material: "organic", hp: 5,   loot: {},              destructible: true  },
 
   // ─── CRYSTAL ───
-  crystal_cluster:{ material: "crystal", hp: 50, loot: { copper: 6 },  destructible: true  },
+  crystal_cluster:  { material: "crystal", hp: 50, loot: { copper: 6 },  destructible: true  },
+  crystal_geode:    { material: "crystal", hp: 65, loot: { copper: 8, silver: 1 }, destructible: true },
+
+  // ─── NAUTICAL / PIRATE ───
+  barrel_stack:     { material: "wood",    hp: 30,  loot: { copper: 3 },  destructible: true  },
+  cannon_wreck:     { material: "metal",   hp: 80,  loot: { copper: 6, silver: 1 }, destructible: true },
+  treasure_pile:    { material: "metal",   hp: 55,  loot: { copper: 10 }, destructible: true  },
+  coral_reef:       { material: "organic", hp: 40,  loot: { copper: 3 },  destructible: true  },
+  fishing_net:      { material: "organic", hp: 12,  loot: { copper: 1 },  destructible: true  },
+  rope_coil:        { material: "organic", hp: 15,  loot: { copper: 1 },  destructible: true  },
+  barnacle_rock:    { material: "stone",   hp: 60,  loot: { copper: 4 },  destructible: true  },
+  rusted_cage:      { material: "metal",   hp: 70,  loot: { copper: 5 },  destructible: true  },
+  mast_fragment:    { material: "wood",    hp: 65,  loot: { copper: 7 },  destructible: true  },
+  powder_keg:       { material: "wood",    hp: 10,  loot: { copper: 2 },  destructible: true  },
 
   // ─── INDESTRUCTIBLE / TERRAIN ───
   tide_pool:     { material: "stone",   hp: 0,   loot: {},              destructible: false },
@@ -69,6 +82,8 @@ export const OBSTACLE_DEFS = {
   quicksand:     { material: "sand",    hp: 0,   loot: {},              destructible: false },
   fog_pool:      { material: "organic", hp: 0,   loot: {},              destructible: false },
   tumbleweed:    { material: "organic", hp: 0,   loot: {},              destructible: false },
+  whirlpool:     { material: "stone",   hp: 0,   loot: {},              destructible: false },
+  seaweed_patch: { material: "organic", hp: 0,   loot: {},              destructible: false },
 };
 
 // Material weakness multiplier: 2x damage from weak element

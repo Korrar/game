@@ -125,6 +125,25 @@ function drawIsland(ctx, W, H, GY, r) {
     for (let x = 0; x < W; x += 4) { const yy = y + Math.sin(x * 0.03 + row * 2) * 3.5; x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy); }
     ctx.stroke();
   }
+
+  // Distant ship silhouette on the horizon
+  const sx = W * 0.85, sy = wy - 2;
+  ctx.globalAlpha = 0.25;
+  // Hull
+  ctx.fillStyle = "#1a1a2a";
+  ctx.beginPath(); ctx.moveTo(sx - 22, sy); ctx.lineTo(sx - 18, sy + 8);
+  ctx.lineTo(sx + 18, sy + 8); ctx.lineTo(sx + 22, sy);
+  ctx.quadraticCurveTo(sx, sy - 3, sx - 22, sy); ctx.fill();
+  // Mast
+  ctx.fillRect(sx - 1, sy - 28, 2, 28);
+  // Sail
+  ctx.fillStyle = "#2a2a3a";
+  ctx.beginPath(); ctx.moveTo(sx + 1, sy - 26); ctx.lineTo(sx + 1, sy - 8);
+  ctx.quadraticCurveTo(sx + 14, sy - 17, sx + 1, sy - 26); ctx.fill();
+  // Flag
+  ctx.fillStyle = "#1a1a1a";
+  ctx.fillRect(sx + 1, sy - 29, 8, 4);
+  ctx.globalAlpha = 1;
 }
 
 function drawDesert(ctx, W, H, GY, r) {
@@ -137,6 +156,37 @@ function drawDesert(ctx, W, H, GY, r) {
   }
   ctx.fillStyle = "rgba(180,140,60,0.25)";
   for (let i = 0; i < 60; i++) ctx.fillRect(r() * W, GY + r() * (H - GY), 2, 1);
+
+  // Cacti silhouettes
+  for (let i = 0; i < 3; i++) {
+    const cx = W * 0.15 + r() * W * 0.7;
+    const cy = GY + 10 + r() * 30;
+    const ch = 25 + r() * 30;
+    ctx.globalAlpha = 0.2 + r() * 0.15;
+    ctx.fillStyle = "#2a5a1a";
+    ctx.fillRect(cx - 3, cy - ch, 6, ch);
+    // Arms
+    if (r() > 0.3) {
+      const armY = cy - ch * 0.6;
+      ctx.fillRect(cx + 3, armY, 10, 4);
+      ctx.fillRect(cx + 9, armY - 10, 4, 14);
+    }
+    if (r() > 0.4) {
+      const armY = cy - ch * 0.4;
+      ctx.fillRect(cx - 13, armY, 10, 4);
+      ctx.fillRect(cx - 13, armY - 8, 4, 12);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // Bleached bones
+  ctx.strokeStyle = "rgba(220,210,190,0.15)";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 2; i++) {
+    const bx = r() * W, by = GY + 20 + r() * (H - GY - 40);
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + 12, by + 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx + 3, by + 8); ctx.lineTo(bx + 10, by); ctx.stroke();
+  }
 }
 
 function drawWinter(ctx, W, H, GY, r) {
@@ -205,6 +255,34 @@ function drawVolcano(ctx, W, H, GY, r) {
   }
   ctx.fillStyle = "rgba(255,120,20,0.5)";
   for (let i = 0; i < 15; i++) { ctx.beginPath(); ctx.arc(r() * W, r() * H, 1 + r() * 2.5, 0, Math.PI * 2); ctx.fill(); }
+
+  // Volcanic rocks / obsidian chunks
+  for (let i = 0; i < 5; i++) {
+    const rx = r() * W, ry = GY + 10 + r() * (H - GY - 30);
+    const rs = 5 + r() * 10;
+    ctx.globalAlpha = 0.3 + r() * 0.2;
+    ctx.fillStyle = `rgb(${30 + r() * 20},${15 + r() * 10},${15 + r() * 10})`;
+    ctx.beginPath();
+    ctx.moveTo(rx, ry - rs); ctx.lineTo(rx + rs * 0.8, ry - rs * 0.2);
+    ctx.lineTo(rx + rs * 0.5, ry + rs * 0.3); ctx.lineTo(rx - rs * 0.6, ry + rs * 0.2);
+    ctx.lineTo(rx - rs * 0.7, ry - rs * 0.4); ctx.closePath(); ctx.fill();
+    // Molten glow on some rocks
+    if (r() > 0.5) {
+      ctx.fillStyle = `rgba(255,${80 + r() * 60},20,${0.15 + r() * 0.1})`;
+      ctx.beginPath(); ctx.arc(rx, ry, rs * 0.4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // Smoke wisps
+  for (let i = 0; i < 3; i++) {
+    const sx = r() * W, sy = GY * 0.5 + r() * GY * 0.4;
+    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 25 + r() * 20);
+    g.addColorStop(0, `rgba(60,50,40,${0.06 + r() * 0.04})`);
+    g.addColorStop(1, "transparent");
+    ctx.fillStyle = g;
+    ctx.fillRect(sx - 45, sy - 45, 90, 90);
+  }
 }
 
 function drawSummer(ctx, W, H, GY, r) {

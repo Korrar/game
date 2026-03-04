@@ -85,6 +85,18 @@ export class BiomeAnimator {
     if (fx.fog) this._drawFog();
     if (fx.sunsetGlow) this._drawSunsetGlow();
     if (fx.waterfall) this._drawWaterfall();
+    if (fx.aurora) this._drawAurora();
+    if (fx.lightning) this._spawnLightningFlash();
+    if (fx.jellyfish) this._spawnJellyfish();
+    if (fx.ash) this._spawnAsh();
+    if (fx.petals) this._spawnPetals();
+    if (fx.seagulls) this._spawnSeagulls();
+    if (fx.dolphins) this._spawnDolphins();
+    if (fx.comets) this._spawnComets();
+    if (fx.dustDevil) this._drawDustDevil();
+    if (fx.heatShimmer) this._drawHeatShimmer();
+    if (fx.lanterns) this._spawnLanterns();
+    if (fx.ripples) this._drawRipples();
 
     // Weather-specific visuals
     if (this.weather) {
@@ -141,6 +153,13 @@ export class BiomeAnimator {
         case "sunsetSparkle": this._updateSunsetSparkle(p); break;
         case "waterfallDrop": this._updateWaterfallDrop(p); break;
         case "waterfallMist": this._updateWaterfallMist(p); break;
+        case "jellyfish": this._updateJellyfish(p); break;
+        case "ash": this._updateAsh(p, wind); break;
+        case "petal": this._updatePetal(p, wind); break;
+        case "seagull": this._updateSeagull(p); break;
+        case "dolphin": this._updateDolphin(p); break;
+        case "comet": this._updateComet(p); break;
+        case "lantern": this._updateLantern(p, wind); break;
       }
     }
 
@@ -1708,5 +1727,444 @@ export class BiomeAnimator {
     g.addColorStop(1, "transparent");
     ctx.fillStyle = g;
     ctx.fillRect(p.x - p.size, p.y - p.size, p.size * 2, p.size * 2);
+  }
+
+  // ─── AURORA BOREALIS ───
+  _drawAurora() {
+    const { ctx, W, H, GY } = this;
+    const t = this.time * 0.004;
+    const bandCount = 4;
+    for (let b = 0; b < bandCount; b++) {
+      const yBase = GY * 0.05 + b * (GY * 0.12);
+      const hue = (120 + b * 40 + this.time * 0.3) % 360;
+      ctx.beginPath();
+      ctx.moveTo(0, yBase);
+      for (let x = 0; x <= W; x += 8) {
+        const wave = Math.sin(x * 0.005 + t + b * 1.5) * 18 + Math.sin(x * 0.012 + t * 1.3 + b) * 10;
+        ctx.lineTo(x, yBase + wave);
+      }
+      ctx.lineTo(W, yBase + 40);
+      ctx.lineTo(0, yBase + 40);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, yBase, 0, yBase + 40);
+      const alpha = 0.06 + Math.sin(t * 2 + b) * 0.02;
+      grad.addColorStop(0, `hsla(${hue},80%,60%,${alpha})`);
+      grad.addColorStop(0.5, `hsla(${hue + 20},70%,50%,${alpha * 1.5})`);
+      grad.addColorStop(1, "transparent");
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  }
+
+  // ─── LIGHTNING FLASH (ambient, not weather) ───
+  _spawnLightningFlash() {
+    if (Math.random() > 0.002) return;
+    const { ctx, W, H } = this;
+    // Brief white flash
+    ctx.fillStyle = `rgba(255,255,255,${0.05 + Math.random() * 0.08})`;
+    ctx.fillRect(0, 0, W, H);
+    // Draw a quick bolt
+    const x = W * 0.2 + Math.random() * W * 0.6;
+    const y = 0;
+    ctx.strokeStyle = `rgba(200,220,255,${0.15 + Math.random() * 0.15})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    let cx = x, cy = y;
+    const segments = 6 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < segments; i++) {
+      cx += (Math.random() - 0.5) * 30;
+      cy += 15 + Math.random() * 25;
+      ctx.lineTo(cx, cy);
+    }
+    ctx.stroke();
+    // Glow around bolt
+    ctx.strokeStyle = `rgba(160,180,255,0.06)`;
+    ctx.lineWidth = 6;
+    ctx.stroke();
+  }
+
+  // ─── JELLYFISH (underwater biome) ───
+  _spawnJellyfish() {
+    if (this.time % 80 !== 0) return;
+    this._spawn("jellyfish", {
+      x: Math.random() * this.W,
+      y: this.H + 20,
+      size: 8 + Math.random() * 12,
+      speed: -(0.2 + Math.random() * 0.3),
+      wobble: Math.random() * Math.PI * 2,
+      hue: 200 + Math.random() * 120,
+      opacity: 0.15 + Math.random() * 0.15,
+      maxAge: 600 + Math.floor(Math.random() * 300),
+      tentaclePhase: Math.random() * Math.PI * 2,
+    });
+  }
+
+  _updateJellyfish(p) {
+    p.y += p.speed;
+    p.x += Math.sin(p.age * 0.01 + p.wobble) * 0.4;
+    p.tentaclePhase += 0.03;
+    const fade = Math.min(1, p.age / 60) * Math.max(0, 1 - p.age / p.maxAge);
+    if (fade <= 0) { p.alive = false; return; }
+
+    const { ctx } = this;
+    const a = p.opacity * fade;
+    // Bell (dome)
+    ctx.fillStyle = `hsla(${p.hue},70%,65%,${a})`;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, p.size, p.size * 0.65, 0, Math.PI, 0);
+    ctx.fill();
+    // Inner glow
+    const g = ctx.createRadialGradient(p.x, p.y - p.size * 0.2, 0, p.x, p.y, p.size);
+    g.addColorStop(0, `hsla(${p.hue},90%,80%,${a * 0.5})`);
+    g.addColorStop(1, "transparent");
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x - p.size, p.y - p.size, p.size * 2, p.size * 2);
+    // Tentacles
+    ctx.strokeStyle = `hsla(${p.hue},60%,60%,${a * 0.6})`;
+    ctx.lineWidth = 0.8;
+    for (let t = 0; t < 5; t++) {
+      const tx = p.x + (t - 2) * (p.size * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(tx, p.y);
+      for (let s = 1; s <= 4; s++) {
+        const sy = p.y + s * p.size * 0.4;
+        const sx = tx + Math.sin(p.tentaclePhase + t + s * 0.8) * 3;
+        ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // ─── ASH / VOLCANIC ASH ───
+  _spawnAsh() {
+    if (this.time % 3 !== 0) return;
+    this._spawn("ash", {
+      x: Math.random() * this.W,
+      y: -5,
+      speed: 0.5 + Math.random() * 1,
+      drift: (Math.random() - 0.5) * 0.5,
+      size: 1 + Math.random() * 2.5,
+      opacity: 0.2 + Math.random() * 0.3,
+      maxAge: 250 + Math.floor(Math.random() * 100),
+      rot: Math.random() * Math.PI * 2,
+    });
+  }
+
+  _updateAsh(p, wind) {
+    p.y += p.speed;
+    p.x += p.drift + wind * 0.3 + Math.sin(p.age * 0.02 + p.rot) * 0.3;
+    p.rot += 0.02;
+    const fade = 1 - p.age / p.maxAge;
+    if (fade <= 0 || p.y > this.H) { p.alive = false; return; }
+
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.fillStyle = `rgba(80,70,60,${p.opacity * fade})`;
+    ctx.fillRect(-p.size * 0.5, -p.size * 0.3, p.size, p.size * 0.6);
+    ctx.restore();
+  }
+
+  // ─── FLOWER PETALS ───
+  _spawnPetals() {
+    if (this.time % 25 !== 0) return;
+    const colors = ["255,180,200", "255,200,220", "255,160,180", "240,200,210"];
+    this._spawn("petal", {
+      x: -10 + Math.random() * (this.W + 20),
+      y: -10,
+      speed: 0.4 + Math.random() * 0.6,
+      drift: 0.3 + Math.random() * 0.5,
+      size: 2 + Math.random() * 3,
+      opacity: 0.3 + Math.random() * 0.4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      wobble: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 0.08,
+      rot: Math.random() * Math.PI * 2,
+      maxAge: 400 + Math.floor(Math.random() * 200),
+    });
+  }
+
+  _updatePetal(p, wind) {
+    p.y += p.speed;
+    p.x += p.drift + wind * 0.4 + Math.sin(p.age * 0.015 + p.wobble) * 0.8;
+    p.rot += p.spin;
+    const fade = 1 - p.age / p.maxAge;
+    if (fade <= 0 || p.y > this.H) { p.alive = false; return; }
+
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.fillStyle = `rgba(${p.color},${p.opacity * fade})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.size, p.size * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ─── SEAGULLS (flocking, circling) ───
+  _spawnSeagulls() {
+    if (this.time % 200 !== 0 || Math.random() > 0.5) return;
+    const cx = Math.random() * this.W;
+    const cy = this.GY * 0.2 + Math.random() * this.GY * 0.3;
+    const count = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) {
+      this._spawn("seagull", {
+        x: cx + (Math.random() - 0.5) * 60,
+        y: cy + (Math.random() - 0.5) * 30,
+        centerX: cx,
+        centerY: cy,
+        angle: Math.random() * Math.PI * 2,
+        radius: 20 + Math.random() * 40,
+        speed: 0.008 + Math.random() * 0.006,
+        wingPhase: Math.random() * Math.PI * 2,
+        size: 4 + Math.random() * 3,
+        maxAge: 500 + Math.floor(Math.random() * 300),
+      });
+    }
+  }
+
+  _updateSeagull(p) {
+    p.angle += p.speed;
+    p.wingPhase += 0.08;
+    p.centerX += 0.15; // drift right
+    p.x = p.centerX + Math.cos(p.angle) * p.radius;
+    p.y = p.centerY + Math.sin(p.angle) * p.radius * 0.4;
+    const fade = Math.min(1, p.age / 40) * Math.max(0, 1 - (p.age - p.maxAge + 60) / 60);
+    if (p.age > p.maxAge) { p.alive = false; return; }
+
+    const { ctx } = this;
+    const wing = Math.sin(p.wingPhase) * p.size * 0.6;
+    ctx.strokeStyle = `rgba(220,220,220,${0.5 * Math.min(1, fade)})`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(p.x - p.size, p.y + wing);
+    ctx.quadraticCurveTo(p.x - p.size * 0.3, p.y - wing * 0.5, p.x, p.y);
+    ctx.quadraticCurveTo(p.x + p.size * 0.3, p.y - wing * 0.5, p.x + p.size, p.y + wing);
+    ctx.stroke();
+    // Body dot
+    ctx.fillStyle = `rgba(240,240,240,${0.4 * Math.min(1, fade)})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ─── DOLPHINS (jumping arcs) ───
+  _spawnDolphins() {
+    if (this.time % 300 !== 0 || Math.random() > 0.4) return;
+    const startX = -30 + Math.random() * this.W * 0.3;
+    const waterY = this.H - this.GY * 0.3;
+    this._spawn("dolphin", {
+      x: startX,
+      y: waterY,
+      startX: startX,
+      waterY: waterY,
+      speed: 1.5 + Math.random() * 1,
+      jumpHeight: 30 + Math.random() * 25,
+      jumpWidth: 80 + Math.random() * 40,
+      phase: 0,
+      size: 6 + Math.random() * 4,
+      maxAge: 120,
+    });
+  }
+
+  _updateDolphin(p) {
+    p.phase += 0.03;
+    const progress = p.phase / Math.PI;
+    p.x = p.startX + progress * p.jumpWidth;
+    p.y = p.waterY - Math.sin(p.phase) * p.jumpHeight;
+    if (p.phase > Math.PI) { p.alive = false; return; }
+
+    const { ctx } = this;
+    const alpha = Math.sin(p.phase) * 0.6;
+    // Body arc
+    ctx.fillStyle = `rgba(100,130,160,${alpha})`;
+    ctx.beginPath();
+    const angle = Math.atan2(-Math.cos(p.phase) * p.jumpHeight, p.jumpWidth / Math.PI);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(angle);
+    ctx.ellipse(0, 0, p.size * 1.5, p.size * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Fin
+    ctx.fillStyle = `rgba(80,110,140,${alpha})`;
+    ctx.beginPath();
+    ctx.moveTo(-p.size * 0.3, -p.size * 0.4);
+    ctx.lineTo(0, -p.size);
+    ctx.lineTo(p.size * 0.3, -p.size * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    // Splash at entry/exit
+    if (p.phase < 0.3 || p.phase > Math.PI - 0.3) {
+      ctx.fillStyle = `rgba(180,220,255,${0.3 * alpha})`;
+      for (let i = 0; i < 3; i++) {
+        const sx = p.x + (Math.random() - 0.5) * p.size * 2;
+        const sy = p.waterY + Math.random() * 5;
+        ctx.beginPath(); ctx.arc(sx, sy, 1 + Math.random() * 2, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
+  // ─── COMETS (slow streaks across sky) ───
+  _spawnComets() {
+    if (this.time % 400 !== 0 || Math.random() > 0.35) return;
+    this._spawn("comet", {
+      x: -20,
+      y: 10 + Math.random() * this.GY * 0.3,
+      speed: 1.5 + Math.random() * 2,
+      angle: -0.15 + Math.random() * 0.3,
+      size: 2 + Math.random() * 2,
+      tailLen: 30 + Math.random() * 40,
+      hue: Math.random() < 0.5 ? 30 : 200,
+      opacity: 0.3 + Math.random() * 0.3,
+      maxAge: 250,
+    });
+  }
+
+  _updateComet(p) {
+    p.x += Math.cos(p.angle) * p.speed;
+    p.y += Math.sin(p.angle) * p.speed;
+    if (p.x > this.W + 50) { p.alive = false; return; }
+    const fade = Math.min(1, p.age / 20) * Math.max(0, 1 - p.age / p.maxAge);
+    if (fade <= 0) { p.alive = false; return; }
+
+    const { ctx } = this;
+    // Tail gradient
+    const tailX = p.x - Math.cos(p.angle) * p.tailLen;
+    const tailY = p.y - Math.sin(p.angle) * p.tailLen;
+    const grad = ctx.createLinearGradient(tailX, tailY, p.x, p.y);
+    grad.addColorStop(0, "transparent");
+    grad.addColorStop(1, `hsla(${p.hue},80%,70%,${p.opacity * fade})`);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = p.size * 0.8;
+    ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(p.x, p.y); ctx.stroke();
+    // Head glow
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3);
+    g.addColorStop(0, `hsla(${p.hue},90%,85%,${p.opacity * fade * 0.5})`);
+    g.addColorStop(1, "transparent");
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x - p.size * 3, p.y - p.size * 3, p.size * 6, p.size * 6);
+    // Core
+    ctx.fillStyle = `hsla(${p.hue},60%,95%,${p.opacity * fade})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ─── DUST DEVIL (rotating column) ───
+  _drawDustDevil() {
+    const { ctx, W, H, GY } = this;
+    const t = this.time * 0.005;
+    const cx = W * 0.3 + Math.sin(t * 0.7) * W * 0.2;
+    const baseY = GY + (H - GY) * 0.6;
+
+    for (let i = 0; i < 12; i++) {
+      const yOff = i * 8;
+      const angle = t * 3 + i * 0.5;
+      const radius = 5 + i * 2 + Math.sin(t + i) * 3;
+      const px = cx + Math.cos(angle) * radius;
+      const py = baseY - yOff;
+      const alpha = 0.05 + (1 - i / 12) * 0.08;
+      ctx.fillStyle = `rgba(180,160,120,${alpha})`;
+      ctx.beginPath(); ctx.arc(px, py, 2 + i * 0.5, 0, Math.PI * 2); ctx.fill();
+    }
+    // Ground dust ring
+    ctx.strokeStyle = "rgba(180,160,120,0.06)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(cx, baseY, 15 + Math.sin(t) * 5, 5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // ─── HEAT SHIMMER (desert mirage) ───
+  _drawHeatShimmer() {
+    const { ctx, W, H, GY } = this;
+    const t = this.time * 0.01;
+    const shimmerY = GY + (H - GY) * 0.3;
+    // Distortion lines
+    ctx.strokeStyle = "rgba(255,240,200,0.03)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const yy = shimmerY + i * 12;
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 6) {
+        const dy = Math.sin(x * 0.02 + t * 2 + i) * 3;
+        if (x === 0) ctx.moveTo(x, yy + dy);
+        else ctx.lineTo(x, yy + dy);
+      }
+      ctx.stroke();
+    }
+    // Mirage glow at horizon
+    const grad = ctx.createLinearGradient(0, shimmerY - 20, 0, shimmerY + 30);
+    grad.addColorStop(0, "transparent");
+    grad.addColorStop(0.5, `rgba(255,240,200,${0.03 + Math.sin(t) * 0.01})`);
+    grad.addColorStop(1, "transparent");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, shimmerY - 20, W, 50);
+  }
+
+  // ─── FLOATING LANTERNS ───
+  _spawnLanterns() {
+    if (this.time % 120 !== 0 || Math.random() > 0.6) return;
+    this._spawn("lantern", {
+      x: W * 0.1 + Math.random() * this.W * 0.8,
+      y: this.H * 0.8,
+      speed: -(0.15 + Math.random() * 0.2),
+      drift: (Math.random() - 0.5) * 0.2,
+      size: 4 + Math.random() * 4,
+      flicker: Math.random() * Math.PI * 2,
+      hue: 20 + Math.random() * 30,
+      opacity: 0.25 + Math.random() * 0.2,
+      maxAge: 600 + Math.floor(Math.random() * 400),
+    });
+  }
+
+  _updateLantern(p, wind) {
+    p.y += p.speed;
+    p.x += p.drift + wind * 0.1 + Math.sin(p.age * 0.008) * 0.3;
+    p.flicker += 0.1;
+    const fade = Math.min(1, p.age / 80) * Math.max(0, 1 - p.age / p.maxAge);
+    if (fade <= 0 || p.y < -20) { p.alive = false; return; }
+
+    const { ctx } = this;
+    const flick = 0.8 + Math.sin(p.flicker) * 0.2;
+    const a = p.opacity * fade * flick;
+    // Outer glow
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 4);
+    g.addColorStop(0, `hsla(${p.hue},80%,60%,${a * 0.3})`);
+    g.addColorStop(0.5, `hsla(${p.hue},70%,50%,${a * 0.1})`);
+    g.addColorStop(1, "transparent");
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x - p.size * 4, p.y - p.size * 4, p.size * 8, p.size * 8);
+    // Lantern body
+    ctx.fillStyle = `hsla(${p.hue},70%,40%,${a * 0.7})`;
+    ctx.beginPath();
+    ctx.moveTo(p.x - p.size * 0.6, p.y + p.size);
+    ctx.quadraticCurveTo(p.x - p.size, p.y, p.x, p.y - p.size * 0.8);
+    ctx.quadraticCurveTo(p.x + p.size, p.y, p.x + p.size * 0.6, p.y + p.size);
+    ctx.closePath();
+    ctx.fill();
+    // Inner flame
+    ctx.fillStyle = `hsla(${p.hue},90%,70%,${a})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 0.35 * flick, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ─── WATER RIPPLES (for ocean/lagoon) ───
+  _drawRipples() {
+    const { ctx, W, H, GY } = this;
+    const t = this.time * 0.008;
+    const waterY = GY + (H - GY) * 0.4;
+    ctx.strokeStyle = "rgba(160,220,255,0.04)";
+    ctx.lineWidth = 1;
+    for (let r = 0; r < 6; r++) {
+      const rt = ((t + r * 0.8) % 3) / 3;
+      const radius = 10 + rt * 80;
+      const alpha = (1 - rt) * 0.06;
+      const cx = W * (0.2 + r * 0.12);
+      const cy = waterY + Math.sin(t + r) * 8;
+      ctx.strokeStyle = `rgba(160,220,255,${alpha})`;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, radius, radius * 0.2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 }

@@ -4,11 +4,10 @@
 export const EVENT_CHANCE = 0.30;
 
 export const EVENT_TYPES = [
-  { id: "merchant",      name: "Wędrowny Handlarz",     icon: "shop",    weight: 25, themeColor: "#d4a030", themeBorder: "#8a6a20", themeGlow: "rgba(212,160,48,0.3)" },
-  { id: "ambush",        name: "Zasadzka Bandytów",     icon: "recruit", weight: 20, themeColor: "#cc3030", themeBorder: "#6a1a1a", themeGlow: "rgba(200,40,40,0.3)" },
-  { id: "altar",         name: "Kamienny Totem",         icon: "rock",    weight: 25, themeColor: "#a050e0", themeBorder: "#4a2060", themeGlow: "rgba(160,80,224,0.3)" },
-  { id: "wounded",       name: "Ranny Rewolwerowiec",    icon: "bandage", weight: 18, themeColor: "#40e060", themeBorder: "#1a6a2a", themeGlow: "rgba(60,200,80,0.3)" },
-  { id: "cursed_chest",  name: "Przeklęta Skrzynia",     icon: "treasure",weight: 12, themeColor: "#9040c0", themeBorder: "#4a1860", themeGlow: "rgba(144,64,192,0.3)" },
+  { id: "merchant",      name: "Wędrowny Handlarz",     icon: "shop",    weight: 30, themeColor: "#d4a030", themeBorder: "#8a6a20", themeGlow: "rgba(212,160,48,0.3)" },
+  { id: "altar",         name: "Kamienny Totem",         icon: "rock",    weight: 28, themeColor: "#a050e0", themeBorder: "#4a2060", themeGlow: "rgba(160,80,224,0.3)" },
+  { id: "wounded",       name: "Ranny Rewolwerowiec",    icon: "bandage", weight: 22, themeColor: "#40e060", themeBorder: "#1a6a2a", themeGlow: "rgba(60,200,80,0.3)" },
+  { id: "cursed_chest",  name: "Przeklęta Skrzynia",     icon: "treasure",weight: 20, themeColor: "#9040c0", themeBorder: "#4a1860", themeGlow: "rgba(144,64,192,0.3)" },
 ];
 
 export const MERCHANT_ITEMS = [
@@ -60,12 +59,6 @@ export function rollRandomEvent(roomNum) {
       const count = 2 + (Math.random() < 0.4 ? 1 : 0);
       const shuffled = [...MERCHANT_ITEMS].sort(() => Math.random() - 0.5);
       event.items = shuffled.slice(0, count);
-      break;
-    }
-    case "ambush": {
-      const baseLoss = Math.min(50, 10 + roomNum * 2);
-      event.moneyLoss = { copper: baseLoss };
-      event.requiredClicks = 8 + Math.min(12, roomNum);
       break;
     }
     case "altar": {
