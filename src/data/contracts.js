@@ -190,7 +190,7 @@ export function checkContractCondition(contract, state) {
     case "no_traps":
       return !state.usedTraps;
     case "timer":
-      return (Date.now() - state.combatStartTime) < contract.timer;
+      return (state.combatDuration || Infinity) < contract.timer;
     case "headshot_count":
       return (state.headshots || 0) >= contract.target;
     case "no_caravan_dmg":

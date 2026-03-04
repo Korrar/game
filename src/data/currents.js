@@ -150,9 +150,9 @@ export function applyCurrentToProjectile(projectile, current, dt) {
 
   switch (current.id) {
     case "updraft":
-      // Reduce gravity effect on arc projectiles
-      if (projectile.vy !== undefined) {
-        projectile.vy *= current.gravityMult;
+      // Reduce the gravity increment applied each frame (not the accumulated velocity)
+      if (projectile._gravityPerFrame !== undefined) {
+        projectile._gravityPerFrame = projectile._baseGravity * current.gravityMult;
       }
       break;
 
