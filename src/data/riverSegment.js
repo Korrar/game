@@ -25,11 +25,9 @@ export function getRiverSegmentConfig(roomNumber) {
   return {
     segmentLength: 18 + difficulty * 5, // seconds to survive (~50% longer)
     shipHp: 80 + difficulty * 10,
-    shipSpeed: 4.0,
-    cannonDamage: 2,
-    cannonCooldown: 300, // ms
-    scrollSpeed: 2.0 + difficulty * 0.3,
-    obstacleSpawnRate: 800 - difficulty * 80, // ms between spawns
+    shipSpeed: 7.0, // fast lateral dodging
+    scrollSpeed: 4.5 + difficulty * 0.6, // much faster river current
+    obstacleSpawnRate: 500 - difficulty * 60, // more frequent obstacles
     difficulty,
   };
 }
