@@ -288,6 +288,66 @@ function Reel({ targetStop, spinning, reelIdx, onDone }) {
   );
 }
 
+// ─── Win Line Overlay (SVG) ───
+// Draws colored lines across the reel window for each winning pay line
+function WinLineOverlay({ winLines }) {
+  // Reel center X positions relative to SVG (matching flex layout: 3×80px reels, gap 4px, padding 12px)
+  const reelX = [52, 136, 220];
+  // Row center Y positions (CELL_H=64, padding 8px top)
+  const rowY = [40, 104, 168];
+  // SVG dimensions matching reel container
+  const svgW = 272; // 12 + 80*3 + 4*2 + 12
+  const svgH = 208; // 8 + 64*3 + 8
+
+  if (winLines.length === 0) {
+    // Show subtle guide lines when not winning
+    return (
+      <svg style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", zIndex: 5, pointerEvents: "none" }}
+        viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none">
+        {PAY_LINES.map((line, i) => {
+          if (i !== 0) return null; // Only show middle guide line
+          const points = line.rows.map((r, ri) => `${reelX[ri]},${rowY[r]}`).join(" ");
+          return <polyline key={i} points={points} fill="none" stroke="rgba(212,160,48,0.15)" strokeWidth="2" />;
+        })}
+      </svg>
+    );
+  }
+
+  return (
+    <svg style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", zIndex: 5, pointerEvents: "none" }}
+      viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none">
+      {winLines.map((wl, i) => {
+        const line = PAY_LINES[wl.lineIdx];
+        const points = line.rows.map((r, ri) => `${reelX[ri]},${rowY[r]}`).join(" ");
+        const color = line.color;
+        return (
+          <g key={i}>
+            {/* Glow */}
+            <polyline points={points} fill="none" stroke={color} strokeWidth="6" opacity="0.3"
+              filter="url(#winGlow)" />
+            {/* Main line */}
+            <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" opacity="0.9"
+              strokeLinecap="round" strokeLinejoin="round">
+              <animate attributeName="opacity" values="0.9;0.5;0.9" dur="0.8s" repeatCount="indefinite" />
+            </polyline>
+            {/* Dots at reel intersections */}
+            {line.rows.map((r, ri) => (
+              <circle key={ri} cx={reelX[ri]} cy={rowY[r]} r="4" fill={color} opacity="0.8">
+                <animate attributeName="r" values="4;6;4" dur="0.8s" repeatCount="indefinite" />
+              </circle>
+            ))}
+          </g>
+        );
+      })}
+      <defs>
+        <filter id="winGlow">
+          <feGaussianBlur stdDeviation="3" />
+        </filter>
+      </defs>
+    </svg>
+  );
+}
+
 // ─── Chase Light Border ───
 function ChaseLights({ active, win }) {
   const [frame, setFrame] = useState(0);
@@ -451,20 +511,8 @@ export default function SlotMachine({ money, totalCopper: getTotalCopper, onWin,
         position: "relative",
         boxShadow: "inset 0 0 20px rgba(0,0,0,0.8), 0 0 10px rgba(212,160,48,0.1)",
       }}>
-        {/* Win line indicator - middle */}
-        <div style={{
-          position: "absolute",
-          left: 8, right: 8,
-          top: "50%",
-          transform: "translateY(-50%)",
-          height: 2,
-          background: showWin
-            ? "linear-gradient(90deg, transparent, #ffd700, transparent)"
-            : "linear-gradient(90deg, transparent, rgba(212,160,48,0.2), transparent)",
-          zIndex: 5,
-          boxShadow: showWin ? "0 0 8px rgba(255,215,0,0.5)" : "none",
-          transition: "all 0.3s",
-        }} />
+        {/* Win line indicators - dynamic per winning pay line */}
+        <WinLineOverlay winLines={showWin && lastResult ? lastResult.winLines : []} />
 
         <Reel targetStop={reelStops[0]} spinning={spinning} reelIdx={0} onDone={handleReelDone} />
         <Reel targetStop={reelStops[1]} spinning={spinning} reelIdx={1} onDone={handleReelDone} />
