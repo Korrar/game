@@ -1,9 +1,8 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
-import { RIVER_OBSTACLES, RIVER_WAVE_PATTERNS, getRiverSegmentConfig, getRiverRewards } from "../data/riverSegment";
+import { RIVER_OBSTACLES, RIVER_WAVE_PATTERNS, SEA_CURRENTS, WEATHER_EVENTS, SEA_ENEMIES, BONUS_GATES, getRiverSegmentConfig, getRiverRewards } from "../data/riverSegment";
 import GameIcon from "./GameIcon";
 
-// Ship river mini-game: fast sailing, dodge obstacles with left/right steering
-// Ship helm wheel rotates visually. Ship stays upright, docks on water.
+// Ship river mini-game with currents, weather, enemies, wind, and bonus gates
 
 const CANVAS_W = 1280;
 const CANVAS_H = 720;
@@ -11,6 +10,7 @@ const SHIP_W = 80;
 const SHIP_H = 110;
 
 let obstacleIdCounter = 0;
+let entityIdCounter = 0;
 
 function pickObstacleType(progress) {
   const pattern = RIVER_WAVE_PATTERNS.find(p => progress >= p.minDist && progress < p.maxDist)
@@ -46,7 +46,7 @@ function getBiomeShoreColors(biome) {
   return m[id] || { ground: "#c8b070", groundDark: "#a09050", foliage: "#2a5a18", foliageDark: "#1a3a10" };
 }
 
-// ── PURE DRAWING FUNCTIONS (no React state, only parameters) ──
+// ── PURE DRAWING FUNCTIONS ──
 
 function drawBank(ctx, s, bankBase, side) {
   const isLeft = side === "left";
@@ -70,7 +70,6 @@ function drawBank(ctx, s, bankBase, side) {
   ctx.closePath();
   ctx.fill();
 
-  // Vegetation
   ctx.fillStyle = "#2a5a18";
   for (let y = -20 + (s.waterOffset % 40); y < CANVAS_H + 20; y += 40) {
     const bx = isLeft
@@ -81,7 +80,6 @@ function drawBank(ctx, s, bankBase, side) {
     ctx.fill();
   }
 
-  // Foam edge
   ctx.strokeStyle = "rgba(180,220,255,0.2)";
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -218,7 +216,6 @@ function drawObstacle(ctx, ob, time) {
     const f = ob.hitFlash > 0;
     const rng = seededRand(ob.rockSeed);
     const pts = 9;
-    // Shadow
     ctx.fillStyle = "rgba(0,15,30,0.4)";
     ctx.beginPath();
     for (let i = 0; i < pts; i++) {
@@ -230,7 +227,6 @@ function drawObstacle(ctx, ob, time) {
     }
     ctx.closePath();
     ctx.fill();
-    // Body
     const rng2 = seededRand(ob.rockSeed);
     ctx.fillStyle = f ? "#fff" : ob.id === "rock_large" ? "#4a4848" : "#5e5c5a";
     ctx.beginPath();
@@ -247,7 +243,6 @@ function drawObstacle(ctx, ob, time) {
       ctx.ellipse(-ob.width * 0.08, -ob.height * 0.1, ob.width * 0.18, ob.height * 0.12, -0.4, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Foam around base
     ctx.strokeStyle = "rgba(200,230,255,0.3)";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -261,7 +256,7 @@ function drawObstacle(ctx, ob, time) {
   }
 }
 
-function drawShip(ctx, x, y, steer, time) {
+function drawShip(ctx, x, y, steer, time, sailBillowMod) {
   ctx.save();
   ctx.translate(x, y);
   const lean = steer * 0.06;
@@ -298,7 +293,6 @@ function drawShip(ctx, x, y, steer, time) {
   ctx.closePath();
   ctx.fill();
 
-  // Hull dark accent
   ctx.strokeStyle = "#3a2010";
   ctx.lineWidth = 1.2;
   ctx.stroke();
@@ -364,8 +358,8 @@ function drawShip(ctx, x, y, steer, time) {
   ctx.fillStyle = "#3a2518";
   ctx.fillRect(-2.5, -H * 0.38, 5, H * 0.62);
 
-  // Main sail
-  const sailBillow = 5 + Math.sin(time * 1.5) * 2.5;
+  // Main sail (billow affected by wind)
+  const sailBillow = (5 + Math.sin(time * 1.5) * 2.5) * (sailBillowMod || 1);
   ctx.fillStyle = "#e8dcc8";
   ctx.beginPath();
   ctx.moveTo(-W * 0.3, -H * 0.35);
@@ -493,6 +487,415 @@ function drawHelm(ctx, angle, steerInput) {
   ctx.fillText("►", hx + r + 18, hy + 6);
 }
 
+// ── NEW DRAWING FUNCTIONS ──
+
+function drawCurrent(ctx, cur, time) {
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  const dir = cur.direction; // -1 or 1
+  // Draw flowing arrows / streaks
+  ctx.fillStyle = cur.color || "rgba(40,160,220,0.2)";
+  for (let iy = 0; iy < cur.height; iy += 18) {
+    const y = cur.y + iy;
+    if (y < -20 || y > CANVAS_H + 20) continue;
+    const xOff = Math.sin((y + time * 120 * dir) * 0.03) * 8;
+    const arrowX = cur.x + xOff + (time * 80 * dir) % cur.width - cur.width / 2;
+    // Arrow shape
+    ctx.beginPath();
+    ctx.moveTo(arrowX, y);
+    ctx.lineTo(arrowX + dir * 12, y - 4);
+    ctx.lineTo(arrowX + dir * 12, y + 4);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Stream body
+  ctx.fillStyle = cur.color || "rgba(40,160,220,0.12)";
+  ctx.beginPath();
+  for (let iy = 0; iy <= cur.height; iy += 8) {
+    const y = cur.y + iy;
+    const xOff = Math.sin((y + time * 60) * 0.04) * 10;
+    iy === 0 ? ctx.moveTo(cur.x - cur.width / 2 + xOff, y) : ctx.lineTo(cur.x - cur.width / 2 + xOff, y);
+  }
+  for (let iy = cur.height; iy >= 0; iy -= 8) {
+    const y = cur.y + iy;
+    const xOff = Math.sin((y + time * 60) * 0.04) * 10;
+    ctx.lineTo(cur.x + cur.width / 2 + xOff, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawEnemy(ctx, enemy, time) {
+  ctx.save();
+  ctx.translate(enemy.x, enemy.y);
+
+  if (enemy.behavior === "tentacle") {
+    // Kraken tentacle - wavy vertical shape
+    const phase = time * 3 + enemy.seed;
+    ctx.strokeStyle = "#2a8a5a";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(0, enemy.height * 0.5);
+    for (let t = 0; t <= 1; t += 0.05) {
+      const ty = enemy.height * 0.5 - t * enemy.height;
+      const tx = Math.sin(t * 4 + phase) * 12 * (1 - t * 0.3);
+      ctx.lineTo(tx, ty);
+    }
+    ctx.stroke();
+    // Suckers
+    ctx.fillStyle = "#1a6a3a";
+    for (let t = 0.15; t < 0.9; t += 0.2) {
+      const ty = enemy.height * 0.5 - t * enemy.height;
+      const tx = Math.sin(t * 4 + phase) * 12 * (1 - t * 0.3);
+      ctx.beginPath();
+      ctx.arc(tx + 4, ty, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Tip
+    ctx.fillStyle = "#3aaa6a";
+    const tipX = Math.sin(4 + phase) * 8;
+    ctx.beginPath();
+    ctx.arc(tipX, -enemy.height * 0.5, 5, 0, Math.PI * 2);
+    ctx.fill();
+    // Water splash at base
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = "rgba(120,200,255,0.4)";
+    for (let sp = 0; sp < 4; sp++) {
+      const sx = (Math.sin(time * 5 + sp * 1.7) * 15);
+      const sy = enemy.height * 0.5 + Math.sin(time * 4 + sp) * 3;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 4 + Math.sin(time * 3 + sp) * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  } else if (enemy.behavior === "ram") {
+    // Pirate ship - small dark vessel
+    const W = enemy.width;
+    const H = enemy.height;
+    ctx.fillStyle = "#2a1808";
+    ctx.beginPath();
+    ctx.moveTo(0, -H * 0.4);
+    ctx.bezierCurveTo(-W * 0.15, -H * 0.35, -W * 0.4, -H * 0.2, -W * 0.45, 0);
+    ctx.bezierCurveTo(-W * 0.4, H * 0.3, -W * 0.2, H * 0.45, 0, H * 0.48);
+    ctx.bezierCurveTo(W * 0.2, H * 0.45, W * 0.4, H * 0.3, W * 0.45, 0);
+    ctx.bezierCurveTo(W * 0.4, -H * 0.2, W * 0.15, -H * 0.35, 0, -H * 0.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#1a0a04";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Mast
+    ctx.fillStyle = "#1a0a04";
+    ctx.fillRect(-2, -H * 0.3, 4, H * 0.5);
+    // Black sail
+    const sb = 4 + Math.sin(time * 2) * 2;
+    ctx.fillStyle = "#1a1a1a";
+    ctx.beginPath();
+    ctx.moveTo(-W * 0.25, -H * 0.28);
+    ctx.quadraticCurveTo(0, -H * 0.1 + sb, -W * 0.22, H * 0.05);
+    ctx.lineTo(W * 0.22, H * 0.05);
+    ctx.quadraticCurveTo(0, -H * 0.1 + sb, W * 0.25, -H * 0.28);
+    ctx.closePath();
+    ctx.fill();
+    // Skull on sail
+    ctx.fillStyle = "#ccc";
+    ctx.beginPath();
+    ctx.arc(0, -H * 0.12 + sb * 0.5, 5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (enemy.behavior === "chase") {
+    // Shark - triangular fin
+    const bob = Math.sin(time * 4 + enemy.seed) * 2;
+    ctx.fillStyle = "#5a6a7a";
+    ctx.beginPath();
+    ctx.moveTo(0, -15 + bob);
+    ctx.lineTo(-8, 10 + bob);
+    ctx.lineTo(8, 10 + bob);
+    ctx.closePath();
+    ctx.fill();
+    // Dorsal fin shadow
+    ctx.fillStyle = "#4a5a6a";
+    ctx.beginPath();
+    ctx.moveTo(0, -15 + bob);
+    ctx.lineTo(-3, 5 + bob);
+    ctx.lineTo(3, 5 + bob);
+    ctx.closePath();
+    ctx.fill();
+    // Wake behind shark
+    ctx.strokeStyle = "rgba(180,220,255,0.3)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-4, 12 + bob);
+    ctx.quadraticCurveTo(-10, 22 + bob, -18, 28 + bob);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(4, 12 + bob);
+    ctx.quadraticCurveTo(10, 22 + bob, 18, 28 + bob);
+    ctx.stroke();
+  } else if (enemy.behavior === "drift") {
+    // Jellyfish swarm - cluster of translucent blobs
+    ctx.globalAlpha = 0.6;
+    const rng = seededRand(enemy.seed);
+    const count = 6;
+    for (let j = 0; j < count; j++) {
+      const jx = (rng() - 0.5) * enemy.width * 0.8;
+      const jy = (rng() - 0.5) * enemy.height * 0.6;
+      const jr = 8 + rng() * 6;
+      const pulse = Math.sin(time * 2 + j * 1.2) * 2;
+      // Bell
+      ctx.fillStyle = `rgba(140,100,200,${0.4 + rng() * 0.2})`;
+      ctx.beginPath();
+      ctx.arc(jx, jy + pulse, jr, Math.PI, 0);
+      ctx.quadraticCurveTo(jx + jr, jy + jr * 0.3 + pulse, jx, jy + jr * 0.6 + pulse);
+      ctx.quadraticCurveTo(jx - jr, jy + jr * 0.3 + pulse, jx - jr, jy + pulse);
+      ctx.fill();
+      // Tentacles
+      ctx.strokeStyle = `rgba(160,120,220,0.3)`;
+      ctx.lineWidth = 1;
+      for (let t = 0; t < 3; t++) {
+        ctx.beginPath();
+        const tx = jx + (t - 1) * 4;
+        ctx.moveTo(tx, jy + jr * 0.6 + pulse);
+        ctx.quadraticCurveTo(tx + Math.sin(time * 3 + t + j) * 5, jy + jr + 8 + pulse, tx + Math.sin(time * 2 + t) * 3, jy + jr + 16 + pulse);
+        ctx.stroke();
+      }
+      // Glow
+      ctx.fillStyle = `rgba(180,140,255,${0.15 + Math.sin(time * 2.5 + j) * 0.1})`;
+      ctx.beginPath();
+      ctx.arc(jx, jy + pulse, jr + 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
+function drawGate(ctx, gate, time) {
+  const buoyR = 10;
+  const flash = gate.flash > 0 ? gate.flash : 0;
+
+  // Left buoy
+  ctx.save();
+  ctx.translate(gate.leftX, gate.y);
+  const bob = Math.sin(time * 3 + gate.seed) * 3;
+  ctx.fillStyle = flash > 0 ? `rgba(255,215,0,${0.5 + flash * 0.5})` : "#cc3030";
+  ctx.beginPath();
+  ctx.arc(0, bob, buoyR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-buoyR, bob);
+  ctx.lineTo(buoyR, bob);
+  ctx.stroke();
+  // Flag
+  ctx.fillStyle = "#ffd700";
+  ctx.beginPath();
+  ctx.moveTo(0, bob - buoyR);
+  ctx.lineTo(0, bob - buoyR - 14);
+  ctx.lineTo(8, bob - buoyR - 10);
+  ctx.lineTo(0, bob - buoyR - 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Right buoy
+  ctx.save();
+  ctx.translate(gate.rightX, gate.y);
+  const bob2 = Math.sin(time * 3 + gate.seed + 1.5) * 3;
+  ctx.fillStyle = flash > 0 ? `rgba(255,215,0,${0.5 + flash * 0.5})` : "#3060cc";
+  ctx.beginPath();
+  ctx.arc(0, bob2, buoyR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-buoyR, bob2);
+  ctx.lineTo(buoyR, bob2);
+  ctx.stroke();
+  ctx.fillStyle = "#ffd700";
+  ctx.beginPath();
+  ctx.moveTo(0, bob2 - buoyR);
+  ctx.lineTo(0, bob2 - buoyR - 14);
+  ctx.lineTo(-8, bob2 - buoyR - 10);
+  ctx.lineTo(0, bob2 - buoyR - 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Connecting line (dashed)
+  ctx.save();
+  ctx.strokeStyle = flash > 0 ? `rgba(255,215,0,${0.3 + flash * 0.4})` : "rgba(255,200,60,0.2)";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(gate.leftX, gate.y + bob);
+  ctx.lineTo(gate.rightX, gate.y + bob2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // Combo text
+  if (gate.combo > 0 && flash > 0) {
+    ctx.save();
+    ctx.globalAlpha = flash;
+    ctx.fillStyle = "#ffd700";
+    ctx.font = "bold 18px monospace";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "#ff8800";
+    ctx.shadowBlur = 8;
+    ctx.fillText(`x${gate.combo + 1}`, (gate.leftX + gate.rightX) / 2, gate.y - 20);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+}
+
+function drawWindIndicator(ctx, windDir, windStrength, time) {
+  const ix = 85;
+  const iy = CANVAS_H - 75;
+  const r = 22;
+
+  ctx.save();
+  ctx.translate(ix, iy);
+
+  // Background
+  ctx.fillStyle = "rgba(10,5,2,0.7)";
+  ctx.beginPath();
+  ctx.arc(0, 0, r + 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#5a4030";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Compass rose
+  ctx.strokeStyle = "rgba(200,180,140,0.3)";
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * 4, Math.sin(a) * 4);
+    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    ctx.stroke();
+  }
+
+  // Wind arrow
+  const arrowAngle = windDir; // radians, 0 = right, -PI/2 = up
+  ctx.rotate(arrowAngle);
+  const arrowLen = r * 0.7 * Math.min(1, windStrength / 3);
+
+  // Arrow shaft
+  ctx.strokeStyle = "#60b8e0";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(-arrowLen * 0.3, 0);
+  ctx.lineTo(arrowLen, 0);
+  ctx.stroke();
+
+  // Arrow head
+  ctx.fillStyle = "#60b8e0";
+  ctx.beginPath();
+  ctx.moveTo(arrowLen + 4, 0);
+  ctx.lineTo(arrowLen - 4, -5);
+  ctx.lineTo(arrowLen - 4, 5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+
+  // Label
+  ctx.fillStyle = "rgba(200,180,140,0.5)";
+  ctx.font = "9px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("WIATR", ix, iy + r + 14);
+}
+
+function drawWeatherOverlay(ctx, weather, time) {
+  if (!weather) return;
+
+  if (weather.id === "fog") {
+    const fogAlpha = 0.4 * weather.intensity;
+    ctx.fillStyle = `rgba(160,180,200,${fogAlpha})`;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // Fog wisps
+    ctx.globalAlpha = fogAlpha * 0.6;
+    for (let i = 0; i < 8; i++) {
+      const fx = (i * 170 + time * 30) % (CANVAS_W + 200) - 100;
+      const fy = (i * 97 + time * 15) % CANVAS_H;
+      const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, 80 + Math.sin(time + i) * 20);
+      fg.addColorStop(0, "rgba(180,200,220,0.3)");
+      fg.addColorStop(1, "transparent");
+      ctx.fillStyle = fg;
+      ctx.fillRect(fx - 100, fy - 100, 200, 200);
+    }
+    ctx.globalAlpha = 1;
+  } else if (weather.id === "storm") {
+    // Dark overlay with rain streaks
+    ctx.fillStyle = `rgba(10,15,30,${0.15 * weather.intensity})`;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // Rain
+    ctx.strokeStyle = `rgba(150,180,220,${0.15 * weather.intensity})`;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 40; i++) {
+      const rx = (i * 37 + time * 200) % CANVAS_W;
+      const ry = (i * 53 + time * 600) % (CANVAS_H + 40) - 20;
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.lineTo(rx - 3, ry + 15);
+      ctx.stroke();
+    }
+    // Lightning flash
+    if (weather.lightning > 0) {
+      ctx.fillStyle = `rgba(200,210,255,${weather.lightning * 0.3})`;
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    }
+  } else if (weather.id === "night") {
+    // Darkness with spotlight around ship
+    ctx.fillStyle = `rgba(0,5,15,${0.7 * weather.intensity})`;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // Spotlight cutout using compositing
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    const spotR = 120 + Math.sin(time * 1.5) * 10;
+    const sg = ctx.createRadialGradient(weather.shipX, weather.shipY, 0, weather.shipX, weather.shipY, spotR);
+    sg.addColorStop(0, "rgba(0,0,0,0.9)");
+    sg.addColorStop(0.6, "rgba(0,0,0,0.5)");
+    sg.addColorStop(1, "transparent");
+    ctx.fillStyle = sg;
+    ctx.fillRect(weather.shipX - spotR, weather.shipY - spotR, spotR * 2, spotR * 2);
+    ctx.restore();
+    // Stars
+    ctx.fillStyle = "rgba(255,255,200,0.5)";
+    const starRng = seededRand(42);
+    for (let i = 0; i < 30; i++) {
+      const sx = starRng() * CANVAS_W;
+      const sy = starRng() * CANVAS_H * 0.4;
+      const twinkle = Math.sin(time * 2 + i * 1.7) > 0.5 ? 1 : 0.3;
+      ctx.globalAlpha = twinkle * 0.4 * weather.intensity;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1 + starRng() * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  } else if (weather.id === "side_wind") {
+    // Wind streaks
+    const dir = weather.windSide; // -1 or 1
+    ctx.strokeStyle = `rgba(180,200,220,${0.08 * weather.intensity})`;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 25; i++) {
+      const wx = (i * 53 + time * 200 * dir) % (CANVAS_W + 100) - 50;
+      const wy = (i * 47) % CANVAS_H;
+      ctx.beginPath();
+      ctx.moveTo(wx, wy);
+      ctx.lineTo(wx + dir * 30, wy + 2);
+      ctx.stroke();
+    }
+  }
+}
+
+// ── RENDER FRAME ──
+
 function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
@@ -559,6 +962,11 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
   }
   ctx.globalAlpha = 1;
 
+  // ── SEA CURRENTS ──
+  for (const cur of s.currents) {
+    drawCurrent(ctx, cur, s.elapsed);
+  }
+
   // ── RIVER BANKS ──
   const bankBase = 35;
   drawBank(ctx, s, bankBase, "left");
@@ -597,7 +1005,6 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
     }
     ctx.stroke();
 
-    // Trees
     const treeRng = seededRand(roomNum * 7 + 42);
     const treeCount = isDocking ? 16 : Math.floor(destAlpha * 16);
     for (let t = 0; t < treeCount; t++) {
@@ -616,7 +1023,6 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
       ctx.fill();
     }
 
-    // Biome name
     if (isDocking) {
       ctx.globalAlpha = Math.min(1, s.dockTimer / 1.0);
       ctx.fillStyle = "#ffd700";
@@ -650,12 +1056,22 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
   }
   ctx.globalAlpha = 1;
 
+  // ── BONUS GATES ──
+  for (const gate of s.gates) {
+    drawGate(ctx, gate, s.elapsed);
+  }
+
   // ── OBSTACLES ──
   for (const ob of s.obstacles) {
     ctx.save();
     ctx.translate(ob.x, ob.y);
     drawObstacle(ctx, ob, s.elapsed);
     ctx.restore();
+  }
+
+  // ── SEA ENEMIES ──
+  for (const enemy of s.enemies) {
+    drawEnemy(ctx, enemy, s.elapsed);
   }
 
   // ── PARTICLES ──
@@ -668,12 +1084,34 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
   }
   ctx.globalAlpha = 1;
 
+  // ── GATE PASS PARTICLES ──
+  for (const gp of s.gateParticles) {
+    ctx.globalAlpha = gp.life;
+    ctx.fillStyle = gp.color;
+    ctx.font = `bold ${gp.size}px monospace`;
+    ctx.textAlign = "center";
+    ctx.fillText(gp.text, gp.x, gp.y);
+  }
+  ctx.globalAlpha = 1;
+
   // ── SHIP ──
   const blink = s.invulnTimer > 0 && Math.sin(s.invulnTimer * 20) > 0;
-  if (!blink) drawShip(ctx, s.shipX, shipY, s.steerInput, s.elapsed);
+  if (!blink) drawShip(ctx, s.shipX, shipY, s.steerInput, s.elapsed, s.sailBillow);
+
+  // ── WEATHER OVERLAY (drawn over everything except HUD) ──
+  if (s.activeWeather) {
+    drawWeatherOverlay(ctx, {
+      ...s.activeWeather,
+      shipX: s.shipX,
+      shipY: shipY,
+    }, s.elapsed);
+  }
 
   // ── HELM WHEEL ──
   drawHelm(ctx, s.helmAngle, s.steerInput);
+
+  // ── WIND INDICATOR ──
+  drawWindIndicator(ctx, s.windDir, s.windStrength, s.elapsed);
 
   // ── PROGRESS BAR ──
   if (!isDocking) {
@@ -685,6 +1123,21 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
     ctx.fillStyle = pg;
     ctx.fillRect(0, 0, CANVAS_W * progress, 6);
   }
+
+  // ── WEATHER NOTICE ──
+  if (s.weatherNotice && s.weatherNotice.life > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, s.weatherNotice.life * 2);
+    ctx.fillStyle = "#ffd700";
+    ctx.font = "bold 22px monospace";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "#000";
+    ctx.shadowBlur = 6;
+    ctx.fillText(s.weatherNotice.text, CANVAS_W / 2, CANVAS_H / 2 - 60);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
 }
 
 // ── COMPONENT ──
@@ -694,12 +1147,10 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
   const stateRef = useRef(null);
   const rafRef = useRef(null);
   const [phase, setPhase] = useState("playing");
-  const [hud, setHud] = useState({ hp: 100, maxHp: 100, time: 0, maxTime: 15 });
+  const [hud, setHud] = useState({ hp: 100, maxHp: 100, time: 0, maxTime: 15, gateCombo: 0, gatesHit: 0, weatherName: null, windDir: 0 });
   const keysRef = useRef({ left: false, right: false });
   const touchRef = useRef({ active: false, x: 0 });
 
-  // Store props in refs so the game loop always accesses latest values
-  // without needing them in the useEffect dependency array
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
   const destBiomeRef = useRef(destBiome);
@@ -715,6 +1166,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
     const hpBonus = (shipUpgrades.includes("hull_1") ? 15 : 0) + (shipUpgrades.includes("hull_2") ? 30 : 0);
     const speedBonus = (shipUpgrades.includes("sails_1") ? 1.0 : 0) + (shipUpgrades.includes("sails_2") ? 1.5 : 0);
     const maxHp = cfg.shipHp + hpBonus;
+    const initWindDir = (Math.random() - 0.5) * Math.PI; // random initial wind
     stateRef.current = {
       shipX: CANVAS_W / 2,
       shipHp: maxHp,
@@ -737,11 +1189,33 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       docking: false,
       dockTimer: 0,
       dockDuration: 2.5,
+      // New systems
+      currents: [],
+      currentSpawnTimer: cfg.currentSpawnRate * 0.5,
+      enemies: [],
+      enemySpawnTimer: cfg.enemySpawnRate,
+      gates: [],
+      gateSpawnTimer: 2000, // first gate spawns sooner
+      gateCombo: 0,
+      gatesHit: 0,
+      gateParticles: [],
+      // Wind system
+      windDir: initWindDir,
+      windTargetDir: initWindDir,
+      windStrength: 1.5 + Math.random(),
+      windChangeTimer: cfg.windChangeInterval,
+      sailBillow: 1.0,
+      // Weather
+      activeWeather: null,
+      weatherTimer: cfg.weatherInterval * 0.6,
+      weatherNotice: null,
+      // Config
+      cfg,
     };
-    setHud({ hp: maxHp, maxHp, time: 0, maxTime: cfg.segmentLength });
+    setHud({ hp: maxHp, maxHp, time: 0, maxTime: cfg.segmentLength, gateCombo: 0, gatesHit: 0, weatherName: null, windDir: initWindDir });
   }, [roomNumber, shipUpgrades]);
 
-  // Keyboard: only left/right
+  // Keyboard
   useEffect(() => {
     const onKey = (e, down) => {
       const k = keysRef.current;
@@ -755,7 +1229,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
     return () => { window.removeEventListener("keydown", kd); window.removeEventListener("keyup", ku); };
   }, []);
 
-  // Touch: left half = steer left, right half = steer right
+  // Touch
   const handleTouchStart = useCallback((e) => {
     e.preventDefault();
     const t = e.touches[0];
@@ -773,12 +1247,10 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
   const handleTouchEnd = useCallback(() => { touchRef.current.active = false; }, []);
 
   // ── MAIN GAME LOOP ──
-  // All rendering happens inline via renderFrame(). All props accessed via refs.
-  // This effect only depends on roomNumber (to restart on room change).
   useEffect(() => {
     let lastTime = performance.now();
     let hudTimer = 0;
-    let alive = true; // guard against StrictMode double-invoke
+    let alive = true;
 
     const loop = (now) => {
       if (!alive) return;
@@ -812,16 +1284,34 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
           s.obstacles[i].y += s.scrollSpeed * 60 * dt;
           if (s.obstacles[i].y > CANVAS_H + 100) s.obstacles.splice(i, 1);
         }
+        for (let i = s.enemies.length - 1; i >= 0; i--) {
+          s.enemies[i].y += s.scrollSpeed * 30 * dt;
+          if (s.enemies[i].y > CANVAS_H + 100) s.enemies.splice(i, 1);
+        }
+        for (let i = s.gates.length - 1; i >= 0; i--) {
+          s.gates[i].y += s.scrollSpeed * 60 * dt;
+          if (s.gates[i].y > CANVAS_H + 60) s.gates.splice(i, 1);
+        }
+        for (let i = s.gateParticles.length - 1; i >= 0; i--) {
+          s.gateParticles[i].life -= dt;
+          s.gateParticles[i].y -= dt * 30;
+          if (s.gateParticles[i].life <= 0) s.gateParticles.splice(i, 1);
+        }
+        // Fade out weather during docking
+        if (s.activeWeather) {
+          s.activeWeather.intensity -= dt * 0.5;
+          if (s.activeWeather.intensity <= 0) s.activeWeather = null;
+        }
 
         renderFrame(canvasRef.current, s, 1.0, shoreColorsRef.current, roomNumberRef.current, destBiomeRef.current?.name);
 
         if (t >= 1) {
           s.done = true;
           setPhase("complete");
-          const rewards = getRiverRewards(roomNumberRef.current, s.shipHp, s.shipMaxHp, Math.floor(s.segmentLength * 3));
-          setHud(h => ({ ...h, hp: s.shipHp, time: s.segmentLength }));
+          const rewards = getRiverRewards(roomNumberRef.current, s.shipHp, s.shipMaxHp, Math.floor(s.segmentLength * 3), s.gatesHit);
+          setHud(h => ({ ...h, hp: s.shipHp, time: s.segmentLength, gatesHit: s.gatesHit }));
           setTimeout(() => {
-            if (alive) onCompleteRef.current({ success: true, rewards, hpRemaining: s.shipHp, maxHp: s.shipMaxHp, score: Math.floor(s.segmentLength * 3) });
+            if (alive) onCompleteRef.current({ success: true, rewards, hpRemaining: s.shipHp, maxHp: s.shipMaxHp, score: Math.floor(s.segmentLength * 3), gatesHit: s.gatesHit });
           }, 1500);
         }
         rafRef.current = requestAnimationFrame(loop);
@@ -856,11 +1346,87 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       }
 
       s.steerInput = steer;
-      const spd = s.shipSpeed * 60 * dt;
-      s.shipX += steer * spd;
+      let spd = s.shipSpeed * 60 * dt;
+
+      // ── WIND SYSTEM ──
+      s.windChangeTimer -= dt;
+      if (s.windChangeTimer <= 0) {
+        s.windTargetDir = (Math.random() - 0.5) * Math.PI;
+        s.windStrength = 1.0 + Math.random() * 2.0;
+        s.windChangeTimer = s.cfg.windChangeInterval * (0.7 + Math.random() * 0.6);
+      }
+      // Smooth wind direction change
+      const windDiff = s.windTargetDir - s.windDir;
+      s.windDir += windDiff * dt * 0.5;
+      // Wind effect on ship speed: tailwind (wind from behind = -PI/2) speeds up, headwind slows down
+      const windAlignForward = -Math.sin(s.windDir); // positive when wind pushes forward (down screen = travel direction)
+      const windSpeedMod = 1 + windAlignForward * s.windStrength * 0.08;
+      // Wind sideways push
+      const windSideForce = Math.cos(s.windDir) * s.windStrength * 0.4 * dt;
+      s.shipX += windSideForce;
+      // Sail billow based on wind
+      s.sailBillow = 0.5 + Math.abs(windAlignForward) * s.windStrength * 0.3;
+
+      // Apply steering with wind modifier
+      s.shipX += steer * spd * windSpeedMod;
 
       const targetHelm = steer * 0.8;
       s.helmAngle += (targetHelm - s.helmAngle) * 0.15;
+
+      // ── WEATHER SYSTEM ──
+      s.weatherTimer -= dt;
+      if (!s.activeWeather && s.weatherTimer <= 0 && progress < 0.85) {
+        // Try to spawn weather
+        const eligible = WEATHER_EVENTS.filter(w => progress >= w.minProgress && Math.random() < w.chance);
+        if (eligible.length > 0) {
+          const chosen = eligible[Math.floor(Math.random() * eligible.length)];
+          const dur = chosen.duration[0] + Math.random() * (chosen.duration[1] - chosen.duration[0]);
+          s.activeWeather = {
+            id: chosen.id,
+            name: chosen.name,
+            remaining: dur,
+            intensity: 0, // ramps up
+            windSide: Math.random() > 0.5 ? 1 : -1,
+            lightning: 0,
+            stormShake: 0,
+          };
+          s.weatherNotice = { text: chosen.name + "!", life: 2.0 };
+        }
+        s.weatherTimer = s.cfg.weatherInterval * (0.8 + Math.random() * 0.4);
+      }
+
+      if (s.activeWeather) {
+        const w = s.activeWeather;
+        w.remaining -= dt;
+        // Ramp intensity up/down
+        if (w.remaining > 1.5) {
+          w.intensity = Math.min(1, w.intensity + dt * 0.8);
+        } else {
+          w.intensity = Math.max(0, w.remaining / 1.5);
+        }
+
+        if (w.id === "storm") {
+          // Random shake
+          w.stormShake = (Math.random() - 0.5) * 2 * w.intensity;
+          s.shipX += w.stormShake;
+          // Rare lightning
+          if (Math.random() < 0.005 * w.intensity) w.lightning = 1;
+          if (w.lightning > 0) w.lightning -= dt * 4;
+        } else if (w.id === "side_wind") {
+          // Strong side push
+          s.shipX += w.windSide * 1.8 * w.intensity * dt * 60;
+        }
+
+        if (w.remaining <= 0) {
+          s.activeWeather = null;
+        }
+      }
+
+      // Weather notice fade
+      if (s.weatherNotice) {
+        s.weatherNotice.life -= dt;
+        if (s.weatherNotice.life <= 0) s.weatherNotice = null;
+      }
 
       const margin = SHIP_W / 2 + 50;
       s.shipX = Math.max(margin, Math.min(CANVAS_W - margin, s.shipX));
@@ -880,6 +1446,205 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         s.wakes[i].life -= dt * 0.8;
         s.wakes[i].size += dt * 10;
         if (s.wakes[i].life <= 0) s.wakes.splice(i, 1);
+      }
+
+      // ── SPAWN SEA CURRENTS ──
+      s.currentSpawnTimer -= dt * 1000;
+      if (s.currentSpawnTimer <= 0 && progress < 0.9) {
+        const template = SEA_CURRENTS[Math.floor(Math.random() * SEA_CURRENTS.length)];
+        const dir = Math.random() > 0.5 ? 1 : -1;
+        s.currents.push({
+          x: margin + Math.random() * (CANVAS_W - margin * 2),
+          y: -200,
+          width: template.width,
+          height: 200 + Math.random() * 200,
+          strength: template.strength,
+          direction: dir,
+          color: template.color,
+          life: template.duration[0] + Math.random() * (template.duration[1] - template.duration[0]),
+        });
+        s.currentSpawnTimer = s.cfg.currentSpawnRate * (0.7 + Math.random() * 0.6);
+      }
+
+      // Update currents
+      const shipY = CANVAS_H - 90;
+      for (let i = s.currents.length - 1; i >= 0; i--) {
+        const cur = s.currents[i];
+        cur.y += s.scrollSpeed * 60 * dt;
+        cur.life -= dt;
+        if (cur.life <= 0 || cur.y > CANVAS_H + 300) {
+          s.currents.splice(i, 1);
+          continue;
+        }
+        // Ship inside current?
+        if (s.shipX > cur.x - cur.width / 2 && s.shipX < cur.x + cur.width / 2 &&
+            shipY > cur.y && shipY < cur.y + cur.height) {
+          s.shipX += cur.direction * cur.strength * 60 * dt;
+        }
+      }
+
+      // ── SPAWN ENEMIES ──
+      s.enemySpawnTimer -= dt * 1000;
+      if (s.enemySpawnTimer <= 0 && progress < 0.88) {
+        const eligible = SEA_ENEMIES.filter(e => progress >= e.minProgress && Math.random() < e.spawnChance);
+        if (eligible.length > 0) {
+          const template = eligible[Math.floor(Math.random() * eligible.length)];
+          const enemy = {
+            ...template,
+            uid: ++entityIdCounter,
+            x: margin + Math.random() * (CANVAS_W - margin * 2),
+            y: -template.height - 20,
+            seed: Math.floor(Math.random() * 10000),
+            hitFlash: 0,
+            lifetime: 0,
+            vx: 0,
+            vy: 0,
+          };
+          if (template.behavior === "ram") {
+            enemy.x = Math.random() > 0.5 ? margin : CANVAS_W - margin;
+            enemy.vx = enemy.x < CANVAS_W / 2 ? template.speed : -template.speed;
+          }
+          if (template.behavior === "tentacle") {
+            enemy.emergeTimer = 0.8;
+            enemy.emerged = false;
+          }
+          s.enemies.push(enemy);
+        }
+        s.enemySpawnTimer = s.cfg.enemySpawnRate * (0.6 + Math.random() * 0.8);
+      }
+
+      // Update enemies
+      for (let i = s.enemies.length - 1; i >= 0; i--) {
+        const e = s.enemies[i];
+        e.lifetime += dt;
+        if (e.hitFlash > 0) e.hitFlash -= dt * 5;
+
+        if (e.behavior === "tentacle") {
+          e.y += s.scrollSpeed * 60 * dt;
+          if (e.emergeTimer > 0) {
+            e.emergeTimer -= dt;
+          }
+          if (e.lifetime > 6) { e.y += 100 * dt; } // sink after time
+        } else if (e.behavior === "ram") {
+          e.y += s.scrollSpeed * 40 * dt;
+          e.x += e.vx * 60 * dt;
+        } else if (e.behavior === "chase") {
+          e.y += s.scrollSpeed * 50 * dt;
+          // Slowly home toward ship
+          const dx = s.shipX - e.x;
+          e.x += Math.sign(dx) * Math.min(Math.abs(dx), e.speed * 30 * dt);
+        } else if (e.behavior === "drift") {
+          e.y += s.scrollSpeed * 55 * dt;
+        }
+
+        // Off-screen removal
+        if (e.y > CANVAS_H + 100 || e.x < -100 || e.x > CANVAS_W + 100) {
+          s.enemies.splice(i, 1);
+          continue;
+        }
+
+        // Collision with ship
+        if (s.invulnTimer <= 0) {
+          const dx = e.x - s.shipX;
+          const dy = e.y - shipY;
+          let collideR;
+          if (e.behavior === "drift") {
+            collideR = (e.width * 0.3 + SHIP_W * 0.3);
+          } else if (e.behavior === "tentacle") {
+            collideR = 25;
+          } else {
+            collideR = (e.width * 0.3 + SHIP_W * 0.3);
+          }
+          if (dx * dx + dy * dy < collideR * collideR && e.damage > 0) {
+            s.shipHp -= e.damage;
+            s.invulnTimer = 0.6;
+            for (let p = 0; p < 10; p++) {
+              s.particles.push({
+                x: s.shipX + (Math.random() - 0.5) * 40,
+                y: shipY + (Math.random() - 0.5) * 30,
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4,
+                life: 0.4 + Math.random() * 0.3,
+                color: e.behavior === "chase" ? "#cc3030" : e.behavior === "drift" ? "#aa60dd" : "#8ac8ff",
+                size: 3 + Math.random() * 4,
+              });
+            }
+            if (e.behavior === "tentacle" || e.behavior === "ram") {
+              s.enemies.splice(i, 1);
+              continue;
+            }
+            if (s.shipHp <= 0) {
+              s.shipHp = 0; s.done = true;
+              setPhase("failed");
+              setHud(h => ({ ...h, hp: 0, time: s.elapsed }));
+              setTimeout(() => {
+                if (alive) onCompleteRef.current({ success: false, rewards: { copper: Math.floor(s.elapsed * 1.5) }, hpRemaining: 0, maxHp: s.shipMaxHp, score: 0, gatesHit: s.gatesHit });
+              }, 2000);
+              return;
+            }
+          }
+        }
+      }
+
+      // ── SPAWN BONUS GATES ──
+      s.gateSpawnTimer -= dt * 1000;
+      if (s.gateSpawnTimer <= 0 && progress > 0.05 && progress < 0.9) {
+        const isNarrow = Math.random() < 0.3;
+        const gateW = isNarrow ? BONUS_GATES.narrowWidth : BONUS_GATES.baseWidth;
+        const centerX = margin + gateW / 2 + Math.random() * (CANVAS_W - margin * 2 - gateW);
+        s.gates.push({
+          leftX: centerX - gateW / 2,
+          rightX: centerX + gateW / 2,
+          y: -30,
+          passed: false,
+          flash: 0,
+          combo: s.gateCombo,
+          seed: Math.floor(Math.random() * 10000),
+        });
+        s.gateSpawnTimer = (BONUS_GATES.spawnInterval[0] + Math.random() * (BONUS_GATES.spawnInterval[1] - BONUS_GATES.spawnInterval[0])) * 1000;
+      }
+
+      // Update gates
+      for (let i = s.gates.length - 1; i >= 0; i--) {
+        const gate = s.gates[i];
+        gate.y += s.scrollSpeed * 60 * dt;
+        if (gate.flash > 0) gate.flash -= dt * 2;
+
+        // Check if ship passed through gate
+        if (!gate.passed && gate.y > shipY - 10 && gate.y < shipY + 20) {
+          if (s.shipX > gate.leftX && s.shipX < gate.rightX) {
+            // Success!
+            gate.passed = true;
+            gate.flash = 1.5;
+            s.gateCombo = Math.min(BONUS_GATES.maxCombo, s.gateCombo + 1);
+            s.gatesHit++;
+            // Reward
+            const mult = 1 + s.gateCombo * BONUS_GATES.comboMultiplier;
+            s.shipHp = Math.min(s.shipMaxHp, s.shipHp + BONUS_GATES.rewards.hp);
+            // Gate pass particle
+            s.gateParticles.push({
+              x: (gate.leftX + gate.rightX) / 2,
+              y: gate.y - 10,
+              text: s.gateCombo > 1 ? `+${Math.round(BONUS_GATES.rewards.score * mult)} ★x${s.gateCombo}` : `+${BONUS_GATES.rewards.score}`,
+              color: "#ffd700",
+              size: 16 + Math.min(s.gateCombo * 2, 8),
+              life: 1.5,
+            });
+          } else if (gate.y > shipY + 15) {
+            // Missed gate
+            gate.passed = true;
+            s.gateCombo = 0;
+          }
+        }
+
+        if (gate.y > CANVAS_H + 60) { s.gates.splice(i, 1); }
+      }
+
+      // Update gate particles
+      for (let i = s.gateParticles.length - 1; i >= 0; i--) {
+        s.gateParticles[i].life -= dt;
+        s.gateParticles[i].y -= dt * 30;
+        if (s.gateParticles[i].life <= 0) s.gateParticles.splice(i, 1);
       }
 
       // Spawn obstacles
@@ -903,7 +1668,6 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
 
       // Update obstacles
       const scrollDy = s.scrollSpeed * 60 * dt;
-      const shipY = CANVAS_H - 90;
       for (let i = s.obstacles.length - 1; i >= 0; i--) {
         const ob = s.obstacles[i];
         ob.y += scrollDy;
@@ -946,7 +1710,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
               setPhase("failed");
               setHud(h => ({ ...h, hp: 0, time: s.elapsed }));
               setTimeout(() => {
-                if (alive) onCompleteRef.current({ success: false, rewards: { copper: Math.floor(s.elapsed * 1.5) }, hpRemaining: 0, maxHp: s.shipMaxHp, score: 0 });
+                if (alive) onCompleteRef.current({ success: false, rewards: { copper: Math.floor(s.elapsed * 1.5) }, hpRemaining: 0, maxHp: s.shipMaxHp, score: 0, gatesHit: s.gatesHit });
               }, 2000);
               return;
             }
@@ -965,11 +1729,17 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         if (p.life <= 0) s.particles.splice(i, 1);
       }
 
-      // Throttle HUD updates to ~6 per second instead of every frame
+      // Throttle HUD updates
       hudTimer += dt;
       if (hudTimer > 0.15) {
         hudTimer = 0;
-        setHud({ hp: s.shipHp, maxHp: s.shipMaxHp, time: Math.round(s.elapsed), maxTime: s.segmentLength });
+        setHud({
+          hp: s.shipHp, maxHp: s.shipMaxHp,
+          time: Math.round(s.elapsed), maxTime: s.segmentLength,
+          gateCombo: s.gateCombo, gatesHit: s.gatesHit,
+          weatherName: s.activeWeather ? s.activeWeather.name : null,
+          windDir: s.windDir,
+        });
       }
 
       renderFrame(canvasRef.current, s, progress, shoreColorsRef.current, roomNumberRef.current, destBiomeRef.current?.name);
@@ -986,7 +1756,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
   // ── RESULT SCREEN ──
   if (phase === "complete" || phase === "failed") {
     const rewards = phase === "complete"
-      ? getRiverRewards(roomNumber, hud.hp, hud.maxHp, Math.floor(hud.maxTime * 3))
+      ? getRiverRewards(roomNumber, hud.hp, hud.maxHp, Math.floor(hud.maxTime * 3), hud.gatesHit)
       : { copper: Math.floor(hud.time * 1.5), bonusText: "Statek zatonął..." };
     return (
       <div style={{
@@ -1017,6 +1787,11 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
               <GameIcon name="coin" size={16} /> Srebro: +{rewards.silver}
             </div>
           )}
+          {hud.gatesHit > 0 && (
+            <div style={{ fontSize: 14, color: "#ffd700", marginTop: 6 }}>
+              <GameIcon name="flag" size={14} /> Bramki: {hud.gatesHit}
+            </div>
+          )}
           <div style={{ fontSize: 13, color: "#8a7a6a", marginTop: 8 }}>
             HP: {hud.hp}/{hud.maxHp}
           </div>
@@ -1043,7 +1818,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       {phase === "playing" && (
         <div style={{
           position: "absolute", top: 10, left: 0, right: 0,
-          display: "flex", justifyContent: "center", gap: 20,
+          display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap",
           fontFamily: "monospace", fontSize: isMobile ? 11 : 14,
           color: "#d8c8a8", textShadow: "1px 1px 0 #000",
           pointerEvents: "none", zIndex: 10,
@@ -1069,6 +1844,26 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
             <GameIcon name="hourglass" size={14} />
             <span>{hud.time}s / {hud.maxTime}s</span>
           </div>
+          {hud.gateCombo > 0 && (
+            <div style={{
+              background: "rgba(10,5,2,0.8)", border: "1px solid #8a6a20",
+              padding: "4px 12px", display: "flex", alignItems: "center", gap: 6,
+              color: "#ffd700",
+            }}>
+              <GameIcon name="flag" size={14} />
+              <span>x{hud.gateCombo}</span>
+            </div>
+          )}
+          {hud.weatherName && (
+            <div style={{
+              background: "rgba(10,5,2,0.8)", border: "1px solid #4a6080",
+              padding: "4px 12px", display: "flex", alignItems: "center", gap: 6,
+              color: "#80b8e0",
+            }}>
+              <GameIcon name="water" size={14} />
+              <span>{hud.weatherName}</span>
+            </div>
+          )}
           {destBiome && (
             <div style={{
               background: "rgba(10,5,2,0.8)", border: "1px solid #5a4030",
