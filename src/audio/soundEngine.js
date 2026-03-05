@@ -9,6 +9,8 @@ let musicPlaying = false;
 let muted = false;
 let currentBiomeId = null;
 let currentNight = false;
+let currentWeather = null;
+let currentRiver = false;
 let chimeTimer = null;
 let reverbNode = null; // ConvolverNode for spatial depth
 let musicBus = null; // stereo bus before musicGain
@@ -768,8 +770,244 @@ function createCreakLayer(cfg) {
 
 let percTimer = null;
 
+// ─── RAIN LAYER — continuous rain sound with varying intensity ───
+function createRainLayer(intensity) {
+  // intensity: 0.0-1.0 (light drizzle to heavy downpour)
+  const c = getCtx();
+  const vol = 0.06 + intensity * 0.08;
+
+  // Main rain body — filtered white noise
+  const noise = c.createBufferSource();
+  noise.buffer = _makeNoiseBuf(3);
+  noise.loop = true;
+  const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 1000; hp.Q.value = 0.3;
+  const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 6000 + intensity * 2000;
+  const g = c.createGain(); g.gain.value = vol;
+
+  // Rain patter intensity modulation — subtle gusts
+  const lfo = c.createOscillator(); lfo.type = "sine";
+  lfo.frequency.value = 0.08 + Math.random() * 0.04;
+  const lfoG = c.createGain(); lfoG.gain.value = vol * 0.3;
+  lfo.connect(lfoG); lfoG.connect(g.gain);
+
+  // Secondary layer — heavier drops (low frequency component)
+  const drops = c.createBufferSource();
+  drops.buffer = _makeNoiseBuf(2);
+  drops.loop = true;
+  const dropBP = c.createBiquadFilter(); dropBP.type = "bandpass"; dropBP.frequency.value = 400; dropBP.Q.value = 0.5;
+  const dropG = c.createGain(); dropG.gain.value = vol * 0.4 * intensity;
+
+  // Stereo spread — rain comes from everywhere
+  const panner = c.createStereoPanner();
+  const panLfo = c.createOscillator(); panLfo.type = "sine";
+  panLfo.frequency.value = 0.03;
+  const panG = c.createGain(); panG.gain.value = 0.3;
+  panLfo.connect(panG); panG.connect(panner.pan);
+
+  noise.connect(hp); hp.connect(lp); lp.connect(g); g.connect(panner);
+  drops.connect(dropBP); dropBP.connect(dropG); dropG.connect(panner);
+  panner.connect(musicGain);
+  noise.start(); drops.start(); lfo.start(); panLfo.start();
+
+  return { noise, hp, lp, g, lfo, lfoG, drops, dropBP, dropG, panner, panLfo, panG };
+}
+
+// ─── STORM LAYER — thunder rumbles on top of rain ───
+let thunderTimer = null;
+function createStormLayer() {
+  const c = getCtx();
+  let stopped = false;
+
+  // Rain layer with high intensity
+  const rain = createRainLayer(1.0);
+
+  // Scheduled thunder rumbles
+  const playThunder = () => {
+    if (stopped || !musicPlaying || muted) return;
+    const now = c.currentTime;
+    const pan = (Math.random() - 0.5) * 1.6;
+    const panner = c.createStereoPanner(); panner.pan.value = pan;
+    panner.connect(musicGain);
+
+    // Thunder crack — sharp noise burst
+    const crackLen = Math.floor(c.sampleRate * 0.05);
+    const crackBuf = c.createBuffer(1, crackLen, c.sampleRate);
+    const crackD = crackBuf.getChannelData(0);
+    for (let i = 0; i < crackLen; i++) crackD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / crackLen, 0.3);
+    const crack = c.createBufferSource(); crack.buffer = crackBuf;
+    const crackG = c.createGain();
+    crackG.gain.setValueAtTime(0.08, now);
+    crackG.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    crack.connect(crackG); crackG.connect(panner); crack.start(now);
+
+    // Thunder rumble — low frequency noise with long tail
+    const rumbleLen = Math.floor(c.sampleRate * 2.5);
+    const rumbleBuf = c.createBuffer(1, rumbleLen, c.sampleRate);
+    const rumbleD = rumbleBuf.getChannelData(0);
+    for (let i = 0; i < rumbleLen; i++) {
+      const t = i / rumbleLen;
+      rumbleD[i] = (Math.random() * 2 - 1) * (t < 0.05 ? t / 0.05 : Math.pow(1 - (t - 0.05) / 0.95, 1.5));
+    }
+    const rumble = c.createBufferSource(); rumble.buffer = rumbleBuf;
+    const rumbleLp = c.createBiquadFilter(); rumbleLp.type = "lowpass"; rumbleLp.frequency.value = 150;
+    const rumbleG = c.createGain();
+    rumbleG.gain.setValueAtTime(0.10, now + 0.02);
+    rumbleG.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+    rumble.connect(rumbleLp); rumbleLp.connect(rumbleG); rumbleG.connect(panner);
+    rumble.start(now + 0.02);
+
+    // Next thunder in 4-12 seconds
+    thunderTimer = setTimeout(playThunder, 4000 + Math.random() * 8000);
+  };
+
+  thunderTimer = setTimeout(playThunder, 1000 + Math.random() * 3000);
+
+  return {
+    _sub: rain ? [rain] : [],
+    stop: () => { stopped = true; if (thunderTimer) { clearTimeout(thunderTimer); thunderTimer = null; } },
+    disconnect: () => { stopped = true; },
+  };
+}
+
+// ─── GALE LAYER — strong howling wind gusts ───
+function createGaleLayer() {
+  const c = getCtx();
+
+  // Heavy wind body
+  const noise = c.createBufferSource();
+  noise.buffer = _makeNoiseBuf(3);
+  noise.loop = true;
+  const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 500; bp.Q.value = 0.4;
+  const g = c.createGain(); g.gain.value = 0.09;
+
+  // Gusting modulation
+  const lfo = c.createOscillator(); lfo.type = "sine";
+  lfo.frequency.value = 0.12 + Math.random() * 0.06;
+  const lfoG = c.createGain(); lfoG.gain.value = 0.06;
+  lfo.connect(lfoG); lfoG.connect(g.gain);
+
+  // High whistle — wind through gaps
+  const whistle = c.createOscillator(); whistle.type = "sine";
+  whistle.frequency.value = 1800 + Math.random() * 500;
+  const wBp = c.createBiquadFilter(); wBp.type = "bandpass"; wBp.frequency.value = 2000; wBp.Q.value = 8;
+  const wG = c.createGain(); wG.gain.value = 0.02;
+  const wLfo = c.createOscillator(); wLfo.type = "sine";
+  wLfo.frequency.value = 0.08;
+  const wLfoG = c.createGain(); wLfoG.gain.value = 0.015;
+  wLfo.connect(wLfoG); wLfoG.connect(wG.gain);
+
+  // Rapid panning — wind direction shifts
+  const panner = c.createStereoPanner();
+  const panLfo = c.createOscillator(); panLfo.type = "sine";
+  panLfo.frequency.value = 0.15;
+  const panG = c.createGain(); panG.gain.value = 0.7;
+  panLfo.connect(panG); panG.connect(panner.pan);
+
+  noise.connect(bp); bp.connect(g); g.connect(panner);
+  whistle.connect(wBp); wBp.connect(wG); wG.connect(panner);
+  panner.connect(musicGain);
+  noise.start(); lfo.start(); whistle.start(); wLfo.start(); panLfo.start();
+
+  return { noise, bp, g, lfo, lfoG, whistle, wBp, wG, wLfo, wLfoG, panner, panLfo, panG };
+}
+
+// ─── RIVER SEGMENT — sailing/water ambient ───
+function _createRiverNodes() {
+  // River flowing water
+  const c = getCtx();
+  const water = c.createBufferSource();
+  water.buffer = _makeNoiseBuf(4);
+  water.loop = true;
+  const waterBp = c.createBiquadFilter(); waterBp.type = "bandpass"; waterBp.frequency.value = 600; waterBp.Q.value = 0.4;
+  const waterG = c.createGain(); waterG.gain.value = 0.08;
+  const waterLfo = c.createOscillator(); waterLfo.type = "sine";
+  waterLfo.frequency.value = 0.15;
+  const waterLfoG = c.createGain(); waterLfoG.gain.value = 0.04;
+  waterLfo.connect(waterLfoG); waterLfoG.connect(waterG.gain);
+
+  // Splashing — random waves hitting hull
+  const splash = c.createBufferSource();
+  splash.buffer = _makeNoiseBuf(3);
+  splash.loop = true;
+  const splashHp = c.createBiquadFilter(); splashHp.type = "highpass"; splashHp.frequency.value = 1500;
+  const splashLp = c.createBiquadFilter(); splashLp.type = "lowpass"; splashLp.frequency.value = 4000;
+  const splashG = c.createGain(); splashG.gain.value = 0.03;
+  const splashLfo = c.createOscillator(); splashLfo.type = "sine";
+  splashLfo.frequency.value = 0.2 + Math.random() * 0.1;
+  const splashLfoG = c.createGain(); splashLfoG.gain.value = 0.025;
+  splashLfo.connect(splashLfoG); splashLfoG.connect(splashG.gain);
+
+  // Deep water rumble
+  const rumbleOsc = c.createOscillator(); rumbleOsc.type = "sine";
+  rumbleOsc.frequency.value = 50;
+  const rumbleOsc2 = c.createOscillator(); rumbleOsc2.type = "triangle";
+  rumbleOsc2.frequency.value = 65;
+  const rumbleLp = c.createBiquadFilter(); rumbleLp.type = "lowpass"; rumbleLp.frequency.value = 100;
+  const rumbleG = c.createGain(); rumbleG.gain.value = 0.04;
+  const rumbleLfo = c.createOscillator(); rumbleLfo.type = "sine";
+  rumbleLfo.frequency.value = 0.03;
+  const rumbleLfoG = c.createGain(); rumbleLfoG.gain.value = 0.02;
+  rumbleLfo.connect(rumbleLfoG); rumbleLfoG.connect(rumbleG.gain);
+
+  // Wind over water
+  const windNode = createWindLayer({ vol: 0.05, freq: 350, q: 0.5, lfoRate: 0.015 }, false);
+
+  // Creaking ship wood
+  const creakNode = createCreakLayer({ vol: 0.03, interval: [3000, 8000], chance: 0.5 });
+
+  // Seagull cries
+  const gullNode = createCreatureLayer({ type: "seagulls", vol: 0.03, interval: [5000, 12000], chance: 0.35 }, "gulls");
+
+  // Stereo panning for water
+  const panner = c.createStereoPanner();
+  const panLfo = c.createOscillator(); panLfo.type = "sine";
+  panLfo.frequency.value = 0.06;
+  const panG = c.createGain(); panG.gain.value = 0.4;
+  panLfo.connect(panG); panG.connect(panner.pan);
+
+  water.connect(waterBp); waterBp.connect(waterG); waterG.connect(panner);
+  splash.connect(splashHp); splashHp.connect(splashLp); splashLp.connect(splashG); splashG.connect(panner);
+  rumbleOsc.connect(rumbleLp); rumbleOsc2.connect(rumbleLp); rumbleLp.connect(rumbleG); rumbleG.connect(panner);
+  panner.connect(musicGain);
+  water.start(); splash.start(); rumbleOsc.start(); rumbleOsc2.start();
+  waterLfo.start(); splashLfo.start(); rumbleLfo.start(); panLfo.start();
+
+  musicNodes.push({ water, waterBp, waterG, waterLfo, waterLfoG, splash, splashHp, splashLp, splashG, splashLfo, splashLfoG, rumbleOsc, rumbleOsc2, rumbleLp, rumbleG, rumbleLfo, rumbleLfoG, panner, panLfo, panG });
+  if (windNode) musicNodes.push(windNode);
+  if (creakNode) musicNodes.push(creakNode);
+  if (gullNode) musicNodes.push(gullNode);
+}
+
+// ─── ADD WEATHER LAYERS on top of biome ambience ───
+function _addWeatherNodes(weatherId) {
+  if (!weatherId) return;
+  switch (weatherId) {
+    case "rain": {
+      const node = createRainLayer(0.8);
+      if (node) musicNodes.push(node);
+      break;
+    }
+    case "storm": {
+      const node = createStormLayer();
+      if (node) musicNodes.push(node);
+      break;
+    }
+    case "gale": {
+      const node = createGaleLayer();
+      if (node) musicNodes.push(node);
+      break;
+    }
+    case "fog": {
+      // Fog: eerie low drone + muffled ambience feel (no extra rain)
+      const node = createRumbleLayer({ vol: 0.03, freq: 60, lfoRate: 0.005 }, false);
+      if (node) musicNodes.push(node);
+      break;
+    }
+  }
+}
+
 // ─── CREATE ALL BIOME AMBIENT NODES (main orchestrator) ───
-function _createBiomeNodes(biomeId, isNight) {
+function _createBiomeNodes(biomeId, isNight, weatherId) {
   const cfg = BIOME_AMBIENCE[biomeId];
   if (!cfg) return;
 
@@ -813,6 +1051,9 @@ function _createBiomeNodes(biomeId, isNight) {
 
   // Wood creaking
   if (cfg.creak) musicNodes.push(createCreakLayer(cfg.creak));
+
+  // Weather overlay (rain, storm, gale, fog)
+  _addWeatherNodes(weatherId);
 }
 
 // ─── STOP ALL AMBIENT NODES ───
@@ -859,21 +1100,22 @@ export function stopMusic() {
   _stopAllNodes();
   currentBiomeId = null;
   currentNight = false;
+  currentWeather = null;
+  currentRiver = false;
+  if (thunderTimer) { clearTimeout(thunderTimer); thunderTimer = null; }
 }
 
-export function changeBiomeMusic(biomeId, isNight) {
-  if (!musicPlaying) return;
-  if (biomeId === currentBiomeId && isNight === currentNight) return;
-
+// Helper to tear down old nodes with crossfade
+function _crossfadeTo(createFn) {
   const c = getCtx();
   const now = c.currentTime;
 
   if (musicNodes.length > 0) {
-    // Crossfade: fade out old, swap to new
     musicGain.gain.setTargetAtTime(0, now, 0.25);
     const oldNodes = [...musicNodes];
     musicNodes = [];
     if (chimeTimer) { clearTimeout(chimeTimer); chimeTimer = null; }
+    if (thunderTimer) { clearTimeout(thunderTimer); thunderTimer = null; }
     creatureTimers.forEach(t => clearTimeout(t));
     creatureTimers = [];
 
@@ -897,15 +1139,48 @@ export function changeBiomeMusic(biomeId, isNight) {
           if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch (_) {}
         });
       });
-      currentBiomeId = biomeId;
-      currentNight = isNight;
-      _createBiomeNodes(biomeId, isNight);
+      createFn();
       musicGain.gain.setTargetAtTime(0.55, c.currentTime, 0.35);
-    }, 600); // slightly longer crossfade for smoother transition
+    }, 600);
   } else {
+    createFn();
+  }
+}
+
+export function changeBiomeMusic(biomeId, isNight, weatherId) {
+  if (!musicPlaying) return;
+  const wId = weatherId || null;
+  if (biomeId === currentBiomeId && isNight === currentNight && wId === currentWeather && !currentRiver) return;
+
+  currentRiver = false;
+  _crossfadeTo(() => {
     currentBiomeId = biomeId;
     currentNight = isNight;
-    _createBiomeNodes(biomeId, isNight);
+    currentWeather = wId;
+    _createBiomeNodes(biomeId, isNight, wId);
+  });
+}
+
+// Start river/sailing ambient soundscape (replaces biome ambience during river segment)
+export function startRiverAmbience() {
+  if (!musicPlaying) return;
+  if (currentRiver) return;
+  currentRiver = true;
+
+  _crossfadeTo(() => {
+    _createRiverNodes();
+  });
+}
+
+// Stop river ambience and restore biome sounds
+export function stopRiverAmbience() {
+  if (!currentRiver) return;
+  currentRiver = false;
+  // Re-create biome ambience
+  if (currentBiomeId) {
+    _crossfadeTo(() => {
+      _createBiomeNodes(currentBiomeId, currentNight, currentWeather);
+    });
   }
 }
 

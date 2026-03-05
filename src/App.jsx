@@ -20,7 +20,7 @@ import { PhysicsWorld } from "./physics/RapierPhysicsWorld";
 import { initRapier } from "./physics/rapierInit";
 import { PixiRenderer } from "./rendering/PixiRenderer";
 import {
-  startMusic, toggleMusic, changeBiomeMusic, setMusicCombatIntensity, sfxDoor, sfxChest, sfxSell,
+  startMusic, toggleMusic, changeBiomeMusic, setMusicCombatIntensity, startRiverAmbience, stopRiverAmbience, sfxDoor, sfxChest, sfxSell,
   sfxStore, sfxRetrieve, sfxUpgrade, sfxGather, sfxBuy,
   sfxFireball, sfxLightning, sfxIceLance, sfxShadowBolt, sfxHolyBeam,
   sfxNpcDeath, sfxDrinkMana, sfxSummon, sfxRecruit, sfxMeleeHit, sfxSaberSwipe, sfxSaberHit, sfxMeteorFall, sfxMeteorImpact,
@@ -2874,10 +2874,19 @@ export default function App() {
     renderVault(ctx, c.width, c.height, totalGoldEarned, money, hideoutLevel);
   }, [panel, totalGoldEarned, money, hideoutLevel]);
 
-  // Biome-adaptive music
+  // Biome-adaptive ambient soundscape (includes weather overlay)
   useEffect(() => {
-    if (biome) changeBiomeMusic(biome.id, isNight);
-  }, [biome, isNight]);
+    if (biome && !riverSegment) changeBiomeMusic(biome.id, isNight, weather?.id);
+  }, [biome, isNight, weather, riverSegment]);
+
+  // River segment ambient sounds (water, creaking ship, seagulls)
+  useEffect(() => {
+    if (riverSegment) {
+      startRiverAmbience();
+    } else {
+      stopRiverAmbience();
+    }
+  }, [riverSegment]);
 
   // Initiative regen
   useEffect(() => {
