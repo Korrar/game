@@ -96,8 +96,6 @@ const BIOME_AMBIENCE = {
   // ── Jungle: dense tropical forest ──
   jungle: {
     wind: { vol: 0.04, freq: 280, q: 0.6, lfoRate: 0.015 },
-    // Layered insect/cicada drone — lower, warmer frequencies
-    insects: { vol: 0.045, freqs: [1800, 2600, 3400], q: 4, lfoRate: 0.3 },
     // Bird calls — random short chirps
     creatures: { type: "birds", vol: 0.04, interval: [2000, 5000], chance: 0.6 },
     // Distant monkey howls / frog croaks
@@ -123,8 +121,6 @@ const BIOME_AMBIENCE = {
   // ── Desert: arid wind and sand ──
   desert: {
     wind: { vol: 0.10, freq: 200, q: 0.3, lfoRate: 0.008 },
-    // Sand hiss — lower, softer wind-blown sand
-    sandHiss: { vol: 0.03, freq: 3000, q: 0.8, lfoRate: 0.05 },
     // Distant eagle/hawk cry
     creatures: { type: "hawk", vol: 0.025, interval: [6000, 15000], chance: 0.3 },
     // Low rumble — heat shimmer / distant thunder
@@ -133,8 +129,6 @@ const BIOME_AMBIENCE = {
   // ── Winter: cold howling wind and ice ──
   winter: {
     wind: { vol: 0.10, freq: 300, q: 0.3, lfoRate: 0.01 },
-    // Wind whistle through gaps — lower, less piercing
-    whistle: { vol: 0.02, freq: 1200, q: 3, lfoRate: 0.06 },
     // Ice cracking
     creatures: { type: "ice_crack", vol: 0.04, interval: [5000, 12000], chance: 0.35 },
     // Snow crunch / settling
@@ -161,16 +155,12 @@ const BIOME_AMBIENCE = {
     rumble: { vol: 0.10, freq: 30, lfoRate: 0.007 },
     // Lava bubbling
     creatures: { type: "lava_bubble", vol: 0.05, interval: [1500, 4000], chance: 0.6 },
-    // Fire crackle — lower, warmer
-    fireCrackle: { vol: 0.04, freq: 2000, q: 0.6, lfoRate: 0.15 },
     // Distant eruption rumble
     creatures2: { type: "eruption", vol: 0.04, interval: [8000, 20000], chance: 0.25 },
   },
   // ── Summer: warm meadow ──
   summer: {
     wind: { vol: 0.05, freq: 280, q: 0.4, lfoRate: 0.015 },
-    // Bees / insects buzzing — warmer, lower
-    insects: { vol: 0.03, freqs: [1600, 2400], q: 3, lfoRate: 0.4 },
     // Bird song
     creatures: { type: "birds", vol: 0.04, interval: [2500, 5500], chance: 0.55 },
     // Grass rustling
@@ -201,8 +191,6 @@ const BIOME_AMBIENCE = {
     drips: { vol: 0.04, interval: [400, 1200], chance: 0.7 },
     // Rustling new leaves
     rustle: { vol: 0.025, freq: 1300, q: 0.3, lfoRate: 0.07 },
-    // Insects — warmer
-    insects: { vol: 0.02, freqs: [1800, 2800], q: 3, lfoRate: 0.35 },
     // Gentle earth hum
     rumble: { vol: 0.03, freq: 50, lfoRate: 0.01 },
   },
@@ -215,8 +203,6 @@ const BIOME_AMBIENCE = {
     drips: { vol: 0.05, interval: [600, 2500], chance: 0.6 },
     // Strange spore puffs / alien sounds
     creatures: { type: "spores", vol: 0.04, interval: [3000, 7000], chance: 0.45 },
-    // Echo-like resonance — less piercing
-    whistle: { vol: 0.015, freq: 500, q: 5, lfoRate: 0.03 },
   },
   // ── Swamp: murky, oppressive wetland ──
   swamp: {
@@ -225,8 +211,6 @@ const BIOME_AMBIENCE = {
     creatures: { type: "bubbles", vol: 0.05, interval: [1500, 4000], chance: 0.55 },
     // Frogs croaking
     creatures2: { type: "frogs", vol: 0.05, interval: [2000, 5000], chance: 0.5 },
-    // Mosquito buzz — lower, less piercing
-    insects: { vol: 0.025, freqs: [1800, 2600], q: 4, lfoRate: 0.5 },
     // Water slosh
     drips: { vol: 0.03, interval: [2000, 5000], chance: 0.4 },
     // Low fog drone — deeper
@@ -240,8 +224,6 @@ const BIOME_AMBIENCE = {
     creatures: { type: "birds", vol: 0.035, interval: [2500, 6000], chance: 0.5 },
     // Gentle waterfall
     rustle: { vol: 0.04, freq: 1000, q: 0.3, lfoRate: 0.04 },
-    // Insects — warmer
-    insects: { vol: 0.02, freqs: [1800, 2800], q: 3, lfoRate: 0.3 },
     // Warm lagoon drone
     rumble: { vol: 0.04, freq: 50, lfoRate: 0.01 },
   },
@@ -265,8 +247,6 @@ const BIOME_AMBIENCE = {
     drips: { vol: 0.04, interval: [500, 1500], chance: 0.65 },
     // Bamboo creaking
     creak: { vol: 0.03, interval: [4000, 9000], chance: 0.4 },
-    // Soft insects
-    insects: { vol: 0.015, freqs: [1600, 2200], q: 3, lfoRate: 0.3 },
     // Deep water drone
     rumble: { vol: 0.05, freq: 50, lfoRate: 0.01 },
   },
