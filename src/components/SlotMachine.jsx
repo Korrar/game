@@ -1,5 +1,101 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
+// ─── Procedural Slot Machine Sounds ───
+const slotAudioCtx = () => {
+  if (!window._slotAudioCtx) {
+    window._slotAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (window._slotAudioCtx.state === "suspended") window._slotAudioCtx.resume();
+  return window._slotAudioCtx;
+};
+
+function playSpinTick(pitch = 800) {
+  try {
+    const ctx = slotAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = pitch + Math.random() * 200;
+    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.05);
+  } catch (_) { /* audio not available */ }
+}
+
+function playReelStop(reelIdx) {
+  try {
+    const ctx = slotAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.value = 300 + reelIdx * 80;
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
+  } catch (_) {}
+}
+
+function playWinSound(big) {
+  try {
+    const ctx = slotAudioCtx();
+    const notes = big
+      ? [523, 659, 784, 1047, 1319]  // C5-E5-G5-C6-E6 big fanfare
+      : [523, 659, 784];              // C5-E5-G5 small win
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = big ? "sawtooth" : "triangle";
+      const t = ctx.currentTime + i * 0.12;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(big ? 0.1 : 0.08, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + (big ? 0.4 : 0.25));
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + (big ? 0.4 : 0.25));
+    });
+    // Add shimmer noise for big wins
+    if (big) {
+      const bufSize = ctx.sampleRate * 0.5;
+      const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.03;
+      const noise = ctx.createBufferSource();
+      const nGain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 3000;
+      filter.Q.value = 2;
+      noise.buffer = buf;
+      nGain.gain.setValueAtTime(0.06, ctx.currentTime);
+      nGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      noise.connect(filter).connect(nGain).connect(ctx.destination);
+      noise.start(ctx.currentTime);
+      noise.stop(ctx.currentTime + 0.5);
+    }
+  } catch (_) {}
+}
+
+function playLoseSound() {
+  try {
+    const ctx = slotAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(300, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(150, ctx.currentTime + 0.25);
+    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.25);
+  } catch (_) {}
+}
+
 // ─── Pirate Slot Machine with 96% RTP ───
 // Symbols ordered by value (low → high)
 const SYMBOLS = [
@@ -113,6 +209,7 @@ function Reel({ targetStop, spinning, reelIdx, onDone }) {
   const animRef = useRef(null);
   const startTimeRef = useRef(0);
   const startOffRef = useRef(0);
+  const lastTickRef = useRef(0);
 
   const spinDuration = 1200 + reelIdx * 400; // Staggered stop
 
@@ -120,7 +217,11 @@ function Reel({ targetStop, spinning, reelIdx, onDone }) {
     if (!spinning) return;
     startTimeRef.current = performance.now();
     startOffRef.current = offset;
-    const totalSpin = REEL_LEN * (3 + reelIdx) + targetStop;
+    lastTickRef.current = Math.floor(offset);
+    // Account for accumulated offset so final position matches calculated grid
+    const currentBase = Math.floor(startOffRef.current % REEL_LEN);
+    const delta = ((targetStop - currentBase) % REEL_LEN + REEL_LEN) % REEL_LEN;
+    const totalSpin = REEL_LEN * (3 + reelIdx) + delta;
 
     const animate = (now) => {
       const elapsed = now - startTimeRef.current;
@@ -130,10 +231,18 @@ function Reel({ targetStop, spinning, reelIdx, onDone }) {
       const currentOff = startOffRef.current + totalSpin * ease;
       setOffset(currentOff);
 
+      // Play tick sound on each symbol passing
+      const curSymbol = Math.floor(currentOff);
+      if (curSymbol !== lastTickRef.current && t < 0.9) {
+        if (curSymbol % 3 === 0) playSpinTick(600 + reelIdx * 100);
+        lastTickRef.current = curSymbol;
+      }
+
       if (t < 1) {
         animRef.current = requestAnimationFrame(animate);
       } else {
         setOffset(startOffRef.current + totalSpin);
+        playReelStop(reelIdx);
         if (onDone) onDone();
       }
     };
@@ -274,10 +383,13 @@ export default function SlotMachine({ money, totalCopper: getTotalCopper, onWin,
       setShowWin(true);
       setTotalWon(prev => prev + lastResult.totalWin);
       onWin(lastResult.totalWin);
+      playWinSound(lastResult.totalWin >= bet.copper * 5);
       if (lastResult.totalWin >= bet.copper * 20) {
         setJackpotFlash(true);
         setTimeout(() => setJackpotFlash(false), 3000);
       }
+    } else {
+      playLoseSound();
     }
   }, [lastResult, spinning]);
 
