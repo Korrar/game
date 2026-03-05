@@ -39,6 +39,7 @@ import WaveOverlay, { PowerSpikeWarning } from "./components/WaveOverlay";
 import WeatherOverlay from "./components/WeatherOverlay";
 import Chest, { CLICKS_TO_OPEN } from "./components/Chest";
 import RelicPicker from "./components/RelicPicker";
+import SlotMachine from "./components/SlotMachine";
 import { RELICS, RELIC_SYNERGIES } from "./data/relics";
 import { getBossForRoom } from "./data/bosses";
 import { COMBOS, COMBO_STREAK_BONUS, COMBO_STREAK_CAP, COMBO_STREAK_TIMEOUT } from "./data/combos";
@@ -7620,6 +7621,15 @@ export default function App() {
             </div>
           );
         })()}
+
+        <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#ffd700", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #5a4a18", paddingBottom: 4 }}><Icon name="star" size={15} /> Piracki Bandit</h3>
+        <SlotMachine
+          money={money}
+          totalCopper={totalCopper}
+          copperToMoney={copperToMoney}
+          onWin={(copperAmount) => { addMoneyFn(copperToMoney(copperAmount)); showMessage(`Wygrana na automacie! +${copperAmount >= 100 ? Math.floor(copperAmount/100) + " Ag" : copperAmount + " Cu"}`, "#ffd700"); }}
+          onLose={(copperAmount) => { const tc = totalCopper(money); if (tc >= copperAmount) setMoney(copperToMoney(tc - copperAmount)); }}
+        />
 
         <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#d4a030", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="coin" size={15} /> Sprzedaż skarbów</h3>
         {inventory.length > 0 && (
