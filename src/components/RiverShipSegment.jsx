@@ -49,21 +49,23 @@ function getBiomeShoreColors(biome) {
 
 // ── PURE DRAWING FUNCTIONS ──
 
-function drawBank(ctx, s, bankBase, side) {
+function drawBank(ctx, s, bankBase, side, turnCurve) {
   const isLeft = side === "left";
   ctx.fillStyle = "#1a3a10";
   ctx.beginPath();
   if (isLeft) {
     ctx.moveTo(0, 0);
     for (let y = 0; y <= CANVAS_H; y += 15) {
-      const bx = bankBase + Math.sin((y + s.waterOffset) * 0.04) * 10 + Math.sin((y + s.waterOffset) * 0.09) * 4;
+      const curveOff = turnCurve ? turnCurve(y) : 0;
+      const bx = bankBase + curveOff + Math.sin((y + s.waterOffset) * 0.04) * 10 + Math.sin((y + s.waterOffset) * 0.09) * 4;
       ctx.lineTo(bx, y);
     }
     ctx.lineTo(0, CANVAS_H);
   } else {
     ctx.moveTo(CANVAS_W, 0);
     for (let y = 0; y <= CANVAS_H; y += 15) {
-      const bx = CANVAS_W - bankBase - Math.sin((y + s.waterOffset + 100) * 0.035) * 10 - Math.sin((y + s.waterOffset) * 0.08) * 5;
+      const curveOff = turnCurve ? turnCurve(y) : 0;
+      const bx = CANVAS_W - bankBase + curveOff - Math.sin((y + s.waterOffset + 100) * 0.035) * 10 - Math.sin((y + s.waterOffset) * 0.08) * 5;
       ctx.lineTo(bx, y);
     }
     ctx.lineTo(CANVAS_W, CANVAS_H);
@@ -73,9 +75,10 @@ function drawBank(ctx, s, bankBase, side) {
 
   ctx.fillStyle = "#2a5a18";
   for (let y = -20 + (s.waterOffset % 40); y < CANVAS_H + 20; y += 40) {
+    const curveOff = turnCurve ? turnCurve(y) : 0;
     const bx = isLeft
-      ? bankBase + Math.sin((y + s.waterOffset) * 0.04) * 10
-      : CANVAS_W - bankBase - Math.sin((y + s.waterOffset + 100) * 0.035) * 10;
+      ? bankBase + curveOff + Math.sin((y + s.waterOffset) * 0.04) * 10
+      : CANVAS_W - bankBase + curveOff - Math.sin((y + s.waterOffset + 100) * 0.035) * 10;
     ctx.beginPath();
     ctx.arc(isLeft ? bx + 2 : bx - 2, y, 12 + Math.sin(y * 0.3) * 3, 0, Math.PI * 2);
     ctx.fill();
@@ -85,9 +88,10 @@ function drawBank(ctx, s, bankBase, side) {
   ctx.lineWidth = 2;
   ctx.beginPath();
   for (let y = 0; y <= CANVAS_H; y += 4) {
+    const curveOff = turnCurve ? turnCurve(y) : 0;
     const bx = isLeft
-      ? bankBase + Math.sin((y + s.waterOffset) * 0.04) * 10 + Math.sin((y + s.waterOffset) * 0.09) * 4 + 3
-      : CANVAS_W - bankBase - Math.sin((y + s.waterOffset + 100) * 0.035) * 10 - Math.sin((y + s.waterOffset) * 0.08) * 5 - 3;
+      ? bankBase + curveOff + Math.sin((y + s.waterOffset) * 0.04) * 10 + Math.sin((y + s.waterOffset) * 0.09) * 4 + 3
+      : CANVAS_W - bankBase + curveOff - Math.sin((y + s.waterOffset + 100) * 0.035) * 10 - Math.sin((y + s.waterOffset) * 0.08) * 5 - 3;
     y === 0 ? ctx.moveTo(bx, y) : ctx.lineTo(bx, y);
   }
   ctx.stroke();
@@ -895,6 +899,127 @@ function drawWeatherOverlay(ctx, weather, time) {
   }
 }
 
+// ── PIRATE BLOCKADE DRAWING ──
+
+function drawPirateBlockade(ctx, blockade, time) {
+  if (!blockade || !blockade.active) return;
+
+  // Chain between ships
+  if (!blockade.chain.broken) {
+    ctx.save();
+    ctx.strokeStyle = "#8a7a5a";
+    ctx.lineWidth = 4;
+    ctx.setLineDash([8, 4]);
+    const chainY = blockade.chain.y;
+    const leftShip = blockade.ships[0];
+    const rightShip = blockade.ships[1];
+    if (leftShip && rightShip) {
+      ctx.beginPath();
+      ctx.moveTo(leftShip.x + 30, chainY);
+      const sagAmount = 20 + Math.sin(time * 2) * 5;
+      ctx.quadraticCurveTo((leftShip.x + rightShip.x) / 2, chainY + sagAmount, rightShip.x - 30, chainY);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // "BLOKADA" warning text
+    ctx.save();
+    ctx.fillStyle = "#cc3030";
+    ctx.font = "bold 16px monospace";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "#000";
+    ctx.shadowBlur = 6;
+    const pulse = 0.7 + Math.sin(time * 4) * 0.3;
+    ctx.globalAlpha = pulse;
+    ctx.fillText("⚔ PIRACKA BLOKADA ⚔", CANVAS_W / 2, blockade.chain.y - 30);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // Pirate ships
+  for (const ship of blockade.ships) {
+    if (ship.hp <= 0) continue;
+    ctx.save();
+    ctx.translate(ship.x, ship.y);
+
+    const W = 60;
+    const H = 80;
+
+    // Hull
+    ctx.fillStyle = "#2a1808";
+    ctx.beginPath();
+    ctx.moveTo(0, -H * 0.4);
+    ctx.bezierCurveTo(-W * 0.15, -H * 0.35, -W * 0.4, -H * 0.2, -W * 0.45, 0);
+    ctx.bezierCurveTo(-W * 0.4, H * 0.3, -W * 0.2, H * 0.45, 0, H * 0.48);
+    ctx.bezierCurveTo(W * 0.2, H * 0.45, W * 0.4, H * 0.3, W * 0.45, 0);
+    ctx.bezierCurveTo(W * 0.4, -H * 0.2, W * 0.15, -H * 0.35, 0, -H * 0.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#1a0a04";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Mast
+    ctx.fillStyle = "#1a0a04";
+    ctx.fillRect(-2, -H * 0.3, 4, H * 0.5);
+
+    // Black sail with skull
+    const sb = 4 + Math.sin(time * 2 + ship.side) * 2;
+    ctx.fillStyle = "#1a1a1a";
+    ctx.beginPath();
+    ctx.moveTo(-W * 0.28, -H * 0.28);
+    ctx.quadraticCurveTo(0, -H * 0.1 + sb, -W * 0.25, H * 0.05);
+    ctx.lineTo(W * 0.25, H * 0.05);
+    ctx.quadraticCurveTo(0, -H * 0.1 + sb, W * 0.28, -H * 0.28);
+    ctx.closePath();
+    ctx.fill();
+
+    // Skull symbol on sail
+    ctx.fillStyle = "#ccc";
+    ctx.font = "bold 14px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("☠", 0, -H * 0.08 + sb * 0.5);
+
+    // HP bar above ship
+    const barW = 40;
+    const barH = 4;
+    const barY = -H * 0.48;
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(-barW / 2, barY, barW, barH);
+    ctx.fillStyle = ship.hp / ship.maxHp > 0.5 ? "#cc3030" : "#ff4040";
+    ctx.fillRect(-barW / 2, barY, barW * (ship.hp / ship.maxHp), barH);
+
+    // Cannon flash
+    if (ship.cannonFlash > 0) {
+      ctx.fillStyle = `rgba(255,160,40,${ship.cannonFlash})`;
+      ctx.beginPath();
+      ctx.arc(ship.side * W * 0.4, 0, 12 + ship.cannonFlash * 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  // Cannonball projectiles
+  if (blockade.cannonballs) {
+    for (const cb of blockade.cannonballs) {
+      ctx.fillStyle = "#2a2a2a";
+      ctx.beginPath();
+      ctx.arc(cb.x, cb.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      // Trail
+      ctx.strokeStyle = "rgba(100,80,60,0.3)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cb.x, cb.y);
+      ctx.lineTo(cb.x - cb.vx * 3, cb.y - cb.vy * 3);
+      ctx.stroke();
+    }
+  }
+}
+
 // ── FORK DRAWING ──
 
 function drawForkChoice(ctx, fork, time) {
@@ -1022,11 +1147,14 @@ function drawSegmentTransition(ctx, segTrans) {
   ctx.restore();
 }
 
-// ── TURN EFFECT: BANK SHIFTING ──
+// ── TURN EFFECT: BANK SHIFTING + SHIP PUSH ──
 
 function applyTurnEffect(s, dt) {
   if (!s.currentTurn || s.currentTurn === "straight") {
-    s.turnBankOffset *= 0.95; // smoothly return to center
+    // Smoothly return to no curve
+    s.turnCurveAmount *= 0.92;
+    s.turnBankWiden = Math.max(0, (s.turnBankWiden || 0) - dt * 0.5);
+    s.turnSpeedMult = 1.0;
     return;
   }
 
@@ -1034,16 +1162,22 @@ function applyTurnEffect(s, dt) {
   if (!turnDef) return;
 
   if (turnDef.oscillate) {
-    // S-curve: banks oscillate left/right
-    s.turnBankOffset = turnDef.bankShift || Math.sin(s.elapsed * 0.8) * 120;
+    // S-curve: oscillating curve
+    const target = Math.sin(s.elapsed * 0.6) * 200;
+    s.turnCurveAmount += (target - s.turnCurveAmount) * dt * 2;
+    // Push ship sideways through the S-curve
+    s.shipX += Math.cos(s.elapsed * 0.6) * 0.6 * dt * 60;
   } else if (turnDef.widen) {
-    // Delta: banks widen (reduce bank base)
-    s.turnBankOffset = 0;
-    s.turnBankWiden = Math.min(1, (s.turnBankWiden || 0) + dt * 0.5);
+    // Delta: banks widen
+    s.turnCurveAmount *= 0.95;
+    s.turnBankWiden = Math.min(1, (s.turnBankWiden || 0) + dt * 0.3);
   } else {
-    // Gentle/sharp: shift banks in one direction
+    // Gentle/sharp turn: curve the river and push the ship
     const target = turnDef.bankShift || 0;
-    s.turnBankOffset += (target - s.turnBankOffset) * dt * 1.5;
+    s.turnCurveAmount += (target - s.turnCurveAmount) * dt * 1.2;
+    // Push ship in curve direction (centripetal effect)
+    const pushStrength = Math.abs(target) > 100 ? 1.2 : 0.5; // sharp turns push harder
+    s.shipX += Math.sign(target) * pushStrength * dt * 60;
   }
 
   // Speed boost for waterfall
@@ -1052,6 +1186,17 @@ function applyTurnEffect(s, dt) {
   } else {
     s.turnSpeedMult = 1.0;
   }
+}
+
+// Build a per-y curve function from the current turn state
+function buildTurnCurve(s) {
+  const amount = s.turnCurveAmount || 0;
+  if (Math.abs(amount) < 1) return null;
+  // Curve strongest at top of screen (ahead), weaker at bottom (behind)
+  return (y) => {
+    const t = 1 - y / CANVAS_H; // 1 at top, 0 at bottom
+    return amount * t * t * 0.5;
+  };
 }
 
 // ── RENDER FRAME ──
@@ -1127,14 +1272,12 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
     drawCurrent(ctx, cur, s.elapsed);
   }
 
-  // ── RIVER BANKS (with turn offset) ──
-  const turnOffset = s.turnBankOffset || 0;
+  // ── RIVER BANKS (with turn curve) ──
   const widenMod = s.turnBankWiden || 0;
   const bankBase = Math.max(10, 35 - widenMod * 20);
-  const bankLeft = Math.max(5, bankBase + turnOffset * 0.3);
-  const bankRight = Math.max(5, bankBase - turnOffset * 0.3);
-  drawBank(ctx, s, bankLeft, "left");
-  drawBank(ctx, s, bankRight, "right");
+  const turnCurve = buildTurnCurve(s);
+  drawBank(ctx, s, bankBase, "left", turnCurve);
+  drawBank(ctx, s, bankBase, "right", turnCurve);
 
   // ── DESTINATION SHORE ──
   const destAlpha = Math.min(1, Math.max(0, progress - 0.65) / 0.35);
@@ -1271,6 +1414,11 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
     }, s.elapsed);
   }
 
+  // ── PIRATE BLOCKADE ──
+  if (s.pirateBlockade) {
+    drawPirateBlockade(ctx, s.pirateBlockade, s.elapsed);
+  }
+
   // ── FORK CHOICE ──
   if (s.activeFork) {
     drawForkChoice(ctx, s.activeFork, s.elapsed);
@@ -1348,6 +1496,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
   const touchRef = useRef({ active: false, x: 0 });
   const [nodeEvent, setNodeEvent] = useState(null); // for event/shop node modals
   const [shopItems, setShopItems] = useState(null); // for shop node
+  const pausedRef = useRef(false); // paused when modal is open
 
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
@@ -1432,12 +1581,15 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       segmentTransition: null, // { nodeType, turn, phase, timer }
       // ── TURN SYSTEM ──
       currentTurn: segments[0]?.turn || "straight",
-      turnBankOffset: 0,
+      turnCurveAmount: 0,
       turnBankWiden: 0,
       turnSpeedMult: 1.0,
+      paused: false, // paused for events/shop
       // ── FORK SYSTEM ──
       activeFork: null, // { y, splitWidth, leftNode, rightNode, phase, visibility, resolveTimer, chosen }
       forkCooldown: 0,
+      // ── PIRATE BLOCKADE ──
+      pirateBlockade: null, // spawned on combat nodes
       // ── SEGMENT MODIFIERS ──
       currentModifiers: segments[0]?.modifiers || NODE_SEGMENT_MODIFIERS.calm,
     };
@@ -1548,6 +1700,15 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         return;
       }
 
+      // ── PAUSE CHECK (events/shop modal open) ──
+      if (pausedRef.current) {
+        // Keep rendering but don't advance game
+        s.waterOffset = (s.waterOffset + 15 * dt) % 80; // gentle water movement
+        renderFrame(canvasRef.current, s, s.elapsed / s.segmentLength, shoreColorsRef.current, roomNumberRef.current, destBiomeRef.current?.name);
+        rafRef.current = requestAnimationFrame(loop);
+        return;
+      }
+
       s.elapsed += dt;
       const progress = s.elapsed / s.segmentLength;
 
@@ -1637,15 +1798,31 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
               s.shipHp = Math.min(s.shipMaxHp, s.shipHp + Math.round(s.shipMaxHp * 0.2));
             }
             if (nodeType === "event") {
-              // Pick a random river event — show as overlay via React state
+              // Pick a random river event — show as overlay, pause sailing
               const events = RIVER_NODE_EVENTS;
               const evt = events[Math.floor(Math.random() * events.length)];
+              pausedRef.current = true;
               setNodeEvent({ ...evt });
             }
             if (nodeType === "shop") {
-              // Show shop overlay
+              // Show shop overlay, pause sailing
               const items = RIVER_SHOP_ITEMS.sort(() => Math.random() - 0.5).slice(0, 3);
+              pausedRef.current = true;
               setShopItems(items.map(it => ({ ...it, bought: false })));
+            }
+            if (nodeType === "combat") {
+              // Spawn pirate blockade
+              s.pirateBlockade = {
+                active: true,
+                ships: [
+                  { x: CANVAS_W * 0.3, y: -120, hp: 3, maxHp: 3, side: -1 },
+                  { x: CANVAS_W * 0.7, y: -180, hp: 3, maxHp: 3, side: 1 },
+                ],
+                chain: { y: -150, broken: false },
+                defeated: false,
+                timer: 0,
+              };
+              s.weatherNotice = { text: "Piracka Blokada!", life: 3.0 };
             }
           }
         }
@@ -1759,6 +1936,162 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
             resolveTimer: 0,
             chosen: null,
           };
+        }
+      }
+
+      // ── PIRATE BLOCKADE SYSTEM ──
+      if (s.pirateBlockade && s.pirateBlockade.active) {
+        const blk = s.pirateBlockade;
+        blk.timer += dt;
+
+        // Move ships downward (slower than obstacles)
+        for (const ship of blk.ships) {
+          if (ship.hp <= 0) continue;
+          ship.y += s.scrollSpeed * 30 * dt;
+          // Slight sway
+          ship.x += Math.sin(s.elapsed * 1.5 + ship.side * 2) * 0.3;
+          // Cannon flash decay
+          if (ship.cannonFlash > 0) ship.cannonFlash -= dt * 4;
+
+          // Fire cannonballs at player periodically
+          if (blk.timer > 1.5 && Math.random() < dt * 0.8) {
+            if (!blk.cannonballs) blk.cannonballs = [];
+            const dx = s.shipX - ship.x;
+            const dy = (CANVAS_H - 90) - ship.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 30) {
+              blk.cannonballs.push({
+                x: ship.x, y: ship.y,
+                vx: (dx / dist) * 3, vy: (dy / dist) * 3,
+              });
+              ship.cannonFlash = 1;
+            }
+          }
+        }
+
+        // Move chain
+        if (!blk.chain.broken) {
+          blk.chain.y += s.scrollSpeed * 30 * dt;
+        }
+
+        // Update cannonballs
+        if (blk.cannonballs) {
+          for (let i = blk.cannonballs.length - 1; i >= 0; i--) {
+            const cb = blk.cannonballs[i];
+            cb.x += cb.vx * 60 * dt;
+            cb.y += cb.vy * 60 * dt;
+
+            // Hit ship?
+            const dx = cb.x - s.shipX;
+            const dy = cb.y - (CANVAS_H - 90);
+            if (dx * dx + dy * dy < 35 * 35 && s.invulnTimer <= 0) {
+              s.shipHp -= 8;
+              s.invulnTimer = 0.5;
+              blk.cannonballs.splice(i, 1);
+              for (let p = 0; p < 6; p++) {
+                s.particles.push({
+                  x: s.shipX + (Math.random() - 0.5) * 30,
+                  y: CANVAS_H - 90 + (Math.random() - 0.5) * 20,
+                  vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3,
+                  life: 0.4 + Math.random() * 0.2, color: "#ff6020", size: 3 + Math.random() * 3,
+                });
+              }
+              if (s.shipHp <= 0) {
+                s.shipHp = 0; s.done = true;
+                setPhase("failed");
+                setHud(h => ({ ...h, hp: 0, time: s.elapsed }));
+                setTimeout(() => {
+                  if (alive) onCompleteRef.current({ success: false, rewards: { copper: Math.floor(s.elapsed * 1.5) }, hpRemaining: 0, maxHp: s.shipMaxHp, score: 0, gatesHit: s.gatesHit });
+                }, 2000);
+                return;
+              }
+              continue;
+            }
+            // Off screen?
+            if (cb.y > CANVAS_H + 20 || cb.y < -20 || cb.x < -20 || cb.x > CANVAS_W + 20) {
+              blk.cannonballs.splice(i, 1);
+            }
+          }
+        }
+
+        // Player collision with pirate ships (ram damage + destroy)
+        for (let si = 0; si < blk.ships.length; si++) {
+          const ship = blk.ships[si];
+          if (ship.hp <= 0) continue;
+          const dx = ship.x - s.shipX;
+          const dy = ship.y - (CANVAS_H - 90);
+          if (dx * dx + dy * dy < 55 * 55 && s.invulnTimer <= 0) {
+            ship.hp--;
+            s.shipHp -= 5;
+            s.invulnTimer = 0.4;
+            for (let p = 0; p < 8; p++) {
+              s.particles.push({
+                x: (ship.x + s.shipX) / 2 + (Math.random() - 0.5) * 30,
+                y: (ship.y + CANVAS_H - 90) / 2 + (Math.random() - 0.5) * 20,
+                vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4,
+                life: 0.5 + Math.random() * 0.3, color: "#ffa030", size: 4 + Math.random() * 4,
+              });
+            }
+            if (ship.hp <= 0) {
+              // Ship destroyed — explosion particles
+              for (let p = 0; p < 15; p++) {
+                s.particles.push({
+                  x: ship.x + (Math.random() - 0.5) * 40,
+                  y: ship.y + (Math.random() - 0.5) * 40,
+                  vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
+                  life: 0.8 + Math.random() * 0.5, color: Math.random() > 0.5 ? "#ff6020" : "#ffd700", size: 5 + Math.random() * 6,
+                });
+              }
+            }
+            if (s.shipHp <= 0) {
+              s.shipHp = 0; s.done = true;
+              setPhase("failed");
+              setHud(h => ({ ...h, hp: 0, time: s.elapsed }));
+              setTimeout(() => {
+                if (alive) onCompleteRef.current({ success: false, rewards: { copper: Math.floor(s.elapsed * 1.5) }, hpRemaining: 0, maxHp: s.shipMaxHp, score: 0, gatesHit: s.gatesHit });
+              }, 2000);
+              return;
+            }
+          }
+        }
+
+        // Chain collision — ship hits the chain
+        if (!blk.chain.broken) {
+          const chainY = blk.chain.y;
+          const shipCY = CANVAS_H - 90;
+          if (Math.abs(chainY - shipCY) < 20) {
+            // Chain breaks if both ships are destroyed, otherwise damages ship
+            const aliveCount = blk.ships.filter(sh => sh.hp > 0).length;
+            if (aliveCount === 0) {
+              blk.chain.broken = true;
+              s.weatherNotice = { text: "Blokada przebita!", life: 2.0 };
+            } else if (s.invulnTimer <= 0) {
+              s.shipHp -= 15;
+              s.invulnTimer = 1;
+              s.weatherNotice = { text: "Łańcuch blokuje drogę!", life: 1.5 };
+              if (s.shipHp <= 0) {
+                s.shipHp = 0; s.done = true;
+                setPhase("failed");
+                setHud(h => ({ ...h, hp: 0, time: s.elapsed }));
+                setTimeout(() => {
+                  if (alive) onCompleteRef.current({ success: false, rewards: { copper: Math.floor(s.elapsed * 1.5) }, hpRemaining: 0, maxHp: s.shipMaxHp, score: 0, gatesHit: s.gatesHit });
+                }, 2000);
+                return;
+              }
+            }
+          }
+        }
+
+        // Blockade defeated?
+        const allDead = blk.ships.every(sh => sh.hp <= 0);
+        if (allDead && !blk.defeated) {
+          blk.defeated = true;
+          blk.chain.broken = true;
+          s.weatherNotice = { text: "Piraci pokonani!", life: 2.5 };
+        }
+        // Remove blockade when ships scroll off screen
+        if (blk.ships.every(sh => sh.y > CANVAS_H + 100) || (blk.defeated && blk.timer > 8)) {
+          s.pirateBlockade = null;
         }
       }
 
@@ -2332,6 +2665,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
                     if (choice.reward.tempShield && s) s.invulnTimer = Math.max(s.invulnTimer, 3);
                   }
                   setNodeEvent(null);
+                  pausedRef.current = false;
                 }}
                 style={{
                   display: "block", width: "100%", marginBottom: 8,
@@ -2398,7 +2732,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
               </button>
             ))}
             <button
-              onClick={() => setShopItems(null)}
+              onClick={() => { setShopItems(null); pausedRef.current = false; }}
               style={{
                 display: "block", width: "100%", marginTop: 8,
                 background: "#3a2020", border: "1px solid #5a3030",
