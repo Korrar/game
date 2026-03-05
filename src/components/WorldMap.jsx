@@ -2,13 +2,15 @@ import React, { useRef, useEffect, useCallback, useState } from "react";
 import { BIOMES } from "../data/biomes";
 import GameIcon from "./GameIcon";
 
-const MAP_W = 1280;
-const MAP_H = 720;
-const SHIP_SIZE = 18;
-const DOCK_RADIUS = 55;
+// Desktop landscape dimensions
+const DESK_W = 1280;
+const DESK_H = 720;
+// Mobile portrait dimensions
+const MOB_W = 480;
+const MOB_H = 800;
+
 const SHIP_SPEED = 2.8;
 const SHIP_FRICTION = 0.96;
-const WAVE_SPEED = 0.0008;
 
 // Draw a procedural island shape
 function drawIsland(ctx, cx, cy, radius, color, time) {
@@ -71,7 +73,8 @@ function drawIsland(ctx, cx, cy, radius, color, time) {
 }
 
 // Draw the pirate ship
-function drawShip(ctx, x, y, angle, time) {
+function drawShip(ctx, x, y, angle, time, shipSize) {
+  const S = shipSize;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
@@ -79,12 +82,12 @@ function drawShip(ctx, x, y, angle, time) {
   // Hull
   ctx.fillStyle = "#5a3a1a";
   ctx.beginPath();
-  ctx.moveTo(-SHIP_SIZE * 0.5, SHIP_SIZE * 0.3);
-  ctx.lineTo(-SHIP_SIZE * 0.3, -SHIP_SIZE * 0.5);
-  ctx.lineTo(0, -SHIP_SIZE * 0.7);
-  ctx.lineTo(SHIP_SIZE * 0.3, -SHIP_SIZE * 0.5);
-  ctx.lineTo(SHIP_SIZE * 0.5, SHIP_SIZE * 0.3);
-  ctx.quadraticCurveTo(0, SHIP_SIZE * 0.5, -SHIP_SIZE * 0.5, SHIP_SIZE * 0.3);
+  ctx.moveTo(-S * 0.5, S * 0.3);
+  ctx.lineTo(-S * 0.3, -S * 0.5);
+  ctx.lineTo(0, -S * 0.7);
+  ctx.lineTo(S * 0.3, -S * 0.5);
+  ctx.lineTo(S * 0.5, S * 0.3);
+  ctx.quadraticCurveTo(0, S * 0.5, -S * 0.5, S * 0.3);
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = "#3a2a10";
@@ -95,16 +98,16 @@ function drawShip(ctx, x, y, angle, time) {
   ctx.strokeStyle = "#4a3018";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(0, SHIP_SIZE * 0.15);
-  ctx.lineTo(0, -SHIP_SIZE * 0.35);
+  ctx.moveTo(0, S * 0.15);
+  ctx.lineTo(0, -S * 0.35);
   ctx.stroke();
 
   // Sail
   const sailFlutter = Math.sin(time * 3) * 2;
   ctx.fillStyle = "#f0e0c0";
   ctx.beginPath();
-  ctx.moveTo(0, -SHIP_SIZE * 0.35);
-  ctx.quadraticCurveTo(SHIP_SIZE * 0.35 + sailFlutter, -SHIP_SIZE * 0.15, 0, SHIP_SIZE * 0.05);
+  ctx.moveTo(0, -S * 0.35);
+  ctx.quadraticCurveTo(S * 0.35 + sailFlutter, -S * 0.15, 0, S * 0.05);
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = "#c0a880";
@@ -114,9 +117,9 @@ function drawShip(ctx, x, y, angle, time) {
   // Flag
   ctx.fillStyle = "#1a1a1a";
   ctx.beginPath();
-  ctx.moveTo(0, -SHIP_SIZE * 0.35);
-  ctx.lineTo(SHIP_SIZE * 0.15 + sailFlutter * 0.5, -SHIP_SIZE * 0.42);
-  ctx.lineTo(0, -SHIP_SIZE * 0.48);
+  ctx.moveTo(0, -S * 0.35);
+  ctx.lineTo(S * 0.15 + sailFlutter * 0.5, -S * 0.42);
+  ctx.lineTo(0, -S * 0.48);
   ctx.closePath();
   ctx.fill();
 
@@ -129,7 +132,7 @@ function drawShip(ctx, x, y, angle, time) {
   ctx.strokeStyle = "rgba(180,220,255,0.25)";
   ctx.lineWidth = 1;
   for (let i = 1; i <= 3; i++) {
-    const wakeY = SHIP_SIZE * 0.3 + i * 6;
+    const wakeY = S * 0.3 + i * 6;
     const wakeW = 3 + i * 3;
     ctx.beginPath();
     ctx.moveTo(-wakeW, wakeY);
@@ -141,7 +144,6 @@ function drawShip(ctx, x, y, angle, time) {
 
 // Draw ocean background
 function drawOcean(ctx, w, h, time) {
-  // Deep ocean gradient
   const grad = ctx.createLinearGradient(0, 0, 0, h);
   grad.addColorStop(0, "#0a2a4a");
   grad.addColorStop(0.4, "#0c3060");
@@ -179,7 +181,6 @@ function drawCompass(ctx, x, y, size) {
   ctx.save();
   ctx.translate(x, y);
 
-  // Background circle
   ctx.fillStyle = "rgba(20,15,10,0.7)";
   ctx.beginPath();
   ctx.arc(0, 0, size, 0, Math.PI * 2);
@@ -188,7 +189,6 @@ function drawCompass(ctx, x, y, size) {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Cardinal points
   const dirs = [
     { label: "N", angle: -Math.PI / 2 },
     { label: "E", angle: 0 },
@@ -205,7 +205,6 @@ function drawCompass(ctx, x, y, size) {
     ctx.fillText(d.label, dx, dy);
   }
 
-  // Needle
   ctx.fillStyle = "#cc3030";
   ctx.beginPath();
   ctx.moveTo(0, -size * 0.45);
@@ -227,9 +226,16 @@ function drawCompass(ctx, x, y, size) {
 
 export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
   const canvasRef = useRef(null);
+
+  // Dynamic dimensions based on orientation
+  const mapW = isMobile ? MOB_W : DESK_W;
+  const mapH = isMobile ? MOB_H : DESK_H;
+  const shipSize = isMobile ? 22 : 18;
+  const dockRadius = isMobile ? 48 : 55;
+
   const stateRef = useRef({
-    shipX: shipPos?.x ?? MAP_W * 0.5,
-    shipY: shipPos?.y ?? MAP_H * 0.5,
+    shipX: shipPos?.x ?? mapW * 0.5,
+    shipY: shipPos?.y ?? mapH * 0.5,
     shipVx: 0,
     shipVy: 0,
     shipAngle: -Math.PI / 2,
@@ -246,12 +252,15 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
   // Touch joystick state
   const touchRef = useRef({ active: false, startX: 0, startY: 0, dx: 0, dy: 0 });
 
+  // Store dimensions in ref for the loop
+  const dimsRef = useRef({ w: mapW, h: mapH, shipSize, dockRadius });
+  dimsRef.current = { w: mapW, h: mapH, shipSize, dockRadius };
+
   // Keyboard handlers
   useEffect(() => {
     const s = stateRef.current;
     const onDown = (e) => {
       s.keys[e.key] = true;
-      // Clear waypoint when using keyboard
       if (["w","a","s","d","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) {
         s.waypoint = null;
       }
@@ -267,8 +276,9 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = MAP_W / rect.width;
-    const scaleY = MAP_H / rect.height;
+    const d = dimsRef.current;
+    const scaleX = d.w / rect.width;
+    const scaleY = d.h / rect.height;
     const mx = (clientX - rect.left) * scaleX;
     const my = (clientY - rect.top) * scaleY;
     stateRef.current.waypoint = { x: mx, y: my };
@@ -297,7 +307,6 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
 
   const handleTouchEnd = useCallback((e) => {
     const tr = touchRef.current;
-    // If very short drag — treat as tap for waypoint
     if (tr.active && Math.abs(tr.dx) < 10 && Math.abs(tr.dy) < 10) {
       const ct = e.changedTouches[0];
       if (ct) handleCanvasInteraction(ct.clientX, ct.clientY);
@@ -310,15 +319,16 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = MAP_W / rect.width;
-    const scaleY = MAP_H / rect.height;
+    const d = dimsRef.current;
+    const scaleX = d.w / rect.width;
+    const scaleY = d.h / rect.height;
     const mx = (e.clientX - rect.left) * scaleX;
     const my = (e.clientY - rect.top) * scaleY;
 
     let found = null;
     for (const b of BIOMES) {
-      const ix = b.mapPos.x * MAP_W;
-      const iy = b.mapPos.y * MAP_H;
+      const ix = b.mapPos.x * d.w;
+      const iy = b.mapPos.y * d.h;
       const dist = Math.hypot(mx - ix, my - iy);
       if (dist < (b.mapSize || 30) + 10) { found = b; break; }
     }
@@ -331,10 +341,14 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
 
-    const loop = (timestamp) => {
+    const loop = () => {
       const s = stateRef.current;
-      const dt = 1 / 60;
-      s.time += dt;
+      const d = dimsRef.current;
+      const W = d.w;
+      const H = d.h;
+      const S = d.shipSize;
+      const DR = d.dockRadius;
+      s.time += 1 / 60;
 
       // Input: keyboard
       let ax = 0, ay = 0;
@@ -392,8 +406,8 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
       s.shipY += s.shipVy;
 
       // Bounds
-      s.shipX = Math.max(20, Math.min(MAP_W - 20, s.shipX));
-      s.shipY = Math.max(20, Math.min(MAP_H - 20, s.shipY));
+      s.shipX = Math.max(20, Math.min(W - 20, s.shipX));
+      s.shipY = Math.max(20, Math.min(H - 20, s.shipY));
 
       // Smooth angle rotation
       let angleDiff = s.targetAngle - s.shipAngle;
@@ -405,10 +419,10 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
       let closest = null;
       let closestDist = Infinity;
       for (const b of BIOMES) {
-        const ix = b.mapPos.x * MAP_W;
-        const iy = b.mapPos.y * MAP_H;
+        const ix = b.mapPos.x * W;
+        const iy = b.mapPos.y * H;
         const dist = Math.hypot(s.shipX - ix, s.shipY - iy);
-        if (dist < DOCK_RADIUS && dist < closestDist) {
+        if (dist < DR && dist < closestDist) {
           closest = b;
           closestDist = dist;
         }
@@ -419,16 +433,19 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
       }
 
       // ── DRAW ──
-      drawOcean(ctx, MAP_W, MAP_H, s.time);
+      canvas.width = W;
+      canvas.height = H;
+      drawOcean(ctx, W, H, s.time);
 
       // Draw grid lines (subtle navigation grid)
       ctx.strokeStyle = "rgba(60,100,140,0.06)";
       ctx.lineWidth = 1;
-      for (let gx = 0; gx < MAP_W; gx += 80) {
-        ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, MAP_H); ctx.stroke();
+      const gridStep = isMobile ? 50 : 80;
+      for (let gx = 0; gx < W; gx += gridStep) {
+        ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
       }
-      for (let gy = 0; gy < MAP_H; gy += 80) {
-        ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(MAP_W, gy); ctx.stroke();
+      for (let gy = 0; gy < H; gy += gridStep) {
+        ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
       }
 
       // Draw waypoint indicator
@@ -442,7 +459,6 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Waypoint marker
         const wpPulse = Math.sin(s.time * 4) * 3 + 5;
         ctx.strokeStyle = "rgba(255,215,0,0.5)";
         ctx.lineWidth = 1.5;
@@ -451,13 +467,18 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
         ctx.stroke();
       }
 
+      // Island size scale for mobile
+      const islandScale = isMobile ? 0.7 : 1;
+      const fontSize = isMobile ? 9 : 10;
+      const fontSizeBig = isMobile ? 11 : 12;
+
       // Draw islands
       for (const b of BIOMES) {
-        const ix = b.mapPos.x * MAP_W;
-        const iy = b.mapPos.y * MAP_H;
+        const ix = b.mapPos.x * W;
+        const iy = b.mapPos.y * H;
         const isNear = closest === b;
         const isHover = hoverIsland === b;
-        const sz = (b.mapSize || 30) + (isNear ? 3 : 0);
+        const sz = ((b.mapSize || 30) * islandScale) + (isNear ? 3 : 0);
 
         drawIsland(ctx, ix, iy, sz, b.mapColor || b.groundCol, s.time);
 
@@ -467,75 +488,77 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
           ctx.lineWidth = 2;
           ctx.setLineDash([6, 4]);
           ctx.beginPath();
-          ctx.arc(ix, iy, DOCK_RADIUS, 0, Math.PI * 2);
+          ctx.arc(ix, iy, DR, 0, Math.PI * 2);
           ctx.stroke();
           ctx.setLineDash([]);
         }
 
         // Difficulty stars
-        const starY = iy + sz + 18;
+        const starY = iy + sz + (isMobile ? 14 : 18);
         ctx.fillStyle = isNear ? "#ffd700" : "rgba(255,215,0,0.5)";
-        ctx.font = "10px sans-serif";
+        ctx.font = `${fontSize}px sans-serif`;
         ctx.textAlign = "center";
         ctx.fillText("★".repeat(b.difficulty || 1), ix, starY);
 
         // Island name
-        const nameY = iy - sz - 8;
+        const nameY = iy - sz - (isMobile ? 5 : 8);
         ctx.fillStyle = isNear ? "#fff" : isHover ? "#d4c8a0" : "rgba(200,190,160,0.6)";
-        ctx.font = `${isNear ? "bold " : ""}${isNear || isHover ? 12 : 10}px sans-serif`;
+        ctx.font = `${isNear ? "bold " : ""}${isNear || isHover ? fontSizeBig : fontSize}px sans-serif`;
         ctx.textAlign = "center";
         ctx.fillText(b.name, ix, nameY);
       }
 
       // Draw ship
-      drawShip(ctx, s.shipX, s.shipY, s.shipAngle + Math.PI / 2, s.time);
+      drawShip(ctx, s.shipX, s.shipY, s.shipAngle + Math.PI / 2, s.time, S);
 
-      // Compass
-      drawCompass(ctx, MAP_W - 50, 50, 28);
+      // Compass - top right on desktop, top right on mobile too but smaller
+      const compassSize = isMobile ? 22 : 28;
+      drawCompass(ctx, W - (isMobile ? 35 : 50), isMobile ? 35 : 50, compassSize);
 
       // Room counter
+      const rcW = isMobile ? 110 : 140;
+      const rcH = isMobile ? 26 : 30;
       ctx.fillStyle = "rgba(20,15,10,0.7)";
-      ctx.fillRect(10, 10, 140, 30);
+      ctx.fillRect(10, 10, rcW, rcH);
       ctx.strokeStyle = "#a08050";
       ctx.lineWidth = 1;
-      ctx.strokeRect(10, 10, 140, 30);
+      ctx.strokeRect(10, 10, rcW, rcH);
       ctx.fillStyle = "#d4c8a0";
-      ctx.font = "bold 13px sans-serif";
+      ctx.font = `bold ${isMobile ? 11 : 13}px sans-serif`;
       ctx.textAlign = "left";
-      ctx.fillText(`Pokój: ${roomNumber || 0}`, 18, 30);
+      ctx.fillText(`Pokój: ${roomNumber || 0}`, 18, 10 + rcH * 0.65);
 
-      // Touch joystick indicator
-      if (tr.active && (Math.abs(tr.dx) > 10 || Math.abs(tr.dy) > 10)) {
-        const canvas = canvasRef.current;
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = MAP_W / rect.width;
-        const scaleY = MAP_H / rect.height;
-        const jx = tr.startX * scaleX / (rect.width / MAP_W);
-        const jy = tr.startY * scaleY / (rect.height / MAP_H);
+      // Touch joystick indicator (mobile only, bottom-left)
+      if (isMobile && tr.active && (Math.abs(tr.dx) > 10 || Math.abs(tr.dy) > 10)) {
+        const joyX = 60;
+        const joyY = H - 100;
+        const joyR = 36;
 
-        // Just draw a small indicator in the corner
         ctx.fillStyle = "rgba(255,255,255,0.1)";
         ctx.beginPath();
-        ctx.arc(70, MAP_H - 70, 40, 0, Math.PI * 2);
+        ctx.arc(joyX, joyY, joyR, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = "rgba(255,255,255,0.2)";
         ctx.lineWidth = 2;
         ctx.stroke();
 
         const clampMag = Math.min(Math.hypot(tr.dx, tr.dy), 80);
-        const ndx = (tr.dx / Math.max(Math.hypot(tr.dx, tr.dy), 1)) * (clampMag / 80) * 25;
-        const ndy = (tr.dy / Math.max(Math.hypot(tr.dx, tr.dy), 1)) * (clampMag / 80) * 25;
+        const ndx = (tr.dx / Math.max(Math.hypot(tr.dx, tr.dy), 1)) * (clampMag / 80) * 22;
+        const ndy = (tr.dy / Math.max(Math.hypot(tr.dx, tr.dy), 1)) * (clampMag / 80) * 22;
         ctx.fillStyle = "rgba(255,255,255,0.4)";
         ctx.beginPath();
-        ctx.arc(70 + ndx, MAP_H - 70 + ndy, 10, 0, Math.PI * 2);
+        ctx.arc(joyX + ndx, joyY + ndy, 9, 0, Math.PI * 2);
         ctx.fill();
       }
 
       // Instructions
       ctx.fillStyle = "rgba(200,190,160,0.5)";
-      ctx.font = "11px sans-serif";
+      ctx.font = `${isMobile ? 10 : 11}px sans-serif`;
       ctx.textAlign = "center";
-      ctx.fillText(isMobile ? "Przeciągnij aby sterować • Dotknij wyspę aby płynąć" : "WASD / Strzałki — sterowanie • Kliknij na mapę aby wyznaczyć kurs", MAP_W / 2, MAP_H - 12);
+      ctx.fillText(
+        isMobile ? "Przeciągnij aby sterować • Dotknij wyspę" : "WASD / Strzałki — sterowanie • Kliknij na mapę aby wyznaczyć kurs",
+        W / 2, H - (isMobile ? 8 : 12)
+      );
 
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -554,16 +577,22 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
     <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
       <canvas
         ref={canvasRef}
-        width={MAP_W}
-        height={MAP_H}
+        width={mapW}
+        height={mapH}
         onClick={handleClick}
         onMouseMove={handleMouseMove}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        style={{
+        style={isMobile ? {
+          width: "100vw",
+          height: "100vh",
+          objectFit: "contain",
+          cursor: "crosshair",
+          touchAction: "none",
+        } : {
           width: "100%",
-          maxWidth: MAP_W,
+          maxWidth: DESK_W,
           height: "auto",
           maxHeight: "100vh",
           objectFit: "contain",
@@ -576,7 +605,7 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
       {nearIsland && (
         <div style={{
           position: "absolute",
-          bottom: isMobile ? 80 : 50,
+          bottom: isMobile ? 60 : 50,
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 10,
@@ -584,19 +613,21 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
           <button
             onClick={handleDock}
             style={{
-              padding: "12px 32px",
+              padding: isMobile ? "14px 28px" : "12px 32px",
               background: "linear-gradient(180deg, #5a3a1a, #3a2210)",
               border: "2px solid #d4a030",
               color: "#ffd700",
-              fontSize: 16,
+              fontSize: isMobile ? 15 : 16,
               fontWeight: "bold",
               cursor: "pointer",
               borderRadius: 6,
               boxShadow: "0 4px 16px rgba(0,0,0,0.5), 0 0 20px rgba(212,160,48,0.2)",
               animation: "dockPulse 1.5s ease-in-out infinite",
+              minWidth: isMobile ? 200 : "auto",
+              textAlign: "center",
             }}
           >
-            <GameIcon name="anchor" size={18} style={{ marginRight: 6 }} />
+            <GameIcon name="anchor" size={isMobile ? 16 : 18} style={{ marginRight: 6 }} />
             Cumuj — {nearIsland.name}
             <span style={{ marginLeft: 8, fontSize: 11, opacity: 0.7 }}>
               {"★".repeat(nearIsland.difficulty || 1)}

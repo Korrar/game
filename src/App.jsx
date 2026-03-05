@@ -444,6 +444,7 @@ export default function App() {
   const [riverSegment, setRiverSegment] = useState(false);   // true when river ship mini-game is active
   const [worldMap, setWorldMap] = useState(false);           // true when world map navigation is active
   const [shipMapPos, setShipMapPos] = useState({ x: 640, y: 360 }); // ship position on world map
+  const pendingDestBiomeRef = useRef(null); // chosen biome from world map, persists through events
 
   // ─── FEATURE: Advanced Traps & Fortifications ───
   const [unlockedFortifications, setUnlockedFortifications] = useState(["wooden_wall", "spike_pit", "alarm_bell"]);
@@ -3566,7 +3567,7 @@ export default function App() {
     setWorldMap(false);
     setShipMapPos(newShipPos);
     setTransitioning(true);
-    const nextRoom = room + 1;
+    pendingDestBiomeRef.current = chosenBiome; // persist chosen biome through events
     // Start river segment transition toward chosen biome
     setTimeout(() => { setRiverSegment({ destBiome: chosenBiome }); setTransitioning(false); }, 400);
   }, [room]);
@@ -3607,9 +3608,10 @@ export default function App() {
         setRandomEvent(event);
       }, 450);
     } else {
-      // Continue to next room — use the destination biome from river segment
+      // Continue to next room — use the destination biome from world map
       setTimeout(() => {
-        enterRoom(room + 1, ownedTools, destBiome);
+        enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current);
+        pendingDestBiomeRef.current = null;
         setTimeout(() => setTransitioning(false), 150);
       }, 300);
     }
@@ -3764,9 +3766,10 @@ export default function App() {
       }
       case "cursedChestSkip": break;
     }
-    // Complete the room transition
+    // Complete the room transition — use pending biome from world map
     setRandomEvent(null);
-    enterRoom(room + 1, ownedTools);
+    enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current);
+    pendingDestBiomeRef.current = null;
     setTimeout(() => setTransitioning(false), 150);
   }, [money, room, ownedTools, addMoneyFn, showMessage, spawnFreeMerc]);
 
@@ -8343,8 +8346,8 @@ export default function App() {
                   showMessage("Pokonałeś morskie bestie! Legendarny łup!", "#d4a030");
                 }
                 setSeaEvent(null);
-                // Resume travel after sea event
-                setTimeout(() => { enterRoom(room + 1, ownedTools); setTimeout(() => setTransitioning(false), 150); }, 300);
+                // Resume travel after sea event — use pending biome from world map
+                setTimeout(() => { enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current); pendingDestBiomeRef.current = null; setTimeout(() => setTransitioning(false), 150); }, 300);
               }} style={{ display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: `1px solid ${seaEvent.themeColor}88`, color: "#d8c8a8", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
                 <Icon name={choice.icon} size={14} /> <strong>{choice.label}</strong> — {choice.desc}
               </button>
@@ -8364,8 +8367,8 @@ export default function App() {
               }
               showMessage(seaEvent.resultText, seaEvent.themeColor);
               setSeaEvent(null);
-              // Resume travel after sea event
-              setTimeout(() => { enterRoom(room + 1, ownedTools); setTimeout(() => setTransitioning(false), 150); }, 300);
+              // Resume travel after sea event — use pending biome from world map
+              setTimeout(() => { enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current); pendingDestBiomeRef.current = null; setTimeout(() => setTransitioning(false), 150); }, 300);
             }} style={{ padding: "8px 16px", background: "none", border: `1px solid ${seaEvent.themeColor}`, color: seaEvent.themeColor, fontSize: 13, cursor: "pointer" }}>
               Kontynuuj Rejs
             </button>
