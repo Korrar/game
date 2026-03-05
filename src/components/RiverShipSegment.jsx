@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
 import { RIVER_OBSTACLES, RIVER_WAVE_PATTERNS, SEA_CURRENTS, WEATHER_EVENTS, SEA_ENEMIES, BONUS_GATES, getRiverSegmentConfig, getRiverRewards } from "../data/riverSegment";
+import { RIVER_NODE_TYPES, RIVER_TURN_TYPES, NODE_SEGMENT_MODIFIERS, RIVER_NODE_EVENTS, RIVER_SHOP_ITEMS } from "../data/riverMap";
 import GameIcon from "./GameIcon";
 
 // Ship river mini-game with currents, weather, enemies, wind, and bonus gates
@@ -752,7 +753,7 @@ function drawGate(ctx, gate, time) {
   }
 }
 
-function drawWindIndicator(ctx, windDir, windStrength, time) {
+function drawWindIndicator(ctx, windDir, windStrength) {
   const ix = 85;
   const iy = CANVAS_H - 75;
   const r = 22;
@@ -894,6 +895,165 @@ function drawWeatherOverlay(ctx, weather, time) {
   }
 }
 
+// ── FORK DRAWING ──
+
+function drawForkChoice(ctx, fork, time) {
+  if (!fork || fork.phase === "resolved") return;
+
+  const alpha = fork.phase === "approaching" ? Math.min(1, fork.visibility) :
+                fork.phase === "choosing" ? 1 : Math.max(0, 1 - fork.resolveTimer * 2);
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Draw the split in the river
+  const splitY = fork.y;
+
+  // Central divider (island/rock formation)
+  if (fork.phase === "choosing" || fork.phase === "approaching") {
+    ctx.fillStyle = "#2a4a18";
+    ctx.beginPath();
+    ctx.ellipse(CANVAS_W / 2, splitY, 25 + Math.sin(time * 1.5) * 3, 60, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1a3a10";
+    ctx.beginPath();
+    ctx.ellipse(CANVAS_W / 2, splitY - 10, 18, 35, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Small trees on divider
+    ctx.fillStyle = "#3a6a20";
+    ctx.beginPath();
+    ctx.arc(CANVAS_W / 2 - 5, splitY - 30, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(CANVAS_W / 2 + 5, splitY - 20, 8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Fork choice labels
+  if (fork.phase === "choosing" || fork.phase === "approaching") {
+    const leftInfo = fork.leftNode ? (RIVER_NODE_TYPES[fork.leftNode.type] || RIVER_NODE_TYPES.calm) : null;
+    const rightInfo = fork.rightNode ? (RIVER_NODE_TYPES[fork.rightNode.type] || RIVER_NODE_TYPES.calm) : null;
+
+    // Left path label
+    if (leftInfo) {
+      const lx = CANVAS_W * 0.22;
+      const ly = splitY - 80;
+      ctx.fillStyle = "rgba(0,0,0,0.7)";
+      ctx.beginPath();
+      ctx.roundRect(lx - 60, ly - 18, 120, 36, 6);
+      ctx.fill();
+      ctx.strokeStyle = leftInfo.color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = leftInfo.color;
+      ctx.font = "bold 12px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("← " + leftInfo.name, lx, ly + 4);
+    }
+
+    // Right path label
+    if (rightInfo) {
+      const rx = CANVAS_W * 0.78;
+      const ry = splitY - 80;
+      ctx.fillStyle = "rgba(0,0,0,0.7)";
+      ctx.beginPath();
+      ctx.roundRect(rx - 60, ry - 18, 120, 36, 6);
+      ctx.fill();
+      ctx.strokeStyle = rightInfo.color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = rightInfo.color;
+      ctx.font = "bold 12px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(rightInfo.name + " →", rx, ry + 4);
+    }
+
+    // Steer direction arrows (pulsing)
+    const arrowPulse = 0.5 + Math.sin(time * 4) * 0.3;
+    ctx.fillStyle = `rgba(255,215,0,${arrowPulse})`;
+    ctx.font = "bold 28px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("◄", CANVAS_W * 0.15, splitY + 5);
+    ctx.fillText("►", CANVAS_W * 0.85, splitY + 5);
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// ── SEGMENT TRANSITION OVERLAY ──
+
+function drawSegmentTransition(ctx, segTrans) {
+  if (!segTrans) return;
+
+  const alpha = segTrans.phase === "fadeIn" ? Math.min(1, segTrans.timer / 0.5) :
+                segTrans.phase === "display" ? 1 :
+                Math.max(0, 1 - (segTrans.timer / 0.5));
+
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.85;
+  ctx.fillStyle = "rgba(0,10,20,0.7)";
+  ctx.fillRect(0, CANVAS_H / 2 - 50, CANVAS_W, 100);
+  ctx.globalAlpha = alpha;
+
+  const nodeType = RIVER_NODE_TYPES[segTrans.nodeType] || RIVER_NODE_TYPES.calm;
+  ctx.fillStyle = nodeType.color;
+  ctx.font = "bold 22px monospace";
+  ctx.textAlign = "center";
+  ctx.shadowColor = "#000";
+  ctx.shadowBlur = 8;
+  ctx.fillText(nodeType.name, CANVAS_W / 2, CANVAS_H / 2 - 8);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = "rgba(200,190,170,0.7)";
+  ctx.font = "13px monospace";
+  ctx.fillText(nodeType.desc, CANVAS_W / 2, CANVAS_H / 2 + 18);
+
+  // Turn indicator
+  if (segTrans.turn && segTrans.turn !== "straight") {
+    const turnDef = RIVER_TURN_TYPES[segTrans.turn];
+    if (turnDef) {
+      ctx.fillStyle = "rgba(100,160,220,0.6)";
+      ctx.font = "11px monospace";
+      ctx.fillText("Teren: " + turnDef.name, CANVAS_W / 2, CANVAS_H / 2 + 36);
+    }
+  }
+
+  ctx.restore();
+}
+
+// ── TURN EFFECT: BANK SHIFTING ──
+
+function applyTurnEffect(s, dt) {
+  if (!s.currentTurn || s.currentTurn === "straight") {
+    s.turnBankOffset *= 0.95; // smoothly return to center
+    return;
+  }
+
+  const turnDef = RIVER_TURN_TYPES[s.currentTurn];
+  if (!turnDef) return;
+
+  if (turnDef.oscillate) {
+    // S-curve: banks oscillate left/right
+    s.turnBankOffset = turnDef.bankShift || Math.sin(s.elapsed * 0.8) * 120;
+  } else if (turnDef.widen) {
+    // Delta: banks widen (reduce bank base)
+    s.turnBankOffset = 0;
+    s.turnBankWiden = Math.min(1, (s.turnBankWiden || 0) + dt * 0.5);
+  } else {
+    // Gentle/sharp: shift banks in one direction
+    const target = turnDef.bankShift || 0;
+    s.turnBankOffset += (target - s.turnBankOffset) * dt * 1.5;
+  }
+
+  // Speed boost for waterfall
+  if (turnDef.speedBoost && turnDef.speedBoost > 1) {
+    s.turnSpeedMult = turnDef.speedBoost;
+  } else {
+    s.turnSpeedMult = 1.0;
+  }
+}
+
 // ── RENDER FRAME ──
 
 function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
@@ -967,10 +1127,14 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
     drawCurrent(ctx, cur, s.elapsed);
   }
 
-  // ── RIVER BANKS ──
-  const bankBase = 35;
-  drawBank(ctx, s, bankBase, "left");
-  drawBank(ctx, s, bankBase, "right");
+  // ── RIVER BANKS (with turn offset) ──
+  const turnOffset = s.turnBankOffset || 0;
+  const widenMod = s.turnBankWiden || 0;
+  const bankBase = Math.max(10, 35 - widenMod * 20);
+  const bankLeft = Math.max(5, bankBase + turnOffset * 0.3);
+  const bankRight = Math.max(5, bankBase - turnOffset * 0.3);
+  drawBank(ctx, s, bankLeft, "left");
+  drawBank(ctx, s, bankRight, "right");
 
   // ── DESTINATION SHORE ──
   const destAlpha = Math.min(1, Math.max(0, progress - 0.65) / 0.35);
@@ -1107,21 +1271,53 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
     }, s.elapsed);
   }
 
+  // ── FORK CHOICE ──
+  if (s.activeFork) {
+    drawForkChoice(ctx, s.activeFork, s.elapsed);
+  }
+
+  // ── SEGMENT TRANSITION ──
+  if (s.segmentTransition) {
+    drawSegmentTransition(ctx, s.segmentTransition, s.elapsed);
+  }
+
   // ── HELM WHEEL ──
   drawHelm(ctx, s.helmAngle, s.steerInput);
 
   // ── WIND INDICATOR ──
   drawWindIndicator(ctx, s.windDir, s.windStrength, s.elapsed);
 
-  // ── PROGRESS BAR ──
+  // ── PROGRESS BAR (with segment markers) ──
   if (!isDocking) {
     ctx.fillStyle = "rgba(0,0,0,0.5)";
-    ctx.fillRect(0, 0, CANVAS_W, 6);
+    ctx.fillRect(0, 0, CANVAS_W, 8);
     const pg = ctx.createLinearGradient(0, 0, CANVAS_W * progress, 0);
     pg.addColorStop(0, "#2080c0");
     pg.addColorStop(1, "#40c0ff");
     ctx.fillStyle = pg;
-    ctx.fillRect(0, 0, CANVAS_W * progress, 6);
+    ctx.fillRect(0, 0, CANVAS_W * progress, 8);
+
+    // Segment dividers on progress bar
+    if (s.segments && s.segments.length > 1) {
+      let accum = 0;
+      for (let si = 0; si < s.segments.length; si++) {
+        accum += s.segments[si].duration;
+        const divX = (accum / s.segmentLength) * CANVAS_W;
+        if (si < s.segments.length - 1) {
+          ctx.fillStyle = "rgba(255,215,0,0.6)";
+          ctx.fillRect(divX - 1, 0, 2, 8);
+        }
+        // Small node type icon dot above divider
+        const nodeType = RIVER_NODE_TYPES[s.segments[si].type];
+        if (nodeType) {
+          const dotX = si === 0 ? (s.segments[0].duration / s.segmentLength * CANVAS_W / 2) : (accum - s.segments[si].duration / 2) / s.segmentLength * CANVAS_W;
+          ctx.fillStyle = si === s.currentSegmentIdx ? nodeType.color : "rgba(120,140,160,0.4)";
+          ctx.beginPath();
+          ctx.arc(dotX, 12, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
   }
 
   // ── WEATHER NOTICE ──
@@ -1142,14 +1338,16 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
 
 // ── COMPONENT ──
 
-export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shipUpgrades = [], destBiome }) {
+export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shipUpgrades = [], destBiome, riverPath }) {
   const canvasRef = useRef(null);
   const stateRef = useRef(null);
   const rafRef = useRef(null);
   const [phase, setPhase] = useState("playing");
-  const [hud, setHud] = useState({ hp: 100, maxHp: 100, time: 0, maxTime: 15, gateCombo: 0, gatesHit: 0, weatherName: null, windDir: 0 });
+  const [hud, setHud] = useState({ hp: 100, maxHp: 100, time: 0, maxTime: 15, gateCombo: 0, gatesHit: 0, weatherName: null, windDir: 0, segmentName: null, segmentIdx: 0, totalSegments: 0 });
   const keysRef = useRef({ left: false, right: false });
   const touchRef = useRef({ active: false, x: 0 });
+  const [nodeEvent, setNodeEvent] = useState(null); // for event/shop node modals
+  const [shopItems, setShopItems] = useState(null); // for shop node
 
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
@@ -1159,6 +1357,8 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
   roomNumberRef.current = roomNumber;
   const shoreColorsRef = useRef(getBiomeShoreColors(destBiome));
   shoreColorsRef.current = getBiomeShoreColors(destBiome);
+  const riverPathRef = useRef(riverPath);
+  riverPathRef.current = riverPath;
 
   // State initialization
   useEffect(() => {
@@ -1167,6 +1367,20 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
     const speedBonus = (shipUpgrades.includes("sails_1") ? 1.0 : 0) + (shipUpgrades.includes("sails_2") ? 1.5 : 0);
     const maxHp = cfg.shipHp + hpBonus;
     const initWindDir = (Math.random() - 0.5) * Math.PI; // random initial wind
+
+    // Build segment list from riverPath (or fallback to single long segment)
+    const segments = riverPath?.segments?.length > 0
+      ? riverPath.segments.map((seg) => ({
+          type: seg.type,
+          turn: seg.turn || "straight",
+          modifiers: seg.modifiers || NODE_SEGMENT_MODIFIERS[seg.type] || NODE_SEGMENT_MODIFIERS.calm,
+          duration: (cfg.segmentLength / (riverPath.segments.length || 1)),
+          completed: false,
+        }))
+      : [{ type: "calm", turn: "straight", modifiers: NODE_SEGMENT_MODIFIERS.calm, duration: cfg.segmentLength, completed: false }];
+
+    const totalDuration = segments.reduce((s, seg) => s + seg.duration, 0);
+
     stateRef.current = {
       shipX: CANVAS_W / 2,
       shipHp: maxHp,
@@ -1177,7 +1391,7 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       particles: [],
       wakes: [],
       elapsed: 0,
-      segmentLength: cfg.segmentLength,
+      segmentLength: totalDuration,
       spawnTimer: 0,
       spawnRate: cfg.obstacleSpawnRate,
       difficulty: cfg.difficulty,
@@ -1211,9 +1425,25 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       weatherNotice: null,
       // Config
       cfg,
+      // ── SEGMENT SYSTEM ──
+      segments,
+      currentSegmentIdx: 0,
+      segmentElapsed: 0, // time within current segment
+      segmentTransition: null, // { nodeType, turn, phase, timer }
+      // ── TURN SYSTEM ──
+      currentTurn: segments[0]?.turn || "straight",
+      turnBankOffset: 0,
+      turnBankWiden: 0,
+      turnSpeedMult: 1.0,
+      // ── FORK SYSTEM ──
+      activeFork: null, // { y, splitWidth, leftNode, rightNode, phase, visibility, resolveTimer, chosen }
+      forkCooldown: 0,
+      // ── SEGMENT MODIFIERS ──
+      currentModifiers: segments[0]?.modifiers || NODE_SEGMENT_MODIFIERS.calm,
     };
-    setHud({ hp: maxHp, maxHp, time: 0, maxTime: cfg.segmentLength, gateCombo: 0, gatesHit: 0, weatherName: null, windDir: initWindDir });
-  }, [roomNumber, shipUpgrades]);
+    const segName = segments[0] ? (RIVER_NODE_TYPES[segments[0].type]?.name || "Spokojne Wody") : null;
+    setHud({ hp: maxHp, maxHp, time: 0, maxTime: totalDuration, gateCombo: 0, gatesHit: 0, weatherName: null, windDir: initWindDir, segmentName: segName, segmentIdx: 0, totalSegments: segments.length });
+  }, [roomNumber, shipUpgrades, riverPath]);
 
   // Keyboard
   useEffect(() => {
@@ -1373,6 +1603,165 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       const targetHelm = steer * 0.8;
       s.helmAngle += (targetHelm - s.helmAngle) * 0.15;
 
+      // ── SEGMENT PROGRESSION ──
+      if (s.segments.length > 1) {
+        s.segmentElapsed += dt;
+        const curSeg = s.segments[s.currentSegmentIdx];
+
+        if (curSeg && s.segmentElapsed >= curSeg.duration && s.currentSegmentIdx < s.segments.length - 1) {
+          // Move to next segment
+          curSeg.completed = true;
+          s.currentSegmentIdx++;
+          s.segmentElapsed = 0;
+          const nextSeg = s.segments[s.currentSegmentIdx];
+
+          if (nextSeg) {
+            // Apply new segment modifiers
+            s.currentModifiers = nextSeg.modifiers || NODE_SEGMENT_MODIFIERS.calm;
+            s.currentTurn = nextSeg.turn || "straight";
+            s.turnBankWiden = 0;
+
+            // Show segment transition
+            const nodeType = nextSeg.type || "calm";
+            s.segmentTransition = {
+              nodeType,
+              turn: nextSeg.turn,
+              phase: "fadeIn",
+              timer: 0,
+              totalDuration: 2.5, // total transition display time
+            };
+
+            // Trigger node-specific events
+            if (nodeType === "rest") {
+              // Heal ship
+              s.shipHp = Math.min(s.shipMaxHp, s.shipHp + Math.round(s.shipMaxHp * 0.2));
+            }
+            if (nodeType === "event") {
+              // Pick a random river event — show as overlay via React state
+              const events = RIVER_NODE_EVENTS;
+              const evt = events[Math.floor(Math.random() * events.length)];
+              setNodeEvent({ ...evt });
+            }
+            if (nodeType === "shop") {
+              // Show shop overlay
+              const items = RIVER_SHOP_ITEMS.sort(() => Math.random() - 0.5).slice(0, 3);
+              setShopItems(items.map(it => ({ ...it, bought: false })));
+            }
+          }
+        }
+      }
+
+      // ── SEGMENT TRANSITION ANIMATION ──
+      if (s.segmentTransition) {
+        const st = s.segmentTransition;
+        st.timer += dt;
+        if (st.phase === "fadeIn" && st.timer >= 0.5) {
+          st.phase = "display";
+          st.timer = 0;
+        } else if (st.phase === "display" && st.timer >= 1.5) {
+          st.phase = "fadeOut";
+          st.timer = 0;
+        } else if (st.phase === "fadeOut" && st.timer >= 0.5) {
+          s.segmentTransition = null;
+        }
+      }
+
+      // ── APPLY TURN EFFECTS ──
+      applyTurnEffect(s, dt);
+
+      // ── APPLY SEGMENT MODIFIERS TO SPAWN RATES ──
+      const mod = s.currentModifiers || NODE_SEGMENT_MODIFIERS.calm;
+
+      // HP regen from rest nodes
+      if (mod.hpRegenPerSec > 0) {
+        s.shipHp = Math.min(s.shipMaxHp, s.shipHp + mod.hpRegenPerSec * dt);
+      }
+
+      // Speed modifier from segment
+      const segSpeedMult = mod.speedMult || 1.0;
+      const turnSpdMult = s.turnSpeedMult || 1.0;
+
+      // ── FORK SYSTEM ──
+      if (s.activeFork) {
+        const fork = s.activeFork;
+        fork.y += s.scrollSpeed * 60 * dt * 0.3; // fork zone moves slowly
+
+        if (fork.phase === "approaching") {
+          fork.visibility = Math.min(1, fork.visibility + dt * 1.5);
+          if (fork.visibility >= 1) fork.phase = "choosing";
+        }
+
+        if (fork.phase === "choosing") {
+          // Player must steer left or right to choose path
+          if (steer < -0.3) {
+            fork.chosen = "left";
+            fork.phase = "resolving";
+            fork.resolveTimer = 0;
+            // Apply left node as a mini-modifier for a short time
+            if (fork.leftNode) {
+              const leftMod = NODE_SEGMENT_MODIFIERS[fork.leftNode.type] || NODE_SEGMENT_MODIFIERS.calm;
+              s.currentModifiers = leftMod;
+              s.weatherNotice = { text: "← " + (RIVER_NODE_TYPES[fork.leftNode.type]?.name || "Lewa droga"), life: 2.0 };
+            }
+          } else if (steer > 0.3) {
+            fork.chosen = "right";
+            fork.phase = "resolving";
+            fork.resolveTimer = 0;
+            if (fork.rightNode) {
+              const rightMod = NODE_SEGMENT_MODIFIERS[fork.rightNode.type] || NODE_SEGMENT_MODIFIERS.calm;
+              s.currentModifiers = rightMod;
+              s.weatherNotice = { text: (RIVER_NODE_TYPES[fork.rightNode.type]?.name || "Prawa droga") + " →", life: 2.0 };
+            }
+          }
+        }
+
+        if (fork.phase === "resolving") {
+          fork.resolveTimer += dt;
+          // Push ship toward chosen side
+          if (fork.chosen === "left") {
+            s.shipX += (CANVAS_W * 0.25 - s.shipX) * dt * 2;
+          } else {
+            s.shipX += (CANVAS_W * 0.75 - s.shipX) * dt * 2;
+          }
+          if (fork.resolveTimer > 1.5) {
+            fork.phase = "resolved";
+            // Shift ship back to center
+            s.forkCooldown = 8; // seconds before next fork can appear
+          }
+        }
+
+        if (fork.phase === "resolved") {
+          s.activeFork = null;
+        }
+      }
+
+      // Fork cooldown
+      if (s.forkCooldown > 0) s.forkCooldown -= dt;
+
+      // Spawn fork at certain intervals (only if segments support it)
+      if (!s.activeFork && s.forkCooldown <= 0 && progress > 0.15 && progress < 0.8 && s.segments.length > 1) {
+        // Fork chance every ~8-12 seconds of play
+        if (Math.random() < dt * 0.08) {
+          // Generate two random fork options
+          const forkTypes = ["calm", "danger", "treasure", "combat", "rest", "current", "whirlpool", "narrows"];
+          const leftType = forkTypes[Math.floor(Math.random() * forkTypes.length)];
+          let rightType = forkTypes[Math.floor(Math.random() * forkTypes.length)];
+          // Ensure different types
+          while (rightType === leftType) rightType = forkTypes[Math.floor(Math.random() * forkTypes.length)];
+
+          s.activeFork = {
+            y: -50,
+            splitWidth: 200,
+            leftNode: { type: leftType },
+            rightNode: { type: rightType },
+            phase: "approaching",
+            visibility: 0,
+            resolveTimer: 0,
+            chosen: null,
+          };
+        }
+      }
+
       // ── WEATHER SYSTEM ──
       s.weatherTimer -= dt;
       if (!s.activeWeather && s.weatherTimer <= 0 && progress < 0.85) {
@@ -1428,10 +1817,14 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         if (s.weatherNotice.life <= 0) s.weatherNotice = null;
       }
 
-      const margin = SHIP_W / 2 + 50;
+      // Apply turn bank offset to ship margins (narrows tighten, delta widens)
+      const turnMarginMod = (s.turnBankWiden || 0) > 0 ? -15 : 0;
+      const margin = Math.max(SHIP_W / 2 + 20, SHIP_W / 2 + 50 + turnMarginMod);
       s.shipX = Math.max(margin, Math.min(CANVAS_W - margin, s.shipX));
 
-      s.waterOffset = (s.waterOffset + s.scrollSpeed * 60 * dt) % 80;
+      // Effective scroll speed includes segment + turn modifiers
+      const effectiveScrollSpeed = s.scrollSpeed * segSpeedMult * turnSpdMult;
+      s.waterOffset = (s.waterOffset + effectiveScrollSpeed * 60 * dt) % 80;
 
       // Wake trail
       if (Math.random() < 0.7) {
@@ -1483,9 +1876,10 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         }
       }
 
-      // ── SPAWN ENEMIES ──
-      s.enemySpawnTimer -= dt * 1000;
-      if (s.enemySpawnTimer <= 0 && progress < 0.88) {
+      // ── SPAWN ENEMIES (modified by segment) ──
+      const enemyMult = mod.enemyMult ?? 1;
+      s.enemySpawnTimer -= dt * 1000 * Math.max(0.1, enemyMult);
+      if (s.enemySpawnTimer <= 0 && progress < 0.88 && enemyMult > 0) {
         const eligible = SEA_ENEMIES.filter(e => progress >= e.minProgress && Math.random() < e.spawnChance);
         if (eligible.length > 0) {
           const template = eligible[Math.floor(Math.random() * eligible.length)];
@@ -1647,22 +2041,30 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
         if (s.gateParticles[i].life <= 0) s.gateParticles.splice(i, 1);
       }
 
-      // Spawn obstacles
-      if (progress < 0.88) {
-        s.spawnTimer -= dt * 1000;
+      // Spawn obstacles (modified by segment)
+      const obsMult = mod.obstacleMult ?? 1;
+      if (progress < 0.88 && obsMult > 0) {
+        s.spawnTimer -= dt * 1000 * obsMult;
         if (s.spawnTimer <= 0) {
           const template = pickObstacleType(progress);
+          // Loot multiplier: more barrels/wrecks in treasure segments
+          const isLoot = template.loot;
+          const lootMult = mod.lootMult ?? 1;
+          const spawnLoot = isLoot || (!isLoot && lootMult > 1.5 && Math.random() < 0.3);
+          const finalTemplate = spawnLoot && !isLoot
+            ? (RIVER_OBSTACLES.find(o => o.id === "barrel") || template)
+            : template;
           s.obstacles.push({
-            ...template,
+            ...finalTemplate,
             uid: ++obstacleIdCounter,
             x: margin + Math.random() * (CANVAS_W - margin * 2),
-            y: -template.height - 10,
-            currentHp: template.hp,
-            rotation: template.pulls ? Math.random() * Math.PI * 2 : 0,
+            y: -finalTemplate.height - 10,
+            currentHp: finalTemplate.hp,
+            rotation: finalTemplate.pulls ? Math.random() * Math.PI * 2 : 0,
             hitFlash: 0,
             rockSeed: Math.floor(Math.random() * 10000),
           });
-          s.spawnTimer = s.spawnRate * (0.6 + Math.random() * 0.8);
+          s.spawnTimer = s.spawnRate * (0.6 + Math.random() * 0.8) / Math.max(0.3, obsMult);
         }
       }
 
@@ -1733,12 +2135,17 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       hudTimer += dt;
       if (hudTimer > 0.15) {
         hudTimer = 0;
+        const curSeg = s.segments[s.currentSegmentIdx];
+        const segTypeName = curSeg ? (RIVER_NODE_TYPES[curSeg.type]?.name || null) : null;
         setHud({
           hp: s.shipHp, maxHp: s.shipMaxHp,
           time: Math.round(s.elapsed), maxTime: s.segmentLength,
           gateCombo: s.gateCombo, gatesHit: s.gatesHit,
           weatherName: s.activeWeather ? s.activeWeather.name : null,
           windDir: s.windDir,
+          segmentName: segTypeName,
+          segmentIdx: s.currentSegmentIdx,
+          totalSegments: s.segments.length,
         });
       }
 
@@ -1873,6 +2280,16 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
               <span>{destBiome.name}</span>
             </div>
           )}
+          {hud.segmentName && hud.totalSegments > 1 && (
+            <div style={{
+              background: "rgba(10,5,2,0.8)", border: "1px solid #4a6a4a",
+              padding: "4px 12px", display: "flex", alignItems: "center", gap: 6,
+              color: "#80c080",
+            }}>
+              <GameIcon name="compass" size={14} />
+              <span>{hud.segmentName} ({hud.segmentIdx + 1}/{hud.totalSegments})</span>
+            </div>
+          )}
         </div>
       )}
       {phase === "playing" && (
@@ -1883,6 +2300,115 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
           pointerEvents: "none", zIndex: 10,
         }}>
           {isMobile ? "Dotknij lewą/prawą stronę ekranu" : "← → / A D — steruj statkiem"}
+        </div>
+      )}
+      {/* Node event overlay */}
+      {nodeEvent && (
+        <div style={{
+          position: "absolute", inset: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 20, background: "rgba(0,0,0,0.7)",
+        }}>
+          <div style={{
+            background: "#0a1828", border: "2px solid #4080c0", padding: 20,
+            minWidth: 300, maxWidth: 400, fontFamily: "monospace", color: "#d8c8a8",
+            borderRadius: 8,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <GameIcon name={nodeEvent.icon} size={24} />
+              <span style={{ fontSize: 18, fontWeight: "bold", color: "#ffd700" }}>{nodeEvent.name}</span>
+            </div>
+            <p style={{ fontSize: 13, color: "#a09888", marginBottom: 14 }}>{nodeEvent.desc}</p>
+            {nodeEvent.choices.map((choice, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  // Apply choice reward (simplified)
+                  const s = stateRef.current;
+                  if (choice.reward) {
+                    if (choice.reward.shipHeal && s) s.shipHp = Math.min(s.shipMaxHp, s.shipHp + choice.reward.shipHeal);
+                    if (choice.reward.damage && s) s.shipHp = Math.max(1, s.shipHp - choice.reward.damage);
+                    if (choice.reward.copper && s) { /* handled by onComplete */ }
+                    if (choice.reward.tempShield && s) s.invulnTimer = Math.max(s.invulnTimer, 3);
+                  }
+                  setNodeEvent(null);
+                }}
+                style={{
+                  display: "block", width: "100%", marginBottom: 8,
+                  background: "rgba(20,35,50,0.9)", border: "1px solid #3a5a7a",
+                  padding: "8px 12px", cursor: "pointer", textAlign: "left",
+                  fontFamily: "monospace", color: "#d8c8a8", borderRadius: 4,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <GameIcon name={choice.icon} size={14} />
+                  <span style={{ fontWeight: "bold", fontSize: 13 }}>{choice.label}</span>
+                </div>
+                <div style={{ fontSize: 11, color: "#8a7a6a", marginTop: 2 }}>{choice.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* Shop overlay */}
+      {shopItems && (
+        <div style={{
+          position: "absolute", inset: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 20, background: "rgba(0,0,0,0.7)",
+        }}>
+          <div style={{
+            background: "#0a1828", border: "2px solid #a08030", padding: 20,
+            minWidth: 300, maxWidth: 400, fontFamily: "monospace", color: "#d8c8a8",
+            borderRadius: 8,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <GameIcon name="shop" size={24} />
+              <span style={{ fontSize: 18, fontWeight: "bold", color: "#ffd700" }}>Handlarz na Tratwie</span>
+            </div>
+            <p style={{ fontSize: 12, color: "#a09888", marginBottom: 14 }}>Kupuj szybko — statek nie czeka!</p>
+            {shopItems.map((item, i) => (
+              <button
+                key={i}
+                disabled={item.bought}
+                onClick={() => {
+                  const s = stateRef.current;
+                  if (item.reward?.shipHeal && s) {
+                    s.shipHp = Math.min(s.shipMaxHp, s.shipHp + item.reward.shipHeal);
+                  }
+                  setShopItems(prev => prev.map((it, j) => j === i ? { ...it, bought: true } : it));
+                }}
+                style={{
+                  display: "block", width: "100%", marginBottom: 8,
+                  background: item.bought ? "rgba(10,20,30,0.5)" : "rgba(20,35,50,0.9)",
+                  border: `1px solid ${item.bought ? "#2a3a4a" : "#5a7a3a"}`,
+                  padding: "8px 12px", cursor: item.bought ? "default" : "pointer", textAlign: "left",
+                  fontFamily: "monospace", color: item.bought ? "#5a5a5a" : "#d8c8a8", borderRadius: 4,
+                  opacity: item.bought ? 0.5 : 1,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <GameIcon name={item.icon} size={14} />
+                  <span style={{ fontWeight: "bold", fontSize: 13 }}>{item.name}</span>
+                  <span style={{ marginLeft: "auto", color: "#d4a030", fontSize: 12 }}>
+                    {item.cost.copper ? `${item.cost.copper}⛁` : ""}{item.cost.silver ? `${item.cost.silver}◈` : ""}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: "#8a7a6a", marginTop: 2 }}>{item.desc}</div>
+              </button>
+            ))}
+            <button
+              onClick={() => setShopItems(null)}
+              style={{
+                display: "block", width: "100%", marginTop: 8,
+                background: "#3a2020", border: "1px solid #5a3030",
+                padding: "8px 12px", cursor: "pointer", textAlign: "center",
+                fontFamily: "monospace", color: "#d8a8a8", borderRadius: 4, fontSize: 13,
+              }}
+            >
+              Płyń dalej →
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -51,6 +51,7 @@ import { STORY_ARCS, MORAL_DILEMMAS, rollStoryStep, rollNewStoryArc, rollMoralDi
 import { SHIP_UPGRADES, rollSeaEvent, rollIslandDiscovery } from "./data/sailing";
 import RiverShipSegment from "./components/RiverShipSegment";
 import WorldMap from "./components/WorldMap";
+import RiverMap from "./components/RiverMap";
 import { FORTIFICATION_TREE, TRAP_COMBOS } from "./data/advancedTraps";
 import { FACTIONS, getFactionBonus, getFactionHostility, rollFactionQuest, rollFactionEvent } from "./data/factions";
 import { ARTIFACT_SETS, DISCOVERY_MILESTONES, JOURNAL_CATEGORIES, getDiscoveryMilestone, rollSecretRoom, getCompletedSetBonuses } from "./data/discovery";
@@ -443,6 +444,8 @@ export default function App() {
   const [discoveredIslands, setDiscoveredIslands] = useState([]);
   const [riverSegment, setRiverSegment] = useState(false);   // true when river ship mini-game is active
   const [worldMap, setWorldMap] = useState(false);           // true when world map navigation is active
+  const [riverMapOpen, setRiverMapOpen] = useState(false);   // true when river path map is shown
+  const [riverPath, setRiverPath] = useState(null);          // chosen path from river map
   const [shipMapPos, setShipMapPos] = useState({ x: 640, y: 360 }); // ship position on world map
   const pendingDestBiomeRef = useRef(null); // chosen biome from world map, persists through events
 
@@ -2880,7 +2883,7 @@ export default function App() {
 
   // Biome-adaptive ambient soundscape (includes weather overlay)
   useEffect(() => {
-    if (biome && !riverSegment && !worldMap) changeBiomeMusic(biome.id, isNight, weather?.id);
+    if (biome && !riverSegment && !worldMap && !riverMapOpen) changeBiomeMusic(biome.id, isNight, weather?.id);
   }, [biome, isNight, weather, riverSegment, worldMap]);
 
   // River segment ambient sounds (water, creaking ship, seagulls)
@@ -3568,14 +3571,29 @@ export default function App() {
     setShipMapPos(newShipPos);
     setTransitioning(true);
     pendingDestBiomeRef.current = chosenBiome; // persist chosen biome through events
-    // Start river segment transition toward chosen biome
-    setTimeout(() => { setRiverSegment({ destBiome: chosenBiome }); setTransitioning(false); }, 400);
+    // Show river path map for player to choose route
+    setTimeout(() => { setRiverMapOpen(true); setTransitioning(false); }, 400);
   }, [room]);
+
+  // River map confirm handler — player chose a path, start sailing
+  const handleRiverMapConfirm = useCallback((pathData) => {
+    setRiverMapOpen(false);
+    setRiverPath(pathData);
+    const destBiome = pendingDestBiomeRef.current;
+    setTimeout(() => { setRiverSegment({ destBiome }); }, 300);
+  }, []);
+
+  // River map cancel — go back to world map
+  const handleRiverMapCancel = useCallback(() => {
+    setRiverMapOpen(false);
+    setTimeout(() => { setWorldMap(true); }, 200);
+  }, []);
 
   // River ship segment completion handler
   const handleRiverComplete = useCallback((result) => {
     const destBiome = riverSegment?.destBiome || null;
     setRiverSegment(false);
+    setRiverPath(null);
     if (result.rewards) {
       addMoneyFn(result.rewards);
       if (result.rewards.copper) showMessage(`+${result.rewards.copper} miedzi`, "#d4a030");
@@ -7338,7 +7356,7 @@ export default function App() {
           initiative={initiative}
           maxInitiative={MAX_INITIATIVE}
           cost={CARAVAN_COST}
-          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !riverSegment && !worldMap}
+          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !riverSegment && !worldMap && !riverMapOpen}
           onClick={travelCaravan}
           hp={caravanHp}
           maxHp={CARAVAN_LEVELS[caravanLevel].hp}
@@ -8305,6 +8323,17 @@ export default function App() {
         />
       )}
 
+      {/* RIVER MAP — choose route before sailing */}
+      {riverMapOpen && (
+        <RiverMap
+          roomNumber={room}
+          onConfirm={handleRiverMapConfirm}
+          onCancel={handleRiverMapCancel}
+          isMobile={isMobile}
+          shipUpgrades={shipUpgrades}
+        />
+      )}
+
       {/* RIVER SHIP SEGMENT — mini-game overlay (fixed, above all UI including Caravan zIndex:9000) */}
       {riverSegment && (
         <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "#000" }}>
@@ -8314,6 +8343,7 @@ export default function App() {
             isMobile={isMobile}
             shipUpgrades={shipUpgrades}
             destBiome={riverSegment.destBiome}
+            riverPath={riverPath}
           />
         </div>
       )}
