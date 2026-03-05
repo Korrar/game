@@ -96,45 +96,51 @@ const BIOME_AMBIENCE = {
   // ── Jungle: dense tropical forest ──
   jungle: {
     wind: { vol: 0.04, freq: 280, q: 0.6, lfoRate: 0.015 },
-    // Layered insect/cicada drone
-    insects: { vol: 0.06, freqs: [4200, 5800, 7200], q: 8, lfoRate: 0.3 },
+    // Layered insect/cicada drone — lower, warmer frequencies
+    insects: { vol: 0.045, freqs: [1800, 2600, 3400], q: 4, lfoRate: 0.3 },
     // Bird calls — random short chirps
-    creatures: { type: "birds", vol: 0.05, interval: [2000, 5000], chance: 0.6 },
+    creatures: { type: "birds", vol: 0.04, interval: [2000, 5000], chance: 0.6 },
     // Distant monkey howls / frog croaks
     creatures2: { type: "frogs", vol: 0.04, interval: [4000, 8000], chance: 0.4 },
     // Dripping water
     drips: { vol: 0.03, interval: [800, 3000], chance: 0.5 },
     // Rustling leaves
-    rustle: { vol: 0.03, freq: 1800, q: 0.4, lfoRate: 0.08 },
+    rustle: { vol: 0.03, freq: 1200, q: 0.3, lfoRate: 0.08 },
+    // Warm low-frequency jungle hum
+    rumble: { vol: 0.05, freq: 60, lfoRate: 0.012 },
   },
   // ── Island: coastal with ocean ──
   island: {
-    wind: { vol: 0.06, freq: 350, q: 0.5, lfoRate: 0.012 },
+    wind: { vol: 0.06, freq: 300, q: 0.4, lfoRate: 0.012 },
     waves: { vol: 0.08, rate: 5.0 },
     // Seagull cries
-    creatures: { type: "seagulls", vol: 0.04, interval: [3000, 7000], chance: 0.5 },
+    creatures: { type: "seagulls", vol: 0.035, interval: [3000, 7000], chance: 0.5 },
     // Creaking wood (dock/ship)
     creak: { vol: 0.025, interval: [5000, 12000], chance: 0.35 },
+    // Gentle ocean drone
+    rumble: { vol: 0.05, freq: 50, lfoRate: 0.008 },
   },
   // ── Desert: arid wind and sand ──
   desert: {
     wind: { vol: 0.10, freq: 200, q: 0.3, lfoRate: 0.008 },
-    // Sand hiss — high frequency wind-blown sand
-    sandHiss: { vol: 0.04, freq: 6000, q: 1.5, lfoRate: 0.05 },
+    // Sand hiss — lower, softer wind-blown sand
+    sandHiss: { vol: 0.03, freq: 3000, q: 0.8, lfoRate: 0.05 },
     // Distant eagle/hawk cry
-    creatures: { type: "hawk", vol: 0.03, interval: [6000, 15000], chance: 0.3 },
+    creatures: { type: "hawk", vol: 0.025, interval: [6000, 15000], chance: 0.3 },
     // Low rumble — heat shimmer / distant thunder
-    rumble: { vol: 0.04, freq: 40, lfoRate: 0.01 },
+    rumble: { vol: 0.06, freq: 40, lfoRate: 0.01 },
   },
   // ── Winter: cold howling wind and ice ──
   winter: {
-    wind: { vol: 0.12, freq: 400, q: 0.4, lfoRate: 0.01 },
-    // High-pitched wind whistle through gaps
-    whistle: { vol: 0.03, freq: 2200, q: 6, lfoRate: 0.06 },
+    wind: { vol: 0.10, freq: 300, q: 0.3, lfoRate: 0.01 },
+    // Wind whistle through gaps — lower, less piercing
+    whistle: { vol: 0.02, freq: 1200, q: 3, lfoRate: 0.06 },
     // Ice cracking
     creatures: { type: "ice_crack", vol: 0.04, interval: [5000, 12000], chance: 0.35 },
     // Snow crunch / settling
     drips: { vol: 0.02, interval: [3000, 8000], chance: 0.3 },
+    // Low arctic drone
+    rumble: { vol: 0.04, freq: 45, lfoRate: 0.007 },
   },
   // ── City: port town ambience ──
   city: {
@@ -155,81 +161,114 @@ const BIOME_AMBIENCE = {
     rumble: { vol: 0.10, freq: 30, lfoRate: 0.007 },
     // Lava bubbling
     creatures: { type: "lava_bubble", vol: 0.05, interval: [1500, 4000], chance: 0.6 },
-    // Fire crackle
-    fireCrackle: { vol: 0.05, freq: 3500, q: 1.0, lfoRate: 0.15 },
+    // Fire crackle — lower, warmer
+    fireCrackle: { vol: 0.04, freq: 2000, q: 0.6, lfoRate: 0.15 },
     // Distant eruption rumble
     creatures2: { type: "eruption", vol: 0.04, interval: [8000, 20000], chance: 0.25 },
   },
   // ── Summer: warm meadow ──
   summer: {
-    wind: { vol: 0.05, freq: 320, q: 0.5, lfoRate: 0.015 },
-    // Bees / insects buzzing
-    insects: { vol: 0.04, freqs: [3800, 4600], q: 6, lfoRate: 0.4 },
+    wind: { vol: 0.05, freq: 280, q: 0.4, lfoRate: 0.015 },
+    // Bees / insects buzzing — warmer, lower
+    insects: { vol: 0.03, freqs: [1600, 2400], q: 3, lfoRate: 0.4 },
     // Bird song
-    creatures: { type: "birds", vol: 0.045, interval: [2500, 5500], chance: 0.55 },
+    creatures: { type: "birds", vol: 0.04, interval: [2500, 5500], chance: 0.55 },
     // Grass rustling
-    rustle: { vol: 0.03, freq: 2200, q: 0.3, lfoRate: 0.06 },
+    rustle: { vol: 0.03, freq: 1400, q: 0.3, lfoRate: 0.06 },
     // Cricket chirps
-    creatures2: { type: "crickets", vol: 0.03, interval: [1500, 4000], chance: 0.5 },
+    creatures2: { type: "crickets", vol: 0.025, interval: [1500, 4000], chance: 0.5 },
+    // Warm meadow hum
+    rumble: { vol: 0.04, freq: 55, lfoRate: 0.01 },
   },
   // ── Autumn: wind through dry leaves ──
   autumn: {
-    wind: { vol: 0.08, freq: 300, q: 0.4, lfoRate: 0.012 },
-    // Dry leaf rustle — prominent
-    rustle: { vol: 0.05, freq: 2500, q: 0.5, lfoRate: 0.1 },
+    wind: { vol: 0.08, freq: 260, q: 0.3, lfoRate: 0.012 },
+    // Dry leaf rustle — softer
+    rustle: { vol: 0.04, freq: 1600, q: 0.3, lfoRate: 0.1 },
     // Crow caws
     creatures: { type: "crows", vol: 0.035, interval: [4000, 10000], chance: 0.4 },
     // Creaking branches
     creak: { vol: 0.03, interval: [5000, 12000], chance: 0.3 },
+    // Low autumn wind drone
+    rumble: { vol: 0.04, freq: 50, lfoRate: 0.009 },
   },
   // ── Spring: fresh breeze and birdsong ──
   spring: {
-    wind: { vol: 0.04, freq: 350, q: 0.5, lfoRate: 0.018 },
+    wind: { vol: 0.04, freq: 300, q: 0.4, lfoRate: 0.018 },
     // Rich birdsong
-    creatures: { type: "birds", vol: 0.05, interval: [1500, 4000], chance: 0.65 },
+    creatures: { type: "birds", vol: 0.045, interval: [1500, 4000], chance: 0.65 },
     // Babbling brook
     drips: { vol: 0.04, interval: [400, 1200], chance: 0.7 },
     // Rustling new leaves
-    rustle: { vol: 0.025, freq: 2000, q: 0.4, lfoRate: 0.07 },
-    // Insects
-    insects: { vol: 0.025, freqs: [4000, 5200], q: 5, lfoRate: 0.35 },
+    rustle: { vol: 0.025, freq: 1300, q: 0.3, lfoRate: 0.07 },
+    // Insects — warmer
+    insects: { vol: 0.02, freqs: [1800, 2800], q: 3, lfoRate: 0.35 },
+    // Gentle earth hum
+    rumble: { vol: 0.03, freq: 50, lfoRate: 0.01 },
   },
   // ── Mushroom: eerie underground/enchanted forest ──
   mushroom: {
-    wind: { vol: 0.02, freq: 200, q: 0.4, lfoRate: 0.01 },
+    wind: { vol: 0.02, freq: 180, q: 0.3, lfoRate: 0.01 },
     // Deep cave drone
-    rumble: { vol: 0.05, freq: 45, lfoRate: 0.008 },
+    rumble: { vol: 0.06, freq: 40, lfoRate: 0.008 },
     // Water drips in cave
     drips: { vol: 0.05, interval: [600, 2500], chance: 0.6 },
     // Strange spore puffs / alien sounds
     creatures: { type: "spores", vol: 0.04, interval: [3000, 7000], chance: 0.45 },
-    // Echo-like resonance
-    whistle: { vol: 0.02, freq: 800, q: 10, lfoRate: 0.03 },
+    // Echo-like resonance — less piercing
+    whistle: { vol: 0.015, freq: 500, q: 5, lfoRate: 0.03 },
   },
   // ── Swamp: murky, oppressive wetland ──
   swamp: {
-    wind: { vol: 0.03, freq: 220, q: 0.3, lfoRate: 0.01 },
+    wind: { vol: 0.03, freq: 200, q: 0.3, lfoRate: 0.01 },
     // Bubbling mud/gas
     creatures: { type: "bubbles", vol: 0.05, interval: [1500, 4000], chance: 0.55 },
     // Frogs croaking
     creatures2: { type: "frogs", vol: 0.05, interval: [2000, 5000], chance: 0.5 },
-    // Mosquito buzz
-    insects: { vol: 0.035, freqs: [3600, 4800], q: 10, lfoRate: 0.5 },
+    // Mosquito buzz — lower, less piercing
+    insects: { vol: 0.025, freqs: [1800, 2600], q: 4, lfoRate: 0.5 },
     // Water slosh
     drips: { vol: 0.03, interval: [2000, 5000], chance: 0.4 },
-    // Low fog drone
-    rumble: { vol: 0.04, freq: 55, lfoRate: 0.006 },
+    // Low fog drone — deeper
+    rumble: { vol: 0.06, freq: 45, lfoRate: 0.006 },
   },
   // ── Blue Lagoon: tropical paradise ──
   blue_lagoon: {
-    wind: { vol: 0.04, freq: 300, q: 0.5, lfoRate: 0.015 },
+    wind: { vol: 0.04, freq: 280, q: 0.4, lfoRate: 0.015 },
     waves: { vol: 0.07, rate: 4.0 },
     // Tropical birds
-    creatures: { type: "birds", vol: 0.04, interval: [2500, 6000], chance: 0.5 },
+    creatures: { type: "birds", vol: 0.035, interval: [2500, 6000], chance: 0.5 },
     // Gentle waterfall
-    rustle: { vol: 0.04, freq: 1500, q: 0.3, lfoRate: 0.04 },
-    // Insects
-    insects: { vol: 0.025, freqs: [4200, 5500], q: 6, lfoRate: 0.3 },
+    rustle: { vol: 0.04, freq: 1000, q: 0.3, lfoRate: 0.04 },
+    // Insects — warmer
+    insects: { vol: 0.02, freqs: [1800, 2800], q: 3, lfoRate: 0.3 },
+    // Warm lagoon drone
+    rumble: { vol: 0.04, freq: 50, lfoRate: 0.01 },
+  },
+  // ── Sunset Beach: warm evening coast ──
+  sunset_beach: {
+    wind: { vol: 0.05, freq: 250, q: 0.3, lfoRate: 0.01 },
+    waves: { vol: 0.09, rate: 6.0 },
+    // Seagulls — distant
+    creatures: { type: "seagulls", vol: 0.025, interval: [5000, 10000], chance: 0.35 },
+    // Warm evening drone
+    rumble: { vol: 0.05, freq: 45, lfoRate: 0.008 },
+    // Soft sand rustle
+    rustle: { vol: 0.02, freq: 900, q: 0.3, lfoRate: 0.04 },
+  },
+  // ── Bamboo Falls: flowing water and bamboo ──
+  bamboo_falls: {
+    wind: { vol: 0.04, freq: 240, q: 0.3, lfoRate: 0.015 },
+    // Waterfall — continuous
+    rustle: { vol: 0.06, freq: 800, q: 0.3, lfoRate: 0.05 },
+    // Water drips
+    drips: { vol: 0.04, interval: [500, 1500], chance: 0.65 },
+    // Bamboo creaking
+    creak: { vol: 0.03, interval: [4000, 9000], chance: 0.4 },
+    // Soft insects
+    insects: { vol: 0.015, freqs: [1600, 2200], q: 3, lfoRate: 0.3 },
+    // Deep water drone
+    rumble: { vol: 0.05, freq: 50, lfoRate: 0.01 },
   },
 };
 
@@ -469,9 +508,9 @@ function createCreatureLayer(cfg, layerName) {
 
     switch (cfg.type) {
       case "birds": {
-        // 2-4 note chirp, ascending/descending
+        // 2-4 note chirp, ascending/descending — warmer range
         const noteCount = 2 + Math.floor(Math.random() * 3);
-        const baseFreq = 2000 + Math.random() * 2000;
+        const baseFreq = 1200 + Math.random() * 1400;
         const dir = Math.random() < 0.5 ? 1 : -1;
         for (let i = 0; i < noteCount; i++) {
           const t = now + i * (0.08 + Math.random() * 0.06);
@@ -504,12 +543,12 @@ function createCreatureLayer(cfg, layerName) {
         break;
       }
       case "seagulls": {
-        // Rising then falling cry
+        // Rising then falling cry — warmer range
         const osc = c.createOscillator(); osc.type = "sine";
-        osc.frequency.setValueAtTime(1200 + Math.random() * 400, now);
-        osc.frequency.linearRampToValueAtTime(2200 + Math.random() * 600, now + 0.2);
-        osc.frequency.linearRampToValueAtTime(1000 + Math.random() * 300, now + 0.5);
-        const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1800; bp.Q.value = 2;
+        osc.frequency.setValueAtTime(900 + Math.random() * 300, now);
+        osc.frequency.linearRampToValueAtTime(1600 + Math.random() * 400, now + 0.2);
+        osc.frequency.linearRampToValueAtTime(800 + Math.random() * 200, now + 0.5);
+        const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1200; bp.Q.value = 1.5;
         const g = c.createGain();
         g.gain.setValueAtTime(0.001, now);
         g.gain.linearRampToValueAtTime(cfg.vol, now + 0.08);
@@ -520,12 +559,12 @@ function createCreatureLayer(cfg, layerName) {
         break;
       }
       case "hawk": {
-        // High piercing screech
+        // Distant hawk cry — lower, less piercing
         const osc = c.createOscillator(); osc.type = "sawtooth";
-        osc.frequency.setValueAtTime(1800, now);
-        osc.frequency.linearRampToValueAtTime(2400, now + 0.3);
-        osc.frequency.linearRampToValueAtTime(1600, now + 0.8);
-        const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 2000; bp.Q.value = 3;
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.linearRampToValueAtTime(1600, now + 0.3);
+        osc.frequency.linearRampToValueAtTime(1000, now + 0.8);
+        const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1400; bp.Q.value = 2;
         const g = c.createGain();
         g.gain.setValueAtTime(0.001, now);
         g.gain.linearRampToValueAtTime(cfg.vol, now + 0.1);
@@ -552,12 +591,12 @@ function createCreatureLayer(cfg, layerName) {
         break;
       }
       case "crickets": {
-        // Rapid chirp burst
+        // Rapid chirp burst — lower, less piercing
         const chirpCount = 4 + Math.floor(Math.random() * 4);
         for (let i = 0; i < chirpCount; i++) {
           const t = now + i * 0.04;
           const osc = c.createOscillator(); osc.type = "sine";
-          osc.frequency.value = 4500 + Math.random() * 1000;
+          osc.frequency.value = 2800 + Math.random() * 800;
           const g = c.createGain();
           g.gain.setValueAtTime(cfg.vol * 0.7, t);
           g.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
@@ -664,12 +703,12 @@ function createCreatureLayer(cfg, layerName) {
         const puffD = puffBuf.getChannelData(0);
         for (let j = 0; j < puffLen; j++) puffD[j] = (Math.random() * 2 - 1) * Math.sin(j / puffLen * Math.PI);
         const pn = c.createBufferSource(); pn.buffer = puffBuf;
-        const pbp = c.createBiquadFilter(); pbp.type = "bandpass"; pbp.frequency.value = 1200; pbp.Q.value = 1;
+        const pbp = c.createBiquadFilter(); pbp.type = "bandpass"; pbp.frequency.value = 800; pbp.Q.value = 0.8;
         const pg = c.createGain(); pg.gain.setValueAtTime(cfg.vol, now); pg.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
         pn.connect(pbp); pbp.connect(pg); pg.connect(panner); pn.start(now);
-        // Shimmer
+        // Shimmer — warmer
         const osc = c.createOscillator(); osc.type = "sine";
-        osc.frequency.value = 600 + Math.random() * 800;
+        osc.frequency.value = 400 + Math.random() * 500;
         const g = c.createGain(); g.gain.setValueAtTime(cfg.vol * 0.3, now + 0.05); g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
         osc.connect(g); g.connect(panner); osc.start(now + 0.05); osc.stop(now + 0.45);
         break;
@@ -702,7 +741,7 @@ function createDripLayer(cfg) {
     if (Math.random() > cfg.chance) { scheduleNext(); return; }
 
     const now = c.currentTime;
-    const freq = 800 + Math.random() * 1500;
+    const freq = 500 + Math.random() * 900;
     const osc = c.createOscillator(); osc.type = "sine";
     osc.frequency.setValueAtTime(freq, now);
     osc.frequency.exponentialRampToValueAtTime(freq * 0.5, now + 0.06);
