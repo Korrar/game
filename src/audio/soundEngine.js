@@ -1361,108 +1361,210 @@ export function sfxBuy() {
 
 export function sfxFireball() {
   playSfx((c, now, dest) => {
-    // Fuse sizzle - gunpowder hiss before the boom
-    const fizLen = Math.floor(c.sampleRate * 0.2);
+    // Fuse sizzle — crackling gunpowder hiss with random pops
+    const fizLen = Math.floor(c.sampleRate * 0.22);
     const fizBuf = c.createBuffer(1, fizLen, c.sampleRate);
     const fizD = fizBuf.getChannelData(0);
-    for (let i = 0; i < fizLen; i++) fizD[i] = (Math.random() * 2 - 1) * Math.pow(i / fizLen, 1.5) * 0.6;
+    for (let i = 0; i < fizLen; i++) {
+      const t = i / fizLen;
+      // Increasing crackle with random sputter pops
+      const base = (Math.random() * 2 - 1) * Math.pow(t, 1.2) * 0.5;
+      const pop = Math.random() > 0.97 ? (Math.random() * 2 - 1) * 0.8 : 0;
+      fizD[i] = base + pop;
+    }
     const fizN = c.createBufferSource(); fizN.buffer = fizBuf;
-    const fizF = c.createBiquadFilter(); fizF.type = "highpass"; fizF.frequency.value = 3000;
-    const fizG = c.createGain(); fizG.gain.setValueAtTime(0.15, now); fizG.gain.exponentialRampToValueAtTime(0.3, now + 0.15);
-    fizG.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-    fizN.connect(fizF); fizF.connect(fizG); fizG.connect(dest); fizN.start(now);
-    // Whoosh buildup
-    const buf = c.createBuffer(1, c.sampleRate * 0.3, c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(i / d.length, 2);
-    const n = c.createBufferSource(); n.buffer = buf;
-    const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 600; f.Q.value = 1.5;
-    const g = c.createGain(); g.gain.setValueAtTime(0.35, now + 0.05); g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-    n.connect(f); f.connect(g); g.connect(dest); n.start(now + 0.05);
-    // BOOM - layered explosion
-    const buf2 = c.createBuffer(1, c.sampleRate * 0.6, c.sampleRate);
-    const d2 = buf2.getChannelData(0);
-    for (let i = 0; i < d2.length; i++) d2[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d2.length, 1.2);
-    const n2 = c.createBufferSource(); n2.buffer = buf2;
-    const f2 = c.createBiquadFilter(); f2.type = "lowpass"; f2.frequency.value = 900;
-    const g2 = c.createGain(); g2.gain.setValueAtTime(0.5, now + 0.2); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
-    n2.connect(f2); f2.connect(g2); g2.connect(dest); n2.start(now + 0.2);
-    // Deep cannon bass boom
-    const bass = c.createOscillator(); bass.type = "sine";
-    bass.frequency.setValueAtTime(120, now + 0.2); bass.frequency.exponentialRampToValueAtTime(20, now + 0.65);
-    const bg = c.createGain(); bg.gain.setValueAtTime(0.45, now + 0.2); bg.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
-    bass.connect(bg); bg.connect(dest); bass.start(now + 0.2); bass.stop(now + 0.75);
-    // Crackle tail - debris
-    const crkLen = Math.floor(c.sampleRate * 0.3);
-    const crkBuf = c.createBuffer(1, crkLen, c.sampleRate);
-    const crkD = crkBuf.getChannelData(0);
-    for (let i = 0; i < crkLen; i++) crkD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / crkLen, 3) * 0.5;
-    const crkN = c.createBufferSource(); crkN.buffer = crkBuf;
-    const crkF = c.createBiquadFilter(); crkF.type = "bandpass"; crkF.frequency.value = 2000; crkF.Q.value = 2;
-    const crkG = c.createGain(); crkG.gain.setValueAtTime(0.12, now + 0.35); crkG.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
-    crkN.connect(crkF); crkF.connect(crkG); crkG.connect(dest); crkN.start(now + 0.35);
+    const fizHP = c.createBiquadFilter(); fizHP.type = "highpass"; fizHP.frequency.value = 2500;
+    const fizBP = c.createBiquadFilter(); fizBP.type = "bandpass"; fizBP.frequency.value = 5000; fizBP.Q.value = 0.8;
+    const fizG = c.createGain(); fizG.gain.setValueAtTime(0.1, now);
+    fizG.gain.linearRampToValueAtTime(0.25, now + 0.18);
+    fizG.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+    fizN.connect(fizHP); fizHP.connect(fizBP); fizBP.connect(fizG); fizG.connect(dest); fizN.start(now);
+    // Pressure wave snap — the initial supersonic crack of detonation
+    const snapLen = Math.floor(c.sampleRate * 0.006);
+    const snapBuf = c.createBuffer(1, snapLen, c.sampleRate);
+    const snapD = snapBuf.getChannelData(0);
+    for (let i = 0; i < snapLen; i++) snapD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / snapLen, 0.3);
+    const snapN = c.createBufferSource(); snapN.buffer = snapBuf;
+    const snapG = c.createGain(); snapG.gain.setValueAtTime(0.55, now + 0.22);
+    snapG.gain.exponentialRampToValueAtTime(0.001, now + 0.235);
+    snapN.connect(snapG); snapG.connect(dest); snapN.start(now + 0.22);
+    // Main blast — layered broadband explosion with realistic envelope
+    const blastLen = Math.floor(c.sampleRate * 0.5);
+    const blastBuf = c.createBuffer(1, blastLen, c.sampleRate);
+    const blastD = blastBuf.getChannelData(0);
+    for (let i = 0; i < blastLen; i++) {
+      const t = i / blastLen;
+      // Fast attack, double-hump decay (initial blast + reflected wave)
+      const env = Math.exp(-t * 5) + 0.3 * Math.exp(-Math.pow(t - 0.15, 2) * 200);
+      blastD[i] = (Math.random() * 2 - 1) * env;
+    }
+    const blastN = c.createBufferSource(); blastN.buffer = blastBuf;
+    const blastLP = c.createBiquadFilter(); blastLP.type = "lowpass";
+    blastLP.frequency.setValueAtTime(1200, now + 0.22);
+    blastLP.frequency.exponentialRampToValueAtTime(300, now + 0.65);
+    blastLP.Q.value = 0.7;
+    const blastG = c.createGain(); blastG.gain.setValueAtTime(0.45, now + 0.22);
+    blastG.gain.exponentialRampToValueAtTime(0.001, now + 0.72);
+    blastN.connect(blastLP); blastLP.connect(blastG); blastG.connect(dest); blastN.start(now + 0.22);
+    // Sub-bass pressure wave — felt more than heard
+    const sub = c.createOscillator(); sub.type = "sine";
+    sub.frequency.setValueAtTime(60, now + 0.22);
+    sub.frequency.exponentialRampToValueAtTime(18, now + 0.6);
+    const subG = c.createGain(); subG.gain.setValueAtTime(0.4, now + 0.22);
+    subG.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    sub.connect(subG); subG.connect(dest); sub.start(now + 0.22); sub.stop(now + 0.7);
+    // Mid-bass cannon thump — the "punch" of the explosion
+    const cannon = c.createOscillator(); cannon.type = "sine";
+    cannon.frequency.setValueAtTime(150, now + 0.22);
+    cannon.frequency.exponentialRampToValueAtTime(40, now + 0.45);
+    const canG = c.createGain(); canG.gain.setValueAtTime(0.35, now + 0.22);
+    canG.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    cannon.connect(canG); canG.connect(dest); cannon.start(now + 0.22); cannon.stop(now + 0.55);
+    // Debris shower — scattered fragments raining down
+    const debLen = Math.floor(c.sampleRate * 0.4);
+    const debBuf = c.createBuffer(1, debLen, c.sampleRate);
+    const debD = debBuf.getChannelData(0);
+    for (let i = 0; i < debLen; i++) {
+      const t = i / debLen;
+      // Sparse random clicks simulating falling debris
+      const click = Math.random() > (0.95 + t * 0.04) ? (Math.random() * 2 - 1) * 0.6 : 0;
+      const noise = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.5) * 0.15;
+      debD[i] = click + noise;
+    }
+    const debN = c.createBufferSource(); debN.buffer = debBuf;
+    const debBP = c.createBiquadFilter(); debBP.type = "bandpass"; debBP.frequency.value = 2500; debBP.Q.value = 1;
+    const debG = c.createGain(); debG.gain.setValueAtTime(0.12, now + 0.35);
+    debG.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+    debN.connect(debBP); debBP.connect(debG); debG.connect(dest); debN.start(now + 0.35);
+    // Fire crackle tail — remaining flames
+    const fireLen = Math.floor(c.sampleRate * 0.3);
+    const fireBuf = c.createBuffer(1, fireLen, c.sampleRate);
+    const fireD = fireBuf.getChannelData(0);
+    for (let i = 0; i < fireLen; i++) {
+      const t = i / fireLen;
+      const env = Math.pow(1 - t, 3);
+      fireD[i] = (Math.random() * 2 - 1) * env * (Math.random() > 0.85 ? 1 : 0.15);
+    }
+    const fireN = c.createBufferSource(); fireN.buffer = fireBuf;
+    const fireHP = c.createBiquadFilter(); fireHP.type = "highpass"; fireHP.frequency.value = 3500;
+    const fireG = c.createGain(); fireG.gain.setValueAtTime(0.08, now + 0.45);
+    fireG.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+    fireN.connect(fireHP); fireHP.connect(fireG); fireG.connect(dest); fireN.start(now + 0.45);
   });
 }
 
 export function sfxLightning() {
   playSfx((c, now, dest) => {
-    // Musket CRACK - sharp percussive hit
-    const buf = c.createBuffer(1, Math.floor(c.sampleRate * 0.03), c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
-    const n = c.createBufferSource(); n.buffer = buf;
-    const f = c.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 1200;
-    const g = c.createGain(); g.gain.setValueAtTime(0.8, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-    n.connect(f); f.connect(g); g.connect(dest); n.start(now);
-    // Body punch - mid frequency impact
-    const osc = c.createOscillator(); osc.type = "square";
-    osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.06);
-    const og = c.createGain(); og.gain.setValueAtTime(0.3, now); og.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-    const of2 = c.createBiquadFilter(); of2.type = "bandpass"; of2.frequency.value = 500; of2.Q.value = 2;
-    osc.connect(of2); of2.connect(og); og.connect(dest); osc.start(now); osc.stop(now + 0.1);
-    // Gunpowder sizzle tail
-    const buf2 = c.createBuffer(1, Math.floor(c.sampleRate * 0.25), c.sampleRate);
-    const d2 = buf2.getChannelData(0);
-    for (let i = 0; i < d2.length; i++) d2[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d2.length, 3);
-    const n2 = c.createBufferSource(); n2.buffer = buf2;
-    const f2 = c.createBiquadFilter(); f2.type = "bandpass"; f2.frequency.value = 1800; f2.Q.value = 1.5;
-    const g2 = c.createGain(); g2.gain.setValueAtTime(0.18, now + 0.03); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-    n2.connect(f2); f2.connect(g2); g2.connect(dest); n2.start(now + 0.03);
-    // Brief reverb echo
-    const buf3 = c.createBuffer(1, Math.floor(c.sampleRate * 0.15), c.sampleRate);
-    const d3 = buf3.getChannelData(0);
-    for (let i = 0; i < d3.length; i++) d3[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d3.length, 5);
-    const n3 = c.createBufferSource(); n3.buffer = buf3;
-    const f3 = c.createBiquadFilter(); f3.type = "lowpass"; f3.frequency.value = 600;
-    const g3 = c.createGain(); g3.gain.setValueAtTime(0.1, now + 0.06); g3.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-    n3.connect(f3); f3.connect(g3); g3.connect(dest); n3.start(now + 0.06);
+    // Supersonic crack — initial muzzle blast transient
+    const crkLen = Math.floor(c.sampleRate * 0.004);
+    const crkBuf = c.createBuffer(1, crkLen, c.sampleRate);
+    const crkD = crkBuf.getChannelData(0);
+    for (let i = 0; i < crkLen; i++) crkD[i] = (i % 2 === 0 ? 1 : -1) * Math.pow(1 - i / crkLen, 0.3);
+    const crkN = c.createBufferSource(); crkN.buffer = crkBuf;
+    const crkG = c.createGain(); crkG.gain.setValueAtTime(0.65, now);
+    crkG.gain.exponentialRampToValueAtTime(0.001, now + 0.008);
+    crkN.connect(crkG); crkG.connect(dest); crkN.start(now);
+    // Muzzle blast body — sharp broadband burst with fast lowpass sweep
+    const blastLen = Math.floor(c.sampleRate * 0.06);
+    const blastBuf = c.createBuffer(1, blastLen, c.sampleRate);
+    const blastD = blastBuf.getChannelData(0);
+    for (let i = 0; i < blastLen; i++) blastD[i] = (Math.random() * 2 - 1) * Math.exp(-i / (blastLen * 0.15));
+    const blastN = c.createBufferSource(); blastN.buffer = blastBuf;
+    const blastLP = c.createBiquadFilter(); blastLP.type = "lowpass";
+    blastLP.frequency.setValueAtTime(8000, now); blastLP.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+    const blastG = c.createGain(); blastG.gain.setValueAtTime(0.5, now);
+    blastG.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    blastN.connect(blastLP); blastLP.connect(blastG); blastG.connect(dest); blastN.start(now);
+    // Gunpowder punch — mid-frequency thump
+    const punch = c.createOscillator(); punch.type = "triangle";
+    punch.frequency.setValueAtTime(300, now);
+    punch.frequency.exponentialRampToValueAtTime(80, now + 0.05);
+    const punchG = c.createGain(); punchG.gain.setValueAtTime(0.3, now);
+    punchG.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    punch.connect(punchG); punchG.connect(dest); punch.start(now); punch.stop(now + 0.08);
+    // Smoke hiss — gunpowder gas escaping
+    const hissLen = Math.floor(c.sampleRate * 0.2);
+    const hissBuf = c.createBuffer(1, hissLen, c.sampleRate);
+    const hissD = hissBuf.getChannelData(0);
+    for (let i = 0; i < hissLen; i++) hissD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / hissLen, 2.5);
+    const hissN = c.createBufferSource(); hissN.buffer = hissBuf;
+    const hissHP = c.createBiquadFilter(); hissHP.type = "highpass"; hissHP.frequency.value = 2000;
+    const hissBP = c.createBiquadFilter(); hissBP.type = "bandpass"; hissBP.frequency.value = 4000; hissBP.Q.value = 0.8;
+    const hissG = c.createGain(); hissG.gain.setValueAtTime(0.12, now + 0.02);
+    hissG.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    hissN.connect(hissHP); hissHP.connect(hissBP); hissBP.connect(hissG); hissG.connect(dest); hissN.start(now + 0.02);
+    // Distance echo — delayed, filtered reflection
+    const echoLen = Math.floor(c.sampleRate * 0.15);
+    const echoBuf = c.createBuffer(1, echoLen, c.sampleRate);
+    const echoD = echoBuf.getChannelData(0);
+    for (let i = 0; i < echoLen; i++) echoD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / echoLen, 4);
+    const echoN = c.createBufferSource(); echoN.buffer = echoBuf;
+    const echoLP = c.createBiquadFilter(); echoLP.type = "lowpass"; echoLP.frequency.value = 500;
+    const echoG = c.createGain(); echoG.gain.setValueAtTime(0.08, now + 0.08);
+    echoG.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    echoN.connect(echoLP); echoLP.connect(echoG); echoG.connect(dest); echoN.start(now + 0.08);
   });
 }
 
 export function sfxIceLance() {
   playSfx((c, now, dest) => {
-    // Crystalline swoosh
-    [2000, 3000, 4500].forEach((freq, i) => {
-      const osc = c.createOscillator(); osc.type = "sine"; osc.frequency.value = freq;
+    // Crystalline formation — ascending harmonic series with shimmer
+    [1800, 2700, 4200, 5600].forEach((freq, i) => {
+      const osc = c.createOscillator(); osc.type = "sine";
+      osc.frequency.setValueAtTime(freq * 0.8, now + i * 0.025);
+      osc.frequency.exponentialRampToValueAtTime(freq, now + i * 0.025 + 0.05);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.9, now + 0.3);
       const g = c.createGain();
-      g.gain.setValueAtTime(0.12, now + i * 0.03);
-      g.gain.exponentialRampToValueAtTime(0.001, now + 0.3 + i * 0.05);
+      g.gain.setValueAtTime(0.08 / (i * 0.5 + 1), now + i * 0.025);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.25 + i * 0.04);
       osc.connect(g); g.connect(dest);
-      osc.start(now + i * 0.03); osc.stop(now + 0.4);
+      osc.start(now + i * 0.025); osc.stop(now + 0.35 + i * 0.04);
     });
-    // Shatter impact
-    const buf = c.createBuffer(1, c.sampleRate * 0.2, c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
-    const n = c.createBufferSource(); n.buffer = buf;
-    const f = c.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 3000;
-    const g = c.createGain(); g.gain.setValueAtTime(0.2, now + 0.2); g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-    n.connect(f); f.connect(g); g.connect(dest); n.start(now + 0.2);
-    // Low ice crack
-    const osc2 = c.createOscillator(); osc2.type = "triangle";
-    osc2.frequency.setValueAtTime(150, now + 0.22); osc2.frequency.exponentialRampToValueAtTime(50, now + 0.4);
-    const g2 = c.createGain(); g2.gain.setValueAtTime(0.15, now + 0.22); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-    osc2.connect(g2); g2.connect(dest); osc2.start(now + 0.22); osc2.stop(now + 0.5);
+    // Frost whoosh — icy wind sound
+    const whooshLen = Math.floor(c.sampleRate * 0.15);
+    const whooshBuf = c.createBuffer(1, whooshLen, c.sampleRate);
+    const whooshD = whooshBuf.getChannelData(0);
+    for (let i = 0; i < whooshLen; i++) {
+      const t = i / whooshLen;
+      whooshD[i] = (Math.random() * 2 - 1) * Math.sin(t * Math.PI) * 0.5;
+    }
+    const whooshN = c.createBufferSource(); whooshN.buffer = whooshBuf;
+    const whooshBP = c.createBiquadFilter(); whooshBP.type = "bandpass";
+    whooshBP.frequency.setValueAtTime(1500, now);
+    whooshBP.frequency.linearRampToValueAtTime(4000, now + 0.07);
+    whooshBP.frequency.linearRampToValueAtTime(2000, now + 0.14);
+    whooshBP.Q.value = 1.5;
+    const whooshG = c.createGain(); whooshG.gain.setValueAtTime(0.15, now);
+    whooshG.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    whooshN.connect(whooshBP); whooshBP.connect(whooshG); whooshG.connect(dest); whooshN.start(now);
+    // Ice shatter on impact — glass-like breaking
+    const shatLen = Math.floor(c.sampleRate * 0.08);
+    const shatBuf = c.createBuffer(1, shatLen, c.sampleRate);
+    const shatD = shatBuf.getChannelData(0);
+    for (let i = 0; i < shatLen; i++) {
+      const env = Math.pow(1 - i / shatLen, 1.5);
+      shatD[i] = (Math.random() * 2 - 1) * env * (Math.random() > 0.6 ? 1 : 0.2);
+    }
+    const shatN = c.createBufferSource(); shatN.buffer = shatBuf;
+    const shatHP = c.createBiquadFilter(); shatHP.type = "highpass"; shatHP.frequency.value = 3500;
+    const shatG = c.createGain(); shatG.gain.setValueAtTime(0.18, now + 0.18);
+    shatG.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    shatN.connect(shatHP); shatHP.connect(shatG); shatG.connect(dest); shatN.start(now + 0.18);
+    // Deep ice crack — structural fracture
+    const crack = c.createOscillator(); crack.type = "triangle";
+    crack.frequency.setValueAtTime(180, now + 0.2);
+    crack.frequency.exponentialRampToValueAtTime(40, now + 0.38);
+    const crackG = c.createGain(); crackG.gain.setValueAtTime(0.15, now + 0.2);
+    crackG.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    crack.connect(crackG); crackG.connect(dest); crack.start(now + 0.2); crack.stop(now + 0.42);
+    // Tinkling ice fragments — delayed scattered sparkles
+    [0.24, 0.28, 0.33, 0.37].forEach(delay => {
+      const o = c.createOscillator(); o.type = "sine";
+      o.frequency.value = 3000 + Math.random() * 3000;
+      const gg = c.createGain(); gg.gain.setValueAtTime(0.04, now + delay);
+      gg.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.04);
+      o.connect(gg); gg.connect(dest); o.start(now + delay); o.stop(now + delay + 0.05);
+    });
   });
 }
 
@@ -1512,103 +1614,199 @@ export function sfxHolyBeam() {
 
 export function sfxNpcDeath() {
   playSfx((c, now, dest) => {
-    // Impact hit
-    const hitBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.05), c.sampleRate);
+    // Final blow impact — short punchy transient
+    const hitLen = Math.floor(c.sampleRate * 0.012);
+    const hitBuf = c.createBuffer(1, hitLen, c.sampleRate);
     const hitD = hitBuf.getChannelData(0);
-    for (let i = 0; i < hitD.length; i++) hitD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / hitD.length, 1.5);
+    for (let i = 0; i < hitLen; i++) hitD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / hitLen, 0.5);
     const hitN = c.createBufferSource(); hitN.buffer = hitBuf;
-    const hitG = c.createGain(); hitG.gain.setValueAtTime(0.25, now); hitG.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    const hitG = c.createGain(); hitG.gain.setValueAtTime(0.3, now); hitG.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
     hitN.connect(hitG); hitG.connect(dest); hitN.start(now);
-    // Descending death cry
-    const osc = c.createOscillator(); osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(500, now); osc.frequency.exponentialRampToValueAtTime(50, now + 0.5);
-    const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 600;
-    const g = c.createGain(); g.gain.setValueAtTime(0.22, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
-    osc.connect(f); f.connect(g); g.connect(dest); osc.start(now); osc.stop(now + 0.6);
-    // Body thud
-    const bass = c.createOscillator(); bass.type = "sine";
-    bass.frequency.setValueAtTime(100, now + 0.1); bass.frequency.exponentialRampToValueAtTime(30, now + 0.3);
-    const bg = c.createGain(); bg.gain.setValueAtTime(0.2, now + 0.1); bg.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-    bass.connect(bg); bg.connect(dest); bass.start(now + 0.1); bass.stop(now + 0.4);
-    // Scatter/poof
-    const buf = c.createBuffer(1, Math.floor(c.sampleRate * 0.2), c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
-    const n = c.createBufferSource(); n.buffer = buf;
-    const f2 = c.createBiquadFilter(); f2.type = "lowpass"; f2.frequency.value = 1200;
-    const g2 = c.createGain(); g2.gain.setValueAtTime(0.15, now + 0.15); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-    n.connect(f2); f2.connect(g2); g2.connect(dest); n.start(now + 0.15);
+    // Death groan — vocal-like formant with descending pitch
+    const groan = c.createOscillator(); groan.type = "sawtooth";
+    groan.frequency.setValueAtTime(280, now);
+    groan.frequency.exponentialRampToValueAtTime(120, now + 0.25);
+    groan.frequency.exponentialRampToValueAtTime(60, now + 0.45);
+    const formant1 = c.createBiquadFilter(); formant1.type = "bandpass"; formant1.frequency.value = 500; formant1.Q.value = 5;
+    const formant2 = c.createBiquadFilter(); formant2.type = "bandpass"; formant2.frequency.value = 1200; formant2.Q.value = 3;
+    const groanG = c.createGain(); groanG.gain.setValueAtTime(0.18, now);
+    groanG.gain.linearRampToValueAtTime(0.12, now + 0.2);
+    groanG.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    // Mix two formants for vowel-like quality
+    const groanMix = c.createGain(); groanMix.gain.value = 1;
+    groan.connect(formant1); groan.connect(formant2);
+    formant1.connect(groanG); formant2.connect(groanMix);
+    groanMix.gain.value = 0.6;
+    groanG.connect(dest); groanMix.connect(groanG);
+    groan.start(now); groan.stop(now + 0.55);
+    // Body collapse thud — heavy, delayed
+    const thud = c.createOscillator(); thud.type = "sine";
+    thud.frequency.setValueAtTime(90, now + 0.2);
+    thud.frequency.exponentialRampToValueAtTime(25, now + 0.4);
+    const thudG = c.createGain(); thudG.gain.setValueAtTime(0.25, now + 0.2);
+    thudG.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    thud.connect(thudG); thudG.connect(dest); thud.start(now + 0.2); thud.stop(now + 0.45);
+    // Armor/gear clatter — short noise burst with metallic resonance
+    const clatLen = Math.floor(c.sampleRate * 0.1);
+    const clatBuf = c.createBuffer(1, clatLen, c.sampleRate);
+    const clatD = clatBuf.getChannelData(0);
+    for (let i = 0; i < clatLen; i++) {
+      const t = i / clatLen;
+      // Sparse metallic clicks
+      const env = Math.pow(1 - t, 1.5);
+      clatD[i] = (Math.random() * 2 - 1) * env * (Math.random() > 0.7 ? 1 : 0.15);
+    }
+    const clatN = c.createBufferSource(); clatN.buffer = clatBuf;
+    const clatBP = c.createBiquadFilter(); clatBP.type = "bandpass"; clatBP.frequency.value = 2800; clatBP.Q.value = 2;
+    const clatG = c.createGain(); clatG.gain.setValueAtTime(0.1, now + 0.22);
+    clatG.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    clatN.connect(clatBP); clatBP.connect(clatG); clatG.connect(dest); clatN.start(now + 0.22);
+    // Dust settle — very soft low noise
+    const dustLen = Math.floor(c.sampleRate * 0.15);
+    const dustBuf = c.createBuffer(1, dustLen, c.sampleRate);
+    const dustD = dustBuf.getChannelData(0);
+    for (let i = 0; i < dustLen; i++) dustD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / dustLen, 3);
+    const dustN = c.createBufferSource(); dustN.buffer = dustBuf;
+    const dustLP = c.createBiquadFilter(); dustLP.type = "lowpass"; dustLP.frequency.value = 800;
+    const dustG = c.createGain(); dustG.gain.setValueAtTime(0.06, now + 0.3);
+    dustG.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    dustN.connect(dustLP); dustLP.connect(dustG); dustG.connect(dest); dustN.start(now + 0.3);
   });
 }
 
 export function sfxMeleeHit() {
   playSfx((c, now, dest) => {
-    // Cutlass CLANG - metallic ring
-    const osc = c.createOscillator();
-    osc.type = "square";
-    osc.frequency.setValueAtTime(900, now);
-    osc.frequency.exponentialRampToValueAtTime(350, now + 0.08);
-    const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1400; f.Q.value = 4;
-    const g = c.createGain();
-    g.gain.setValueAtTime(0.22, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-    osc.connect(f); f.connect(g); g.connect(dest);
-    osc.start(now); osc.stop(now + 0.14);
-    // Flesh/armor impact thud
-    const bass = c.createOscillator(); bass.type = "sine";
-    bass.frequency.setValueAtTime(180, now);
-    bass.frequency.exponentialRampToValueAtTime(40, now + 0.12);
-    const bg = c.createGain(); bg.gain.setValueAtTime(0.25, now);
-    bg.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-    bass.connect(bg); bg.connect(dest); bass.start(now); bass.stop(now + 0.18);
-    // Quick metallic spark
-    const spkLen = Math.floor(c.sampleRate * 0.04);
+    // Initial impact transient — sharp clap of metal on armor/flesh
+    const impLen = Math.floor(c.sampleRate * 0.008);
+    const impBuf = c.createBuffer(1, impLen, c.sampleRate);
+    const impD = impBuf.getChannelData(0);
+    for (let i = 0; i < impLen; i++) impD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / impLen, 0.5);
+    const impN = c.createBufferSource(); impN.buffer = impBuf;
+    const impG = c.createGain(); impG.gain.setValueAtTime(0.4, now); impG.gain.exponentialRampToValueAtTime(0.001, now + 0.012);
+    impN.connect(impG); impG.connect(dest); impN.start(now);
+    // Cutlass blade ring — two inharmonic partials for realistic metal
+    const ringFreqs = [720 + Math.random() * 60, 1380 + Math.random() * 100];
+    ringFreqs.forEach((freq, i) => {
+      const osc = c.createOscillator(); osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.6, now + 0.12);
+      const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = 8;
+      const g = c.createGain(); g.gain.setValueAtTime(0.12 / (i + 1), now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.08 + i * 0.06);
+      osc.connect(bp); bp.connect(g); g.connect(dest);
+      osc.start(now); osc.stop(now + 0.12 + i * 0.06);
+    });
+    // Body/armor thud — heavy low-frequency punch with fast decay
+    const body = c.createOscillator(); body.type = "sine";
+    body.frequency.setValueAtTime(200, now);
+    body.frequency.exponentialRampToValueAtTime(35, now + 0.1);
+    const bodyG = c.createGain(); bodyG.gain.setValueAtTime(0.28, now);
+    bodyG.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    body.connect(bodyG); bodyG.connect(dest); body.start(now); body.stop(now + 0.15);
+    // Spark/scrape detail — very short high noise for metal-on-metal friction
+    const spkLen = Math.floor(c.sampleRate * 0.025);
     const spkBuf = c.createBuffer(1, spkLen, c.sampleRate);
     const spkD = spkBuf.getChannelData(0);
-    for (let i = 0; i < spkLen; i++) spkD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / spkLen, 1.5);
+    for (let i = 0; i < spkLen; i++) {
+      const env = Math.pow(1 - i / spkLen, 2);
+      spkD[i] = (Math.random() * 2 - 1) * env * (Math.random() > 0.5 ? 1 : 0.3);
+    }
     const spkN = c.createBufferSource(); spkN.buffer = spkBuf;
-    const f2 = c.createBiquadFilter(); f2.type = "highpass"; f2.frequency.value = 3000;
-    const g2 = c.createGain(); g2.gain.setValueAtTime(0.15, now); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-    spkN.connect(f2); f2.connect(g2); g2.connect(dest); spkN.start(now);
+    const spkF = c.createBiquadFilter(); spkF.type = "highpass"; spkF.frequency.value = 4000;
+    const spkG = c.createGain(); spkG.gain.setValueAtTime(0.1, now + 0.005);
+    spkG.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+    spkN.connect(spkF); spkF.connect(spkG); spkG.connect(dest); spkN.start(now + 0.005);
+    // Cloth/leather rustle from swing follow-through
+    const rustLen = Math.floor(c.sampleRate * 0.06);
+    const rustBuf = c.createBuffer(1, rustLen, c.sampleRate);
+    const rustD = rustBuf.getChannelData(0);
+    for (let i = 0; i < rustLen; i++) rustD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / rustLen, 3);
+    const rustN = c.createBufferSource(); rustN.buffer = rustBuf;
+    const rustF = c.createBiquadFilter(); rustF.type = "bandpass"; rustF.frequency.value = 1600; rustF.Q.value = 0.5;
+    const rustG = c.createGain(); rustG.gain.setValueAtTime(0.04, now + 0.03);
+    rustG.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    rustN.connect(rustF); rustF.connect(rustG); rustG.connect(dest); rustN.start(now + 0.03);
   });
 }
 
 export function sfxSaberSwipe() {
   playSfx((c, now, dest) => {
-    // Metallic whoosh — fast high-frequency sweep
-    const osc = c.createOscillator();
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(1200, now);
-    osc.frequency.exponentialRampToValueAtTime(300, now + 0.12);
-    const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1800; f.Q.value = 2;
-    const g = c.createGain();
-    g.gain.setValueAtTime(0.14, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-    osc.connect(f); f.connect(g); g.connect(dest);
-    osc.start(now); osc.stop(now + 0.18);
-    // Air swoosh — filtered noise
-    const buf = c.createBuffer(1, c.sampleRate * 0.12, c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 0.8);
-    const n = c.createBufferSource(); n.buffer = buf;
-    const f2 = c.createBiquadFilter(); f2.type = "highpass"; f2.frequency.value = 1500;
-    const g2 = c.createGain(); g2.gain.setValueAtTime(0.18, now); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-    n.connect(f2); f2.connect(g2); g2.connect(dest); n.start(now);
+    // Air displacement whoosh — Doppler-like frequency sweep (low→high→low)
+    const whooshLen = Math.floor(c.sampleRate * 0.18);
+    const whooshBuf = c.createBuffer(1, whooshLen, c.sampleRate);
+    const whooshD = whooshBuf.getChannelData(0);
+    for (let i = 0; i < whooshLen; i++) {
+      const t = i / whooshLen;
+      // Bell-shaped envelope peaking at ~40%
+      const env = Math.sin(t * Math.PI) * Math.pow(1 - t, 0.5);
+      whooshD[i] = (Math.random() * 2 - 1) * env;
+    }
+    const whooshN = c.createBufferSource(); whooshN.buffer = whooshBuf;
+    const whooshBP = c.createBiquadFilter(); whooshBP.type = "bandpass";
+    whooshBP.frequency.setValueAtTime(800, now);
+    whooshBP.frequency.linearRampToValueAtTime(2800, now + 0.07);
+    whooshBP.frequency.linearRampToValueAtTime(1200, now + 0.16);
+    whooshBP.Q.value = 1.5;
+    const whooshG = c.createGain(); whooshG.gain.setValueAtTime(0.22, now);
+    whooshG.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    whooshN.connect(whooshBP); whooshBP.connect(whooshG); whooshG.connect(dest); whooshN.start(now);
+    // Blade tonal ring — slight metallic singing as blade cuts air
+    const blade = c.createOscillator(); blade.type = "sine";
+    blade.frequency.setValueAtTime(1800, now + 0.02);
+    blade.frequency.exponentialRampToValueAtTime(2400, now + 0.08);
+    blade.frequency.exponentialRampToValueAtTime(1600, now + 0.14);
+    const bladeG = c.createGain(); bladeG.gain.setValueAtTime(0, now + 0.02);
+    bladeG.gain.linearRampToValueAtTime(0.06, now + 0.05);
+    bladeG.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    blade.connect(bladeG); bladeG.connect(dest); blade.start(now + 0.02); blade.stop(now + 0.16);
+    // Low air thump — body of swing felt physically
+    const thump = c.createOscillator(); thump.type = "sine";
+    thump.frequency.setValueAtTime(120, now + 0.03);
+    thump.frequency.exponentialRampToValueAtTime(60, now + 0.1);
+    const thumpG = c.createGain(); thumpG.gain.setValueAtTime(0.08, now + 0.03);
+    thumpG.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    thump.connect(thumpG); thumpG.connect(dest); thump.start(now + 0.03); thump.stop(now + 0.12);
   });
 }
 
 export function sfxSaberHit() {
   playSfx((c, now, dest) => {
-    // Short metallic clang
-    const osc = c.createOscillator();
-    osc.type = "square";
-    osc.frequency.setValueAtTime(900, now);
-    osc.frequency.exponentialRampToValueAtTime(500, now + 0.06);
-    const g = c.createGain();
-    g.gain.setValueAtTime(0.12, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-    osc.connect(g); g.connect(dest);
-    osc.start(now); osc.stop(now + 0.1);
+    // Initial blade-on-body impact — short transient crack
+    const impLen = Math.floor(c.sampleRate * 0.015);
+    const impBuf = c.createBuffer(1, impLen, c.sampleRate);
+    const impD = impBuf.getChannelData(0);
+    for (let i = 0; i < impLen; i++) impD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / impLen, 0.8);
+    const impN = c.createBufferSource(); impN.buffer = impBuf;
+    const impG = c.createGain(); impG.gain.setValueAtTime(0.3, now); impG.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+    impN.connect(impG); impG.connect(dest); impN.start(now);
+    // Metallic ring with harmonics — blade vibration after strike
+    [850, 1700, 3400].forEach((freq, i) => {
+      const osc = c.createOscillator(); osc.type = i === 0 ? "triangle" : "sine";
+      osc.frequency.setValueAtTime(freq * (1 + Math.random() * 0.02), now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.7, now + 0.12);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.08 / (i + 1), now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.1 + i * 0.04);
+      osc.connect(g); g.connect(dest);
+      osc.start(now); osc.stop(now + 0.15 + i * 0.04);
+    });
+    // Flesh thud — low frequency body resonance
+    const body = c.createOscillator(); body.type = "sine";
+    body.frequency.setValueAtTime(160, now);
+    body.frequency.exponentialRampToValueAtTime(60, now + 0.08);
+    const bodyG = c.createGain(); bodyG.gain.setValueAtTime(0.14, now);
+    bodyG.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    body.connect(bodyG); bodyG.connect(dest); body.start(now); body.stop(now + 0.12);
+    // Wet cut detail — short bandpass noise
+    const wetLen = Math.floor(c.sampleRate * 0.04);
+    const wetBuf = c.createBuffer(1, wetLen, c.sampleRate);
+    const wetD = wetBuf.getChannelData(0);
+    for (let i = 0; i < wetLen; i++) wetD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / wetLen, 2);
+    const wetN = c.createBufferSource(); wetN.buffer = wetBuf;
+    const wetF = c.createBiquadFilter(); wetF.type = "bandpass"; wetF.frequency.value = 2200; wetF.Q.value = 3;
+    const wetG = c.createGain(); wetG.gain.setValueAtTime(0.06, now + 0.01);
+    wetG.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    wetN.connect(wetF); wetF.connect(wetG); wetG.connect(dest); wetN.start(now + 0.01);
   });
 }
 
@@ -2131,41 +2329,75 @@ export function sfxVictoryFanfare() {
 
 export function sfxCaravanHit() {
   playSfx((c, now, dest) => {
-    // Heavy wood impact
-    const impOsc = c.createOscillator(); impOsc.type = "sine";
-    impOsc.frequency.setValueAtTime(180, now); impOsc.frequency.exponentialRampToValueAtTime(50, now + 0.15);
-    const impG = c.createGain(); impG.gain.setValueAtTime(0.35, now); impG.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-    impOsc.connect(impG); impG.connect(dest); impOsc.start(now); impOsc.stop(now + 0.25);
-    // Wood cracking/splintering
-    const crkLen = Math.floor(c.sampleRate * 0.15);
+    // Initial impact transient — sharp wood crack
+    const crkLen = Math.floor(c.sampleRate * 0.01);
     const crkBuf = c.createBuffer(1, crkLen, c.sampleRate);
     const crkD = crkBuf.getChannelData(0);
-    for (let i = 0; i < crkLen; i++) {
-      const env = Math.exp(-i / (c.sampleRate * 0.04));
-      crkD[i] = (Math.random() * 2 - 1) * env;
-    }
+    for (let i = 0; i < crkLen; i++) crkD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / crkLen, 0.5);
     const crkN = c.createBufferSource(); crkN.buffer = crkBuf;
-    const crkF = c.createBiquadFilter(); crkF.type = "bandpass"; crkF.frequency.value = 1800; crkF.Q.value = 2;
-    const crkG = c.createGain(); crkG.gain.setValueAtTime(0.22, now);
-    crkG.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-    crkN.connect(crkF); crkF.connect(crkG); crkG.connect(dest); crkN.start(now);
-    // Metallic ring (nail/iron bands)
-    const ring = c.createOscillator(); ring.type = "square";
-    ring.frequency.setValueAtTime(600, now + 0.02); ring.frequency.exponentialRampToValueAtTime(200, now + 0.1);
-    const rf = c.createBiquadFilter(); rf.type = "bandpass"; rf.frequency.value = 1200; rf.Q.value = 3;
-    const rg = c.createGain(); rg.gain.setValueAtTime(0.1, now + 0.02);
-    rg.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-    ring.connect(rf); rf.connect(rg); rg.connect(dest); ring.start(now + 0.02); ring.stop(now + 0.15);
-    // Wood debris scatter
+    const crkG = c.createGain(); crkG.gain.setValueAtTime(0.4, now);
+    crkG.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
+    crkN.connect(crkG); crkG.connect(dest); crkN.start(now);
+    // Heavy wood resonance — thick plank vibration with two formants
+    const wood1 = c.createOscillator(); wood1.type = "triangle";
+    wood1.frequency.setValueAtTime(220, now);
+    wood1.frequency.exponentialRampToValueAtTime(80, now + 0.12);
+    const wood1G = c.createGain(); wood1G.gain.setValueAtTime(0.3, now);
+    wood1G.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    wood1.connect(wood1G); wood1G.connect(dest); wood1.start(now); wood1.stop(now + 0.18);
+    const wood2 = c.createOscillator(); wood2.type = "triangle";
+    wood2.frequency.setValueAtTime(440, now);
+    wood2.frequency.exponentialRampToValueAtTime(150, now + 0.08);
+    const wood2BP = c.createBiquadFilter(); wood2BP.type = "bandpass"; wood2BP.frequency.value = 350; wood2BP.Q.value = 3;
+    const wood2G = c.createGain(); wood2G.gain.setValueAtTime(0.12, now);
+    wood2G.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    wood2.connect(wood2BP); wood2BP.connect(wood2G); wood2G.connect(dest); wood2.start(now); wood2.stop(now + 0.12);
+    // Splintering — rapid crackling noise with sharp envelope
+    const splLen = Math.floor(c.sampleRate * 0.12);
+    const splBuf = c.createBuffer(1, splLen, c.sampleRate);
+    const splD = splBuf.getChannelData(0);
+    for (let i = 0; i < splLen; i++) {
+      const t = i / splLen;
+      const env = Math.exp(-t * 8);
+      // Random splintering pops
+      const pop = Math.random() > (0.88 + t * 0.1) ? (Math.random() * 2 - 1) * 0.9 : 0;
+      splD[i] = ((Math.random() * 2 - 1) * env * 0.3) + pop * env;
+    }
+    const splN = c.createBufferSource(); splN.buffer = splBuf;
+    const splBP = c.createBiquadFilter(); splBP.type = "bandpass"; splBP.frequency.value = 2200; splBP.Q.value = 1.5;
+    const splG = c.createGain(); splG.gain.setValueAtTime(0.2, now + 0.005);
+    splG.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    splN.connect(splBP); splBP.connect(splG); splG.connect(dest); splN.start(now + 0.005);
+    // Iron band clang — nails/metal fittings resonating
+    const iron = c.createOscillator(); iron.type = "square";
+    iron.frequency.setValueAtTime(680, now + 0.01);
+    iron.frequency.exponentialRampToValueAtTime(280, now + 0.08);
+    const ironBP = c.createBiquadFilter(); ironBP.type = "bandpass"; ironBP.frequency.value = 900; ironBP.Q.value = 6;
+    const ironG = c.createGain(); ironG.gain.setValueAtTime(0.08, now + 0.01);
+    ironG.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    iron.connect(ironBP); ironBP.connect(ironG); ironG.connect(dest); iron.start(now + 0.01); iron.stop(now + 0.12);
+    // Debris fall — scattered wood chunks
     const debLen = Math.floor(c.sampleRate * 0.2);
     const debBuf = c.createBuffer(1, debLen, c.sampleRate);
     const debD = debBuf.getChannelData(0);
-    for (let i = 0; i < debLen; i++) debD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / debLen, 2.5) * 0.4;
+    for (let i = 0; i < debLen; i++) {
+      const t = i / debLen;
+      // Sparse clicks for falling pieces
+      const click = Math.random() > (0.94 + t * 0.05) ? (Math.random() * 2 - 1) * 0.5 : 0;
+      debD[i] = click * Math.pow(1 - t, 1.5);
+    }
     const debN = c.createBufferSource(); debN.buffer = debBuf;
-    const debF = c.createBiquadFilter(); debF.type = "bandpass"; debF.frequency.value = 3000; debF.Q.value = 0.5;
-    const debG = c.createGain(); debG.gain.setValueAtTime(0.1, now + 0.08);
+    const debBP = c.createBiquadFilter(); debBP.type = "bandpass"; debBP.frequency.value = 3500; debBP.Q.value = 0.8;
+    const debG = c.createGain(); debG.gain.setValueAtTime(0.08, now + 0.06);
     debG.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-    debN.connect(debF); debF.connect(debG); debG.connect(dest); debN.start(now + 0.08);
+    debN.connect(debBP); debBP.connect(debG); debG.connect(dest); debN.start(now + 0.06);
+    // Sub thud — structural vibration felt through the ground
+    const sub = c.createOscillator(); sub.type = "sine";
+    sub.frequency.setValueAtTime(50, now);
+    sub.frequency.exponentialRampToValueAtTime(20, now + 0.15);
+    const subG = c.createGain(); subG.gain.setValueAtTime(0.15, now);
+    subG.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    sub.connect(subG); subG.connect(dest); sub.start(now); sub.stop(now + 0.2);
   });
 }
 
