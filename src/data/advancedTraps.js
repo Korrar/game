@@ -132,6 +132,75 @@ export const FORTIFICATION_TREE = [
     maxCount: 1,
     requires: "poison_mine",
   },
+
+  // Tier 2 — Morskie fortyfikacje
+  {
+    id: "net_trap",
+    tier: 2,
+    icon: "anchor",
+    name: "Sieć Rybacka",
+    desc: "Łapie wrogów w sieć — unieruchamia na 3s, obrażenia +20%",
+    cost: { copper: 35 },
+    ammoCost: null,
+    stats: { rootDuration: 3000, damageAmp: 0.20, triggerRadius: 6, singleUse: true },
+    type: "ground_trap",
+    maxCount: 3,
+    requires: "spike_pit",
+  },
+  {
+    id: "coral_barrier",
+    tier: 2,
+    icon: "rock",
+    name: "Bariera Koralowa",
+    desc: "Bariera z rafy (120 HP) — wrogowie w pobliżu dostają 4 obrażenia/s (trucizna)",
+    cost: { silver: 1 },
+    ammoCost: null,
+    stats: { hp: 120, blockRadius: 6, dps: 4, element: "shadow", radius: 5 },
+    type: "wall",
+    maxCount: 2,
+    requires: "wooden_wall",
+  },
+  {
+    id: "water_geyser",
+    tier: 2,
+    icon: "water",
+    name: "Gejzer Wodny",
+    desc: "Wyrzuca wrogów w powietrze — 20 obrażeń + odrzut",
+    cost: { copper: 40 },
+    ammoCost: null,
+    stats: { damage: 20, knockback: 15, triggerRadius: 5, cooldown: 6000, singleUse: false, element: "ice" },
+    type: "ground_trap",
+    maxCount: 2,
+    requires: "spike_pit",
+  },
+
+  // Tier 3 — Morskie fortyfikacje zaawansowane
+  {
+    id: "kraken_totem",
+    tier: 3,
+    icon: "kraken",
+    name: "Totem Krakena",
+    desc: "Macki atakują wrogów w zasięgu — 12 obrażeń co 2s, spowalnia o 30%",
+    cost: { silver: 3 },
+    ammoCost: null,
+    stats: { autoDamage: 12, attackCd: 2000, range: 12, slowMult: 0.70, element: "ice" },
+    type: "turret",
+    maxCount: 1,
+    requires: "ice_totem",
+  },
+  {
+    id: "cannon_emplacement",
+    tier: 3,
+    icon: "cannon",
+    name: "Stanowisko Armatnie",
+    desc: "Automatyczna armata — 30 obrażeń co 3s w dużym zasięgu, obrażenia obszarowe",
+    cost: { silver: 3 },
+    ammoCost: { type: "cannonball", amount: 1 },
+    stats: { autoDamage: 30, attackCd: 3000, range: 20, splashRadius: 6, element: "fire" },
+    type: "turret",
+    maxCount: 1,
+    requires: "fire_totem",
+  },
 ];
 
 // Elementalne kombo pułapek — bonus gdy pułapka elementalna + czar tego samego żywiołu
@@ -141,6 +210,8 @@ export const TRAP_COMBOS = [
   { trapElement: "fire",  spellElement: "lightning",  name: "Przeładowanie",    bonusDmg: 25, bonusEffect: "chain", chainRange: 12, desc: "Ognisty totem + piorun = łańcuchowe obrażenia w obszarze" },
   { trapElement: "shadow", spellElement: "fire",      name: "Mroczny Płomień",  bonusDmg: 30, bonusEffect: "fear", fearDuration: 2000, desc: "Trucizna + ogień = strach — wrogowie uciekają na 2s" },
   { trapElement: "ice",   spellElement: "lightning",  name: "Zamrożony Piorun", bonusDmg: 35, bonusEffect: "execute", executeThreshold: 0.20, desc: "Lodowy totem + piorun = natychmiastowe zabicie wrogów <20% HP" },
+  { trapElement: "ice",   spellElement: "ice",        name: "Absolutne Zero",   bonusDmg: 25, bonusEffect: "freeze", freezeDuration: 3000, desc: "Gejzer + lód = zamrożenie na 3s" },
+  { trapElement: "shadow", spellElement: "ice",       name: "Toksyczny Lód",    bonusDmg: 20, bonusEffect: "fragile", armorReduction: 0.70, desc: "Koralowa trucizna + lód = -70% pancerza wroga" },
 ];
 
 // System budowy fortyfikacji przed falą wrogów

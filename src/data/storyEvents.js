@@ -101,6 +101,70 @@ export const STORY_ARCS = [
       { desc: "Rozbitek okazał się byłym kartografem! Odkrywa ukryty pokój ze skarbem.", reward: { silver: 8, treasure: true }, icon: "scroll" },
     ],
   },
+  {
+    id: "kraken_hunt",
+    name: "Polowanie na Krakena",
+    icon: "kraken",
+    themeColor: "#1a3060",
+    desc: "Legendarny kraken terroryzuje szlaki handlowe — ktoś musi go powstrzymać",
+    totalSteps: 4,
+    stepChance: 0.20,
+    steps: [
+      { desc: "Rybacy opowiadają o potworze niszczącym statki. Oferują nagrodę za jego głowę.", reward: { copper: 20 }, icon: "anchor" },
+      { desc: "Znajdujesz zniszczony statek — ślady macek na kadłubie. Kraken jest blisko.", reward: { harpoon: 3, dynamite: 2 }, icon: "skull" },
+      {
+        desc: "Widzisz cień pod wodą! Macka uderza w burtę!",
+        icon: "kraken",
+        choices: [
+          { label: "Zaatakuj harpunami", desc: "Ranisz krakena — ucieka, ale zostawia łup", reward: { silver: 3, treasure: true }, icon: "harpoon" },
+          { label: "Rzuć dynamit", desc: "Eksplozja ogłusza potwora — lepszy łup, ale statek oberwie", reward: { silver: 5 }, penalty: { caravanDmg: 25 }, icon: "dynamite" },
+        ],
+      },
+      { desc: "Kraken pokonany! Rybacy świętują — jesteś legendą morza!", reward: { gold: 2, silver: 5, epicRelic: true }, icon: "star" },
+    ],
+  },
+  {
+    id: "sunken_city",
+    name: "Zatopione Miasto",
+    icon: "gem",
+    themeColor: "#2a6080",
+    desc: "Legenda mówi o mieście zatopionym przez bogów — pełnym złota i klątw",
+    totalSteps: 3,
+    stepChance: 0.22,
+    steps: [
+      { desc: "Stara mapa wskazuje ruiny pod wodą. Bąbelki powietrza wznoszą się z głębin.", reward: { copper: 15, knowledge: 10 }, icon: "scroll" },
+      {
+        desc: "Nurkowie odkrywają wejście do zatopionej świątyni!",
+        icon: "gem",
+        choices: [
+          { label: "Wyślij ekspedycję", desc: "Kosztowne, ale bezpieczne — gwarantowany skarb", cost: { silver: 2 }, reward: { gold: 1, treasure: true, silver: 3 }, icon: "recruit" },
+          { label: "Nurkuj sam", desc: "Ryzykowne, ale darmowe — może być pułapka", reward: { gamble: "sunken_temple" }, icon: "gem" },
+        ],
+      },
+      { desc: "Wydobyto relikwię Zatopionego Miasta! Starożytna moc przepływa przez statek.", reward: { gold: 3, permSpellDmgBuff: 0.15, caravanArmorBuff: 2, duration: 10 }, icon: "star" },
+    ],
+  },
+  {
+    id: "sea_witch",
+    name: "Morska Wiedźma",
+    icon: "skull",
+    themeColor: "#6a30a0",
+    desc: "Wiedźma z morskiej groty oferuje potężne zaklęcia — za odpowiednią cenę",
+    totalSteps: 3,
+    stepChance: 0.25,
+    steps: [
+      { desc: "Słyszysz dziwny śpiew z morskiej groty. Zielone światło migocze w ciemności.", reward: { mana: 20 }, icon: "skull" },
+      {
+        desc: "Wiedźma proponuje wymianę — moc za cenę krwi.",
+        icon: "skull",
+        choices: [
+          { label: "Przyjmij ofertę", desc: "Oddaj 40 HP statku — zyskaj potężne wzmocnienie na 8 pokoi", cost: { caravanHp: 40 }, reward: { spellDmgBuff: 0.30, mercDmgBuff: 0.20, duration: 8 }, icon: "skull" },
+          { label: "Odmów", desc: "Wiedźma jest obrażona, ale daje mały dar na pocieszenie", reward: { mana: 15, copper: 10 }, icon: "shield" },
+        ],
+      },
+      { desc: "Wiedźma zdradza sekret: 'Pod trzecią wyspą leży skarb bogów morza.'", reward: { gold: 2, silver: 4, treasure: true }, icon: "star" },
+    ],
+  },
 ];
 
 // Decyzje moralne — natychmiastowe rozgałęzienia w randomowych pokojach
@@ -137,6 +201,53 @@ export const MORAL_DILEMMAS = [
     choices: [
       { label: "Nurkuj po skarb", desc: "50% szans na legendarne skarby, 50% na pułapkę", reward: { gamble: "legendary_or_trap" }, icon: "gem" },
       { label: "Wyślij łódź zwiadowczą", desc: "Bezpieczniej — gwarantowany rzadki skarb", reward: { guaranteedRare: true }, icon: "spyglass" },
+    ],
+  },
+  {
+    id: "stranded_crew",
+    name: "Rozbitkowie na Rafie",
+    icon: "recruit",
+    themeColor: "#30a0a0",
+    question: "Grupa marynarzy z rozbitego statku błaga o ratunek z rafy koralowej.",
+    choices: [
+      { label: "Uratuj wszystkich", desc: "Ryzykujesz kadłub (-15 HP), ale zyskujesz 2 tymczasowych najemników", reward: { tempMercs: 2, duration: 6 }, penalty: { caravanDmg: 15 }, icon: "recruit" },
+      { label: "Zabierz jednego", desc: "Bezpieczna opcja — 1 najemnik i informacja o skarbie", reward: { tempMercs: 1, duration: 4, copper: 30 }, icon: "compass" },
+      { label: "Rzuć im linę", desc: "Zostawiasz im zapasy — dostajesz błogosławieństwo (+20 inicjatywy)", reward: { initiativeBoost: 20, copper: 10 }, icon: "shield" },
+    ],
+  },
+  {
+    id: "pirate_duel",
+    name: "Pojedynek Kapitanów",
+    icon: "swords",
+    themeColor: "#cc3030",
+    question: "Piracki kapitan wyzwa cię na pojedynek. Stawka: statek przegrywającego.",
+    choices: [
+      { label: "Przyjmij wyzwanie", desc: "60% szans na wygraną: +100 Cu + epicki skarb. 40%: -50 Cu", reward: { gamble: "captain_duel" }, icon: "swords" },
+      { label: "Zaproponuj zakład", desc: "Pokerowa gra — 80 miedzi na stół, wygrana podwaja", cost: { copper: 80 }, reward: { gamble: "poker_bet" }, icon: "gold" },
+      { label: "Odmów z honorem", desc: "Pirat szanuje odwagę — mały upominek na drogę", reward: { copper: 20, mana: 10 }, icon: "shield" },
+    ],
+  },
+  {
+    id: "cursed_treasure",
+    name: "Przeklęty Skarb",
+    icon: "treasure",
+    themeColor: "#8a3060",
+    question: "Skrzynia pełna złota leży na plaży, otoczona kośćmi. Klątwa czy legenda?",
+    choices: [
+      { label: "Otwórz skrzynię", desc: "50%: 3 złote i epicki skarb. 50%: klątwa — wrogowie +40% HP na 5 pokoi", reward: { gamble: "cursed_gold" }, icon: "treasure" },
+      { label: "Zniszcz skrzynię", desc: "Uwolnij dusze — zyskaj błogosławieństwo: +15% obrażeń na 5 pokoi", reward: { spellDmgBuff: 0.15, duration: 5 }, icon: "fire" },
+      { label: "Zostaw skrzynię", desc: "Lepiej nie ryzykować — brak nagrody, brak ryzyka", reward: null, icon: "compass" },
+    ],
+  },
+  {
+    id: "sea_race",
+    name: "Wyścig Morski",
+    icon: "feather",
+    themeColor: "#2080c0",
+    question: "Szybki szkuner wyzwa cię na wyścig dookoła wyspy! Stawka jest wysoka.",
+    choices: [
+      { label: "Przyjmij wyścig", desc: "Wygrana: 5 srebrnych + szacunek portów. Przegrana: -30 miedzi", reward: { gamble: "sea_race" }, icon: "feather" },
+      { label: "Zaproponuj sojusz", desc: "Zamiast ścigać się — razem polujesz na piratów (+1 srebrny)", reward: { silver: 1, tempMercs: 1, duration: 3 }, icon: "recruit" },
     ],
   },
 ];

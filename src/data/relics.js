@@ -11,6 +11,12 @@ export const RELICS = [
   { id: "faith_shield",    icon: "shield", name: "Stalowy Kadłub",    desc: "Statek otrzymuje +3 do pancerza", rarity: "common" },
   { id: "golden_reaper",   icon: "coin", name: "Łowca Nagród",       desc: "Łup z wrogów x2", rarity: "rare" },
   { id: "berserker",       icon: "fire", name: "Desperacki Strzał",  desc: "Najemnicy poniżej 30% HP zadają podwójne obrażenia", rarity: "epic" },
+  { id: "sea_compass",     icon: "compass", name: "Kompas Kapitana",   desc: "Podróże morskie dają +1 dodatkowe wydarzenie z lepszym łupem", rarity: "rare" },
+  { id: "mermaid_tear",    icon: "gem", name: "Łza Syreny",         desc: "Obrażenia lodowe +25%, leczenie z syren x2", rarity: "epic" },
+  { id: "barnacle_shield", icon: "shield", name: "Pancerz z Małży",   desc: "Po każdej podróży morskiej statek regeneruje 10 HP", rarity: "common" },
+  { id: "trident",         icon: "harpoon", name: "Trójząb Posejdona", desc: "Harpuny przeszywają 2 dodatkowych wrogów", rarity: "epic" },
+  { id: "sea_shanty",      icon: "banjo", name: "Pieśń Marynarzy",   desc: "Najemnicy na biomach morskich mają +20% prędkości ataku", rarity: "rare" },
+  { id: "ghost_lantern",   icon: "lantern", name: "Latarnia Duchów",   desc: "Widmowe wydarzenia morskie zawsze dają lepsze nagrody", rarity: "rare" },
 ];
 
 export const RELIC_RARITY_COLOR = {
@@ -68,5 +74,29 @@ export const RELIC_SYNERGIES = [
     desc: "Szaleństwo Kapitana nie zwiększa kosztu prochu",
     color: "#c0a060",
     icon: "gunpowder",
+  },
+  {
+    id: "morski_lord",
+    relics: ["sea_compass", "ghost_lantern"],
+    name: "Morski Lord",
+    desc: "Wydarzenia morskie mają podwójne nagrody",
+    color: "#2060a0",
+    icon: "anchor",
+  },
+  {
+    id: "posejdonowa_furia",
+    relics: ["trident", "mermaid_tear"],
+    name: "Posejdonowa Furia",
+    desc: "Harpuny zamrażają wrogów na 2s przy trafieniu",
+    color: "#40c0ff",
+    icon: "harpoon",
+  },
+  {
+    id: "piracka_flota",
+    relics: ["sea_shanty", "barnacle_shield"],
+    name: "Piracka Flota",
+    desc: "Statek regeneruje 5 HP na pokój + najemnicy +10% obrażeń",
+    color: "#d4a030",
+    icon: "pirate",
   },
 ];
