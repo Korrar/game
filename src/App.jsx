@@ -50,6 +50,7 @@ import { CREW_ROLES, CREW_RELATIONS, getLoyaltyLevel } from "./data/crew";
 import { STORY_ARCS, MORAL_DILEMMAS, rollStoryStep, rollNewStoryArc, rollMoralDilemma } from "./data/storyEvents";
 import { SHIP_UPGRADES, rollSeaEvent, rollIslandDiscovery } from "./data/sailing";
 import RiverShipSegment from "./components/RiverShipSegment";
+import WorldMap from "./components/WorldMap";
 import { FORTIFICATION_TREE, TRAP_COMBOS } from "./data/advancedTraps";
 import { FACTIONS, getFactionBonus, getFactionHostility, rollFactionQuest, rollFactionEvent } from "./data/factions";
 import { ARTIFACT_SETS, DISCOVERY_MILESTONES, JOURNAL_CATEGORIES, getDiscoveryMilestone, rollSecretRoom, getCompletedSetBonuses } from "./data/discovery";
@@ -441,6 +442,8 @@ export default function App() {
   const [seaEvent, setSeaEvent] = useState(null);           // current sea event
   const [discoveredIslands, setDiscoveredIslands] = useState([]);
   const [riverSegment, setRiverSegment] = useState(false);   // true when river ship mini-game is active
+  const [worldMap, setWorldMap] = useState(false);           // true when world map navigation is active
+  const [shipMapPos, setShipMapPos] = useState({ x: 640, y: 360 }); // ship position on world map
 
   // ─── FEATURE: Advanced Traps & Fortifications ───
   const [unlockedFortifications, setUnlockedFortifications] = useState(["wooden_wall", "spike_pit", "alarm_bell"]);
@@ -2876,8 +2879,8 @@ export default function App() {
 
   // Biome-adaptive ambient soundscape (includes weather overlay)
   useEffect(() => {
-    if (biome && !riverSegment) changeBiomeMusic(biome.id, isNight, weather?.id);
-  }, [biome, isNight, weather, riverSegment]);
+    if (biome && !riverSegment && !worldMap) changeBiomeMusic(biome.id, isNight, weather?.id);
+  }, [biome, isNight, weather, riverSegment, worldMap]);
 
   // River segment ambient sounds (water, creaking ship, seagulls)
   useEffect(() => {
@@ -3427,7 +3430,7 @@ export default function App() {
       enemyBuffRooms, playerDoubleDmgRooms,
       // New gameplay systems
       crew, activeStory, completedStories,
-      shipUpgrades, discoveredIslands,
+      shipUpgrades, discoveredIslands, shipMapPos,
       unlockedFortifications,
       factionRep,
       journal, ownedArtifacts, totalDiscoveries,
@@ -3489,6 +3492,7 @@ export default function App() {
       setCompletedStories(s.completedStories || []);
       setShipUpgrades(s.shipUpgrades || []);
       setDiscoveredIslands(s.discoveredIslands || []);
+      if (s.shipMapPos) setShipMapPos(s.shipMapPos);
       setUnlockedFortifications(s.unlockedFortifications || ["wooden_wall", "spike_pit", "alarm_bell"]);
       setFactionRep(s.factionRep || { merchants_guild: 0, treasure_hunters: 0, shadow_council: 0, royal_navy: 0 });
       setJournal(s.journal || { biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
@@ -3552,39 +3556,20 @@ export default function App() {
     // Navigator crew bonus: initiative boost
     const navBonus = getCrewBonus("initiativeMult");
     if (navBonus > 0) setInitiative(prev => Math.min(MAX_INITIATIVE, prev + Math.round(navBonus * 5)));
-    sfxDoor(); setTransitioning(true); setDoors(d => d + 1);
-    // River ship segment on every room transition
-    const nextRoom = room + 1;
-    if (!riverSegment) {
-      const destBiome = BIOMES[Math.floor(Math.random() * BIOMES.length)];
-      setTimeout(() => { setRiverSegment({ destBiome }); setTransitioning(false); }, 400);
-      return;
-    }
-    // Sea event when entering a boss room (biome transition)
-    if (nextRoom % 10 === 1 && nextRoom > 1) {
-      const seaEvt = rollSeaEvent();
-      if (seaEvt) {
-        setTimeout(() => { setSeaEvent(seaEvt); sfxEventAppear(); }, 300);
-        // Island discovery chance
-        const island = rollIslandDiscovery();
-        if (island) {
-          setDiscoveredIslands(prev => [...prev, island]);
-          addDiscovery("secrets", { id: island.id, name: island.name });
-        }
-        return; // sea event pauses travel, resolved in sea event modal
-      }
-    }
-    const event = rollRandomEvent(room + 1);
-    if (event) {
-      setTimeout(() => {
-        const sfxMap = { merchant: sfxMerchant, altar: sfxAltar, wounded: sfxEventAppear };
-        (sfxMap[event.id] || sfxEventAppear)();
-        setRandomEvent(event);
-      }, 450);
-    } else {
-      setTimeout(() => { enterRoom(room + 1, ownedTools); setTimeout(() => setTransitioning(false), 150); }, 450);
-    }
+    sfxDoor(); setDoors(d => d + 1);
+    // Open world map for player to choose destination
+    setTimeout(() => { setWorldMap(true); }, 300);
   };
+
+  // World map dock handler — player chose a biome island
+  const handleWorldMapDock = useCallback((chosenBiome, newShipPos) => {
+    setWorldMap(false);
+    setShipMapPos(newShipPos);
+    setTransitioning(true);
+    const nextRoom = room + 1;
+    // Start river segment transition toward chosen biome
+    setTimeout(() => { setRiverSegment({ destBiome: chosenBiome }); setTransitioning(false); }, 400);
+  }, [room]);
 
   // River ship segment completion handler
   const handleRiverComplete = useCallback((result) => {
@@ -3599,11 +3584,35 @@ export default function App() {
     if (result.success) {
       setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + 10));
     }
-    // Continue to next room — use the destination biome from river segment
-    setTimeout(() => {
-      enterRoom(room + 1, ownedTools, destBiome);
-      setTimeout(() => setTransitioning(false), 150);
-    }, 300);
+    const nextRoom = room + 1;
+    // Sea event chance (biome transition)
+    if (nextRoom % 10 === 1 && nextRoom > 1) {
+      const seaEvt = rollSeaEvent();
+      if (seaEvt) {
+        setTimeout(() => { setSeaEvent(seaEvt); sfxEventAppear(); }, 300);
+        const island = rollIslandDiscovery();
+        if (island) {
+          setDiscoveredIslands(prev => [...prev, island]);
+          addDiscovery("secrets", { id: island.id, name: island.name });
+        }
+        return; // sea event pauses travel, resolved in sea event modal
+      }
+    }
+    // Random event chance
+    const event = rollRandomEvent(nextRoom);
+    if (event) {
+      setTimeout(() => {
+        const sfxMap = { merchant: sfxMerchant, altar: sfxAltar, wounded: sfxEventAppear };
+        (sfxMap[event.id] || sfxEventAppear)();
+        setRandomEvent(event);
+      }, 450);
+    } else {
+      // Continue to next room — use the destination biome from river segment
+      setTimeout(() => {
+        enterRoom(room + 1, ownedTools, destBiome);
+        setTimeout(() => setTransitioning(false), 150);
+      }, 300);
+    }
   }, [room, ownedTools, addMoneyFn, showMessage, riverSegment]);
 
   const spawnFreeMerc = useCallback((mercType, hpFraction = 1) => {
@@ -7326,7 +7335,7 @@ export default function App() {
           initiative={initiative}
           maxInitiative={MAX_INITIATIVE}
           cost={CARAVAN_COST}
-          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !riverSegment}
+          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !riverSegment && !worldMap}
           onClick={travelCaravan}
           hp={caravanHp}
           maxHp={CARAVAN_LEVELS[caravanLevel].hp}
@@ -8281,6 +8290,16 @@ export default function App() {
             Odejdź
           </button>
         </div>
+      )}
+
+      {/* WORLD MAP — full ship navigation overlay */}
+      {worldMap && (
+        <WorldMap
+          onDock={handleWorldMapDock}
+          shipPos={shipMapPos}
+          isMobile={isMobile}
+          roomNumber={room}
+        />
       )}
 
       {/* RIVER SHIP SEGMENT — mini-game overlay (fixed, above all UI including Caravan zIndex:9000) */}
