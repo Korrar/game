@@ -24,7 +24,7 @@ function getCtx() {
     masterGain.connect(ctx.destination);
 
     musicGain = ctx.createGain();
-    musicGain.gain.value = 0.35;
+    musicGain.gain.value = 0.55;
 
     // Combat dynamics: filter opens up during combat, gain increases
     combatFilterNode = ctx.createBiquadFilter();
@@ -85,910 +85,751 @@ function _createReverb() {
   reverbGain.connect(masterGain);
 }
 
-// ─── BIOME-ADAPTIVE MUSIC (Enhanced) ───
+// ─── BIOME AMBIENT SOUNDSCAPES ───
+// Environmental sound effects instead of music — wind, waves, insects, rumbling, etc.
 
-// Chord progression system using scale degree intervals relative to root
-// Each chord is [root_interval, third_interval, fifth_interval] in semitones from biome root
-// Progressions cycle through chords, creating harmonic movement
-const CHORD_PROGRESSIONS = {
-  // i - iv - VII - III (minor: mysterious, adventurous — pirate classic)
-  minor_adventure: [[0, 3, 7], [5, 8, 12], [10, 14, 17], [3, 7, 10]],
-  // i - VI - III - VII (minor: epic, sweeping — sea shanty feel)
-  minor_epic: [[0, 3, 7], [8, 12, 15], [3, 7, 10], [10, 14, 17]],
-  // I - IV - V - I (major: bright, confident — adventure)
-  major_bright: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7]],
-  // i - iv - v - i (minor: dark, brooding — danger)
-  minor_dark: [[0, 3, 7], [5, 8, 12], [7, 10, 14], [0, 3, 7]],
-  // I - vi - IV - V (major: uplifting, nostalgic — warm biomes)
-  major_warm: [[0, 4, 7], [9, 12, 16], [5, 9, 12], [7, 11, 14]],
-  // i - bII - v - i (phrygian: exotic, tense — desert/volcano)
-  phrygian_exotic: [[0, 3, 7], [1, 5, 8], [7, 10, 14], [0, 3, 7]],
-  // I - II - IV - I (lydian: dreamy, floaty — mushroom)
-  lydian_dream: [[0, 4, 7], [2, 6, 9], [5, 9, 12], [0, 4, 7]],
-  // i - VII - VI - VII (minor: melancholic, wistful — autumn)
-  minor_wistful: [[0, 3, 7], [10, 14, 17], [8, 12, 15], [10, 14, 17]],
-};
-
-// Arpeggio patterns: indices into current chord notes (0=root, 1=third, 2=fifth)
-// with octave shifts (+3 = root up octave, etc.)
-const ARPEGGIO_PATTERNS = {
-  ascending: [0, 1, 2, 3], // root, 3rd, 5th, root+oct
-  descending: [3, 2, 1, 0],
-  wave: [0, 1, 2, 1, 0, 1, 2, 3], // up-down wave
-  broken: [0, 2, 1, 3, 2, 0], // skip pattern
-  shanty: [0, 0, 1, 2, 2, 1], // sea shanty bouncing rhythm
-  sparse: [0, -1, 2, -1, 1, -1, 3, -1], // -1 = rest (silence)
-};
-
-// Rhythm patterns for subtle percussion: 1 = hit, 0 = rest
-// Each step = one subdivision of the beat
-const RHYTHM_PATTERNS = {
-  // Simple 4/4 with kick on 1,3 and hihat on offbeats
-  basic: { kick: [1,0,0,0, 1,0,0,0], hat: [0,0,1,0, 0,0,1,0], tempo: 0.5 },
-  // Pirate shanty 6/8 feel
-  shanty: { kick: [1,0,0,1,0,0], hat: [0,0,1,0,0,1], tempo: 0.35 },
-  // Slow atmospheric — very sparse
-  ambient: { kick: [1,0,0,0, 0,0,0,0], hat: [0,0,0,0, 0,0,1,0], tempo: 0.7 },
-  // Tense combat feel
-  tense: { kick: [1,0,1,0, 1,0,1,0], hat: [0,1,0,1, 0,1,0,1], tempo: 0.4 },
-  // Exotic desert rhythm
-  exotic: { kick: [1,0,0,1, 0,0,1,0], hat: [0,0,1,0, 1,0,0,1], tempo: 0.45 },
-};
-
-// Per-biome music profiles (enhanced with chord progressions, arpeggios, rhythm)
-const BIOME_MUSIC = {
-  // ── G Dorian — mysterious tribal, pirate jungle ──
+// Per-biome ambient soundscape profiles
+// Each biome defines environmental sound layers instead of musical elements
+const BIOME_AMBIENCE = {
+  // ── Jungle: dense tropical forest ──
   jungle: {
-    root: 98, // G2
-    drones: [{ freq: 98, dt: 0, vol: 0.20 }, { freq: 146.83, dt: 5, vol: 0.12 }, { freq: 196, dt: -3, vol: 0.08 }],
-    df: 500, pads: [{ freq: 233.08, vol: 0.07 }, { freq: 293.66, vol: 0.05 }], pf: 700,
-    wv: 0.03, wf: 350,
-    notes: [392, 466.16, 523.25, 587.33, 698.46], ct: [3000, 6000], cc: 0.55,
-    bass: { notes: [98, 116.54, 130.81, 146.83, 174.61], rate: 600, vol: 0.10, fHz: 350 },
-    chords: "minor_adventure", chordRate: 4000, // chord changes every 4s
-    arp: "wave", arpRate: 350, arpVol: 0.04, arpOctave: 2, // arpeggiate 2 octaves up
-    rhythm: "shanty", rhythmVol: 0.025,
-    panSpread: 0.6, // how wide stereo field is
+    wind: { vol: 0.04, freq: 280, q: 0.6, lfoRate: 0.015 },
+    // Layered insect/cicada drone
+    insects: { vol: 0.06, freqs: [4200, 5800, 7200], q: 8, lfoRate: 0.3 },
+    // Bird calls — random short chirps
+    creatures: { type: "birds", vol: 0.05, interval: [2000, 5000], chance: 0.6 },
+    // Distant monkey howls / frog croaks
+    creatures2: { type: "frogs", vol: 0.04, interval: [4000, 8000], chance: 0.4 },
+    // Dripping water
+    drips: { vol: 0.03, interval: [800, 3000], chance: 0.5 },
+    // Rustling leaves
+    rustle: { vol: 0.03, freq: 1800, q: 0.4, lfoRate: 0.08 },
   },
-  // ── D Mixolydian — classic sea shanty, adventure ──
+  // ── Island: coastal with ocean ──
   island: {
-    root: 73.42, // D2
-    drones: [{ freq: 73.42, dt: 0, vol: 0.20 }, { freq: 110, dt: 3, vol: 0.12 }, { freq: 146.83, dt: -2, vol: 0.08 }],
-    df: 520, pads: [{ freq: 185, vol: 0.06 }, { freq: 220, vol: 0.05 }], pf: 750,
-    wv: 0.05, wf: 400,
-    notes: [293.66, 329.63, 370, 440, 523.25], ct: [2500, 5000], cc: 0.6,
-    bass: { notes: [73.42, 82.41, 92.50, 110, 130.81], rate: 520, vol: 0.11, fHz: 400 },
-    waves: { vol: 0.04, rate: 4.5 },
-    chords: "major_bright", chordRate: 3500,
-    arp: "shanty", arpRate: 280, arpVol: 0.05, arpOctave: 2,
-    rhythm: "shanty", rhythmVol: 0.035,
-    panSpread: 0.7,
+    wind: { vol: 0.06, freq: 350, q: 0.5, lfoRate: 0.012 },
+    waves: { vol: 0.08, rate: 5.0 },
+    // Seagull cries
+    creatures: { type: "seagulls", vol: 0.04, interval: [3000, 7000], chance: 0.5 },
+    // Creaking wood (dock/ship)
+    creak: { vol: 0.025, interval: [5000, 12000], chance: 0.35 },
   },
-  // ── A Phrygian — exotic Middle Eastern desert ──
+  // ── Desert: arid wind and sand ──
   desert: {
-    root: 55, // A1
-    drones: [{ freq: 55, dt: 0, vol: 0.24 }, { freq: 82.41, dt: 7, vol: 0.14 }, { freq: 110, dt: -5, vol: 0.10 }],
-    df: 380, pads: [{ freq: 130.81, vol: 0.06 }, { freq: 164.81, vol: 0.05 }], pf: 580,
-    wv: 0.06, wf: 250,
-    notes: [329.63, 349.23, 415.30, 440, 523.25], ct: [4500, 8000], cc: 0.40,
-    bass: { notes: [110, 116.54, 130.81, 146.83, 164.81], rate: 900, vol: 0.09, fHz: 280 },
-    chords: "phrygian_exotic", chordRate: 5000,
-    arp: "sparse", arpRate: 400, arpVol: 0.035, arpOctave: 2,
-    rhythm: "exotic", rhythmVol: 0.025,
-    panSpread: 0.5,
+    wind: { vol: 0.10, freq: 200, q: 0.3, lfoRate: 0.008 },
+    // Sand hiss — high frequency wind-blown sand
+    sandHiss: { vol: 0.04, freq: 6000, q: 1.5, lfoRate: 0.05 },
+    // Distant eagle/hawk cry
+    creatures: { type: "hawk", vol: 0.03, interval: [6000, 15000], chance: 0.3 },
+    // Low rumble — heat shimmer / distant thunder
+    rumble: { vol: 0.04, freq: 40, lfoRate: 0.01 },
   },
-  // ── E minor pentatonic — cold, crystalline, ethereal ──
+  // ── Winter: cold howling wind and ice ──
   winter: {
-    root: 82.41, // E2
-    drones: [{ freq: 82.41, dt: 0, vol: 0.20 }, { freq: 123.47, dt: 4, vol: 0.12 }, { freq: 164.81, dt: -3, vol: 0.09 }],
-    df: 340, pads: [{ freq: 196, vol: 0.07 }, { freq: 246.94, vol: 0.05 }], pf: 520,
-    wv: 0.08, wf: 280,
-    notes: [329.63, 392, 440, 493.88, 587.33], ct: [5000, 10000], cc: 0.35,
-    bass: { notes: [82.41, 98, 110, 123.47, 146.83], rate: 1100, vol: 0.07, fHz: 250 },
-    chords: "minor_dark", chordRate: 6000,
-    arp: "descending", arpRate: 500, arpVol: 0.03, arpOctave: 3,
-    rhythm: "ambient", rhythmVol: 0.015,
-    panSpread: 0.8,
+    wind: { vol: 0.12, freq: 400, q: 0.4, lfoRate: 0.01 },
+    // High-pitched wind whistle through gaps
+    whistle: { vol: 0.03, freq: 2200, q: 6, lfoRate: 0.06 },
+    // Ice cracking
+    creatures: { type: "ice_crack", vol: 0.04, interval: [5000, 12000], chance: 0.35 },
+    // Snow crunch / settling
+    drips: { vol: 0.02, interval: [3000, 8000], chance: 0.3 },
   },
-  // ── Bb Dorian — dark tavern, port city ──
+  // ── City: port town ambience ──
   city: {
-    root: 58.27, // Bb1
-    drones: [{ freq: 58.27, dt: 0, vol: 0.23 }, { freq: 87.31, dt: 6, vol: 0.13 }, { freq: 116.54, dt: -4, vol: 0.09 }],
-    df: 320, pads: [{ freq: 138.59, vol: 0.06 }, { freq: 174.61, vol: 0.05 }], pf: 480,
-    wv: 0.02, wf: 200,
-    notes: [233.08, 261.63, 277.18, 349.23, 392], ct: [4000, 7500], cc: 0.45,
-    bass: { notes: [58.27, 65.41, 69.30, 87.31, 98], rate: 700, vol: 0.10, fHz: 300 },
-    chords: "minor_adventure", chordRate: 4500,
-    arp: "broken", arpRate: 320, arpVol: 0.035, arpOctave: 2,
-    rhythm: "basic", rhythmVol: 0.025,
-    panSpread: 0.4,
+    wind: { vol: 0.02, freq: 250, q: 0.5, lfoRate: 0.02 },
+    // Crowd murmur — low bandpass noise
+    crowd: { vol: 0.05, freq: 400, q: 0.3 },
+    // Hammering / clanking work sounds
+    creatures: { type: "hammering", vol: 0.035, interval: [3000, 7000], chance: 0.45 },
+    // Creaking signs / doors
+    creak: { vol: 0.025, interval: [6000, 14000], chance: 0.3 },
+    // Distant dog bark / cat
+    creatures2: { type: "dog", vol: 0.02, interval: [8000, 18000], chance: 0.25 },
   },
-  // ── A Phrygian dominant — intense, ominous, volcanic ──
+  // ── Volcano: tectonic rumbling and fire ──
   volcano: {
-    root: 55, // A1
-    drones: [{ freq: 55, dt: 0, vol: 0.28 }, { freq: 82.41, dt: 8, vol: 0.18 }, { freq: 110, dt: -5, vol: 0.12 }],
-    df: 300, pads: [{ freq: 130.81, vol: 0.07 }, { freq: 164.81, vol: 0.06 }], pf: 420,
-    wv: 0.04, wf: 220,
-    notes: [261.63, 329.63, 349.23, 415.30, 440], ct: [4000, 8000], cc: 0.35,
-    bass: { notes: [55, 58.27, 69.30, 73.42, 82.41], rate: 800, vol: 0.12, fHz: 250 },
-    chords: "phrygian_exotic", chordRate: 4000,
-    arp: "ascending", arpRate: 350, arpVol: 0.03, arpOctave: 2,
-    rhythm: "tense", rhythmVol: 0.030,
-    panSpread: 0.5,
+    wind: { vol: 0.05, freq: 180, q: 0.3, lfoRate: 0.008 },
+    // Deep tectonic rumble — continuous
+    rumble: { vol: 0.10, freq: 30, lfoRate: 0.007 },
+    // Lava bubbling
+    creatures: { type: "lava_bubble", vol: 0.05, interval: [1500, 4000], chance: 0.6 },
+    // Fire crackle
+    fireCrackle: { vol: 0.05, freq: 3500, q: 1.0, lfoRate: 0.15 },
+    // Distant eruption rumble
+    creatures2: { type: "eruption", vol: 0.04, interval: [8000, 20000], chance: 0.25 },
   },
-  // ── G major pentatonic — bright, breezy, cheerful summer ──
+  // ── Summer: warm meadow ──
   summer: {
-    root: 98, // G2
-    drones: [{ freq: 98, dt: 0, vol: 0.18 }, { freq: 146.83, dt: 4, vol: 0.11 }, { freq: 196, dt: -3, vol: 0.08 }],
-    df: 520, pads: [{ freq: 246.94, vol: 0.06 }, { freq: 293.66, vol: 0.05 }], pf: 650,
-    wv: 0.03, wf: 350,
-    notes: [392, 440, 493.88, 587.33, 659.26], ct: [2500, 5500], cc: 0.55,
-    bass: { notes: [98, 110, 123.47, 146.83, 164.81], rate: 550, vol: 0.09, fHz: 380 },
-    chords: "major_warm", chordRate: 3500,
-    arp: "wave", arpRate: 280, arpVol: 0.045, arpOctave: 2,
-    rhythm: "basic", rhythmVol: 0.020,
-    panSpread: 0.7,
+    wind: { vol: 0.05, freq: 320, q: 0.5, lfoRate: 0.015 },
+    // Bees / insects buzzing
+    insects: { vol: 0.04, freqs: [3800, 4600], q: 6, lfoRate: 0.4 },
+    // Bird song
+    creatures: { type: "birds", vol: 0.045, interval: [2500, 5500], chance: 0.55 },
+    // Grass rustling
+    rustle: { vol: 0.03, freq: 2200, q: 0.3, lfoRate: 0.06 },
+    // Cricket chirps
+    creatures2: { type: "crickets", vol: 0.03, interval: [1500, 4000], chance: 0.5 },
   },
-  // ── D minor pentatonic — melancholic, falling leaves ──
+  // ── Autumn: wind through dry leaves ──
   autumn: {
-    root: 73.42, // D2
-    drones: [{ freq: 73.42, dt: 0, vol: 0.21 }, { freq: 110, dt: 5, vol: 0.13 }, { freq: 146.83, dt: -4, vol: 0.09 }],
-    df: 340, pads: [{ freq: 174.61, vol: 0.07 }, { freq: 220, vol: 0.05 }], pf: 480,
-    wv: 0.04, wf: 260,
-    notes: [293.66, 349.23, 392, 440, 523.25], ct: [4500, 8500], cc: 0.38,
-    bass: { notes: [73.42, 87.31, 98, 110, 130.81], rate: 850, vol: 0.08, fHz: 280 },
-    chords: "minor_wistful", chordRate: 5000,
-    arp: "descending", arpRate: 420, arpVol: 0.035, arpOctave: 2,
-    rhythm: "ambient", rhythmVol: 0.018,
-    panSpread: 0.6,
+    wind: { vol: 0.08, freq: 300, q: 0.4, lfoRate: 0.012 },
+    // Dry leaf rustle — prominent
+    rustle: { vol: 0.05, freq: 2500, q: 0.5, lfoRate: 0.1 },
+    // Crow caws
+    creatures: { type: "crows", vol: 0.035, interval: [4000, 10000], chance: 0.4 },
+    // Creaking branches
+    creak: { vol: 0.03, interval: [5000, 12000], chance: 0.3 },
   },
-  // ── F major pentatonic — fresh, uplifting, spring breeze ──
+  // ── Spring: fresh breeze and birdsong ──
   spring: {
-    root: 87.31, // F2
-    drones: [{ freq: 87.31, dt: 0, vol: 0.18 }, { freq: 130.81, dt: 3, vol: 0.11 }, { freq: 174.61, dt: -2, vol: 0.08 }],
-    df: 480, pads: [{ freq: 220, vol: 0.06 }, { freq: 261.63, vol: 0.05 }], pf: 600,
-    wv: 0.04, wf: 320,
-    notes: [349.23, 392, 440, 523.25, 587.33], ct: [2500, 5000], cc: 0.55,
-    bass: { notes: [87.31, 98, 110, 130.81, 146.83], rate: 500, vol: 0.09, fHz: 350 },
-    chords: "major_bright", chordRate: 3500,
-    arp: "ascending", arpRate: 260, arpVol: 0.045, arpOctave: 2,
-    rhythm: "basic", rhythmVol: 0.020,
-    panSpread: 0.7,
+    wind: { vol: 0.04, freq: 350, q: 0.5, lfoRate: 0.018 },
+    // Rich birdsong
+    creatures: { type: "birds", vol: 0.05, interval: [1500, 4000], chance: 0.65 },
+    // Babbling brook
+    drips: { vol: 0.04, interval: [400, 1200], chance: 0.7 },
+    // Rustling new leaves
+    rustle: { vol: 0.025, freq: 2000, q: 0.4, lfoRate: 0.07 },
+    // Insects
+    insects: { vol: 0.025, freqs: [4000, 5200], q: 5, lfoRate: 0.35 },
   },
-  // ── Eb Lydian — whimsical, dreamy, enchanted ──
+  // ── Mushroom: eerie underground/enchanted forest ──
   mushroom: {
-    root: 77.78, // Eb2
-    drones: [{ freq: 77.78, dt: 0, vol: 0.20 }, { freq: 116.54, dt: 5, vol: 0.11 }, { freq: 155.56, dt: -4, vol: 0.09 }],
-    df: 470, pads: [{ freq: 196, vol: 0.07 }, { freq: 233.08, vol: 0.06 }], pf: 720,
-    wv: 0.02, wf: 350,
-    notes: [311.13, 349.23, 392, 466.16, 523.25, 587.33], ct: [3000, 5500], cc: 0.55,
-    bass: { notes: [77.78, 87.31, 98, 116.54, 130.81], rate: 600, vol: 0.10, fHz: 350 },
-    chords: "lydian_dream", chordRate: 4000,
-    arp: "wave", arpRate: 300, arpVol: 0.04, arpOctave: 3,
-    rhythm: "ambient", rhythmVol: 0.015,
-    panSpread: 0.8,
+    wind: { vol: 0.02, freq: 200, q: 0.4, lfoRate: 0.01 },
+    // Deep cave drone
+    rumble: { vol: 0.05, freq: 45, lfoRate: 0.008 },
+    // Water drips in cave
+    drips: { vol: 0.05, interval: [600, 2500], chance: 0.6 },
+    // Strange spore puffs / alien sounds
+    creatures: { type: "spores", vol: 0.04, interval: [3000, 7000], chance: 0.45 },
+    // Echo-like resonance
+    whistle: { vol: 0.02, freq: 800, q: 10, lfoRate: 0.03 },
   },
-  // ── Eb minor pentatonic — dark, murky, oppressive ──
+  // ── Swamp: murky, oppressive wetland ──
   swamp: {
-    root: 77.78, // Eb2
-    drones: [{ freq: 77.78, dt: 0, vol: 0.24 }, { freq: 116.54, dt: 7, vol: 0.14 }, { freq: 155.56, dt: -5, vol: 0.10 }],
-    df: 300, pads: [{ freq: 185, vol: 0.06 }, { freq: 233.08, vol: 0.05 }], pf: 450,
-    wv: 0.04, wf: 250,
-    notes: [311.13, 370, 415.30, 466.16, 554.37], ct: [5000, 9000], cc: 0.35,
-    bass: { notes: [77.78, 92.50, 103.83, 116.54, 138.59], rate: 1000, vol: 0.08, fHz: 250 },
-    chords: "minor_dark", chordRate: 5500,
-    arp: "sparse", arpRate: 450, arpVol: 0.025, arpOctave: 2,
-    rhythm: "ambient", rhythmVol: 0.015,
-    panSpread: 0.4,
+    wind: { vol: 0.03, freq: 220, q: 0.3, lfoRate: 0.01 },
+    // Bubbling mud/gas
+    creatures: { type: "bubbles", vol: 0.05, interval: [1500, 4000], chance: 0.55 },
+    // Frogs croaking
+    creatures2: { type: "frogs", vol: 0.05, interval: [2000, 5000], chance: 0.5 },
+    // Mosquito buzz
+    insects: { vol: 0.035, freqs: [3600, 4800], q: 10, lfoRate: 0.5 },
+    // Water slosh
+    drips: { vol: 0.03, interval: [2000, 5000], chance: 0.4 },
+    // Low fog drone
+    rumble: { vol: 0.04, freq: 55, lfoRate: 0.006 },
   },
-  // ── A major pentatonic — warm, tropical, paradise ──
+  // ── Blue Lagoon: tropical paradise ──
   blue_lagoon: {
-    root: 110, // A2
-    drones: [{ freq: 110, dt: 0, vol: 0.20 }, { freq: 164.81, dt: 4, vol: 0.12 }, { freq: 220, dt: -2, vol: 0.08 }],
-    df: 500, pads: [{ freq: 277.18, vol: 0.06 }, { freq: 329.63, vol: 0.05 }], pf: 720,
-    wv: 0.05, wf: 380,
-    notes: [440, 493.88, 554.37, 659.26, 740], ct: [2500, 5500], cc: 0.55,
-    bass: { notes: [110, 123.47, 138.59, 164.81, 185], rate: 540, vol: 0.11, fHz: 400 },
-    waves: { vol: 0.05, rate: 3.8 },
-    chords: "major_warm", chordRate: 3500,
-    arp: "shanty", arpRate: 300, arpVol: 0.04, arpOctave: 2,
-    rhythm: "shanty", rhythmVol: 0.025,
-    panSpread: 0.7,
+    wind: { vol: 0.04, freq: 300, q: 0.5, lfoRate: 0.015 },
+    waves: { vol: 0.07, rate: 4.0 },
+    // Tropical birds
+    creatures: { type: "birds", vol: 0.04, interval: [2500, 6000], chance: 0.5 },
+    // Gentle waterfall
+    rustle: { vol: 0.04, freq: 1500, q: 0.3, lfoRate: 0.04 },
+    // Insects
+    insects: { vol: 0.025, freqs: [4200, 5500], q: 6, lfoRate: 0.3 },
   },
 };
 
-// ─── HELPER: Convert semitone interval to frequency ratio ───
-function semitoneToRatio(semitones) {
-  return Math.pow(2, semitones / 12);
-}
-
-// ─── DRONE SYNTHESIS (with stereo panning) ───
-function createDrone(freq, detune, vol, filterHz, pan) {
+// ─── HELPER: Create looping white noise buffer ───
+function _makeNoiseBuf(duration) {
   const c = getCtx();
-  const osc = c.createOscillator();
-  osc.type = "sine";
-  osc.frequency.value = freq;
-  osc.detune.value = detune;
-
-  // Chorus copy for warmth (~0.3Hz beating)
-  const osc2 = c.createOscillator();
-  osc2.type = "sine";
-  osc2.frequency.value = freq * 1.002;
-  osc2.detune.value = detune;
-
-  const gain = c.createGain();
-  gain.gain.value = vol;
-
-  const filter = c.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = filterHz || 400;
-  filter.Q.value = 1.5;
-
-  // Stereo panning for spatial depth
-  const panner = c.createStereoPanner();
-  panner.pan.value = pan || 0;
-
-  osc.connect(filter);
-  osc2.connect(filter);
-  filter.connect(gain);
-  gain.connect(panner);
-  panner.connect(musicGain);
-  osc.start();
-  osc2.start();
-
-  // Slow LFO on filter for gentle movement
-  const lfo = c.createOscillator();
-  lfo.type = "sine";
-  lfo.frequency.value = 0.04 + Math.random() * 0.06;
-  const lfoGain = c.createGain();
-  lfoGain.gain.value = filterHz ? filterHz * 0.4 : 150;
-  lfo.connect(lfoGain);
-  lfoGain.connect(filter.frequency);
-  lfo.start();
-
-  return { osc, osc2, gain, filter, lfo, lfoGain, panner };
+  const len = Math.floor(c.sampleRate * duration);
+  const buf = c.createBuffer(1, len, c.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
 }
 
-// ─── PAD SYNTHESIS (with stereo panning + vibrato) ───
-function createPad(baseFreq, vol, filterHz, pan) {
-  const c = getCtx();
-  const osc1 = c.createOscillator();
-  osc1.type = "triangle";
-  osc1.frequency.value = baseFreq;
-
-  const osc2 = c.createOscillator();
-  osc2.type = "sine";
-  osc2.frequency.value = baseFreq * 1.003;
-
-  const gain = c.createGain();
-  gain.gain.value = vol;
-
-  const filter = c.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = filterHz || 600;
-  filter.Q.value = 1;
-
-  const panner = c.createStereoPanner();
-  panner.pan.value = pan || 0;
-
-  osc1.connect(filter);
-  osc2.connect(filter);
-  filter.connect(gain);
-  gain.connect(panner);
-  panner.connect(musicGain);
-  osc1.start();
-  osc2.start();
-
-  // Slow breathing swell
-  const lfo = c.createOscillator();
-  lfo.type = "sine";
-  lfo.frequency.value = 0.03 + Math.random() * 0.04;
-  const lfoGain = c.createGain();
-  lfoGain.gain.value = vol * 0.5;
-  lfo.connect(lfoGain);
-  lfoGain.connect(gain.gain);
-  lfo.start();
-
-  // Gentle vibrato (5-6Hz)
-  const vib = c.createOscillator();
-  vib.type = "sine";
-  vib.frequency.value = 5 + Math.random() * 1.5;
-  const vibGain = c.createGain();
-  vibGain.gain.value = baseFreq * 0.003;
-  vib.connect(vibGain);
-  vibGain.connect(osc1.frequency);
-  vibGain.connect(osc2.frequency);
-  vib.start();
-
-  return { osc1, osc2, gain, filter, lfo, lfoGain, vib, vibGain, panner };
-}
-
-// ─── WIND NOISE ───
-function createWindNoise(vol, filterHz) {
-  const c = getCtx();
-  const bufferSize = c.sampleRate * 2;
-  const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-
-  const noise = c.createBufferSource();
-  noise.buffer = buffer;
-  noise.loop = true;
-
-  const filter = c.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.value = filterHz || 300;
-  filter.Q.value = 0.5;
-
-  const gain = c.createGain();
-  gain.gain.value = vol;
-
-  noise.connect(filter);
-  filter.connect(gain);
-  gain.connect(musicGain);
-  noise.start();
-
-  const lfo = c.createOscillator();
-  lfo.type = "sine";
-  lfo.frequency.value = 0.02;
-  const lfoGain = c.createGain();
-  lfoGain.gain.value = 250;
-  lfo.connect(lfoGain);
-  lfoGain.connect(filter.frequency);
-  lfo.start();
-
-  return { noise, filter, gain, lfo, lfoGain };
-}
-
-let percTimer = null;
-
-// ─── BASS LINE (enhanced with chord-aware root notes) ───
-let bassTimer = null;
-function createBassLine(cfg, isNight, chordState) {
+// ─── WIND LAYER — continuous filtered noise with organic movement ───
+function createWindLayer(cfg, isNight) {
   if (!cfg) return null;
   const c = getCtx();
-  const vol = cfg.vol * (isNight ? 0.7 : 1);
-  const rate = cfg.rate * (isNight ? 1.4 : 1);
-  const notes = cfg.notes;
-  let noteIdx = 0;
-  let stopped = false;
-
-  const panner = c.createStereoPanner();
-  panner.pan.value = -0.15; // bass slightly left
-
-  const playNote = () => {
-    if (stopped || !musicPlaying || muted) return;
-    const now = c.currentTime;
-
-    // Use chord root as primary bass note when available, else cycle through scale
-    let freq;
-    if (chordState && chordState.currentChordFreqs && Math.random() < 0.6) {
-      // 60% chance: play chord root for harmonic grounding
-      freq = chordState.currentChordFreqs[0];
-      // Ensure bass stays in low range
-      while (freq > 150) freq /= 2;
-      while (freq < 40) freq *= 2;
-    } else {
-      freq = notes[noteIdx % notes.length];
-      noteIdx++;
-    }
-
-    const osc = c.createOscillator();
-    osc.type = "triangle";
-    osc.frequency.value = freq;
-    const osc2 = c.createOscillator();
-    osc2.type = "sine";
-    osc2.frequency.value = freq * 1.003;
-
-    const f = c.createBiquadFilter(); f.type = "lowpass";
-    f.frequency.value = cfg.fHz || 300; f.Q.value = 2;
-    const g = c.createGain();
-    const dur = rate * 0.001 * 0.8;
-    g.gain.setValueAtTime(vol, now);
-    g.gain.setValueAtTime(vol * 0.8, now + dur * 0.5);
-    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-
-    osc.connect(f); osc2.connect(f); f.connect(g); g.connect(panner); panner.connect(musicGain);
-    osc.start(now); osc2.start(now);
-    osc.stop(now + dur + 0.05); osc2.stop(now + dur + 0.05);
-
-    // Rhythmic variation: skip, double, or ghost note
-    let nextDelay = rate;
-    const r = Math.random();
-    if (r < 0.12) nextDelay = rate * 2; // skip: rest
-    else if (r < 0.20) nextDelay = rate * 0.5; // double-time
-    bassTimer = setTimeout(playNote, nextDelay);
-  };
-
-  bassTimer = setTimeout(playNote, Math.random() * rate);
-
-  return {
-    stop: () => { stopped = true; },
-    disconnect: () => { stopped = true; },
-    panner,
-  };
-}
-
-// ─── SEA WAVES (coastal biomes) ───
-function createSeaWaves(cfg) {
-  if (!cfg) return null;
-  const c = getCtx();
-  const bufferSize = c.sampleRate * 4;
-  const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-
   const noise = c.createBufferSource();
-  noise.buffer = buffer;
+  noise.buffer = _makeNoiseBuf(3);
   noise.loop = true;
 
-  const filter = c.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = 350;
-  filter.Q.value = 0.3;
+  const bp = c.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = cfg.freq;
+  bp.Q.value = cfg.q;
 
   const gain = c.createGain();
-  gain.gain.value = cfg.vol;
+  gain.gain.value = cfg.vol * (isNight ? 1.4 : 1);
 
-  // Slow pulsing for wave rhythm
-  const lfo = c.createOscillator();
-  lfo.type = "sine";
+  // Slow organic filter sweep — wind gusts
+  const lfo = c.createOscillator(); lfo.type = "sine";
+  lfo.frequency.value = cfg.lfoRate || 0.015;
+  const lfoG = c.createGain();
+  lfoG.gain.value = cfg.freq * 0.6;
+  lfo.connect(lfoG); lfoG.connect(bp.frequency);
+
+  // Volume swell — gusts come and go
+  const volLfo = c.createOscillator(); volLfo.type = "sine";
+  volLfo.frequency.value = (cfg.lfoRate || 0.015) * 0.7;
+  const volLfoG = c.createGain();
+  volLfoG.gain.value = cfg.vol * 0.4;
+  volLfo.connect(volLfoG); volLfoG.connect(gain.gain);
+
+  // Stereo movement
+  const panner = c.createStereoPanner();
+  const panLfo = c.createOscillator(); panLfo.type = "sine";
+  panLfo.frequency.value = 0.04 + Math.random() * 0.03;
+  const panG = c.createGain(); panG.gain.value = 0.5;
+  panLfo.connect(panG); panG.connect(panner.pan);
+
+  noise.connect(bp); bp.connect(gain); gain.connect(panner); panner.connect(musicGain);
+  noise.start(); lfo.start(); volLfo.start(); panLfo.start();
+
+  return { noise, bp, gain, lfo, lfoG, volLfo, volLfoG, panner, panLfo, panG };
+}
+
+// ─── SEA WAVES — realistic ocean with wash-in/wash-out cycle ───
+function createWavesLayer(cfg) {
+  if (!cfg) return null;
+  const c = getCtx();
+
+  // Main wave body — lowpass filtered noise
+  const noise = c.createBufferSource();
+  noise.buffer = _makeNoiseBuf(4);
+  noise.loop = true;
+  const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 400; lp.Q.value = 0.3;
+  const gain = c.createGain(); gain.gain.value = cfg.vol;
+
+  // Wave rhythm — volume pulsing
+  const lfo = c.createOscillator(); lfo.type = "sine";
   lfo.frequency.value = 1 / cfg.rate;
-  const lfoGain = c.createGain();
-  lfoGain.gain.value = cfg.vol * 0.8;
-  lfo.connect(lfoGain);
-  lfoGain.connect(gain.gain);
+  const lfoG = c.createGain(); lfoG.gain.value = cfg.vol * 0.7;
+  lfo.connect(lfoG); lfoG.connect(gain.gain);
 
-  // Filter sweep for wave crest shimmer
-  const lfo2 = c.createOscillator();
-  lfo2.type = "sine";
-  lfo2.frequency.value = 1 / cfg.rate;
-  const lfo2Gain = c.createGain();
-  lfo2Gain.gain.value = 200;
-  lfo2.connect(lfo2Gain);
-  lfo2Gain.connect(filter.frequency);
+  // Wave crest shimmer — filter opens on crest
+  const filterLfo = c.createOscillator(); filterLfo.type = "sine";
+  filterLfo.frequency.value = 1 / cfg.rate;
+  const filterLfoG = c.createGain(); filterLfoG.gain.value = 250;
+  filterLfo.connect(filterLfoG); filterLfoG.connect(lp.frequency);
 
-  // Stereo spread for immersive waves
+  // Foam/hiss layer — highpass noise on top of wave crest
+  const foam = c.createBufferSource();
+  foam.buffer = _makeNoiseBuf(4);
+  foam.loop = true;
+  const foamHP = c.createBiquadFilter(); foamHP.type = "highpass"; foamHP.frequency.value = 2000;
+  const foamG = c.createGain(); foamG.gain.value = cfg.vol * 0.15;
+  const foamLfo = c.createOscillator(); foamLfo.type = "sine";
+  foamLfo.frequency.value = 1 / cfg.rate;
+  const foamLfoG = c.createGain(); foamLfoG.gain.value = cfg.vol * 0.2;
+  foamLfo.connect(foamLfoG); foamLfoG.connect(foamG.gain);
+
+  // Stereo pan sweep
   const panner = c.createStereoPanner();
-  const panLfo = c.createOscillator();
-  panLfo.type = "sine";
-  panLfo.frequency.value = 0.08; // very slow pan sweep
-  const panLfoGain = c.createGain();
-  panLfoGain.gain.value = 0.4;
-  panLfo.connect(panLfoGain);
-  panLfoGain.connect(panner.pan);
-  panLfo.start();
+  const panLfo = c.createOscillator(); panLfo.type = "sine";
+  panLfo.frequency.value = 0.06;
+  const panG = c.createGain(); panG.gain.value = 0.45;
+  panLfo.connect(panG); panG.connect(panner.pan);
 
-  noise.connect(filter);
-  filter.connect(gain);
-  gain.connect(panner);
+  noise.connect(lp); lp.connect(gain); gain.connect(panner);
+  foam.connect(foamHP); foamHP.connect(foamG); foamG.connect(panner);
   panner.connect(musicGain);
-  noise.start();
-  lfo.start();
-  lfo2.start();
+  noise.start(); lfo.start(); filterLfo.start(); foam.start(); foamLfo.start(); panLfo.start();
 
-  return { noise, filter, gain, lfo, lfoGain, lfo2, lfo2Gain, panner, panLfo, panLfoGain };
+  return { noise, lp, gain, lfo, lfoG, filterLfo, filterLfoG, foam, foamHP, foamG, foamLfo, foamLfoG, panner, panLfo, panG };
 }
 
-// ─── CHORD PROGRESSION ENGINE ───
-// Manages timed chord changes, updating drone/pad frequencies smoothly
-let chordTimer = null;
-function createChordProgression(cfg, isNight) {
-  const progName = cfg.chords;
-  const progression = CHORD_PROGRESSIONS[progName];
-  if (!progression) return null;
-
-  const root = cfg.root;
-  const rate = (cfg.chordRate || 4000) * (isNight ? 1.4 : 1);
-  let chordIdx = 0;
-  let stopped = false;
-
-  // State shared with bass line and arpeggiator
-  const state = {
-    currentChord: progression[0],
-    currentChordFreqs: progression[0].map(s => root * semitoneToRatio(s)),
-    chordIdx: 0,
-  };
-
-  const advanceChord = () => {
-    if (stopped || !musicPlaying || muted) return;
-    chordIdx = (chordIdx + 1) % progression.length;
-    state.currentChord = progression[chordIdx];
-    state.currentChordFreqs = progression[chordIdx].map(s => root * semitoneToRatio(s));
-    state.chordIdx = chordIdx;
-
-    // Smoothly glide drone frequencies toward new chord tones
-    const c = getCtx();
-    const now = c.currentTime;
-    const glideTime = 1.5; // smooth 1.5s glide between chords
-    musicNodes.forEach(node => {
-      if (node._isDrone && node.osc && node._droneIdx !== undefined) {
-        const targetFreq = state.currentChordFreqs[node._droneIdx % state.currentChordFreqs.length];
-        // Keep drone in same octave range
-        let f = targetFreq;
-        while (f > node._baseOctaveMax) f /= 2;
-        while (f < node._baseOctaveMin) f *= 2;
-        node.osc.frequency.setTargetAtTime(f, now, glideTime * 0.3);
-        node.osc2.frequency.setTargetAtTime(f * 1.002, now, glideTime * 0.3);
-      }
-      if (node._isPad && node.osc1 && node._padIdx !== undefined) {
-        const chordFreqs = state.currentChordFreqs;
-        // Pads play 3rd and 5th of chord (indices 1, 2)
-        const targetFreq = chordFreqs[(node._padIdx + 1) % chordFreqs.length];
-        let f = targetFreq;
-        while (f > node._baseOctaveMax) f /= 2;
-        while (f < node._baseOctaveMin) f *= 2;
-        node.osc1.frequency.setTargetAtTime(f, now, glideTime * 0.3);
-        node.osc2.frequency.setTargetAtTime(f * 1.003, now, glideTime * 0.3);
-      }
-    });
-
-    chordTimer = setTimeout(advanceChord, rate + (Math.random() - 0.5) * rate * 0.2);
-  };
-
-  // Start first chord change after one cycle
-  chordTimer = setTimeout(advanceChord, rate);
-
-  return {
-    state,
-    stop: () => { stopped = true; },
-    disconnect: () => { stopped = true; },
-  };
-}
-
-// ─── ARPEGGIATOR ENGINE ───
-// Plays melodic patterns based on current chord, creating musical phrases
-let arpTimer = null;
-
-function createArpeggiator(cfg, isNight, chordState) {
-  if (!cfg.arp) return null;
+// ─── INSECT DRONE — layered narrow-band oscillators simulating cicadas/bugs ───
+function createInsectLayer(cfg, isNight) {
+  if (!cfg) return null;
   const c = getCtx();
-  const pattern = ARPEGGIO_PATTERNS[cfg.arp] || ARPEGGIO_PATTERNS.ascending;
-  const rate = (cfg.arpRate || 300) * (isNight ? 1.3 : 1);
-  const vol = (cfg.arpVol || 0.04) * (isNight ? 0.5 : 1);
-  const octaveUp = cfg.arpOctave || 2;
-  let stepIdx = 0;
-  let stopped = false;
-  let phraseCount = 0;
+  const nodes = [];
+  const vol = cfg.vol * (isNight ? 1.5 : 1);
+
+  cfg.freqs.forEach((freq, i) => {
+    const osc = c.createOscillator(); osc.type = "sine";
+    osc.frequency.value = freq + (Math.random() - 0.5) * 50;
+    const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = cfg.q;
+    const g = c.createGain(); g.gain.value = vol / cfg.freqs.length;
+
+    // Pulsing — insects chirp in waves
+    const lfo = c.createOscillator(); lfo.type = "sine";
+    lfo.frequency.value = cfg.lfoRate + (Math.random() - 0.5) * 0.1;
+    const lfoG = c.createGain(); lfoG.gain.value = g.gain.value * 0.7;
+    lfo.connect(lfoG); lfoG.connect(g.gain);
+
+    const panner = c.createStereoPanner();
+    panner.pan.value = (i / (cfg.freqs.length - 1 || 1) - 0.5) * 1.2;
+
+    osc.connect(bp); bp.connect(g); g.connect(panner); panner.connect(musicGain);
+    osc.start(); lfo.start();
+    nodes.push({ osc, bp, g, lfo, lfoG, panner });
+  });
+  return { _sub: nodes };
+}
+
+// ─── RUMBLE — deep tectonic/cave low-frequency drone ───
+function createRumbleLayer(cfg, isNight) {
+  if (!cfg) return null;
+  const c = getCtx();
+  const osc = c.createOscillator(); osc.type = "sine";
+  osc.frequency.value = cfg.freq;
+  const osc2 = c.createOscillator(); osc2.type = "triangle";
+  osc2.frequency.value = cfg.freq * 1.5;
+
+  const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = cfg.freq * 3; lp.Q.value = 1;
+  const g = c.createGain(); g.gain.value = cfg.vol * (isNight ? 0.8 : 1);
+
+  // Slow organic movement
+  const lfo = c.createOscillator(); lfo.type = "sine";
+  lfo.frequency.value = cfg.lfoRate || 0.01;
+  const lfoG = c.createGain(); lfoG.gain.value = cfg.vol * 0.5;
+  lfo.connect(lfoG); lfoG.connect(g.gain);
+
+  // Frequency wobble
+  const freqLfo = c.createOscillator(); freqLfo.type = "sine";
+  freqLfo.frequency.value = 0.05 + Math.random() * 0.03;
+  const freqLfoG = c.createGain(); freqLfoG.gain.value = cfg.freq * 0.15;
+  freqLfo.connect(freqLfoG); freqLfoG.connect(osc.frequency);
+
+  osc.connect(lp); osc2.connect(lp); lp.connect(g); g.connect(musicGain);
+  osc.start(); osc2.start(); lfo.start(); freqLfo.start();
+
+  return { osc, osc2, lp, g, lfo, lfoG, freqLfo, freqLfoG };
+}
+
+// ─── CONTINUOUS TEXTURE — rustle, crowd, fire crackle, sand hiss, whistle ───
+function createTextureLayer(cfg, type) {
+  if (!cfg) return null;
+  const c = getCtx();
+
+  if (type === "whistle") {
+    // Tonal wind whistle — narrow resonant bandpass
+    const osc = c.createOscillator(); osc.type = "sine";
+    osc.frequency.value = cfg.freq;
+    const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = cfg.freq; bp.Q.value = cfg.q;
+    const g = c.createGain(); g.gain.value = cfg.vol;
+    const lfo = c.createOscillator(); lfo.type = "sine";
+    lfo.frequency.value = cfg.lfoRate;
+    const lfoG = c.createGain(); lfoG.gain.value = cfg.freq * 0.1;
+    lfo.connect(lfoG); lfoG.connect(osc.frequency);
+    const volLfo = c.createOscillator(); volLfo.type = "sine";
+    volLfo.frequency.value = cfg.lfoRate * 0.6;
+    const volG = c.createGain(); volG.gain.value = cfg.vol * 0.6;
+    volLfo.connect(volG); volG.connect(g.gain);
+    osc.connect(bp); bp.connect(g); g.connect(musicGain);
+    osc.start(); lfo.start(); volLfo.start();
+    return { osc, bp, g, lfo, lfoG, volLfo, volG };
+  }
+
+  // Noise-based texture (rustle, crowd, sandHiss, fireCrackle)
+  const noise = c.createBufferSource();
+  noise.buffer = _makeNoiseBuf(2);
+  noise.loop = true;
+  const bp = c.createBiquadFilter(); bp.type = "bandpass";
+  bp.frequency.value = cfg.freq; bp.Q.value = cfg.q || 0.5;
+  const g = c.createGain(); g.gain.value = cfg.vol;
+
+  const lfo = c.createOscillator(); lfo.type = "sine";
+  lfo.frequency.value = cfg.lfoRate || 0.05;
+  const lfoG = c.createGain(); lfoG.gain.value = cfg.freq * 0.3;
+  lfo.connect(lfoG); lfoG.connect(bp.frequency);
+
+  const volLfo = c.createOscillator(); volLfo.type = "sine";
+  volLfo.frequency.value = (cfg.lfoRate || 0.05) * 0.8;
+  const volG = c.createGain(); volG.gain.value = cfg.vol * 0.4;
+  volLfo.connect(volG); volG.connect(g.gain);
 
   const panner = c.createStereoPanner();
-  panner.pan.value = 0.25; // arpeggio slightly right
+  panner.pan.value = (Math.random() - 0.5) * 0.6;
 
-  const playStep = () => {
+  noise.connect(bp); bp.connect(g); g.connect(panner); panner.connect(musicGain);
+  noise.start(); lfo.start(); volLfo.start();
+
+  return { noise, bp, g, lfo, lfoG, volLfo, volG, panner };
+}
+
+// ─── CREATURE SOUNDS — scheduled procedural animal/environment calls ───
+let creatureTimers = [];
+
+function createCreatureLayer(cfg, layerName) {
+  if (!cfg) return null;
+  const c = getCtx();
+  let stopped = false;
+
+  const playCreature = () => {
     if (stopped || !musicPlaying || muted) return;
-
-    const patIdx = pattern[stepIdx % pattern.length];
-    stepIdx++;
-
-    // Every 2 patterns, occasionally rest for a full pattern (breathing space)
-    if (stepIdx % pattern.length === 0) {
-      phraseCount++;
-      if (phraseCount % 3 === 0 && Math.random() < 0.4) {
-        // Rest for one full pattern duration
-        arpTimer = setTimeout(playStep, rate * pattern.length);
-        return;
-      }
-    }
-
-    if (patIdx === -1) {
-      // Rest note
-      arpTimer = setTimeout(playStep, rate);
+    if (Math.random() > cfg.chance) {
+      scheduleNext();
       return;
     }
 
     const now = c.currentTime;
-    const chordFreqs = chordState?.currentChordFreqs || [cfg.root * 2, cfg.root * 2.5, cfg.root * 3];
-
-    // Map pattern index to chord tone with octave
-    let baseIdx = patIdx % 3; // 0=root, 1=3rd, 2=5th
-    let octShift = Math.floor(patIdx / 3); // 3+ = up one octave
-    let freq = chordFreqs[baseIdx] * Math.pow(2, octaveUp + octShift);
-
-    // Keep in audible melodic range
-    while (freq > 2500) freq /= 2;
-    while (freq < 300) freq *= 2;
-
-    // Sine + triangle for bell-like arpeggio tone
-    const osc = c.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-
-    const osc2 = c.createOscillator();
-    osc2.type = "triangle";
-    osc2.frequency.value = freq * 2.01; // slight detune for shimmer
-
-    const gain = c.createGain();
-    const dur = rate * 0.001 * 2.5; // note sustain
-    gain.gain.setValueAtTime(vol, now);
-    gain.gain.setValueAtTime(vol * 0.7, now + dur * 0.3);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
-
-    const gain2 = c.createGain();
-    gain2.gain.setValueAtTime(vol * 0.15, now); // overtone quieter
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.6);
-
-    const filter = c.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 2500;
-
-    osc.connect(filter);
-    osc2.connect(gain2);
-    filter.connect(gain);
-    gain.connect(panner);
-    gain2.connect(panner);
+    const pan = (Math.random() - 0.5) * 1.4;
+    const panner = c.createStereoPanner();
+    panner.pan.value = pan;
     panner.connect(musicGain);
-    osc.start(now);
-    osc2.start(now);
-    osc.stop(now + dur + 0.1);
-    osc2.stop(now + dur * 0.6 + 0.1);
 
-    // Slight swing: alternate steps slightly longer/shorter
-    const swing = stepIdx % 2 === 0 ? 1.08 : 0.92;
-    arpTimer = setTimeout(playStep, rate * swing);
+    switch (cfg.type) {
+      case "birds": {
+        // 2-4 note chirp, ascending/descending
+        const noteCount = 2 + Math.floor(Math.random() * 3);
+        const baseFreq = 2000 + Math.random() * 2000;
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        for (let i = 0; i < noteCount; i++) {
+          const t = now + i * (0.08 + Math.random() * 0.06);
+          const freq = baseFreq + dir * i * (100 + Math.random() * 200);
+          const osc = c.createOscillator(); osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, t);
+          osc.frequency.linearRampToValueAtTime(freq * (1 + dir * 0.15), t + 0.06);
+          const g = c.createGain();
+          g.gain.setValueAtTime(cfg.vol, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+          osc.connect(g); g.connect(panner);
+          osc.start(t); osc.stop(t + 0.1);
+        }
+        break;
+      }
+      case "frogs": {
+        // Low ribbit — two short bursts
+        [0, 0.15].forEach(delay => {
+          const t = now + delay;
+          const osc = c.createOscillator(); osc.type = "square";
+          osc.frequency.setValueAtTime(180 + Math.random() * 80, t);
+          osc.frequency.exponentialRampToValueAtTime(120, t + 0.08);
+          const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 300; bp.Q.value = 3;
+          const g = c.createGain();
+          g.gain.setValueAtTime(cfg.vol, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+          osc.connect(bp); bp.connect(g); g.connect(panner);
+          osc.start(t); osc.stop(t + 0.12);
+        });
+        break;
+      }
+      case "seagulls": {
+        // Rising then falling cry
+        const osc = c.createOscillator(); osc.type = "sine";
+        osc.frequency.setValueAtTime(1200 + Math.random() * 400, now);
+        osc.frequency.linearRampToValueAtTime(2200 + Math.random() * 600, now + 0.2);
+        osc.frequency.linearRampToValueAtTime(1000 + Math.random() * 300, now + 0.5);
+        const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1800; bp.Q.value = 2;
+        const g = c.createGain();
+        g.gain.setValueAtTime(0.001, now);
+        g.gain.linearRampToValueAtTime(cfg.vol, now + 0.08);
+        g.gain.setValueAtTime(cfg.vol * 0.8, now + 0.25);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+        osc.connect(bp); bp.connect(g); g.connect(panner);
+        osc.start(now); osc.stop(now + 0.6);
+        break;
+      }
+      case "hawk": {
+        // High piercing screech
+        const osc = c.createOscillator(); osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(1800, now);
+        osc.frequency.linearRampToValueAtTime(2400, now + 0.3);
+        osc.frequency.linearRampToValueAtTime(1600, now + 0.8);
+        const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 2000; bp.Q.value = 3;
+        const g = c.createGain();
+        g.gain.setValueAtTime(0.001, now);
+        g.gain.linearRampToValueAtTime(cfg.vol, now + 0.1);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+        osc.connect(bp); bp.connect(g); g.connect(panner);
+        osc.start(now); osc.stop(now + 0.9);
+        break;
+      }
+      case "crows": {
+        // Harsh caw — 2-3 short calls
+        const count = 2 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < count; i++) {
+          const t = now + i * 0.25;
+          const osc = c.createOscillator(); osc.type = "sawtooth";
+          osc.frequency.setValueAtTime(600 + Math.random() * 100, t);
+          osc.frequency.exponentialRampToValueAtTime(400, t + 0.12);
+          const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 800; bp.Q.value = 2;
+          const g = c.createGain();
+          g.gain.setValueAtTime(cfg.vol, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+          osc.connect(bp); bp.connect(g); g.connect(panner);
+          osc.start(t); osc.stop(t + 0.18);
+        }
+        break;
+      }
+      case "crickets": {
+        // Rapid chirp burst
+        const chirpCount = 4 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < chirpCount; i++) {
+          const t = now + i * 0.04;
+          const osc = c.createOscillator(); osc.type = "sine";
+          osc.frequency.value = 4500 + Math.random() * 1000;
+          const g = c.createGain();
+          g.gain.setValueAtTime(cfg.vol * 0.7, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
+          osc.connect(g); g.connect(panner);
+          osc.start(t); osc.stop(t + 0.03);
+        }
+        break;
+      }
+      case "ice_crack": {
+        // Sharp crack followed by resonant ring
+        const snapLen = Math.floor(c.sampleRate * 0.01);
+        const snapBuf = c.createBuffer(1, snapLen, c.sampleRate);
+        const snapD = snapBuf.getChannelData(0);
+        for (let i = 0; i < snapLen; i++) snapD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / snapLen, 0.5);
+        const sn = c.createBufferSource(); sn.buffer = snapBuf;
+        const sg = c.createGain(); sg.gain.setValueAtTime(cfg.vol * 1.5, now); sg.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+        sn.connect(sg); sg.connect(panner); sn.start(now);
+        // Ring
+        const osc = c.createOscillator(); osc.type = "triangle";
+        osc.frequency.setValueAtTime(800 + Math.random() * 400, now);
+        osc.frequency.exponentialRampToValueAtTime(200, now + 0.3);
+        const g = c.createGain(); g.gain.setValueAtTime(cfg.vol * 0.5, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.connect(g); g.connect(panner); osc.start(now); osc.stop(now + 0.4);
+        break;
+      }
+      case "hammering": {
+        // 2-4 metallic hits
+        const hits = 2 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < hits; i++) {
+          const t = now + i * (0.2 + Math.random() * 0.1);
+          const osc = c.createOscillator(); osc.type = "square";
+          osc.frequency.setValueAtTime(600 + Math.random() * 300, t);
+          osc.frequency.exponentialRampToValueAtTime(200, t + 0.04);
+          const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1000; bp.Q.value = 4;
+          const g = c.createGain(); g.gain.setValueAtTime(cfg.vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+          osc.connect(bp); bp.connect(g); g.connect(panner); osc.start(t); osc.stop(t + 0.08);
+        }
+        break;
+      }
+      case "dog": {
+        // Short bark — 1-2 bursts
+        const barks = 1 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < barks; i++) {
+          const t = now + i * 0.2;
+          const osc = c.createOscillator(); osc.type = "sawtooth";
+          osc.frequency.setValueAtTime(350 + Math.random() * 100, t);
+          osc.frequency.exponentialRampToValueAtTime(200, t + 0.08);
+          const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 500; bp.Q.value = 2;
+          const g = c.createGain(); g.gain.setValueAtTime(cfg.vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+          osc.connect(bp); bp.connect(g); g.connect(panner); osc.start(t); osc.stop(t + 0.12);
+        }
+        break;
+      }
+      case "lava_bubble": {
+        // Deep plop — sine pitch drop + noise burst
+        const osc = c.createOscillator(); osc.type = "sine";
+        osc.frequency.setValueAtTime(200 + Math.random() * 100, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+        const g = c.createGain(); g.gain.setValueAtTime(cfg.vol, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.connect(g); g.connect(panner); osc.start(now); osc.stop(now + 0.3);
+        // Pop noise
+        const popLen = Math.floor(c.sampleRate * 0.03);
+        const popBuf = c.createBuffer(1, popLen, c.sampleRate);
+        const popD = popBuf.getChannelData(0);
+        for (let j = 0; j < popLen; j++) popD[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / popLen, 2);
+        const pn = c.createBufferSource(); pn.buffer = popBuf;
+        const pg = c.createGain(); pg.gain.setValueAtTime(cfg.vol * 0.6, now + 0.05); pg.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        const pbp = c.createBiquadFilter(); pbp.type = "bandpass"; pbp.frequency.value = 500; pbp.Q.value = 2;
+        pn.connect(pbp); pbp.connect(pg); pg.connect(panner); pn.start(now + 0.05);
+        break;
+      }
+      case "eruption": {
+        // Distant rumble + crack
+        const rLen = Math.floor(c.sampleRate * 0.8);
+        const rBuf = c.createBuffer(1, rLen, c.sampleRate);
+        const rD = rBuf.getChannelData(0);
+        for (let j = 0; j < rLen; j++) {
+          const t2 = j / rLen;
+          rD[j] = (Math.random() * 2 - 1) * (t2 < 0.1 ? t2 / 0.1 : Math.pow(1 - (t2 - 0.1) / 0.9, 2));
+        }
+        const rn = c.createBufferSource(); rn.buffer = rBuf;
+        const rlp = c.createBiquadFilter(); rlp.type = "lowpass"; rlp.frequency.value = 200;
+        const rg = c.createGain(); rg.gain.setValueAtTime(cfg.vol * 1.5, now); rg.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+        rn.connect(rlp); rlp.connect(rg); rg.connect(panner); rn.start(now);
+        break;
+      }
+      case "bubbles": {
+        // Swamp gas bubbles — 2-5 plops
+        const count = 2 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < count; i++) {
+          const t = now + i * (0.1 + Math.random() * 0.15);
+          const osc = c.createOscillator(); osc.type = "sine";
+          osc.frequency.setValueAtTime(300 + Math.random() * 200, t);
+          osc.frequency.exponentialRampToValueAtTime(80, t + 0.06);
+          const g = c.createGain(); g.gain.setValueAtTime(cfg.vol * 0.7, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+          osc.connect(g); g.connect(panner); osc.start(t); osc.stop(t + 0.1);
+        }
+        break;
+      }
+      case "spores": {
+        // Soft puff + shimmer tone
+        const puffLen = Math.floor(c.sampleRate * 0.15);
+        const puffBuf = c.createBuffer(1, puffLen, c.sampleRate);
+        const puffD = puffBuf.getChannelData(0);
+        for (let j = 0; j < puffLen; j++) puffD[j] = (Math.random() * 2 - 1) * Math.sin(j / puffLen * Math.PI);
+        const pn = c.createBufferSource(); pn.buffer = puffBuf;
+        const pbp = c.createBiquadFilter(); pbp.type = "bandpass"; pbp.frequency.value = 1200; pbp.Q.value = 1;
+        const pg = c.createGain(); pg.gain.setValueAtTime(cfg.vol, now); pg.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        pn.connect(pbp); pbp.connect(pg); pg.connect(panner); pn.start(now);
+        // Shimmer
+        const osc = c.createOscillator(); osc.type = "sine";
+        osc.frequency.value = 600 + Math.random() * 800;
+        const g = c.createGain(); g.gain.setValueAtTime(cfg.vol * 0.3, now + 0.05); g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.connect(g); g.connect(panner); osc.start(now + 0.05); osc.stop(now + 0.45);
+        break;
+      }
+      default: break;
+    }
+    scheduleNext();
   };
 
-  // Start after a random offset
-  arpTimer = setTimeout(playStep, Math.random() * rate * 2 + rate);
-
-  return {
-    stop: () => { stopped = true; },
-    disconnect: () => { stopped = true; },
-    panner,
+  const scheduleNext = () => {
+    if (stopped) return;
+    const [minI, maxI] = cfg.interval;
+    const delay = minI + Math.random() * (maxI - minI);
+    const timer = setTimeout(playCreature, delay);
+    creatureTimers.push(timer);
   };
+
+  scheduleNext();
+  return { stop: () => { stopped = true; }, disconnect: () => { stopped = true; } };
 }
 
-// ─── RHYTHM / PERCUSSION ENGINE ───
-// Synthesized kick drum and hi-hat patterns
-let rhythmTimer = null;
-
-function createRhythmSection(cfg, isNight) {
-  const rhythmName = cfg.rhythm;
-  const rhythmCfg = RHYTHM_PATTERNS[rhythmName];
-  if (!rhythmCfg) return null;
-
+// ─── WATER DRIPS — random short plop sounds ───
+function createDripLayer(cfg) {
+  if (!cfg) return null;
   const c = getCtx();
-  const vol = (cfg.rhythmVol || 0.02) * (isNight ? 0.5 : 1);
-  const stepTime = rhythmCfg.tempo * (isNight ? 1.3 : 1); // seconds per step
-  const kickPattern = rhythmCfg.kick;
-  const hatPattern = rhythmCfg.hat;
-  let step = 0;
   let stopped = false;
 
-  const panner = c.createStereoPanner();
-  panner.pan.value = 0; // percussion centered
+  const playDrip = () => {
+    if (stopped || !musicPlaying || muted) { scheduleNext(); return; }
+    if (Math.random() > cfg.chance) { scheduleNext(); return; }
 
-  const playStep = () => {
-    if (stopped || !musicPlaying || muted) return;
     const now = c.currentTime;
-    const ki = step % kickPattern.length;
-    const hi = step % hatPattern.length;
-
-    // Synthesized kick drum
-    if (kickPattern[ki]) {
-      const osc = c.createOscillator();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(90, now);
-      osc.frequency.exponentialRampToValueAtTime(30, now + 0.12);
-      const g = c.createGain();
-      g.gain.setValueAtTime(vol * 2.5, now);
-      g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-      // Add sub-bass body
-      const sub = c.createOscillator();
-      sub.type = "sine";
-      sub.frequency.value = 50;
-      const sg = c.createGain();
-      sg.gain.setValueAtTime(vol * 1.5, now);
-      sg.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-      osc.connect(g); g.connect(panner);
-      sub.connect(sg); sg.connect(panner);
-      panner.connect(musicGain);
-      osc.start(now); osc.stop(now + 0.2);
-      sub.start(now); sub.stop(now + 0.1);
-    }
-
-    // Synthesized hi-hat (filtered noise burst)
-    if (hatPattern[hi]) {
-      const bufLen = Math.floor(c.sampleRate * 0.04);
-      const buf = c.createBuffer(1, bufLen, c.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 2);
-      const n = c.createBufferSource(); n.buffer = buf;
-      const f = c.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 7000;
-      const g = c.createGain();
-      g.gain.setValueAtTime(vol * 1.2, now);
-      g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-      n.connect(f); f.connect(g); g.connect(panner); panner.connect(musicGain);
-      n.start(now);
-    }
-
-    step++;
-    // Subtle humanized timing (±5% variation)
-    const humanize = 1 + (Math.random() - 0.5) * 0.1;
-    rhythmTimer = setTimeout(playStep, stepTime * 1000 * humanize);
+    const freq = 800 + Math.random() * 1500;
+    const osc = c.createOscillator(); osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.5, now + 0.06);
+    const g = c.createGain();
+    g.gain.setValueAtTime(cfg.vol, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    const panner = c.createStereoPanner();
+    panner.pan.value = (Math.random() - 0.5) * 1.2;
+    osc.connect(g); g.connect(panner); panner.connect(musicGain);
+    osc.start(now); osc.stop(now + 0.1);
+    scheduleNext();
   };
 
-  // Start rhythm
-  rhythmTimer = setTimeout(playStep, stepTime * 1000);
-
-  return {
-    stop: () => { stopped = true; },
-    disconnect: () => { stopped = true; },
-    panner,
+  const scheduleNext = () => {
+    if (stopped) return;
+    const [minI, maxI] = cfg.interval;
+    const delay = minI + Math.random() * (maxI - minI);
+    const timer = setTimeout(playDrip, delay);
+    creatureTimers.push(timer);
   };
+
+  scheduleNext();
+  return { stop: () => { stopped = true; }, disconnect: () => { stopped = true; } };
 }
 
-// ─── ENHANCED CHIMES (melodic phrases instead of random single notes) ───
-function playBiomeChime(notes, filterHz, chordState) {
-  if (!musicPlaying || muted) return;
+// ─── WOOD CREAK — random creaking sounds ───
+function createCreakLayer(cfg) {
+  if (!cfg) return null;
   const c = getCtx();
-  const now = c.currentTime;
+  let stopped = false;
 
-  // Pick notes that harmonize with current chord when possible
-  let freq;
-  if (chordState?.currentChordFreqs && Math.random() < 0.7) {
-    const chordFreqs = chordState.currentChordFreqs;
-    const pick = chordFreqs[Math.floor(Math.random() * chordFreqs.length)];
-    freq = pick;
-    // Bring to chime register (octave 4-5)
-    while (freq < 350) freq *= 2;
-    while (freq > 1200) freq /= 2;
-  } else {
-    const idx = Math.floor(Math.random() * notes.length);
-    freq = notes[idx];
-  }
+  const playCreak = () => {
+    if (stopped || !musicPlaying || muted) { scheduleNext(); return; }
+    if (Math.random() > cfg.chance) { scheduleNext(); return; }
 
-  const panner = c.createStereoPanner();
-  panner.pan.value = (Math.random() - 0.5) * 0.8; // random stereo position
+    const now = c.currentTime;
+    const baseFreq = 150 + Math.random() * 200;
+    const osc = c.createOscillator(); osc.type = "triangle";
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.linearRampToValueAtTime(baseFreq * (1.1 + Math.random() * 0.3), now + 0.15);
+    osc.frequency.linearRampToValueAtTime(baseFreq * 0.9, now + 0.3);
+    const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 400; bp.Q.value = 3;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(cfg.vol, now + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    const panner = c.createStereoPanner();
+    panner.pan.value = (Math.random() - 0.5) * 0.8;
+    osc.connect(bp); bp.connect(g); g.connect(panner); panner.connect(musicGain);
+    osc.start(now); osc.stop(now + 0.4);
+    scheduleNext();
+  };
 
-  // Main chime note
-  const osc = c.createOscillator();
-  osc.type = "sine";
-  osc.frequency.value = freq * 2;
+  const scheduleNext = () => {
+    if (stopped) return;
+    const [minI, maxI] = cfg.interval;
+    const delay = minI + Math.random() * (maxI - minI);
+    const timer = setTimeout(playCreak, delay);
+    creatureTimers.push(timer);
+  };
 
-  const gain = c.createGain();
-  gain.gain.setValueAtTime(0.06, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
-
-  const filter = c.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = Math.min((filterHz || 700) * 3, 3500);
-
-  osc.connect(filter);
-  filter.connect(gain);
-  gain.connect(panner);
-  panner.connect(musicGain);
-  osc.start(now);
-  osc.stop(now + 2.8);
-
-  // 55% chance: harmony note (third or fifth of chord)
-  if (Math.random() < 0.55 && chordState?.currentChordFreqs) {
-    const harmIdx = Math.random() < 0.5 ? 1 : 2;
-    let freq2 = chordState.currentChordFreqs[harmIdx];
-    while (freq2 < 350) freq2 *= 2;
-    while (freq2 > 1200) freq2 /= 2;
-
-    const osc2 = c.createOscillator();
-    osc2.type = "sine";
-    osc2.frequency.value = freq2 * 2;
-    const g2 = c.createGain();
-    g2.gain.setValueAtTime(0.04, now + 0.15);
-    g2.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
-    osc2.connect(filter);
-    osc2.start(now + 0.15);
-    osc2.stop(now + 2.5);
-  }
-
-  // 25% chance: bell overtone
-  if (Math.random() < 0.25) {
-    const bell = c.createOscillator();
-    bell.type = "sine";
-    bell.frequency.value = freq * 4;
-    const bg = c.createGain();
-    bg.gain.setValueAtTime(0.02, now + 0.05);
-    bg.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
-    bell.connect(filter);
-    bell.start(now + 0.05);
-    bell.stop(now + 1.5);
-  }
-
-  // 20% chance: play a second chime after a short delay (mini-phrase)
-  if (Math.random() < 0.2) {
-    const delay = 0.3 + Math.random() * 0.4;
-    const osc3 = c.createOscillator();
-    osc3.type = "sine";
-    let freq3 = freq * (Math.random() < 0.5 ? 1.5 : 1.25); // fifth or fourth up
-    if (freq3 > 2000) freq3 /= 2;
-    osc3.frequency.value = freq3;
-    const g3 = c.createGain();
-    g3.gain.setValueAtTime(0.035, now + delay);
-    g3.gain.exponentialRampToValueAtTime(0.001, now + delay + 1.8);
-    osc3.connect(filter);
-    osc3.start(now + delay);
-    osc3.stop(now + delay + 2.0);
-  }
+  scheduleNext();
+  return { stop: () => { stopped = true; }, disconnect: () => { stopped = true; } };
 }
 
-// ─── CREATE ALL BIOME NODES (main orchestrator) ───
+let percTimer = null;
+
+// ─── CREATE ALL BIOME AMBIENT NODES (main orchestrator) ───
 function _createBiomeNodes(biomeId, isNight) {
-  const cfg = BIOME_MUSIC[biomeId];
+  const cfg = BIOME_AMBIENCE[biomeId];
   if (!cfg) return;
 
-  const nm = isNight ? 0.65 : 1;
-  const spread = cfg.panSpread || 0.5;
-
-  // Start chord progression engine
-  const chordNode = createChordProgression(cfg, isNight);
-  if (chordNode) musicNodes.push(chordNode);
-  const chordState = chordNode?.state || null;
-
-  // Drones with stereo spread and chord tracking metadata
-  cfg.drones.forEach((d, i) => {
-    const panPos = (i / (cfg.drones.length - 1 || 1) - 0.5) * spread * 2;
-    const node = createDrone(d.freq, d.dt, d.vol, cfg.df * nm, panPos);
-    // Tag for chord progression frequency gliding
-    node._isDrone = true;
-    node._droneIdx = i;
-    node._baseOctaveMin = d.freq * 0.6;
-    node._baseOctaveMax = d.freq * 1.7;
-    musicNodes.push(node);
-  });
-
-  // Pads with wider stereo spread
-  cfg.pads.forEach((p, i) => {
-    const panPos = (i % 2 === 0 ? -1 : 1) * spread * 0.8;
-    const node = createPad(p.freq, p.vol, cfg.pf * nm, panPos);
-    node._isPad = true;
-    node._padIdx = i;
-    node._baseOctaveMin = p.freq * 0.6;
-    node._baseOctaveMax = p.freq * 1.7;
-    musicNodes.push(node);
-  });
-
-  // Ambient wind noise
-  musicNodes.push(createWindNoise(cfg.wv * (isNight ? 1.5 : 1), cfg.wf * nm));
-
-  // Bass line (chord-aware)
-  if (cfg.bass) {
-    const bassNode = createBassLine(cfg.bass, isNight, chordState);
-    if (bassNode) musicNodes.push(bassNode);
+  // Wind — always present
+  if (cfg.wind) {
+    const node = createWindLayer(cfg.wind, isNight);
+    if (node) musicNodes.push(node);
   }
 
-  // Sea waves for coastal biomes
+  // Sea waves (coastal biomes)
   if (cfg.waves) {
-    const waveNode = createSeaWaves(cfg.waves);
-    if (waveNode) musicNodes.push(waveNode);
+    const node = createWavesLayer(cfg.waves);
+    if (node) musicNodes.push(node);
   }
 
-  // Arpeggiator (chord-aware melodic patterns)
-  const arpNode = createArpeggiator(cfg, isNight, chordState);
-  if (arpNode) musicNodes.push(arpNode);
+  // Insect drone layer
+  if (cfg.insects) {
+    const node = createInsectLayer(cfg.insects, isNight);
+    if (node) musicNodes.push(node);
+  }
 
-  // Rhythm section (subtle percussion)
-  const rhythmNode = createRhythmSection(cfg, isNight);
-  if (rhythmNode) musicNodes.push(rhythmNode);
+  // Deep rumble (tectonic/cave)
+  if (cfg.rumble) {
+    const node = createRumbleLayer(cfg.rumble, isNight);
+    if (node) musicNodes.push(node);
+  }
 
-  // Scheduled chimes (chord-aware)
-  const [minT, maxT] = cfg.ct;
-  const tmul = isNight ? 1.5 : 1;
-  const chance = cfg.cc * (isNight ? 0.6 : 1);
-  const fHz = cfg.pf * nm;
+  // Texture layers: rustle, crowd, sandHiss, fireCrackle, whistle
+  if (cfg.rustle) musicNodes.push(createTextureLayer(cfg.rustle, "rustle"));
+  if (cfg.crowd) musicNodes.push(createTextureLayer(cfg.crowd, "crowd"));
+  if (cfg.sandHiss) musicNodes.push(createTextureLayer(cfg.sandHiss, "sandHiss"));
+  if (cfg.fireCrackle) musicNodes.push(createTextureLayer(cfg.fireCrackle, "fireCrackle"));
+  if (cfg.whistle) musicNodes.push(createTextureLayer(cfg.whistle, "whistle"));
 
-  const scheduleChime = () => {
-    const interval = (minT + Math.random() * (maxT - minT)) * tmul;
-    chimeTimer = setTimeout(() => {
-      if (musicPlaying && !muted && Math.random() < chance) {
-        playBiomeChime(cfg.notes, fHz, chordState);
-      }
-      if (musicPlaying) scheduleChime();
-    }, interval);
-  };
-  scheduleChime();
+  // Creature sound layers (scheduled random calls)
+  if (cfg.creatures) musicNodes.push(createCreatureLayer(cfg.creatures, "creatures"));
+  if (cfg.creatures2) musicNodes.push(createCreatureLayer(cfg.creatures2, "creatures2"));
+
+  // Water drips
+  if (cfg.drips) musicNodes.push(createDripLayer(cfg.drips));
+
+  // Wood creaking
+  if (cfg.creak) musicNodes.push(createCreakLayer(cfg.creak));
 }
 
-// ─── STOP ALL MUSIC NODES ───
+// ─── STOP ALL AMBIENT NODES ───
 function _stopAllNodes() {
   musicNodes.forEach(node => {
-    if (node && typeof node.stop === "function" && !node.frequency) {
+    if (!node) return;
+    // Handle sub-arrays (insect layers)
+    if (node._sub) {
+      node._sub.forEach(sub => {
+        Object.values(sub).forEach(n => {
+          if (n && typeof n.stop === "function") try { n.stop(); } catch (_) {}
+          if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch (_) {}
+        });
+      });
+      return;
+    }
+    if (typeof node.stop === "function" && !node.frequency) {
       try { node.stop(); } catch (_) {}
     }
     Object.values(node).forEach(n => {
@@ -997,12 +838,11 @@ function _stopAllNodes() {
     });
   });
   musicNodes = [];
+  // Clear all creature/drip/creak timers
+  creatureTimers.forEach(t => clearTimeout(t));
+  creatureTimers = [];
   if (chimeTimer) { clearTimeout(chimeTimer); chimeTimer = null; }
   if (percTimer) { clearTimeout(percTimer); percTimer = null; }
-  if (bassTimer) { clearTimeout(bassTimer); bassTimer = null; }
-  if (chordTimer) { clearTimeout(chordTimer); chordTimer = null; }
-  if (arpTimer) { clearTimeout(arpTimer); arpTimer = null; }
-  if (rhythmTimer) { clearTimeout(rhythmTimer); rhythmTimer = null; }
 }
 
 // ─── PUBLIC API ───
@@ -1034,13 +874,22 @@ export function changeBiomeMusic(biomeId, isNight) {
     const oldNodes = [...musicNodes];
     musicNodes = [];
     if (chimeTimer) { clearTimeout(chimeTimer); chimeTimer = null; }
-    if (chordTimer) { clearTimeout(chordTimer); chordTimer = null; }
-    if (arpTimer) { clearTimeout(arpTimer); arpTimer = null; }
-    if (rhythmTimer) { clearTimeout(rhythmTimer); rhythmTimer = null; }
+    creatureTimers.forEach(t => clearTimeout(t));
+    creatureTimers = [];
 
     setTimeout(() => {
       oldNodes.forEach(node => {
-        if (node && typeof node.stop === "function" && !node.frequency) {
+        if (!node) return;
+        if (node._sub) {
+          node._sub.forEach(sub => {
+            Object.values(sub).forEach(n => {
+              if (n && typeof n.stop === "function") try { n.stop(); } catch (_) {}
+              if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch (_) {}
+            });
+          });
+          return;
+        }
+        if (typeof node.stop === "function" && !node.frequency) {
           try { node.stop(); } catch (_) {}
         }
         Object.values(node).forEach(n => {
@@ -1051,7 +900,7 @@ export function changeBiomeMusic(biomeId, isNight) {
       currentBiomeId = biomeId;
       currentNight = isNight;
       _createBiomeNodes(biomeId, isNight);
-      musicGain.gain.setTargetAtTime(0.35, c.currentTime, 0.35);
+      musicGain.gain.setTargetAtTime(0.55, c.currentTime, 0.35);
     }, 600); // slightly longer crossfade for smoother transition
   } else {
     currentBiomeId = biomeId;
