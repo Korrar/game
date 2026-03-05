@@ -20,7 +20,7 @@ import { PhysicsWorld } from "./physics/RapierPhysicsWorld";
 import { initRapier } from "./physics/rapierInit";
 import { PixiRenderer } from "./rendering/PixiRenderer";
 import {
-  startMusic, toggleMusic, changeBiomeMusic, sfxDoor, sfxChest, sfxSell,
+  startMusic, toggleMusic, changeBiomeMusic, setMusicCombatIntensity, sfxDoor, sfxChest, sfxSell,
   sfxStore, sfxRetrieve, sfxUpgrade, sfxGather, sfxBuy,
   sfxFireball, sfxLightning, sfxIceLance, sfxShadowBolt, sfxHolyBeam,
   sfxNpcDeath, sfxDrinkMana, sfxSummon, sfxRecruit, sfxMeleeHit, sfxSaberSwipe, sfxSaberHit, sfxMeteorFall, sfxMeteorImpact,
@@ -2666,6 +2666,7 @@ export default function App() {
         enemiesRemaining: 0, enemiesSpawned: 0, timer: 3, roomNumber: newRoom, isBossRoom: !!bossData });
       setMeteorite(null);
       sfxWaveHorn();
+      setMusicCombatIntensity(0.7); // ramp up music intensity for combat
       // Auto-deploy all trap types randomly for free
       {
         const autoTraps = [];
@@ -3154,6 +3155,7 @@ export default function App() {
           setActiveBoss(null);
           setBossesDefeated(b => b + 1);
           sfxVictoryFanfare();
+          setMusicCombatIntensity(0); // calm down music after boss victory
           setDefenseMode(prev => prev ? { ...prev, phase: "complete" } : null);
           return;
         }
@@ -3187,6 +3189,7 @@ export default function App() {
           }
           if (dm.currentWave >= dm.totalWaves) {
             sfxVictoryFanfare();
+            setMusicCombatIntensity(0); // calm down music after all waves cleared
             setDefenseMode(prev => prev ? { ...prev, phase: "complete" } : null);
           } else {
             sfxWaveComplete();

@@ -1,4 +1,5 @@
 // Procedural audio engine using Web Audio API
+// Enhanced music system with chord progressions, rhythm, arpeggios, reverb, stereo panning, and combat intensity
 let ctx = null;
 let masterGain = null;
 let musicGain = null;
@@ -9,6 +10,11 @@ let muted = false;
 let currentBiomeId = null;
 let currentNight = false;
 let chimeTimer = null;
+let reverbNode = null; // ConvolverNode for spatial depth
+let musicBus = null; // stereo bus before musicGain
+let combatIntensity = 0; // 0 = exploration, 1 = full combat
+let combatFilterNode = null; // dynamic filter driven by combat state
+let combatGainNode = null; // extra gain layer for combat dynamics
 
 function getCtx() {
   if (!ctx) {
@@ -19,7 +25,28 @@ function getCtx() {
 
     musicGain = ctx.createGain();
     musicGain.gain.value = 0.35;
-    musicGain.connect(masterGain);
+
+    // Combat dynamics: filter opens up during combat, gain increases
+    combatFilterNode = ctx.createBiquadFilter();
+    combatFilterNode.type = "lowpass";
+    combatFilterNode.frequency.value = 800; // exploration: muted, warm
+    combatFilterNode.Q.value = 0.7;
+
+    combatGainNode = ctx.createGain();
+    combatGainNode.gain.value = 1.0;
+
+    // Music bus for stereo routing: musicGain → combatFilter → combatGain → reverb mix
+    musicBus = ctx.createGain();
+    musicBus.gain.value = 1.0;
+
+    // Create procedural reverb impulse response (small room / cave ambience)
+    _createReverb();
+
+    // Routing: musicGain → combatFilter → combatGain → musicBus → [dry + wet reverb] → masterGain
+    musicGain.connect(combatFilterNode);
+    combatFilterNode.connect(combatGainNode);
+    combatGainNode.connect(musicBus);
+    musicBus.connect(masterGain); // dry signal
 
     sfxGain = ctx.createGain();
     sfxGain.gain.value = 0.5;
@@ -29,165 +56,261 @@ function getCtx() {
   return ctx;
 }
 
-// ─── BIOME-ADAPTIVE MUSIC ───
+// Procedural impulse response for reverb (no audio files needed)
+function _createReverb() {
+  const c = ctx;
+  const sampleRate = c.sampleRate;
+  const length = sampleRate * 1.8; // 1.8 second reverb tail
+  const impulse = c.createBuffer(2, length, sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      // Exponential decay with early reflections
+      const t = i / sampleRate;
+      const decay = Math.exp(-t * 3.5); // medium decay rate
+      // Early reflections: sparse impulses in first 50ms
+      const early = t < 0.05 ? (Math.random() < 0.02 ? 0.6 : 0) : 0;
+      // Late diffuse reverb tail
+      const late = (Math.random() * 2 - 1) * decay * 0.4;
+      data[i] = early + late;
+    }
+  }
+  reverbNode = c.createConvolver();
+  reverbNode.buffer = impulse;
+  // Wet signal: musicBus → reverb → masterGain (at reduced volume)
+  const reverbGain = c.createGain();
+  reverbGain.gain.value = 0.12; // subtle reverb mix
+  musicBus.connect(reverbNode);
+  reverbNode.connect(reverbGain);
+  reverbGain.connect(masterGain);
+}
 
-// Per-biome music profiles:
-// drones: bass oscillators, df: drone filter Hz, pads: pad oscillators, pf: pad filter Hz,
-// wv: wind volume, wf: wind filter Hz, notes: chime note pool,
-// ct: chime tempo range [min,max] ms, cc: chime chance
-// ── Music Theory Reference ──
-// All biome music uses proper harmonic intervals:
-// - Drones: Root + Perfect Fifth (3:2) + Octave (2:1) = always consonant
-// - Pads: Third (major 5:4 or minor 6:5) + Fifth = harmonious
-// - Bass/Chimes: Pentatonic scales (no dissonant semitones)
-// - Modes per biome: Dorian (shanty), Mixolydian (adventure), Phrygian (exotic),
-//   Minor pentatonic (dark), Major pentatonic (bright), Lydian (dreamy)
+// ─── BIOME-ADAPTIVE MUSIC (Enhanced) ───
+
+// Chord progression system using scale degree intervals relative to root
+// Each chord is [root_interval, third_interval, fifth_interval] in semitones from biome root
+// Progressions cycle through chords, creating harmonic movement
+const CHORD_PROGRESSIONS = {
+  // i - iv - VII - III (minor: mysterious, adventurous — pirate classic)
+  minor_adventure: [[0, 3, 7], [5, 8, 12], [10, 14, 17], [3, 7, 10]],
+  // i - VI - III - VII (minor: epic, sweeping — sea shanty feel)
+  minor_epic: [[0, 3, 7], [8, 12, 15], [3, 7, 10], [10, 14, 17]],
+  // I - IV - V - I (major: bright, confident — adventure)
+  major_bright: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7]],
+  // i - iv - v - i (minor: dark, brooding — danger)
+  minor_dark: [[0, 3, 7], [5, 8, 12], [7, 10, 14], [0, 3, 7]],
+  // I - vi - IV - V (major: uplifting, nostalgic — warm biomes)
+  major_warm: [[0, 4, 7], [9, 12, 16], [5, 9, 12], [7, 11, 14]],
+  // i - bII - v - i (phrygian: exotic, tense — desert/volcano)
+  phrygian_exotic: [[0, 3, 7], [1, 5, 8], [7, 10, 14], [0, 3, 7]],
+  // I - II - IV - I (lydian: dreamy, floaty — mushroom)
+  lydian_dream: [[0, 4, 7], [2, 6, 9], [5, 9, 12], [0, 4, 7]],
+  // i - VII - VI - VII (minor: melancholic, wistful — autumn)
+  minor_wistful: [[0, 3, 7], [10, 14, 17], [8, 12, 15], [10, 14, 17]],
+};
+
+// Arpeggio patterns: indices into current chord notes (0=root, 1=third, 2=fifth)
+// with octave shifts (+3 = root up octave, etc.)
+const ARPEGGIO_PATTERNS = {
+  ascending: [0, 1, 2, 3], // root, 3rd, 5th, root+oct
+  descending: [3, 2, 1, 0],
+  wave: [0, 1, 2, 1, 0, 1, 2, 3], // up-down wave
+  broken: [0, 2, 1, 3, 2, 0], // skip pattern
+  shanty: [0, 0, 1, 2, 2, 1], // sea shanty bouncing rhythm
+  sparse: [0, -1, 2, -1, 1, -1, 3, -1], // -1 = rest (silence)
+};
+
+// Rhythm patterns for subtle percussion: 1 = hit, 0 = rest
+// Each step = one subdivision of the beat
+const RHYTHM_PATTERNS = {
+  // Simple 4/4 with kick on 1,3 and hihat on offbeats
+  basic: { kick: [1,0,0,0, 1,0,0,0], hat: [0,0,1,0, 0,0,1,0], tempo: 0.5 },
+  // Pirate shanty 6/8 feel
+  shanty: { kick: [1,0,0,1,0,0], hat: [0,0,1,0,0,1], tempo: 0.35 },
+  // Slow atmospheric — very sparse
+  ambient: { kick: [1,0,0,0, 0,0,0,0], hat: [0,0,0,0, 0,0,1,0], tempo: 0.7 },
+  // Tense combat feel
+  tense: { kick: [1,0,1,0, 1,0,1,0], hat: [0,1,0,1, 0,1,0,1], tempo: 0.4 },
+  // Exotic desert rhythm
+  exotic: { kick: [1,0,0,1, 0,0,1,0], hat: [0,0,1,0, 1,0,0,1], tempo: 0.45 },
+};
+
+// Per-biome music profiles (enhanced with chord progressions, arpeggios, rhythm)
 const BIOME_MUSIC = {
-  // ── G Dorian (minor w/ raised 6th) — mysterious tribal, pirate jungle ──
+  // ── G Dorian — mysterious tribal, pirate jungle ──
   jungle: {
-    // Drones: G2(root) + D3(perfect 5th) + G3(octave) — pure consonance
-    drones: [{ freq: 98, dt: 0, vol: 0.22 }, { freq: 146.83, dt: 5, vol: 0.14 }, { freq: 196, dt: -3, vol: 0.09 }],
-    df: 500, pads: [{ freq: 233.08, vol: 0.08 }, { freq: 293.66, vol: 0.06 }], pf: 700,
+    root: 98, // G2
+    drones: [{ freq: 98, dt: 0, vol: 0.20 }, { freq: 146.83, dt: 5, vol: 0.12 }, { freq: 196, dt: -3, vol: 0.08 }],
+    df: 500, pads: [{ freq: 233.08, vol: 0.07 }, { freq: 293.66, vol: 0.05 }], pf: 700,
     wv: 0.03, wf: 350,
-    // G Dorian pentatonic chimes: G4, Bb4, C5, D5, F5
-    notes: [392, 466.16, 523.25, 587.33, 698.46], ct: [2500, 5000], cc: 0.65,
-    // G Dorian bass: G2, Bb2, C3, D3, F3
+    notes: [392, 466.16, 523.25, 587.33, 698.46], ct: [3000, 6000], cc: 0.55,
     bass: { notes: [98, 116.54, 130.81, 146.83, 174.61], rate: 600, vol: 0.10, fHz: 350 },
+    chords: "minor_adventure", chordRate: 4000, // chord changes every 4s
+    arp: "wave", arpRate: 350, arpVol: 0.04, arpOctave: 2, // arpeggiate 2 octaves up
+    rhythm: "shanty", rhythmVol: 0.025,
+    panSpread: 0.6, // how wide stereo field is
   },
-  // ── D Mixolydian (major w/ flat 7th) — classic sea shanty, adventure ──
+  // ── D Mixolydian — classic sea shanty, adventure ──
   island: {
-    // Drones: D2(root) + A2(perfect 5th) + D3(octave)
-    drones: [{ freq: 73.42, dt: 0, vol: 0.22 }, { freq: 110, dt: 3, vol: 0.14 }, { freq: 146.83, dt: -2, vol: 0.09 }],
-    df: 520, pads: [{ freq: 185, vol: 0.07 }, { freq: 220, vol: 0.06 }], pf: 750,
+    root: 73.42, // D2
+    drones: [{ freq: 73.42, dt: 0, vol: 0.20 }, { freq: 110, dt: 3, vol: 0.12 }, { freq: 146.83, dt: -2, vol: 0.08 }],
+    df: 520, pads: [{ freq: 185, vol: 0.06 }, { freq: 220, vol: 0.05 }], pf: 750,
     wv: 0.05, wf: 400,
-    // D Mixolydian pentatonic chimes: D4, E4, F#4, A4, C5
-    notes: [293.66, 329.63, 370, 440, 523.25], ct: [2000, 4500], cc: 0.7,
-    // D Mixolydian bass: D2, E2, F#2, A2, C3
-    bass: { notes: [73.42, 82.41, 92.50, 110, 130.81], rate: 520, vol: 0.12, fHz: 400 },
+    notes: [293.66, 329.63, 370, 440, 523.25], ct: [2500, 5000], cc: 0.6,
+    bass: { notes: [73.42, 82.41, 92.50, 110, 130.81], rate: 520, vol: 0.11, fHz: 400 },
     waves: { vol: 0.04, rate: 4.5 },
+    chords: "major_bright", chordRate: 3500,
+    arp: "shanty", arpRate: 280, arpVol: 0.05, arpOctave: 2,
+    rhythm: "shanty", rhythmVol: 0.035,
+    panSpread: 0.7,
   },
-  // ── A Phrygian (exotic minor w/ flat 2nd) — Middle Eastern desert ──
+  // ── A Phrygian — exotic Middle Eastern desert ──
   desert: {
-    // Drones: A1(root) + E2(perfect 5th) + A2(octave)
-    drones: [{ freq: 55, dt: 0, vol: 0.26 }, { freq: 82.41, dt: 7, vol: 0.16 }, { freq: 110, dt: -5, vol: 0.11 }],
-    df: 380, pads: [{ freq: 130.81, vol: 0.07 }, { freq: 164.81, vol: 0.06 }], pf: 580,
+    root: 55, // A1
+    drones: [{ freq: 55, dt: 0, vol: 0.24 }, { freq: 82.41, dt: 7, vol: 0.14 }, { freq: 110, dt: -5, vol: 0.10 }],
+    df: 380, pads: [{ freq: 130.81, vol: 0.06 }, { freq: 164.81, vol: 0.05 }], pf: 580,
     wv: 0.06, wf: 250,
-    // A Phrygian dominant chimes: E4, F4, Ab4, A4, C5 (exotic intervals)
-    notes: [329.63, 349.23, 415.30, 440, 523.25], ct: [4000, 7500], cc: 0.45,
-    // A Phrygian bass: A2, Bb2, C3, D3, E3
+    notes: [329.63, 349.23, 415.30, 440, 523.25], ct: [4500, 8000], cc: 0.40,
     bass: { notes: [110, 116.54, 130.81, 146.83, 164.81], rate: 900, vol: 0.09, fHz: 280 },
+    chords: "phrygian_exotic", chordRate: 5000,
+    arp: "sparse", arpRate: 400, arpVol: 0.035, arpOctave: 2,
+    rhythm: "exotic", rhythmVol: 0.025,
+    panSpread: 0.5,
   },
   // ── E minor pentatonic — cold, crystalline, ethereal ──
   winter: {
-    // Drones: E2(root) + B2(perfect 5th) + E3(octave)
-    drones: [{ freq: 82.41, dt: 0, vol: 0.22 }, { freq: 123.47, dt: 4, vol: 0.14 }, { freq: 164.81, dt: -3, vol: 0.10 }],
-    df: 340, pads: [{ freq: 196, vol: 0.08 }, { freq: 246.94, vol: 0.06 }], pf: 520,
+    root: 82.41, // E2
+    drones: [{ freq: 82.41, dt: 0, vol: 0.20 }, { freq: 123.47, dt: 4, vol: 0.12 }, { freq: 164.81, dt: -3, vol: 0.09 }],
+    df: 340, pads: [{ freq: 196, vol: 0.07 }, { freq: 246.94, vol: 0.05 }], pf: 520,
     wv: 0.08, wf: 280,
-    // E minor pentatonic chimes: E4, G4, A4, B4, D5 (high, bell-like)
-    notes: [329.63, 392, 440, 493.88, 587.33], ct: [4500, 9000], cc: 0.4,
-    // E minor pentatonic bass: E2, G2, A2, B2, D3
+    notes: [329.63, 392, 440, 493.88, 587.33], ct: [5000, 10000], cc: 0.35,
     bass: { notes: [82.41, 98, 110, 123.47, 146.83], rate: 1100, vol: 0.07, fHz: 250 },
+    chords: "minor_dark", chordRate: 6000,
+    arp: "descending", arpRate: 500, arpVol: 0.03, arpOctave: 3,
+    rhythm: "ambient", rhythmVol: 0.015,
+    panSpread: 0.8,
   },
-  // ── Bb Dorian — dark tavern, port city at night ──
+  // ── Bb Dorian — dark tavern, port city ──
   city: {
-    // Drones: Bb1(root) + F2(perfect 5th) + Bb2(octave)
-    drones: [{ freq: 58.27, dt: 0, vol: 0.25 }, { freq: 87.31, dt: 6, vol: 0.15 }, { freq: 116.54, dt: -4, vol: 0.10 }],
-    df: 320, pads: [{ freq: 138.59, vol: 0.07 }, { freq: 174.61, vol: 0.06 }], pf: 480,
+    root: 58.27, // Bb1
+    drones: [{ freq: 58.27, dt: 0, vol: 0.23 }, { freq: 87.31, dt: 6, vol: 0.13 }, { freq: 116.54, dt: -4, vol: 0.09 }],
+    df: 320, pads: [{ freq: 138.59, vol: 0.06 }, { freq: 174.61, vol: 0.05 }], pf: 480,
     wv: 0.02, wf: 200,
-    // Bb Dorian chimes: Bb3, C4, Db4, F4, G4
-    notes: [233.08, 261.63, 277.18, 349.23, 392], ct: [3500, 7000], cc: 0.5,
-    // Bb Dorian bass: Bb1, C2, Db2, F2, G2
+    notes: [233.08, 261.63, 277.18, 349.23, 392], ct: [4000, 7500], cc: 0.45,
     bass: { notes: [58.27, 65.41, 69.30, 87.31, 98], rate: 700, vol: 0.10, fHz: 300 },
+    chords: "minor_adventure", chordRate: 4500,
+    arp: "broken", arpRate: 320, arpVol: 0.035, arpOctave: 2,
+    rhythm: "basic", rhythmVol: 0.025,
+    panSpread: 0.4,
   },
   // ── A Phrygian dominant — intense, ominous, volcanic ──
   volcano: {
-    // Drones: A1(root) + E2(perfect 5th) + A2(octave)
-    drones: [{ freq: 55, dt: 0, vol: 0.30 }, { freq: 82.41, dt: 8, vol: 0.20 }, { freq: 110, dt: -5, vol: 0.13 }],
-    df: 300, pads: [{ freq: 130.81, vol: 0.08 }, { freq: 164.81, vol: 0.07 }], pf: 420,
+    root: 55, // A1
+    drones: [{ freq: 55, dt: 0, vol: 0.28 }, { freq: 82.41, dt: 8, vol: 0.18 }, { freq: 110, dt: -5, vol: 0.12 }],
+    df: 300, pads: [{ freq: 130.81, vol: 0.07 }, { freq: 164.81, vol: 0.06 }], pf: 420,
     wv: 0.04, wf: 220,
-    // A Phrygian dominant chimes: C4, E4, F4, Ab4, A4
-    notes: [261.63, 329.63, 349.23, 415.30, 440], ct: [3500, 7500], cc: 0.4,
-    // A Phrygian dominant bass: A1, Bb1, Db2, D2, E2
+    notes: [261.63, 329.63, 349.23, 415.30, 440], ct: [4000, 8000], cc: 0.35,
     bass: { notes: [55, 58.27, 69.30, 73.42, 82.41], rate: 800, vol: 0.12, fHz: 250 },
+    chords: "phrygian_exotic", chordRate: 4000,
+    arp: "ascending", arpRate: 350, arpVol: 0.03, arpOctave: 2,
+    rhythm: "tense", rhythmVol: 0.030,
+    panSpread: 0.5,
   },
   // ── G major pentatonic — bright, breezy, cheerful summer ──
   summer: {
-    // Drones: G2(root) + D3(perfect 5th) + G3(octave)
-    drones: [{ freq: 98, dt: 0, vol: 0.20 }, { freq: 146.83, dt: 4, vol: 0.13 }, { freq: 196, dt: -3, vol: 0.09 }],
-    df: 520, pads: [{ freq: 246.94, vol: 0.07 }, { freq: 293.66, vol: 0.06 }], pf: 650,
+    root: 98, // G2
+    drones: [{ freq: 98, dt: 0, vol: 0.18 }, { freq: 146.83, dt: 4, vol: 0.11 }, { freq: 196, dt: -3, vol: 0.08 }],
+    df: 520, pads: [{ freq: 246.94, vol: 0.06 }, { freq: 293.66, vol: 0.05 }], pf: 650,
     wv: 0.03, wf: 350,
-    // G major pentatonic chimes: G4, A4, B4, D5, E5
-    notes: [392, 440, 493.88, 587.33, 659.26], ct: [2500, 5500], cc: 0.6,
-    // G major pentatonic bass: G2, A2, B2, D3, E3
+    notes: [392, 440, 493.88, 587.33, 659.26], ct: [2500, 5500], cc: 0.55,
     bass: { notes: [98, 110, 123.47, 146.83, 164.81], rate: 550, vol: 0.09, fHz: 380 },
+    chords: "major_warm", chordRate: 3500,
+    arp: "wave", arpRate: 280, arpVol: 0.045, arpOctave: 2,
+    rhythm: "basic", rhythmVol: 0.020,
+    panSpread: 0.7,
   },
   // ── D minor pentatonic — melancholic, falling leaves ──
   autumn: {
-    // Drones: D2(root) + A2(perfect 5th) + D3(octave)
-    drones: [{ freq: 73.42, dt: 0, vol: 0.23 }, { freq: 110, dt: 5, vol: 0.15 }, { freq: 146.83, dt: -4, vol: 0.10 }],
-    df: 340, pads: [{ freq: 174.61, vol: 0.08 }, { freq: 220, vol: 0.06 }], pf: 480,
+    root: 73.42, // D2
+    drones: [{ freq: 73.42, dt: 0, vol: 0.21 }, { freq: 110, dt: 5, vol: 0.13 }, { freq: 146.83, dt: -4, vol: 0.09 }],
+    df: 340, pads: [{ freq: 174.61, vol: 0.07 }, { freq: 220, vol: 0.05 }], pf: 480,
     wv: 0.04, wf: 260,
-    // D minor pentatonic chimes: D4, F4, G4, A4, C5
-    notes: [293.66, 349.23, 392, 440, 523.25], ct: [4000, 8000], cc: 0.4,
-    // D minor pentatonic bass: D2, F2, G2, A2, C3
+    notes: [293.66, 349.23, 392, 440, 523.25], ct: [4500, 8500], cc: 0.38,
     bass: { notes: [73.42, 87.31, 98, 110, 130.81], rate: 850, vol: 0.08, fHz: 280 },
+    chords: "minor_wistful", chordRate: 5000,
+    arp: "descending", arpRate: 420, arpVol: 0.035, arpOctave: 2,
+    rhythm: "ambient", rhythmVol: 0.018,
+    panSpread: 0.6,
   },
   // ── F major pentatonic — fresh, uplifting, spring breeze ──
   spring: {
-    // Drones: F2(root) + C3(perfect 5th) + F3(octave)
-    drones: [{ freq: 87.31, dt: 0, vol: 0.20 }, { freq: 130.81, dt: 3, vol: 0.13 }, { freq: 174.61, dt: -2, vol: 0.09 }],
-    df: 480, pads: [{ freq: 220, vol: 0.07 }, { freq: 261.63, vol: 0.06 }], pf: 600,
+    root: 87.31, // F2
+    drones: [{ freq: 87.31, dt: 0, vol: 0.18 }, { freq: 130.81, dt: 3, vol: 0.11 }, { freq: 174.61, dt: -2, vol: 0.08 }],
+    df: 480, pads: [{ freq: 220, vol: 0.06 }, { freq: 261.63, vol: 0.05 }], pf: 600,
     wv: 0.04, wf: 320,
-    // F major pentatonic chimes: F4, G4, A4, C5, D5
-    notes: [349.23, 392, 440, 523.25, 587.33], ct: [2500, 5000], cc: 0.6,
-    // F major pentatonic bass: F2, G2, A2, C3, D3
+    notes: [349.23, 392, 440, 523.25, 587.33], ct: [2500, 5000], cc: 0.55,
     bass: { notes: [87.31, 98, 110, 130.81, 146.83], rate: 500, vol: 0.09, fHz: 350 },
+    chords: "major_bright", chordRate: 3500,
+    arp: "ascending", arpRate: 260, arpVol: 0.045, arpOctave: 2,
+    rhythm: "basic", rhythmVol: 0.020,
+    panSpread: 0.7,
   },
-  // ── Eb Lydian (major w/ raised 4th) — whimsical, dreamy, enchanted ──
+  // ── Eb Lydian — whimsical, dreamy, enchanted ──
   mushroom: {
-    // Drones: Eb2(root) + Bb2(perfect 5th) + Eb3(octave)
-    drones: [{ freq: 77.78, dt: 0, vol: 0.22 }, { freq: 116.54, dt: 5, vol: 0.13 }, { freq: 155.56, dt: -4, vol: 0.10 }],
-    df: 470, pads: [{ freq: 196, vol: 0.08 }, { freq: 233.08, vol: 0.07 }], pf: 720,
+    root: 77.78, // Eb2
+    drones: [{ freq: 77.78, dt: 0, vol: 0.20 }, { freq: 116.54, dt: 5, vol: 0.11 }, { freq: 155.56, dt: -4, vol: 0.09 }],
+    df: 470, pads: [{ freq: 196, vol: 0.07 }, { freq: 233.08, vol: 0.06 }], pf: 720,
     wv: 0.02, wf: 350,
-    // Eb Lydian pentatonic chimes: Eb4, F4, G4, Bb4, C5, D5
-    notes: [311.13, 349.23, 392, 466.16, 523.25, 587.33], ct: [2500, 5000], cc: 0.65,
-    // Eb Lydian bass: Eb2, F2, G2, Bb2, C3
+    notes: [311.13, 349.23, 392, 466.16, 523.25, 587.33], ct: [3000, 5500], cc: 0.55,
     bass: { notes: [77.78, 87.31, 98, 116.54, 130.81], rate: 600, vol: 0.10, fHz: 350 },
+    chords: "lydian_dream", chordRate: 4000,
+    arp: "wave", arpRate: 300, arpVol: 0.04, arpOctave: 3,
+    rhythm: "ambient", rhythmVol: 0.015,
+    panSpread: 0.8,
   },
   // ── Eb minor pentatonic — dark, murky, oppressive ──
   swamp: {
-    // Drones: Eb2(root) + Bb2(perfect 5th) + Eb3(octave)
-    drones: [{ freq: 77.78, dt: 0, vol: 0.26 }, { freq: 116.54, dt: 7, vol: 0.16 }, { freq: 155.56, dt: -5, vol: 0.11 }],
-    df: 300, pads: [{ freq: 185, vol: 0.07 }, { freq: 233.08, vol: 0.06 }], pf: 450,
+    root: 77.78, // Eb2
+    drones: [{ freq: 77.78, dt: 0, vol: 0.24 }, { freq: 116.54, dt: 7, vol: 0.14 }, { freq: 155.56, dt: -5, vol: 0.10 }],
+    df: 300, pads: [{ freq: 185, vol: 0.06 }, { freq: 233.08, vol: 0.05 }], pf: 450,
     wv: 0.04, wf: 250,
-    // Eb minor pentatonic chimes: Eb4, Gb4, Ab4, Bb4, Db5
-    notes: [311.13, 370, 415.30, 466.16, 554.37], ct: [4000, 8500], cc: 0.4,
-    // Eb minor pentatonic bass: Eb2, Gb2, Ab2, Bb2, Db3
+    notes: [311.13, 370, 415.30, 466.16, 554.37], ct: [5000, 9000], cc: 0.35,
     bass: { notes: [77.78, 92.50, 103.83, 116.54, 138.59], rate: 1000, vol: 0.08, fHz: 250 },
+    chords: "minor_dark", chordRate: 5500,
+    arp: "sparse", arpRate: 450, arpVol: 0.025, arpOctave: 2,
+    rhythm: "ambient", rhythmVol: 0.015,
+    panSpread: 0.4,
   },
   // ── A major pentatonic — warm, tropical, paradise ──
   blue_lagoon: {
-    // Drones: A2(root) + E3(perfect 5th) + A3(octave)
-    drones: [{ freq: 110, dt: 0, vol: 0.22 }, { freq: 164.81, dt: 4, vol: 0.14 }, { freq: 220, dt: -2, vol: 0.09 }],
-    df: 500, pads: [{ freq: 277.18, vol: 0.07 }, { freq: 329.63, vol: 0.06 }], pf: 720,
+    root: 110, // A2
+    drones: [{ freq: 110, dt: 0, vol: 0.20 }, { freq: 164.81, dt: 4, vol: 0.12 }, { freq: 220, dt: -2, vol: 0.08 }],
+    df: 500, pads: [{ freq: 277.18, vol: 0.06 }, { freq: 329.63, vol: 0.05 }], pf: 720,
     wv: 0.05, wf: 380,
-    // A major pentatonic chimes: A4, B4, Db5, E5, Gb5
-    notes: [440, 493.88, 554.37, 659.26, 740], ct: [2000, 5000], cc: 0.6,
-    // A major pentatonic bass: A2, B2, Db3, E3, Gb3
+    notes: [440, 493.88, 554.37, 659.26, 740], ct: [2500, 5500], cc: 0.55,
     bass: { notes: [110, 123.47, 138.59, 164.81, 185], rate: 540, vol: 0.11, fHz: 400 },
     waves: { vol: 0.05, rate: 3.8 },
+    chords: "major_warm", chordRate: 3500,
+    arp: "shanty", arpRate: 300, arpVol: 0.04, arpOctave: 2,
+    rhythm: "shanty", rhythmVol: 0.025,
+    panSpread: 0.7,
   },
 };
 
-function createDrone(freq, detune, vol, filterHz) {
+// ─── HELPER: Convert semitone interval to frequency ratio ───
+function semitoneToRatio(semitones) {
+  return Math.pow(2, semitones / 12);
+}
+
+// ─── DRONE SYNTHESIS (with stereo panning) ───
+function createDrone(freq, detune, vol, filterHz, pan) {
   const c = getCtx();
-  // Main oscillator
   const osc = c.createOscillator();
   osc.type = "sine";
   osc.frequency.value = freq;
   osc.detune.value = detune;
 
-  // Slightly detuned chorus copy for warmth (~0.3Hz beating)
+  // Chorus copy for warmth (~0.3Hz beating)
   const osc2 = c.createOscillator();
   osc2.type = "sine";
   osc2.frequency.value = freq * 1.002;
@@ -195,22 +318,25 @@ function createDrone(freq, detune, vol, filterHz) {
 
   const gain = c.createGain();
   gain.gain.value = vol;
-  const gain2 = c.createGain();
-  gain2.gain.value = vol * 0.5; // chorus copy quieter
 
   const filter = c.createBiquadFilter();
   filter.type = "lowpass";
   filter.frequency.value = filterHz || 400;
   filter.Q.value = 1.5;
 
+  // Stereo panning for spatial depth
+  const panner = c.createStereoPanner();
+  panner.pan.value = pan || 0;
+
   osc.connect(filter);
   osc2.connect(filter);
   filter.connect(gain);
-  gain.connect(musicGain);
+  gain.connect(panner);
+  panner.connect(musicGain);
   osc.start();
   osc2.start();
 
-  // Slow LFO modulation on filter for gentle movement
+  // Slow LFO on filter for gentle movement
   const lfo = c.createOscillator();
   lfo.type = "sine";
   lfo.frequency.value = 0.04 + Math.random() * 0.06;
@@ -220,19 +346,19 @@ function createDrone(freq, detune, vol, filterHz) {
   lfoGain.connect(filter.frequency);
   lfo.start();
 
-  return { osc, osc2, gain, gain2, filter, lfo, lfoGain };
+  return { osc, osc2, gain, filter, lfo, lfoGain, panner };
 }
 
-function createPad(baseFreq, vol, filterHz) {
+// ─── PAD SYNTHESIS (with stereo panning + vibrato) ───
+function createPad(baseFreq, vol, filterHz, pan) {
   const c = getCtx();
-  // Triangle + sine detuned pair (concertina/accordion-like tone)
   const osc1 = c.createOscillator();
   osc1.type = "triangle";
   osc1.frequency.value = baseFreq;
 
   const osc2 = c.createOscillator();
   osc2.type = "sine";
-  osc2.frequency.value = baseFreq * 1.003; // slight detuning for chorus
+  osc2.frequency.value = baseFreq * 1.003;
 
   const gain = c.createGain();
   gain.gain.value = vol;
@@ -242,14 +368,18 @@ function createPad(baseFreq, vol, filterHz) {
   filter.frequency.value = filterHz || 600;
   filter.Q.value = 1;
 
+  const panner = c.createStereoPanner();
+  panner.pan.value = pan || 0;
+
   osc1.connect(filter);
   osc2.connect(filter);
   filter.connect(gain);
-  gain.connect(musicGain);
+  gain.connect(panner);
+  panner.connect(musicGain);
   osc1.start();
   osc2.start();
 
-  // Slow volume swell for breathing quality
+  // Slow breathing swell
   const lfo = c.createOscillator();
   lfo.type = "sine";
   lfo.frequency.value = 0.03 + Math.random() * 0.04;
@@ -259,20 +389,21 @@ function createPad(baseFreq, vol, filterHz) {
   lfoGain.connect(gain.gain);
   lfo.start();
 
-  // Gentle vibrato (5-6Hz) for instrument-like quality
+  // Gentle vibrato (5-6Hz)
   const vib = c.createOscillator();
   vib.type = "sine";
   vib.frequency.value = 5 + Math.random() * 1.5;
   const vibGain = c.createGain();
-  vibGain.gain.value = baseFreq * 0.003; // subtle pitch variation
+  vibGain.gain.value = baseFreq * 0.003;
   vib.connect(vibGain);
   vibGain.connect(osc1.frequency);
   vibGain.connect(osc2.frequency);
   vib.start();
 
-  return { osc1, osc2, gain, filter, lfo, lfoGain, vib, vibGain };
+  return { osc1, osc2, gain, filter, lfo, lfoGain, vib, vibGain, panner };
 }
 
+// ─── WIND NOISE ───
 function createWindNoise(vol, filterHz) {
   const c = getCtx();
   const bufferSize = c.sampleRate * 2;
@@ -297,7 +428,6 @@ function createWindNoise(vol, filterHz) {
   gain.connect(musicGain);
   noise.start();
 
-  // Slow sweep on filter frequency
   const lfo = c.createOscillator();
   lfo.type = "sine";
   lfo.frequency.value = 0.02;
@@ -310,11 +440,11 @@ function createWindNoise(vol, filterHz) {
   return { noise, filter, gain, lfo, lfoGain };
 }
 
-let percTimer = null; // kept for cleanup compatibility
+let percTimer = null;
 
-// Repeating bass melody line
+// ─── BASS LINE (enhanced with chord-aware root notes) ───
 let bassTimer = null;
-function createBassLine(cfg, isNight) {
+function createBassLine(cfg, isNight, chordState) {
   if (!cfg) return null;
   const c = getCtx();
   const vol = cfg.vol * (isNight ? 0.7 : 1);
@@ -323,19 +453,32 @@ function createBassLine(cfg, isNight) {
   let noteIdx = 0;
   let stopped = false;
 
+  const panner = c.createStereoPanner();
+  panner.pan.value = -0.15; // bass slightly left
+
   const playNote = () => {
     if (stopped || !musicPlaying || muted) return;
     const now = c.currentTime;
-    const freq = notes[noteIdx % notes.length];
-    noteIdx++;
 
-    // Main bass oscillator
+    // Use chord root as primary bass note when available, else cycle through scale
+    let freq;
+    if (chordState && chordState.currentChordFreqs && Math.random() < 0.6) {
+      // 60% chance: play chord root for harmonic grounding
+      freq = chordState.currentChordFreqs[0];
+      // Ensure bass stays in low range
+      while (freq > 150) freq /= 2;
+      while (freq < 40) freq *= 2;
+    } else {
+      freq = notes[noteIdx % notes.length];
+      noteIdx++;
+    }
+
     const osc = c.createOscillator();
     osc.type = "triangle";
     osc.frequency.value = freq;
     const osc2 = c.createOscillator();
     osc2.type = "sine";
-    osc2.frequency.value = freq * 1.003; // slight detune
+    osc2.frequency.value = freq * 1.003;
 
     const f = c.createBiquadFilter(); f.type = "lowpass";
     f.frequency.value = cfg.fHz || 300; f.Q.value = 2;
@@ -345,25 +488,28 @@ function createBassLine(cfg, isNight) {
     g.gain.setValueAtTime(vol * 0.8, now + dur * 0.5);
     g.gain.exponentialRampToValueAtTime(0.001, now + dur);
 
-    osc.connect(f); osc2.connect(f); f.connect(g); g.connect(musicGain);
+    osc.connect(f); osc2.connect(f); f.connect(g); g.connect(panner); panner.connect(musicGain);
     osc.start(now); osc2.start(now);
     osc.stop(now + dur + 0.05); osc2.stop(now + dur + 0.05);
 
-    // Occasionally skip a note for variation
-    const nextDelay = Math.random() < 0.15 ? rate * 2 : rate;
+    // Rhythmic variation: skip, double, or ghost note
+    let nextDelay = rate;
+    const r = Math.random();
+    if (r < 0.12) nextDelay = rate * 2; // skip: rest
+    else if (r < 0.20) nextDelay = rate * 0.5; // double-time
     bassTimer = setTimeout(playNote, nextDelay);
   };
 
-  // Start after a small random delay
   bassTimer = setTimeout(playNote, Math.random() * rate);
 
   return {
     stop: () => { stopped = true; },
     disconnect: () => { stopped = true; },
+    panner,
   };
 }
 
-// Ocean wave ambience for coastal biomes
+// ─── SEA WAVES (coastal biomes) ───
 function createSeaWaves(cfg) {
   if (!cfg) return null;
   const c = getCtx();
@@ -387,13 +533,13 @@ function createSeaWaves(cfg) {
   // Slow pulsing for wave rhythm
   const lfo = c.createOscillator();
   lfo.type = "sine";
-  lfo.frequency.value = 1 / cfg.rate; // wave period
+  lfo.frequency.value = 1 / cfg.rate;
   const lfoGain = c.createGain();
   lfoGain.gain.value = cfg.vol * 0.8;
   lfo.connect(lfoGain);
   lfoGain.connect(gain.gain);
 
-  // Filter sweep for wave crest
+  // Filter sweep for wave crest shimmer
   const lfo2 = c.createOscillator();
   lfo2.type = "sine";
   lfo2.frequency.value = 1 / cfg.rate;
@@ -402,30 +548,305 @@ function createSeaWaves(cfg) {
   lfo2.connect(lfo2Gain);
   lfo2Gain.connect(filter.frequency);
 
+  // Stereo spread for immersive waves
+  const panner = c.createStereoPanner();
+  const panLfo = c.createOscillator();
+  panLfo.type = "sine";
+  panLfo.frequency.value = 0.08; // very slow pan sweep
+  const panLfoGain = c.createGain();
+  panLfoGain.gain.value = 0.4;
+  panLfo.connect(panLfoGain);
+  panLfoGain.connect(panner.pan);
+  panLfo.start();
+
   noise.connect(filter);
   filter.connect(gain);
-  gain.connect(musicGain);
+  gain.connect(panner);
+  panner.connect(musicGain);
   noise.start();
   lfo.start();
   lfo2.start();
 
-  return { noise, filter, gain, lfo, lfoGain, lfo2, lfo2Gain };
+  return { noise, filter, gain, lfo, lfoGain, lfo2, lfo2Gain, panner, panLfo, panLfoGain };
 }
 
-function playBiomeChime(notes, filterHz) {
+// ─── CHORD PROGRESSION ENGINE ───
+// Manages timed chord changes, updating drone/pad frequencies smoothly
+let chordTimer = null;
+function createChordProgression(cfg, isNight) {
+  const progName = cfg.chords;
+  const progression = CHORD_PROGRESSIONS[progName];
+  if (!progression) return null;
+
+  const root = cfg.root;
+  const rate = (cfg.chordRate || 4000) * (isNight ? 1.4 : 1);
+  let chordIdx = 0;
+  let stopped = false;
+
+  // State shared with bass line and arpeggiator
+  const state = {
+    currentChord: progression[0],
+    currentChordFreqs: progression[0].map(s => root * semitoneToRatio(s)),
+    chordIdx: 0,
+  };
+
+  const advanceChord = () => {
+    if (stopped || !musicPlaying || muted) return;
+    chordIdx = (chordIdx + 1) % progression.length;
+    state.currentChord = progression[chordIdx];
+    state.currentChordFreqs = progression[chordIdx].map(s => root * semitoneToRatio(s));
+    state.chordIdx = chordIdx;
+
+    // Smoothly glide drone frequencies toward new chord tones
+    const c = getCtx();
+    const now = c.currentTime;
+    const glideTime = 1.5; // smooth 1.5s glide between chords
+    musicNodes.forEach(node => {
+      if (node._isDrone && node.osc && node._droneIdx !== undefined) {
+        const targetFreq = state.currentChordFreqs[node._droneIdx % state.currentChordFreqs.length];
+        // Keep drone in same octave range
+        let f = targetFreq;
+        while (f > node._baseOctaveMax) f /= 2;
+        while (f < node._baseOctaveMin) f *= 2;
+        node.osc.frequency.setTargetAtTime(f, now, glideTime * 0.3);
+        node.osc2.frequency.setTargetAtTime(f * 1.002, now, glideTime * 0.3);
+      }
+      if (node._isPad && node.osc1 && node._padIdx !== undefined) {
+        const chordFreqs = state.currentChordFreqs;
+        // Pads play 3rd and 5th of chord (indices 1, 2)
+        const targetFreq = chordFreqs[(node._padIdx + 1) % chordFreqs.length];
+        let f = targetFreq;
+        while (f > node._baseOctaveMax) f /= 2;
+        while (f < node._baseOctaveMin) f *= 2;
+        node.osc1.frequency.setTargetAtTime(f, now, glideTime * 0.3);
+        node.osc2.frequency.setTargetAtTime(f * 1.003, now, glideTime * 0.3);
+      }
+    });
+
+    chordTimer = setTimeout(advanceChord, rate + (Math.random() - 0.5) * rate * 0.2);
+  };
+
+  // Start first chord change after one cycle
+  chordTimer = setTimeout(advanceChord, rate);
+
+  return {
+    state,
+    stop: () => { stopped = true; },
+    disconnect: () => { stopped = true; },
+  };
+}
+
+// ─── ARPEGGIATOR ENGINE ───
+// Plays melodic patterns based on current chord, creating musical phrases
+let arpTimer = null;
+
+function createArpeggiator(cfg, isNight, chordState) {
+  if (!cfg.arp) return null;
+  const c = getCtx();
+  const pattern = ARPEGGIO_PATTERNS[cfg.arp] || ARPEGGIO_PATTERNS.ascending;
+  const rate = (cfg.arpRate || 300) * (isNight ? 1.3 : 1);
+  const vol = (cfg.arpVol || 0.04) * (isNight ? 0.5 : 1);
+  const octaveUp = cfg.arpOctave || 2;
+  let stepIdx = 0;
+  let stopped = false;
+  let phraseCount = 0;
+
+  const panner = c.createStereoPanner();
+  panner.pan.value = 0.25; // arpeggio slightly right
+
+  const playStep = () => {
+    if (stopped || !musicPlaying || muted) return;
+
+    const patIdx = pattern[stepIdx % pattern.length];
+    stepIdx++;
+
+    // Every 2 patterns, occasionally rest for a full pattern (breathing space)
+    if (stepIdx % pattern.length === 0) {
+      phraseCount++;
+      if (phraseCount % 3 === 0 && Math.random() < 0.4) {
+        // Rest for one full pattern duration
+        arpTimer = setTimeout(playStep, rate * pattern.length);
+        return;
+      }
+    }
+
+    if (patIdx === -1) {
+      // Rest note
+      arpTimer = setTimeout(playStep, rate);
+      return;
+    }
+
+    const now = c.currentTime;
+    const chordFreqs = chordState?.currentChordFreqs || [cfg.root * 2, cfg.root * 2.5, cfg.root * 3];
+
+    // Map pattern index to chord tone with octave
+    let baseIdx = patIdx % 3; // 0=root, 1=3rd, 2=5th
+    let octShift = Math.floor(patIdx / 3); // 3+ = up one octave
+    let freq = chordFreqs[baseIdx] * Math.pow(2, octaveUp + octShift);
+
+    // Keep in audible melodic range
+    while (freq > 2500) freq /= 2;
+    while (freq < 300) freq *= 2;
+
+    // Sine + triangle for bell-like arpeggio tone
+    const osc = c.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+
+    const osc2 = c.createOscillator();
+    osc2.type = "triangle";
+    osc2.frequency.value = freq * 2.01; // slight detune for shimmer
+
+    const gain = c.createGain();
+    const dur = rate * 0.001 * 2.5; // note sustain
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.setValueAtTime(vol * 0.7, now + dur * 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+    const gain2 = c.createGain();
+    gain2.gain.setValueAtTime(vol * 0.15, now); // overtone quieter
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.6);
+
+    const filter = c.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 2500;
+
+    osc.connect(filter);
+    osc2.connect(gain2);
+    filter.connect(gain);
+    gain.connect(panner);
+    gain2.connect(panner);
+    panner.connect(musicGain);
+    osc.start(now);
+    osc2.start(now);
+    osc.stop(now + dur + 0.1);
+    osc2.stop(now + dur * 0.6 + 0.1);
+
+    // Slight swing: alternate steps slightly longer/shorter
+    const swing = stepIdx % 2 === 0 ? 1.08 : 0.92;
+    arpTimer = setTimeout(playStep, rate * swing);
+  };
+
+  // Start after a random offset
+  arpTimer = setTimeout(playStep, Math.random() * rate * 2 + rate);
+
+  return {
+    stop: () => { stopped = true; },
+    disconnect: () => { stopped = true; },
+    panner,
+  };
+}
+
+// ─── RHYTHM / PERCUSSION ENGINE ───
+// Synthesized kick drum and hi-hat patterns
+let rhythmTimer = null;
+
+function createRhythmSection(cfg, isNight) {
+  const rhythmName = cfg.rhythm;
+  const rhythmCfg = RHYTHM_PATTERNS[rhythmName];
+  if (!rhythmCfg) return null;
+
+  const c = getCtx();
+  const vol = (cfg.rhythmVol || 0.02) * (isNight ? 0.5 : 1);
+  const stepTime = rhythmCfg.tempo * (isNight ? 1.3 : 1); // seconds per step
+  const kickPattern = rhythmCfg.kick;
+  const hatPattern = rhythmCfg.hat;
+  let step = 0;
+  let stopped = false;
+
+  const panner = c.createStereoPanner();
+  panner.pan.value = 0; // percussion centered
+
+  const playStep = () => {
+    if (stopped || !musicPlaying || muted) return;
+    const now = c.currentTime;
+    const ki = step % kickPattern.length;
+    const hi = step % hatPattern.length;
+
+    // Synthesized kick drum
+    if (kickPattern[ki]) {
+      const osc = c.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(90, now);
+      osc.frequency.exponentialRampToValueAtTime(30, now + 0.12);
+      const g = c.createGain();
+      g.gain.setValueAtTime(vol * 2.5, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      // Add sub-bass body
+      const sub = c.createOscillator();
+      sub.type = "sine";
+      sub.frequency.value = 50;
+      const sg = c.createGain();
+      sg.gain.setValueAtTime(vol * 1.5, now);
+      sg.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(g); g.connect(panner);
+      sub.connect(sg); sg.connect(panner);
+      panner.connect(musicGain);
+      osc.start(now); osc.stop(now + 0.2);
+      sub.start(now); sub.stop(now + 0.1);
+    }
+
+    // Synthesized hi-hat (filtered noise burst)
+    if (hatPattern[hi]) {
+      const bufLen = Math.floor(c.sampleRate * 0.04);
+      const buf = c.createBuffer(1, bufLen, c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 2);
+      const n = c.createBufferSource(); n.buffer = buf;
+      const f = c.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 7000;
+      const g = c.createGain();
+      g.gain.setValueAtTime(vol * 1.2, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      n.connect(f); f.connect(g); g.connect(panner); panner.connect(musicGain);
+      n.start(now);
+    }
+
+    step++;
+    // Subtle humanized timing (±5% variation)
+    const humanize = 1 + (Math.random() - 0.5) * 0.1;
+    rhythmTimer = setTimeout(playStep, stepTime * 1000 * humanize);
+  };
+
+  // Start rhythm
+  rhythmTimer = setTimeout(playStep, stepTime * 1000);
+
+  return {
+    stop: () => { stopped = true; },
+    disconnect: () => { stopped = true; },
+    panner,
+  };
+}
+
+// ─── ENHANCED CHIMES (melodic phrases instead of random single notes) ───
+function playBiomeChime(notes, filterHz, chordState) {
   if (!musicPlaying || muted) return;
   const c = getCtx();
   const now = c.currentTime;
-  const idx = Math.floor(Math.random() * notes.length);
-  const freq = notes[idx];
+
+  // Pick notes that harmonize with current chord when possible
+  let freq;
+  if (chordState?.currentChordFreqs && Math.random() < 0.7) {
+    const chordFreqs = chordState.currentChordFreqs;
+    const pick = chordFreqs[Math.floor(Math.random() * chordFreqs.length)];
+    freq = pick;
+    // Bring to chime register (octave 4-5)
+    while (freq < 350) freq *= 2;
+    while (freq > 1200) freq /= 2;
+  } else {
+    const idx = Math.floor(Math.random() * notes.length);
+    freq = notes[idx];
+  }
+
+  const panner = c.createStereoPanner();
+  panner.pan.value = (Math.random() - 0.5) * 0.8; // random stereo position
 
   // Main chime note
   const osc = c.createOscillator();
   osc.type = "sine";
-  osc.frequency.value = freq * 2; // higher octave
+  osc.frequency.value = freq * 2;
 
   const gain = c.createGain();
-  gain.gain.setValueAtTime(0.08, now);
+  gain.gain.setValueAtTime(0.06, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
 
   const filter = c.createBiquadFilter();
@@ -434,56 +855,101 @@ function playBiomeChime(notes, filterHz) {
 
   osc.connect(filter);
   filter.connect(gain);
-  gain.connect(musicGain);
+  gain.connect(panner);
+  panner.connect(musicGain);
   osc.start(now);
   osc.stop(now + 2.8);
 
-  // 50% chance: play a second harmony note for richer sound
-  if (Math.random() < 0.5 && notes.length > 2) {
-    const idx2 = (idx + 2) % notes.length; // pick a note 2 steps away
-    const freq2 = notes[idx2];
+  // 55% chance: harmony note (third or fifth of chord)
+  if (Math.random() < 0.55 && chordState?.currentChordFreqs) {
+    const harmIdx = Math.random() < 0.5 ? 1 : 2;
+    let freq2 = chordState.currentChordFreqs[harmIdx];
+    while (freq2 < 350) freq2 *= 2;
+    while (freq2 > 1200) freq2 /= 2;
+
     const osc2 = c.createOscillator();
     osc2.type = "sine";
     osc2.frequency.value = freq2 * 2;
     const g2 = c.createGain();
-    g2.gain.setValueAtTime(0.05, now + 0.15);
+    g2.gain.setValueAtTime(0.04, now + 0.15);
     g2.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
     osc2.connect(filter);
     osc2.start(now + 0.15);
     osc2.stop(now + 2.5);
   }
 
-  // 30% chance: add a bell-like overtone
-  if (Math.random() < 0.3) {
+  // 25% chance: bell overtone
+  if (Math.random() < 0.25) {
     const bell = c.createOscillator();
     bell.type = "sine";
     bell.frequency.value = freq * 4;
     const bg = c.createGain();
-    bg.gain.setValueAtTime(0.025, now + 0.05);
+    bg.gain.setValueAtTime(0.02, now + 0.05);
     bg.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
     bell.connect(filter);
     bell.start(now + 0.05);
     bell.stop(now + 1.5);
   }
+
+  // 20% chance: play a second chime after a short delay (mini-phrase)
+  if (Math.random() < 0.2) {
+    const delay = 0.3 + Math.random() * 0.4;
+    const osc3 = c.createOscillator();
+    osc3.type = "sine";
+    let freq3 = freq * (Math.random() < 0.5 ? 1.5 : 1.25); // fifth or fourth up
+    if (freq3 > 2000) freq3 /= 2;
+    osc3.frequency.value = freq3;
+    const g3 = c.createGain();
+    g3.gain.setValueAtTime(0.035, now + delay);
+    g3.gain.exponentialRampToValueAtTime(0.001, now + delay + 1.8);
+    osc3.connect(filter);
+    osc3.start(now + delay);
+    osc3.stop(now + delay + 2.0);
+  }
 }
 
+// ─── CREATE ALL BIOME NODES (main orchestrator) ───
 function _createBiomeNodes(biomeId, isNight) {
   const cfg = BIOME_MUSIC[biomeId];
   if (!cfg) return;
 
-  const nm = isNight ? 0.65 : 1; // night: lower all filters
+  const nm = isNight ? 0.65 : 1;
+  const spread = cfg.panSpread || 0.5;
 
-  cfg.drones.forEach(d => {
-    musicNodes.push(createDrone(d.freq, d.dt, d.vol, cfg.df * nm));
+  // Start chord progression engine
+  const chordNode = createChordProgression(cfg, isNight);
+  if (chordNode) musicNodes.push(chordNode);
+  const chordState = chordNode?.state || null;
+
+  // Drones with stereo spread and chord tracking metadata
+  cfg.drones.forEach((d, i) => {
+    const panPos = (i / (cfg.drones.length - 1 || 1) - 0.5) * spread * 2;
+    const node = createDrone(d.freq, d.dt, d.vol, cfg.df * nm, panPos);
+    // Tag for chord progression frequency gliding
+    node._isDrone = true;
+    node._droneIdx = i;
+    node._baseOctaveMin = d.freq * 0.6;
+    node._baseOctaveMax = d.freq * 1.7;
+    musicNodes.push(node);
   });
-  cfg.pads.forEach(p => {
-    musicNodes.push(createPad(p.freq, p.vol, cfg.pf * nm));
+
+  // Pads with wider stereo spread
+  cfg.pads.forEach((p, i) => {
+    const panPos = (i % 2 === 0 ? -1 : 1) * spread * 0.8;
+    const node = createPad(p.freq, p.vol, cfg.pf * nm, panPos);
+    node._isPad = true;
+    node._padIdx = i;
+    node._baseOctaveMin = p.freq * 0.6;
+    node._baseOctaveMax = p.freq * 1.7;
+    musicNodes.push(node);
   });
+
+  // Ambient wind noise
   musicNodes.push(createWindNoise(cfg.wv * (isNight ? 1.5 : 1), cfg.wf * nm));
 
-  // Bass melody line
+  // Bass line (chord-aware)
   if (cfg.bass) {
-    const bassNode = createBassLine(cfg.bass, isNight);
+    const bassNode = createBassLine(cfg.bass, isNight, chordState);
     if (bassNode) musicNodes.push(bassNode);
   }
 
@@ -493,7 +959,15 @@ function _createBiomeNodes(biomeId, isNight) {
     if (waveNode) musicNodes.push(waveNode);
   }
 
-  // Scheduled chimes
+  // Arpeggiator (chord-aware melodic patterns)
+  const arpNode = createArpeggiator(cfg, isNight, chordState);
+  if (arpNode) musicNodes.push(arpNode);
+
+  // Rhythm section (subtle percussion)
+  const rhythmNode = createRhythmSection(cfg, isNight);
+  if (rhythmNode) musicNodes.push(rhythmNode);
+
+  // Scheduled chimes (chord-aware)
   const [minT, maxT] = cfg.ct;
   const tmul = isNight ? 1.5 : 1;
   const chance = cfg.cc * (isNight ? 0.6 : 1);
@@ -502,16 +976,18 @@ function _createBiomeNodes(biomeId, isNight) {
   const scheduleChime = () => {
     const interval = (minT + Math.random() * (maxT - minT)) * tmul;
     chimeTimer = setTimeout(() => {
-      if (musicPlaying && !muted && Math.random() < chance) playBiomeChime(cfg.notes, fHz);
+      if (musicPlaying && !muted && Math.random() < chance) {
+        playBiomeChime(cfg.notes, fHz, chordState);
+      }
       if (musicPlaying) scheduleChime();
     }, interval);
   };
   scheduleChime();
 }
 
+// ─── STOP ALL MUSIC NODES ───
 function _stopAllNodes() {
   musicNodes.forEach(node => {
-    // Handle percussion/bass nodes with stop() method
     if (node && typeof node.stop === "function" && !node.frequency) {
       try { node.stop(); } catch (_) {}
     }
@@ -524,7 +1000,12 @@ function _stopAllNodes() {
   if (chimeTimer) { clearTimeout(chimeTimer); chimeTimer = null; }
   if (percTimer) { clearTimeout(percTimer); percTimer = null; }
   if (bassTimer) { clearTimeout(bassTimer); bassTimer = null; }
+  if (chordTimer) { clearTimeout(chordTimer); chordTimer = null; }
+  if (arpTimer) { clearTimeout(arpTimer); arpTimer = null; }
+  if (rhythmTimer) { clearTimeout(rhythmTimer); rhythmTimer = null; }
 }
+
+// ─── PUBLIC API ───
 
 export function startMusic() {
   if (musicPlaying) return;
@@ -548,14 +1029,20 @@ export function changeBiomeMusic(biomeId, isNight) {
   const now = c.currentTime;
 
   if (musicNodes.length > 0) {
-    // Crossfade: fade out old nodes, then swap
+    // Crossfade: fade out old, swap to new
     musicGain.gain.setTargetAtTime(0, now, 0.25);
     const oldNodes = [...musicNodes];
     musicNodes = [];
     if (chimeTimer) { clearTimeout(chimeTimer); chimeTimer = null; }
+    if (chordTimer) { clearTimeout(chordTimer); chordTimer = null; }
+    if (arpTimer) { clearTimeout(arpTimer); arpTimer = null; }
+    if (rhythmTimer) { clearTimeout(rhythmTimer); rhythmTimer = null; }
 
     setTimeout(() => {
       oldNodes.forEach(node => {
+        if (node && typeof node.stop === "function" && !node.frequency) {
+          try { node.stop(); } catch (_) {}
+        }
         Object.values(node).forEach(n => {
           if (n && typeof n.stop === "function") try { n.stop(); } catch (_) {}
           if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch (_) {}
@@ -565,13 +1052,26 @@ export function changeBiomeMusic(biomeId, isNight) {
       currentNight = isNight;
       _createBiomeNodes(biomeId, isNight);
       musicGain.gain.setTargetAtTime(0.35, c.currentTime, 0.35);
-    }, 500);
+    }, 600); // slightly longer crossfade for smoother transition
   } else {
-    // First time – create immediately
     currentBiomeId = biomeId;
     currentNight = isNight;
     _createBiomeNodes(biomeId, isNight);
   }
+}
+
+// Combat intensity system: smoothly transitions music between exploration and combat
+// intensity: 0 = calm exploration, 1 = full combat
+export function setMusicCombatIntensity(intensity) {
+  combatIntensity = Math.max(0, Math.min(1, intensity));
+  if (!ctx || !combatFilterNode || !combatGainNode) return;
+  const now = ctx.currentTime;
+  // Open up filter during combat (800Hz calm → 3500Hz combat)
+  const targetFreq = 800 + combatIntensity * 2700;
+  combatFilterNode.frequency.setTargetAtTime(targetFreq, now, 0.5);
+  // Slight volume boost during combat
+  const targetGain = 1.0 + combatIntensity * 0.15;
+  combatGainNode.gain.setTargetAtTime(targetGain, now, 0.3);
 }
 
 export function toggleMusic() {
@@ -587,6 +1087,7 @@ export function toggleMusic() {
 export function isMusicOn() {
   return !muted;
 }
+
 
 // ─── SOUND EFFECTS ───
 
