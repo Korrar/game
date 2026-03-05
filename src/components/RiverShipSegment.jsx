@@ -1108,6 +1108,99 @@ function drawForkChoice(ctx, fork, time) {
 
 // ── SEGMENT TRANSITION OVERLAY ──
 
+// ── SEGMENT AMBIENT OVERLAY ── (visual tint for special segments)
+
+function drawSegmentAmbient(ctx, segType, time) {
+  if (!segType) return;
+
+  if (segType === "event") {
+    // Mystical purple-green glow on water
+    ctx.save();
+    ctx.globalAlpha = 0.08 + Math.sin(time * 1.5) * 0.03;
+    ctx.fillStyle = "#6040a0";
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // Floating mystery particles (glowing orbs)
+    ctx.globalAlpha = 0.4;
+    for (let i = 0; i < 12; i++) {
+      const ox = (i * 113 + time * 20) % CANVAS_W;
+      const oy = (i * 89 + Math.sin(time * 0.7 + i) * 40) % CANVAS_H;
+      const r = 4 + Math.sin(time * 2 + i * 1.3) * 2;
+      const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, r * 3);
+      g.addColorStop(0, "rgba(140,100,220,0.5)");
+      g.addColorStop(1, "transparent");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(ox, oy, r * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  } else if (segType === "treasure") {
+    // Golden shimmer on water
+    ctx.save();
+    ctx.globalAlpha = 0.05 + Math.sin(time * 2) * 0.02;
+    ctx.fillStyle = "#d4a030";
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // Sparkles
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = "#ffd700";
+    for (let i = 0; i < 15; i++) {
+      const sx = (i * 97 + time * 35) % CANVAS_W;
+      const sy = (i * 71 + time * 15) % CANVAS_H;
+      const twinkle = Math.sin(time * 4 + i * 2.1);
+      if (twinkle > 0.5) {
+        ctx.globalAlpha = (twinkle - 0.5) * 1.2;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2 + twinkle, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  } else if (segType === "combat") {
+    // Red danger tint
+    ctx.save();
+    ctx.globalAlpha = 0.06 + Math.sin(time * 3) * 0.02;
+    ctx.fillStyle = "#cc2020";
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  } else if (segType === "rest") {
+    // Calm green tint with floating leaves
+    ctx.save();
+    ctx.globalAlpha = 0.05;
+    ctx.fillStyle = "#30a050";
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = "#4a8a30";
+    for (let i = 0; i < 6; i++) {
+      const lx = (i * 210 + time * 25) % (CANVAS_W + 40) - 20;
+      const ly = (i * 130 + time * 10 + Math.sin(time + i) * 20) % CANVAS_H;
+      ctx.beginPath();
+      ctx.ellipse(lx, ly, 5, 3, time * 0.5 + i, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  } else if (segType === "whirlpool") {
+    // Dark blue swirling tint
+    ctx.save();
+    ctx.globalAlpha = 0.07;
+    ctx.fillStyle = "#102040";
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  } else if (segType === "danger" || segType === "narrows") {
+    // Slight fog/mist
+    ctx.save();
+    ctx.globalAlpha = 0.04;
+    ctx.fillStyle = "#a0a0a0";
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+}
+
 function drawSegmentTransition(ctx, segTrans) {
   if (!segTrans) return;
 
@@ -1266,6 +1359,12 @@ function renderFrame(canvas, s, progress, shoreColors, roomNum, destBiomeName) {
     }
   }
   ctx.globalAlpha = 1;
+
+  // ── SEGMENT AMBIENT OVERLAY ──
+  const curSeg = s.segments && s.segments[s.currentSegmentIdx];
+  if (curSeg) {
+    drawSegmentAmbient(ctx, curSeg.type, s.elapsed);
+  }
 
   // ── SEA CURRENTS ──
   for (const cur of s.currents) {
@@ -1518,15 +1617,18 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
     const initWindDir = (Math.random() - 0.5) * Math.PI; // random initial wind
 
     // Build segment list from riverPath (or fallback to single long segment)
+    // Each segment gets its own full duration (not divided) so sailing feels substantial
+    const perSegmentDuration = cfg.segmentLength * 0.7; // each node = ~70% of base length
     const segments = riverPath?.segments?.length > 0
       ? riverPath.segments.map((seg) => ({
           type: seg.type,
           turn: seg.turn || "straight",
           modifiers: seg.modifiers || NODE_SEGMENT_MODIFIERS[seg.type] || NODE_SEGMENT_MODIFIERS.calm,
-          duration: (cfg.segmentLength / (riverPath.segments.length || 1)),
+          duration: perSegmentDuration,
           completed: false,
+          lootCollected: 0, // track loot per segment
         }))
-      : [{ type: "calm", turn: "straight", modifiers: NODE_SEGMENT_MODIFIERS.calm, duration: cfg.segmentLength, completed: false }];
+      : [{ type: "calm", turn: "straight", modifiers: NODE_SEGMENT_MODIFIERS.calm, duration: cfg.segmentLength, completed: false, lootCollected: 0 }];
 
     const totalDuration = segments.reduce((s, seg) => s + seg.duration, 0);
 
@@ -1590,6 +1692,9 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
       forkCooldown: 0,
       // ── PIRATE BLOCKADE ──
       pirateBlockade: null, // spawned on combat nodes
+      // ── LOOT TRACKING ──
+      treasureCollected: 0,
+      lootCopper: 0,
       // ── SEGMENT MODIFIERS ──
       currentModifiers: segments[0]?.modifiers || NODE_SEGMENT_MODIFIERS.calm,
     };
@@ -1691,9 +1796,11 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
           s.done = true;
           setPhase("complete");
           const rewards = getRiverRewards(roomNumberRef.current, s.shipHp, s.shipMaxHp, Math.floor(s.segmentLength * 3), s.gatesHit);
-          setHud(h => ({ ...h, hp: s.shipHp, time: s.segmentLength, gatesHit: s.gatesHit }));
+          // Add collected loot from barrels/wrecks
+          rewards.copper = (rewards.copper || 0) + (s.lootCopper || 0);
+          setHud(h => ({ ...h, hp: s.shipHp, time: s.segmentLength, gatesHit: s.gatesHit, treasureCollected: s.treasureCollected || 0, lootCopper: s.lootCopper || 0 }));
           setTimeout(() => {
-            if (alive) onCompleteRef.current({ success: true, rewards, hpRemaining: s.shipHp, maxHp: s.shipMaxHp, score: Math.floor(s.segmentLength * 3), gatesHit: s.gatesHit });
+            if (alive) onCompleteRef.current({ success: true, rewards, hpRemaining: s.shipHp, maxHp: s.shipMaxHp, score: Math.floor(s.segmentLength * 3), gatesHit: s.gatesHit, treasureCollected: s.treasureCollected || 0 });
           }, 1500);
         }
         rafRef.current = requestAnimationFrame(loop);
@@ -2421,34 +2528,80 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
 
         if (ob.y > CANVAS_H + 100) { s.obstacles.splice(i, 1); continue; }
 
-        if (s.invulnTimer <= 0) {
-          const dx = ob.x - s.shipX;
-          const dy = ob.y - shipY;
-          const collideR = (ob.width + SHIP_W) * 0.28;
-          if (dx * dx + dy * dy < collideR * collideR && ob.damage > 0) {
-            s.shipHp -= ob.damage;
-            s.invulnTimer = 0.6;
-            for (let p = 0; p < 12; p++) {
-              s.particles.push({
-                x: s.shipX + (Math.random() - 0.5) * 40,
-                y: shipY + (Math.random() - 0.5) * 30,
-                vx: (Math.random() - 0.5) * 4,
-                vy: (Math.random() - 0.5) * 4,
-                life: 0.5 + Math.random() * 0.3,
-                color: ob.explodes ? "#ff6020" : "#8ac8ff",
-                size: 3 + Math.random() * 5,
-              });
-            }
-            if (ob.explodes) { s.obstacles.splice(i, 1); continue; }
-            if (s.shipHp <= 0) {
-              s.shipHp = 0; s.done = true;
-              setPhase("failed");
-              setHud(h => ({ ...h, hp: 0, time: s.elapsed }));
-              setTimeout(() => {
-                if (alive) onCompleteRef.current({ success: false, rewards: { copper: Math.floor(s.elapsed * 1.5) }, hpRemaining: 0, maxHp: s.shipMaxHp, score: 0, gatesHit: s.gatesHit });
-              }, 2000);
-              return;
-            }
+        const dx = ob.x - s.shipX;
+        const dy = ob.y - shipY;
+        const collideR = (ob.width + SHIP_W) * 0.28;
+        const hitDist = dx * dx + dy * dy;
+
+        // Loot collection — barrels and loot items collected on touch
+        if (ob.loot && ob.damage === 0 && hitDist < collideR * collideR) {
+          // Collect loot!
+          s.treasureCollected = (s.treasureCollected || 0) + 1;
+          const lootMult = mod.lootMult ?? 1;
+          const copperGain = Math.round((8 + Math.random() * 12) * lootMult);
+          s.lootCopper = (s.lootCopper || 0) + copperGain;
+          // Gold sparkle particles
+          for (let p = 0; p < 10; p++) {
+            s.particles.push({
+              x: ob.x + (Math.random() - 0.5) * 20,
+              y: ob.y + (Math.random() - 0.5) * 20,
+              vx: (Math.random() - 0.5) * 3,
+              vy: -1 - Math.random() * 3,
+              life: 0.6 + Math.random() * 0.4,
+              color: Math.random() > 0.3 ? "#ffd700" : "#ffaa20",
+              size: 3 + Math.random() * 4,
+            });
+          }
+          // Floating text
+          s.gateParticles.push({
+            x: ob.x, y: ob.y - 10,
+            text: `+${copperGain}⛁`,
+            color: "#ffd700",
+            size: 16,
+            life: 1.2,
+          });
+          s.obstacles.splice(i, 1);
+          continue;
+        }
+
+        // Damage collision
+        if (s.invulnTimer <= 0 && hitDist < collideR * collideR && ob.damage > 0) {
+          s.shipHp -= ob.damage;
+          s.invulnTimer = 0.6;
+          // Loot wrecks also give a small reward when hit
+          if (ob.loot) {
+            const lootMult = mod.lootMult ?? 1;
+            const copperGain = Math.round((4 + Math.random() * 6) * lootMult);
+            s.lootCopper = (s.lootCopper || 0) + copperGain;
+            s.treasureCollected = (s.treasureCollected || 0) + 1;
+            s.gateParticles.push({
+              x: ob.x, y: ob.y - 10,
+              text: `+${copperGain}⛁`,
+              color: "#d4a030",
+              size: 14,
+              life: 1.0,
+            });
+          }
+          for (let p = 0; p < 12; p++) {
+            s.particles.push({
+              x: s.shipX + (Math.random() - 0.5) * 40,
+              y: shipY + (Math.random() - 0.5) * 30,
+              vx: (Math.random() - 0.5) * 4,
+              vy: (Math.random() - 0.5) * 4,
+              life: 0.5 + Math.random() * 0.3,
+              color: ob.explodes ? "#ff6020" : ob.loot ? "#ffd700" : "#8ac8ff",
+              size: 3 + Math.random() * 5,
+            });
+          }
+          if (ob.explodes || ob.loot) { s.obstacles.splice(i, 1); continue; }
+          if (s.shipHp <= 0) {
+            s.shipHp = 0; s.done = true;
+            setPhase("failed");
+            setHud(h => ({ ...h, hp: 0, time: s.elapsed }));
+            setTimeout(() => {
+              if (alive) onCompleteRef.current({ success: false, rewards: { copper: Math.floor(s.elapsed * 1.5) }, hpRemaining: 0, maxHp: s.shipMaxHp, score: 0, gatesHit: s.gatesHit });
+            }, 2000);
+            return;
           }
         }
       }
@@ -2479,6 +2632,8 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
           segmentName: segTypeName,
           segmentIdx: s.currentSegmentIdx,
           totalSegments: s.segments.length,
+          treasureCollected: s.treasureCollected || 0,
+          lootCopper: s.lootCopper || 0,
         });
       }
 
@@ -2530,6 +2685,11 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
           {hud.gatesHit > 0 && (
             <div style={{ fontSize: 14, color: "#ffd700", marginTop: 6 }}>
               <GameIcon name="flag" size={14} /> Bramki: {hud.gatesHit}
+            </div>
+          )}
+          {(hud.treasureCollected > 0 || hud.lootCopper > 0) && (
+            <div style={{ fontSize: 14, color: "#d4a030", marginTop: 6 }}>
+              <GameIcon name="treasure" size={14} /> Skarby: {hud.treasureCollected} (+{hud.lootCopper}⛁)
             </div>
           )}
           <div style={{ fontSize: 13, color: "#8a7a6a", marginTop: 8 }}>
@@ -2592,6 +2752,16 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
             }}>
               <GameIcon name="flag" size={14} />
               <span>x{hud.gateCombo}</span>
+            </div>
+          )}
+          {hud.lootCopper > 0 && (
+            <div style={{
+              background: "rgba(10,5,2,0.8)", border: "1px solid #8a6a20",
+              padding: "4px 12px", display: "flex", alignItems: "center", gap: 6,
+              color: "#d4a030",
+            }}>
+              <GameIcon name="treasure" size={14} />
+              <span>{hud.lootCopper}⛁</span>
             </div>
           )}
           {hud.weatherName && (
