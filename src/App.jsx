@@ -3645,6 +3645,44 @@ export default function App() {
     setTimeout(() => { setWorldMap(true); }, 200);
   }, []);
 
+  // Quick travel — skip sailing mini-game entirely with reduced rewards
+  const handleRiverSkip = useCallback(() => {
+    setRiverMapOpen(false);
+    setTransitioning(true);
+    const baseCopper = 10 + room * 2;
+    addMoneyFn({ copper: baseCopper });
+    showMessage(`Szybka podróż! +${baseCopper} miedzi`, "#a09080");
+    setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + 5));
+    const nextRoom = room + 1;
+    // Sea event chance (biome transition)
+    if (nextRoom % 10 === 1 && nextRoom > 1) {
+      const seaEvt = rollSeaEvent();
+      if (seaEvt) {
+        setTimeout(() => { setSeaEvent(seaEvt); sfxEventAppear(); }, 300);
+        const island = rollIslandDiscovery();
+        if (island) {
+          setDiscoveredIslands(prev => [...prev, island]);
+          addDiscovery("secrets", { id: island.id, name: island.name });
+        }
+        return;
+      }
+    }
+    const event = rollRandomEvent(nextRoom);
+    if (event) {
+      setTimeout(() => {
+        const sfxMap = { merchant: sfxMerchant, altar: sfxAltar, wounded: sfxEventAppear };
+        (sfxMap[event.id] || sfxEventAppear)();
+        setRandomEvent(event);
+      }, 450);
+    } else {
+      setTimeout(() => {
+        enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current);
+        pendingDestBiomeRef.current = null;
+        setTimeout(() => setTransitioning(false), 150);
+      }, 300);
+    }
+  }, [room, ownedTools, addMoneyFn, showMessage]);
+
   // River ship segment completion handler
   const handleRiverComplete = useCallback((result) => {
     const destBiome = riverSegment?.destBiome || null;
@@ -8553,6 +8591,7 @@ export default function App() {
           roomNumber={room}
           onConfirm={handleRiverMapConfirm}
           onCancel={handleRiverMapCancel}
+          onSkip={handleRiverSkip}
           isMobile={isMobile}
           shipUpgrades={shipUpgrades}
         />
