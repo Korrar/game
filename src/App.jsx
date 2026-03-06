@@ -455,7 +455,7 @@ export default function App() {
   const pendingDestBiomeRef = useRef(null); // chosen biome from world map, persists through events
 
   // ─── FEATURE: Advanced Traps & Fortifications ───
-  const [unlockedFortifications, setUnlockedFortifications] = useState(["wooden_wall", "spike_pit", "alarm_bell"]);
+  const [unlockedFortifications, setUnlockedFortifications] = useState(["wooden_wall", "alarm_bell"]);
   const [activeFortifications, setActiveFortifications] = useState([]); // placed this room
   const [fortificationPhase, setFortificationPhase] = useState(false);
 
@@ -1761,42 +1761,6 @@ export default function App() {
       for (const trap of curTraps) {
         if (!trap.active) continue;
 
-        if (trap.type === "spikes") {
-          // Spikes activate periodically (every 3s, active for 1s)
-          const cycle = (trapNow % 4000);
-          const spikesUp = cycle < 1200;
-          trap._spikesUp = spikesUp; // for rendering
-          if (!spikesUp) continue;
-          // Damage any friendly walker stepping on spikes — use pre-computed friendlyList
-          for (let fli = 0; fli < friendlyList.length; fli++) {
-            const fEntry = friendlyList[fli];
-            const fw = fEntry.w;
-            if (Math.abs(fw.x - trap.x) < 4) {
-              const cdKey = `spike_${trap.id}_${fEntry.id}`;
-              if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > 1500) {
-                atkCds[cdKey] = trapNow;
-                const dmg = 8 + Math.floor(Math.random() * 6);
-                if (enemyAttackFriendlyRef.current) {
-                  const fIdNum = parseInt(fEntry.id);
-                  spawnDmgPopup(fIdNum, `${dmg}`, "#cc4040");
-                  setWalkers(prev => prev.map(ww => {
-                    if (ww.id !== fIdNum || !ww.alive || !ww.friendly) return ww;
-                    const newHp = Math.max(0, ww.hp - dmg);
-                    if (newHp <= 0) {
-                      if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
-                      if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "melee", 1);
-                      showMessage(`${ww.npcData.name} zginął na kolcach!`, "#cc4040");
-                      return { ...ww, hp: 0, dying: true, dyingAt: trapNow };
-                    }
-                    if (physicsRef.current) physicsRef.current.applyHit(fIdNum, "melee", Math.sign(fw.x - trap.x) || 1);
-                    return { ...ww, hp: newHp };
-                  }));
-                }
-              }
-            }
-          }
-        }
-
         if (trap.type === "mine" && !trap.triggered) {
           // Use pre-computed friendlyList instead of re-iterating Object.keys(wd)
           for (let fli = 0; fli < friendlyList.length; fli++) {
@@ -2505,14 +2469,6 @@ export default function App() {
     let trapId = Date.now();
     const roomDifficulty = Math.min(newRoom / 10, 1); // scales 0→1 over 10 rooms
     if (!isDefenseRoom) {
-    // Ground spikes (30% chance, up to 2)
-    if (Math.random() < 0.30 + roomDifficulty * 0.15) {
-      const count = Math.random() < 0.4 ? 2 : 1;
-      for (let i = 0; i < count; i++) {
-        const tx = 15 + Math.random() * 65;
-        newTraps.push({ id: ++trapId, type: "spikes", x: tx, active: true, triggered: false, cooldown: 0 });
-      }
-    }
     // Mines (20% chance, 1-2)
     if (Math.random() < 0.20 + roomDifficulty * 0.1) {
       const count = Math.random() < 0.3 ? 2 : 1;
@@ -3450,7 +3406,7 @@ export default function App() {
     setCrew([]); setCrewRecruitOffer(null);
     setActiveStory(null); setCompletedStories([]); setStoryEvent(null); setMoralDilemma(null);
     setShipUpgrades([]); setSeaEvent(null); setDiscoveredIslands([]); setRiverSegment(false);
-    setUnlockedFortifications(["wooden_wall", "spike_pit", "alarm_bell"]);
+    setUnlockedFortifications(["wooden_wall", "alarm_bell"]);
     setActiveFortifications([]); setFortificationPhase(false);
     setFactionRep({ merchants_guild: 0, treasure_hunters: 0, shadow_council: 0, royal_navy: 0 });
     setActiveFactionQuest(null); setFactionEvent(null);
@@ -3553,7 +3509,7 @@ export default function App() {
       setShipUpgrades(s.shipUpgrades || []);
       setDiscoveredIslands(s.discoveredIslands || []);
       if (s.shipMapPos) setShipMapPos(s.shipMapPos);
-      setUnlockedFortifications(s.unlockedFortifications || ["wooden_wall", "spike_pit", "alarm_bell"]);
+      setUnlockedFortifications((s.unlockedFortifications || ["wooden_wall", "alarm_bell"]).filter(f => f !== "spike_pit"));
       setFactionRep(s.factionRep || { merchants_guild: 0, treasure_hunters: 0, shadow_council: 0, royal_navy: 0 });
       setJournal(s.journal || { biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
       setOwnedArtifacts(s.ownedArtifacts || []);
@@ -4175,15 +4131,14 @@ export default function App() {
     showMessage(`${text}`, "#40a0ff");
   };
 
-  const recruitFromCamp = (mercType) => {
-    if (!mercCamp) return;
+  const recruitFromCamp = (mercType, spawnXOverride) => {
     const tc = totalCopper(money);
     const need = totalCopper(mercType.cost);
     if (tc < need) { showMessage("Za mało monet!", "#b83030"); return; }
     setMoney(copperToMoney(tc - need));
     sfxRecruit();
     const wid = ++walkerIdCounter;
-    const spawnX = (mercCamp.x / 100) * 100; // percentage, near camp
+    const spawnX = spawnXOverride != null ? spawnXOverride : (mercCamp ? (mercCamp.x / 100) * 100 : 50);
     const lvl = KNIGHT_LEVELS[knightLevel];
     const mult = lvl.mult || 1;
     const stoneBonus = (hasRelic("stone_skin") ? 30 : 0) + (hasSynergy("twierdza") ? 30 : 0) + perkMercHpBonus;
@@ -6872,6 +6827,122 @@ export default function App() {
         </div>
       )}
 
+      {/* ─── PORT CITY BUILDINGS (shop + hideout) ─── */}
+      {biome?.id === "city" && (
+        <>
+          {/* Merchant building */}
+          <div
+            onClick={() => togglePanel("shop")}
+            style={{
+              position: "absolute", left: "20%", bottom: "10%", zIndex: 14,
+              transform: "translateX(-50%)", userSelect: "none", cursor: "pointer",
+            }}
+          >
+            <div style={{ position: "relative", width: 80, height: 72 }}>
+              {/* Walls */}
+              <div style={{
+                position: "absolute", bottom: 0, left: 4, right: 4, height: 48,
+                background: "linear-gradient(180deg,#5a4a30,#3a2a18)",
+                border: "2px solid #6a5a3a", borderRadius: "3px 3px 0 0",
+              }} />
+              {/* Roof */}
+              <div style={{
+                width: 0, height: 0,
+                borderLeft: "44px solid transparent", borderRight: "44px solid transparent",
+                borderBottom: "28px solid #8a3020",
+                position: "absolute", top: 0, left: -4,
+              }} />
+              {/* Door */}
+              <div style={{
+                position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)",
+                width: 18, height: 26,
+                background: "linear-gradient(180deg,#2a1a0a,#1a0e06)",
+                borderRadius: "8px 8px 0 0", border: "1px solid #4a3a20",
+              }} />
+              {/* Sign */}
+              <div style={{
+                position: "absolute", top: 30, right: -2,
+                background: "#3a2818", border: "1px solid #6a5020",
+                padding: "1px 4px", borderRadius: 2,
+              }}>
+                <Icon name="shop" size={14} />
+              </div>
+              {/* Lantern */}
+              <div style={{
+                position: "absolute", top: 24, left: 6,
+                width: 6, height: 8, background: "radial-gradient(circle, #ffe080, #d4a030)",
+                borderRadius: "50%",
+                boxShadow: "0 0 10px rgba(255,224,128,0.6)",
+                animation: "resNode 2s ease-in-out infinite",
+              }} />
+            </div>
+            <div style={{
+              textAlign: "center", marginTop: 2, fontSize: 10, color: "#d4a030",
+              textShadow: "1px 1px 0 #000", fontWeight: "bold",
+            }}>
+              <Icon name="shop" size={10} /> Bazar
+            </div>
+          </div>
+
+          {/* Hideout building */}
+          <div
+            onClick={() => togglePanel("hideout")}
+            style={{
+              position: "absolute", left: "78%", bottom: "10%", zIndex: 14,
+              transform: "translateX(-50%)", userSelect: "none", cursor: "pointer",
+            }}
+          >
+            <div style={{ position: "relative", width: 85, height: 76 }}>
+              {/* Walls */}
+              <div style={{
+                position: "absolute", bottom: 0, left: 4, right: 4, height: 52,
+                background: "linear-gradient(180deg,#3a3a40,#2a2a30)",
+                border: "2px solid #5a5a60", borderRadius: "3px 3px 0 0",
+              }} />
+              {/* Roof */}
+              <div style={{
+                width: 0, height: 0,
+                borderLeft: "46px solid transparent", borderRight: "46px solid transparent",
+                borderBottom: "28px solid #4a4050",
+                position: "absolute", top: 0, left: -3,
+              }} />
+              {/* Door */}
+              <div style={{
+                position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)",
+                width: 20, height: 28,
+                background: "linear-gradient(180deg,#1a1520,#0a0810)",
+                borderRadius: "8px 8px 0 0", border: "1px solid #4a4050",
+              }} />
+              {/* Base icon */}
+              <div style={{
+                position: "absolute", top: 30, right: -2,
+                background: "#2a2830", border: "1px solid #5a5060",
+                padding: "1px 4px", borderRadius: 2,
+              }}>
+                <Icon name="base" size={14} />
+              </div>
+              {/* Chimney smoke */}
+              <div style={{
+                position: "absolute", top: -6, right: 14,
+                width: 8, height: 12, background: "#4a3a30", borderRadius: 1,
+              }} />
+              <div style={{
+                position: "absolute", top: -14, right: 14,
+                width: 6, height: 6, background: "rgba(120,120,130,0.4)",
+                borderRadius: "50%",
+                animation: "dmgFloat 3s ease-out infinite",
+              }} />
+            </div>
+            <div style={{
+              textAlign: "center", marginTop: 2, fontSize: 10, color: "#a0a0b0",
+              textShadow: "1px 1px 0 #000", fontWeight: "bold",
+            }}>
+              <Icon name="base" size={10} /> Kryjówka
+            </div>
+          </div>
+        </>
+      )}
+
       {/* ─── ARSENAL TENT POI ─── */}
       {wizardPoi && (() => {
         const ammoIcons = { dynamite: "dynamite", harpoon: "harpoon", cannonball: "cannon", rum: "rum", chain: "ricochet" };
@@ -7107,41 +7178,6 @@ export default function App() {
       {traps.map(trap => {
         if (!trap.active && trap.type !== "mine") return null; // mines show explosion briefly
         if (trap.type === "mine" && !trap.active && Date.now() - (trap._explodeAt || 0) > 1500) return null;
-
-        if (trap.type === "spikes") {
-          const cycle = Date.now() % 4000;
-          const spikesUp = cycle < 1200;
-          const spikeH = spikesUp ? 18 : 3;
-          return (
-            <div key={trap.id} style={{
-              position: "absolute", left: `${trap.x}%`, bottom: "12%", zIndex: 13,
-              transform: "translateX(-50%)", pointerEvents: "none",
-            }}>
-              {/* Base plate */}
-              <div style={{
-                width: 40, height: 6, background: "linear-gradient(180deg,#5a4a3a,#3a2a1a)",
-                borderRadius: 2, position: "relative",
-              }}>
-                {/* Spikes */}
-                {[0, 8, 16, 24, 32].map((sx, i) => (
-                  <div key={i} style={{
-                    position: "absolute", bottom: 5, left: sx,
-                    width: 0, height: 0,
-                    borderLeft: "4px solid transparent", borderRight: "4px solid transparent",
-                    borderBottom: `${spikeH}px solid #8a8a8a`,
-                    transition: "border-bottom-width 0.15s ease-out",
-                    filter: spikesUp ? "drop-shadow(0 -2px 3px rgba(200,50,50,0.4))" : "none",
-                  }} />
-                ))}
-              </div>
-              {spikesUp && (
-                <div style={{ fontSize: 8, color: "#cc4040", textAlign: "center", marginTop: 1, textShadow: "1px 1px 0 #000" }}>
-                  <Icon name="skull" size={8} /> Kolce!
-                </div>
-              )}
-            </div>
-          );
-        }
 
         if (trap.type === "mine") {
           if (trap.triggered) {
@@ -7973,6 +8009,37 @@ export default function App() {
             </div>
           );
         })()}
+
+        {/* Mercenary recruitment */}
+        <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#c0a060", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="recruit" size={16} /> Werbuj Najemników</h3>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+          {MERCENARY_TYPES.map(m => {
+            const cost = totalCopper(m.cost);
+            const canAfford = totalCopper(money) >= cost;
+            const lvl = KNIGHT_LEVELS[knightLevel];
+            const mult = lvl.mult || 1;
+            return (
+              <button key={m.id} onClick={() => { recruitFromCamp(m, 50); setPanel(null); }}
+                disabled={!canAfford}
+                style={{
+                  flex: "1 1 45%", display: "flex", alignItems: "center", gap: 8,
+                  padding: "8px 10px", background: canAfford ? "rgba(40,80,40,0.12)" : "rgba(0,0,0,0.2)",
+                  border: `2px solid ${canAfford ? m.color + "60" : "#333"}`,
+                  cursor: canAfford ? "pointer" : "not-allowed",
+                  opacity: canAfford ? 1 : 0.5, borderRadius: 4,
+                  fontFamily: "monospace", color: "#d8c8a8", fontSize: 12,
+                  textAlign: "left",
+                }}>
+                <Icon name={m.icon} size={24} />
+                <div>
+                  <div style={{ fontWeight: "bold", color: m.color }}>{m.name}</div>
+                  <div style={{ fontSize: 10, color: "#888" }}>HP:{Math.round(m.hp * mult)} ATK:{Math.round(m.damage * mult)}</div>
+                  <div style={{ fontSize: 10, color: canAfford ? "#d4a030" : "#555" }}>{cost} Cu</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
         {/* Caravan upgrade section */}
         <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="anchor" size={16} /> Statek</h3>

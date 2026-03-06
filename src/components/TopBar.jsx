@@ -35,8 +35,6 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
         {/* Buttons — single row, no wrap */}
         <div style={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
           {onBestiary && <button onClick={onBestiary} style={mobileBtnStyle(1)}><GameIcon name="wantedList" size={14} /></button>}
-          <button onClick={onShop} style={mobileBtnStyle(1)}><GameIcon name="shop" size={14} /></button>
-          <button onClick={onHideout} style={mobileBtnStyle(1)}><GameIcon name="base" size={14} /></button>
           <button onClick={onInv} style={mobileBtnStyle(1)}><GameIcon name="scroll" size={14} /></button>
           {onCrew && <button onClick={onCrew} style={mobileBtnStyle(1)}><GameIcon name="recruit" size={14} /></button>}
           {onJournal && <button onClick={onJournal} style={mobileBtnStyle(1)}><GameIcon name="compass" size={14} /></button>}
@@ -87,8 +85,6 @@ export default function TopBar({ doors, initiative, treasures, money, mana, maxM
       </div>
       <div style={{ display: "flex", gap: 4 }}>
         {onBestiary && <DesktopBtn onClick={onBestiary} title="Lista Gończa"><GameIcon name="wantedList" size={16} /></DesktopBtn>}
-        <DesktopBtn onClick={onShop} title="Bazar Portowy"><GameIcon name="shop" size={16} /></DesktopBtn>
-        <DesktopBtn onClick={onHideout} title="Baza"><GameIcon name="base" size={16} /></DesktopBtn>
         <DesktopBtn onClick={onInv} title="Ekwipunek"><GameIcon name="scroll" size={16} /></DesktopBtn>
         {onCrew && <DesktopBtn onClick={onCrew} title="Załoga"><GameIcon name="recruit" size={16} /></DesktopBtn>}
         {onFactions && <DesktopBtn onClick={onFactions} title="Frakcje"><GameIcon name="pirate" size={16} /></DesktopBtn>}

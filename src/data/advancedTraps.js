@@ -16,18 +16,6 @@ export const FORTIFICATION_TREE = [
     maxCount: 4,
   },
   {
-    id: "spike_pit",
-    tier: 1,
-    icon: "spike",
-    name: "Wilcza Jama",
-    desc: "Ukryta jama z kolcami — 25 obrażeń, spowalnia o 50%",
-    cost: { copper: 15 },
-    ammoCost: null,
-    stats: { damage: 25, slowMult: 0.50, triggerRadius: 5, singleUse: true },
-    type: "ground_trap",
-    maxCount: 5,
-  },
-  {
     id: "alarm_bell",
     tier: 1,
     icon: "banjo",
