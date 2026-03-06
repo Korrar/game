@@ -2743,9 +2743,9 @@ export default function App() {
     }
     setDefenseMode(null);
 
-    // Meteorite event – 12% chance, delayed fall after 1s
+    // Meteorite event – 18% chance, delayed fall after 1s
     if (meteorTimerRef.current) { clearTimeout(meteorTimerRef.current); meteorTimerRef.current = null; }
-    if (Math.random() < 0.12) {
+    if (Math.random() < 0.18) {
       const mx = 15 + Math.random() * 65;
       const landY = 20 + Math.random() * 5; // land at ground level (~20-25%, NPC line is 25%)
       setMeteorite({ x: mx, y: landY, phase: "pending" });
@@ -3564,6 +3564,12 @@ export default function App() {
     if (defenseMode && defenseMode.phase !== "complete") {
       showMessage("Nie możesz podróżować podczas obrony!", "#cc4040"); return;
     }
+    if (activeBoss) {
+      showMessage("Nie możesz podróżować podczas walki z bossem!", "#cc4040"); return;
+    }
+    if (walkers.some(w => !w.friendly && w.alive && !w.dying)) {
+      showMessage("Nie możesz podróżować podczas walki!", "#cc4040"); return;
+    }
     if (initiative < CARAVAN_COST) {
       showMessage("Za mało inicjatywy!", "#cc8040");
       return;
@@ -4133,7 +4139,8 @@ export default function App() {
 
   const recruitFromCamp = (mercType, spawnXOverride) => {
     const tc = totalCopper(money);
-    const need = totalCopper(mercType.cost);
+    const lvlMult = (KNIGHT_LEVELS[knightLevel]?.mult || 1);
+    const need = Math.round(totalCopper(mercType.cost) * lvlMult);
     if (tc < need) { showMessage("Za mało monet!", "#b83030"); return; }
     setMoney(copperToMoney(tc - need));
     sfxRecruit();
@@ -6806,7 +6813,7 @@ export default function App() {
           {/* Recruit buttons */}
           <div style={{ display: "flex", gap: 3, justifyContent: "center", marginTop: 3 }}>
             {MERCENARY_TYPES.map(m => {
-              const cost = totalCopper(m.cost);
+              const cost = Math.round(totalCopper(m.cost) * (KNIGHT_LEVELS[knightLevel]?.mult || 1));
               const canAfford = totalCopper(money) >= cost;
               return (
                 <div key={m.id} onClick={() => canAfford && recruitFromCamp(m)}
@@ -7645,7 +7652,7 @@ export default function App() {
           initiative={initiative}
           maxInitiative={MAX_INITIATIVE}
           cost={CARAVAN_COST}
-          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !riverSegment && !worldMap && !riverMapOpen}
+          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !activeBoss && !walkers.some(w => !w.friendly && w.alive && !w.dying) && !riverSegment && !worldMap && !riverMapOpen}
           onClick={travelCaravan}
           hp={caravanHp}
           maxHp={CARAVAN_LEVELS[caravanLevel].hp}
