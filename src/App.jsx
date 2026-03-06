@@ -269,8 +269,12 @@ export default function App() {
   const knowledgeUpgradesRef = useRef({ manaPool: 0, spellPower: 0, manaRegen: 0 });
   knowledgeUpgradesRef.current = knowledgeUpgrades;
 
-  // Meteorite event: phases: pending → falling → landed → opened
+  // Meteorite event: phases: pending → falling → landed → active (destructible NPC)
   const [meteorite, setMeteorite] = useState(null);
+  // Ground loot dropped by destroyed meteor — clickable items
+  const [groundLoot, setGroundLoot] = useState([]);
+  // Track meteor wave spawn thresholds: { walkerId, nextThreshold, waveCount }
+  const meteorWaveRef = useRef(null);
   const [screenShake, setScreenShake] = useState(false);
   const [summonPicker, setSummonPicker] = useState(false);
   const [randomEvent, setRandomEvent] = useState(null);
@@ -807,6 +811,8 @@ export default function App() {
     setWalkers(prev => prev.map(w => {
       if (w.id !== enemyId || !w.alive || w.friendly) return w;
       const newHp = Math.max(0, w.hp - actualDamage);
+      // Meteor boulder wave check
+      if (w.isMeteorBoulder) checkMeteorWaveThreshold(enemyId, w.hp, newHp);
       // Sync boss HP bar immediately on melee damage
       if (w.isBoss && activeBossRef.current) {
         setActiveBoss(prev2 => prev2 ? { ...prev2, currentHp: newHp } : null);
@@ -815,9 +821,16 @@ export default function App() {
         sfxNpcDeath();
         if (walkDataRef.current[enemyId]) walkDataRef.current[enemyId].alive = false;
         if (physicsRef.current) physicsRef.current.triggerRagdoll(enemyId, "melee", meleeDirX);
-        addMoneyFn(w.npcData.loot || {});
-        // golden_reaper: double loot
-        if (hasRelic("golden_reaper")) addMoneyFn(w.npcData.loot || {});
+        // Meteor boulder destruction: ground loot
+        if (w.isMeteorBoulder && meteorWaveRef.current) {
+          spawnMeteorGroundLoot(meteorWaveRef.current.x, meteorWaveRef.current.y);
+          meteorWaveRef.current = null;
+          setMeteorite(null);
+        } else {
+          addMoneyFn(w.npcData.loot || {});
+          // golden_reaper: double loot
+          if (hasRelic("golden_reaper")) addMoneyFn(w.npcData.loot || {});
+        }
         // piracki_monopol synergy
         if (hasSynergy("piracki_monopol") && Math.random() < 0.20) {
           const bt = pickTreasure(roomRef.current);
@@ -1873,11 +1886,18 @@ export default function App() {
               setWalkers(prev => prev.map(ww => {
                 if (ww.id !== parseInt(eid) || !ww.alive || ww.friendly) return ww;
                 const newHp = Math.max(0, ww.hp - dmg);
+                if (ww.isMeteorBoulder) checkMeteorWaveThreshold(ww.id, ww.hp, newHp);
                 if (newHp <= 0) {
                   sfxNpcDeath();
                   if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
                   if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "fire", Math.sign(dx) || 1);
-                  addMoneyFn(ww.npcData.loot || {});
+                  if (ww.isMeteorBoulder && meteorWaveRef.current) {
+                    spawnMeteorGroundLoot(meteorWaveRef.current.x, meteorWaveRef.current.y);
+                    meteorWaveRef.current = null;
+                    setMeteorite(null);
+                  } else {
+                    addMoneyFn(ww.npcData.loot || {});
+                  }
                   setKills(k => k + 1);
                   grantXp(10 + roomRef.current * 2);
                   processKillStreak();
@@ -1994,6 +2014,7 @@ export default function App() {
               setWalkers(prev => prev.map(ww => {
                 if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
                 const nh = Math.max(0, ww.hp - dmg);
+                if (ww.isMeteorBoulder) checkMeteorWaveThreshold(ww.id, ww.hp, nh);
                 // Sync boss HP bar on wand lightning damage
                 if (ww.isBoss && activeBossRef.current) {
                   setActiveBoss(prev2 => prev2 ? { ...prev2, currentHp: nh } : null);
@@ -2002,7 +2023,13 @@ export default function App() {
                   sfxNpcDeath();
                   if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
                   if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "lightning", Math.sign(d.x - 50) || 1);
-                  addMoneyFn(ww.npcData.loot || {});
+                  if (ww.isMeteorBoulder && meteorWaveRef.current) {
+                    spawnMeteorGroundLoot(meteorWaveRef.current.x, meteorWaveRef.current.y);
+                    meteorWaveRef.current = null;
+                    setMeteorite(null);
+                  } else {
+                    addMoneyFn(ww.npcData.loot || {});
+                  }
                   setKills(k => k + 1);
                   handleCardDrop(ww.npcData);
                   rollAmmoDrop(); rollSaberDrop();
@@ -2673,6 +2700,8 @@ export default function App() {
       setDefenseMode({ phase: "setup", currentWave: 1, totalWaves,
         enemiesRemaining: 0, enemiesSpawned: 0, timer: 3, roomNumber: newRoom, isBossRoom: !!bossData });
       setMeteorite(null);
+      setGroundLoot([]);
+      meteorWaveRef.current = null;
       sfxWaveHorn();
       setMusicCombatIntensity(0.7); // ramp up music intensity for combat
       // Auto-deploy all trap types randomly for free
@@ -2775,9 +2804,9 @@ export default function App() {
           const endPy = GAME_H * landY / 100;
           animatorRef.current.playMeteorTrail(px, startPy, endPy, 60);
         }
-        // After 1s fall, land with impact
+        // After 1s fall, land with impact → spawn destructible meteor NPC
         setTimeout(() => {
-          setMeteorite(prev => prev ? { ...prev, phase: "landed" } : null);
+          setMeteorite(prev => prev ? { ...prev, phase: "active" } : null);
           sfxMeteorImpact();
           setScreenShake(true);
           setTimeout(() => setScreenShake(false), 200);
@@ -2786,10 +2815,36 @@ export default function App() {
             const py = GAME_H * landY / 100;
             animatorRef.current.playMeteorImpact(px, py);
           }
+          // Spawn meteor boulder as destructible NPC
+          const meteorHp = 300;
+          const meteorNpc = {
+            icon: "meteor", name: "Płonący Meteoryt", hp: meteorHp,
+            resist: "fire", loot: { silver: 5, copper: 50 },
+            bodyColor: "#5a3828", armorColor: "#3a1a2e", bodyType: "meteorBoulder",
+            biomeId: "meteor",
+          };
+          const wid = ++walkerIdCounter;
+          setWalkers(prev => [...prev, {
+            id: wid, npcData: meteorNpc, alive: true, dying: false,
+            hp: meteorHp, maxHp: meteorHp, isMeteorBoulder: true,
+          }]);
+          walkDataRef.current[wid] = {
+            x: mx, y: landY + 5, dir: 1, yDir: 0,
+            speed: 0, ySpeed: 0,
+            minX: mx, maxX: mx, minY: landY + 5, maxY: landY + 5,
+            bouncePhase: 0, alive: true, friendly: false,
+            damage: 0, lungeFrames: 0, lungeOffset: 0,
+            isStatic: true,
+          };
+          if (physicsRef.current) physicsRef.current.spawnNpc(wid, mx, meteorNpc, false);
+          meteorWaveRef.current = { walkerId: wid, nextThreshold: meteorHp, waveCount: 0, x: mx, y: landY };
+          showMessage("Meteoryt wylądował! Zniszcz go!", "#ff6020");
         }, 1000);
       }, 1000);
     } else {
       setMeteorite(null);
+      setGroundLoot([]);
+      meteorWaveRef.current = null;
     }
   }, []);
 
@@ -3844,53 +3899,166 @@ export default function App() {
     }
   };
 
-  const openMeteorite = () => {
-    if (!meteorite || meteorite.phase !== "landed") return;
+  // Meteor boulder wave spawning — called when meteor takes damage
+  const spawnMeteorWave = (meteorX, meteorY, waveNum) => {
+    const count = 2 + Math.min(waveNum, 2); // 2-4 enemies per wave, scaling
+    const hpMult = 1 + waveNum * 0.15;
+    showMessage(`Fala ${waveNum + 1} potworów z meteorytu!`, "#ff4020");
     sfxMeteorImpact();
     if (animatorRef.current) {
-      const mx = GAME_W * meteorite.x / 100;
-      const my = GAME_H * meteorite.y / 100;
-      animatorRef.current.playMeteorImpact(mx, my);
+      animatorRef.current.playMeteorImpact(GAME_W * meteorX / 100, GAME_H * meteorY / 100);
     }
     setScreenShake(true);
     setTimeout(() => setScreenShake(false), 150);
-    setMeteorite(prev => ({ ...prev, phase: "opened" }));
-    showMessage("Meteoryt się otwiera!", "#ff6020");
-    // Spawn 2-3 meteor monsters after short delay
-    setTimeout(() => {
-      const count = 2 + (Math.random() < 0.4 ? 1 : 0);
-      const newWalkers = [];
-      for (let i = 0; i < count; i++) {
-        const npcData = pickNpc("meteor");
-        if (!npcData) continue;
-        const wid = ++walkerIdCounter;
-        const spawnX = (meteorite.x - 10) + Math.random() * 20;
-        const walkRange = 15 + Math.random() * 10;
-        const speed = 0.02 + Math.random() * 0.03;
-        newWalkers.push({
-          id: wid, npcData, alive: true, dying: false,
-          hp: npcData.hp, maxHp: npcData.hp,
-        });
-        const spawnY = 25 + Math.random() * 65;
-        walkDataRef.current[wid] = {
-          x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? 1 : -1,
-          yDir: Math.random() < 0.5 ? 1 : -1, speed, ySpeed: 0.005 + Math.random() * 0.015,
-          minX: Math.max(5, spawnX - walkRange),
-          maxX: Math.min(90, spawnX + walkRange),
-          minY: 25, maxY: 90,
-          bouncePhase: Math.random() * Math.PI * 2,
-          alive: true, friendly: false,
-          damage: Math.ceil(npcData.hp / 8),
-          lungeFrames: 0, lungeOffset: 0,
-          ability: npcData.ability || null,
-        };
-      }
-      setWalkers(prev => [...prev, ...newWalkers]);
-      // Spawn physics bodies for meteor NPCs
-      for (const nw of newWalkers) {
-        if (physicsRef.current) physicsRef.current.spawnNpc(nw.id, walkDataRef.current[nw.id].x, nw.npcData, false);
-      }
-    }, 600);
+    const newWalkers = [];
+    for (let i = 0; i < count; i++) {
+      const npcData = pickNpc("meteor");
+      if (!npcData) continue;
+      npcData.hp = Math.round(npcData.hp * hpMult);
+      const wid = ++walkerIdCounter;
+      const spawnX = Math.max(5, Math.min(90, (meteorX - 15) + Math.random() * 30));
+      const spawnY = 8 + Math.random() * 10;
+      const walkRange = 15 + Math.random() * 10;
+      const speed = 0.02 + Math.random() * 0.03;
+      newWalkers.push({ id: wid, npcData, alive: true, dying: false, hp: npcData.hp, maxHp: npcData.hp });
+      walkDataRef.current[wid] = {
+        x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? 1 : -1,
+        yDir: 1, speed, ySpeed: 0.015 + Math.random() * 0.015,
+        minX: Math.max(5, spawnX - walkRange), maxX: Math.min(90, spawnX + walkRange),
+        minY: 25, maxY: 90,
+        bouncePhase: Math.random() * Math.PI * 2,
+        alive: true, friendly: false,
+        damage: Math.ceil(npcData.hp / 8),
+        lungeFrames: 0, lungeOffset: 0,
+        ability: npcData.ability || null,
+      };
+    }
+    setWalkers(prev => [...prev, ...newWalkers]);
+    for (const nw of newWalkers) {
+      if (physicsRef.current) physicsRef.current.spawnNpc(nw.id, walkDataRef.current[nw.id].x, nw.npcData, false);
+    }
+  };
+
+  // Check if meteor HP crossed a wave threshold — call after any damage to meteor boulder
+  const checkMeteorWaveThreshold = (walkerId, oldHp, newHp) => {
+    const mw = meteorWaveRef.current;
+    if (!mw || mw.walkerId !== walkerId) return;
+    // First hit: spawn first wave
+    if (mw.waveCount === 0 && newHp < mw.nextThreshold) {
+      spawnMeteorWave(mw.x, mw.y, 0);
+      mw.waveCount = 1;
+      mw.nextThreshold = mw.nextThreshold - 80;
+    }
+    // Every 80 HP: spawn additional wave
+    while (newHp <= mw.nextThreshold && newHp > 0) {
+      spawnMeteorWave(mw.x, mw.y, mw.waveCount);
+      mw.waveCount++;
+      mw.nextThreshold -= 80;
+    }
+  };
+
+  // Spawn ground loot when meteor is destroyed
+  const spawnMeteorGroundLoot = (meteorX, meteorY) => {
+    const items = [];
+    const baseX = meteorX;
+    const baseY = meteorY + 5;
+    // Scatter coins
+    const coinCount = 5 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < coinCount; i++) {
+      items.push({
+        id: `gl_${Date.now()}_${i}`,
+        type: "coin",
+        value: Math.random() < 0.3 ? { silver: 1 } : { copper: 8 + Math.floor(Math.random() * 12) },
+        x: baseX + (Math.random() - 0.5) * 16,
+        y: baseY + (Math.random() - 0.5) * 8,
+        icon: "coin",
+        label: Math.random() < 0.3 ? "Ag" : "Cu",
+        collected: false,
+        spawnTime: Date.now(),
+      });
+    }
+    // Random relic/item drops
+    if (Math.random() < 0.35) {
+      items.push({
+        id: `gl_relic_${Date.now()}`,
+        type: "ammo",
+        value: { dynamite: 2 + Math.floor(Math.random() * 3) },
+        x: baseX + (Math.random() - 0.5) * 12,
+        y: baseY + (Math.random() - 0.5) * 6,
+        icon: "dynamite",
+        label: "Dynamit",
+        collected: false,
+        spawnTime: Date.now(),
+      });
+    }
+    if (Math.random() < 0.25) {
+      items.push({
+        id: `gl_ammo_${Date.now()}`,
+        type: "ammo",
+        value: { cannonball: 1 + Math.floor(Math.random() * 2) },
+        x: baseX + (Math.random() - 0.5) * 12,
+        y: baseY + (Math.random() - 0.5) * 6,
+        icon: "cannon",
+        label: "Kule",
+        collected: false,
+        spawnTime: Date.now(),
+      });
+    }
+    // Rare legendary sword drop
+    if (Math.random() < 0.12) {
+      const sword = { icon: "moon", name: "Miecz Pełni Księżyca", desc: "Legendarny miecz wykuty w blasku pełni księżyca", rarity: "legendary", value: { gold: 15 }, id: Date.now() + Math.random(), biome: "Meteoryt", room };
+      items.push({
+        id: `gl_sword_${Date.now()}`,
+        type: "treasure",
+        treasure: sword,
+        x: baseX + (Math.random() - 0.5) * 8,
+        y: baseY + (Math.random() - 0.5) * 4,
+        icon: "moon",
+        label: sword.name,
+        collected: false,
+        spawnTime: Date.now(),
+      });
+    }
+    setGroundLoot(items);
+    // Gold coin particle effect
+    if (pixiRef.current) {
+      const px = GAME_W * baseX / 100;
+      const py = GAME_H * baseY / 100;
+      pixiRef.current.spawnGoldCoins(px, py, 3.0);
+    }
+    showMessage("Meteoryt zniszczony! Zbierz łupy!", "#ffd700");
+  };
+
+  // Collect a ground loot item
+  const collectGroundLoot = (itemId) => {
+    const item = groundLoot.find(i => i.id === itemId && !i.collected);
+    if (!item) return;
+    setGroundLoot(prev => prev.map(i => i.id === itemId ? { ...i, collected: true } : i));
+    if (item.type === "coin") {
+      addMoneyFn(item.value);
+      const text = item.value.silver ? `+${item.value.silver} Ag` : `+${item.value.copper} Cu`;
+      showMessage(text, "#d4a030");
+    } else if (item.type === "ammo") {
+      setAmmo(prev => {
+        const upd = { ...prev };
+        for (const [k, v] of Object.entries(item.value)) upd[k] = (upd[k] || 0) + v;
+        return upd;
+      });
+      const ammoNames = { dynamite: "dynamitu", harpoon: "harpunów", cannonball: "kul", rum: "rumu", chain: "łańcuchów" };
+      const entries = Object.entries(item.value);
+      const text = entries.map(([k, v]) => `+${v} ${ammoNames[k] || k}`).join(", ");
+      showMessage(text, "#60a050");
+    } else if (item.type === "treasure") {
+      setInventory(prev => [...prev, item.treasure]);
+      setLoot(item.treasure);
+      showMessage(`${item.treasure.name}!`, "#d4a030");
+    }
+    // Small coin particle on pickup
+    if (pixiRef.current) {
+      const px = GAME_W * item.x / 100;
+      const py = GAME_H * item.y / 100;
+      pixiRef.current.spawnGoldCoins(px, py, 0.3);
+    }
   };
 
   const startMining = () => {
@@ -4290,6 +4458,8 @@ export default function App() {
       }
 
       const newHp = Math.max(0, w.hp - dmg);
+      // Meteor boulder wave check
+      if (w.isMeteorBoulder) checkMeteorWaveThreshold(walkerId, w.hp, newHp);
       // Sync boss HP immediately on any damage
       if (w.isBoss && activeBossRef.current) {
         setActiveBoss(prev => prev ? { ...prev, currentHp: newHp } : null);
@@ -4298,8 +4468,15 @@ export default function App() {
         sfxNpcDeath();
         if (walkDataRef.current[walkerId]) walkDataRef.current[walkerId].alive = false;
         if (physicsRef.current) physicsRef.current.triggerRagdoll(walkerId, getDeathElement(spell), spellDirX);
-        addMoneyFn(npcData.loot);
-        if (hasRelic("golden_reaper")) addMoneyFn(npcData.loot);
+        // Meteor boulder destruction: ground loot instead of normal loot
+        if (w.isMeteorBoulder && meteorWaveRef.current) {
+          spawnMeteorGroundLoot(meteorWaveRef.current.x, meteorWaveRef.current.y);
+          meteorWaveRef.current = null;
+          setMeteorite(null);
+        } else {
+          addMoneyFn(npcData.loot);
+          if (hasRelic("golden_reaper")) addMoneyFn(npcData.loot);
+        }
         if (hasSynergy("piracki_monopol") && Math.random() < 0.20) {
           const bt = pickTreasure(roomRef.current);
           bt.biome = "Monopol"; bt.room = room;
@@ -4778,6 +4955,8 @@ export default function App() {
           }
         }
         const newHp = Math.max(0, w.hp - dmg);
+        // Meteor boulder wave check
+        if (w.isMeteorBoulder) checkMeteorWaveThreshold(w.id, w.hp, newHp);
         // Saber effect: lifesteal
         if (eff?.type === "lifesteal") {
           const healAmt = Math.round(dmg * eff.value);
@@ -4797,7 +4976,14 @@ export default function App() {
             sfxNpcDeath();
             if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
             if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, isCrit ? "saber_crit" : "saber", d.x > 50 ? 1 : -1);
-            addMoneyFn(ww.npcData.loot);
+            // Meteor boulder destruction: ground loot
+            if (ww.isMeteorBoulder && meteorWaveRef.current) {
+              spawnMeteorGroundLoot(meteorWaveRef.current.x, meteorWaveRef.current.y);
+              meteorWaveRef.current = null;
+              setMeteorite(null);
+            } else {
+              addMoneyFn(ww.npcData.loot);
+            }
             setKills(k => k + 1);
             handleCardDrop(ww.npcData);
             rollAmmoDrop(); rollSaberDrop();
@@ -6282,36 +6468,64 @@ export default function App() {
         }} />
       )}
 
-      {/* Meteorite landed – clickable, looks like a glowing rock */}
-      {meteorite && meteorite.phase === "landed" && (
-        <div onClick={openMeteorite} style={{
-          position: "absolute", left: `${meteorite.x}%`, top: `${meteorite.y}%`, zIndex: 15,
+      {/* Meteor boulder HP bar — shows above the destructible meteor NPC */}
+      {meteorite && meteorite.phase === "active" && (() => {
+        const mBoulder = walkers.find(w => w.isMeteorBoulder && w.alive && !w.dying);
+        if (!mBoulder) return null;
+        const hpPct = mBoulder.hp / mBoulder.maxHp;
+        const hpColor = hpPct > 0.5 ? "#ff6020" : hpPct > 0.25 ? "#ff4020" : "#cc2020";
+        return (
+          <div style={{
+            position: "absolute", left: `${meteorite.x}%`, top: `${meteorite.y - 3}%`,
+            transform: "translateX(-50%)", zIndex: 16, pointerEvents: "none",
+            textAlign: "center",
+          }}>
+            <div style={{ color: "#ffd700", fontSize: 10, fontWeight: "bold", textShadow: "0 1px 3px #000", marginBottom: 2 }}>
+              Płonący Meteoryt
+            </div>
+            <div style={{
+              width: 64, height: 6, background: "rgba(0,0,0,0.6)", borderRadius: 3,
+              border: "1px solid rgba(255,100,20,0.4)", overflow: "hidden", margin: "0 auto",
+            }}>
+              <div style={{
+                width: `${hpPct * 100}%`, height: "100%", background: hpColor,
+                borderRadius: 2, transition: "width 0.2s",
+                boxShadow: `0 0 6px ${hpColor}`,
+              }} />
+            </div>
+            <div style={{ color: "#ddd", fontSize: 9, textShadow: "0 1px 2px #000", marginTop: 1 }}>
+              {mBoulder.hp}/{mBoulder.maxHp}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Ground loot — clickable coins and items dropped by meteor */}
+      {groundLoot.filter(i => !i.collected).map(item => (
+        <div key={item.id} onClick={() => collectGroundLoot(item.id)} style={{
+          position: "absolute", left: `${item.x}%`, top: `${item.y}%`, zIndex: 15,
           cursor: "pointer", userSelect: "none",
-          animation: "meteorPulse 1.5s ease-in-out infinite",
+          animation: "meteorPulse 2s ease-in-out infinite",
+          transform: "translate(-50%, -50%)",
         }}>
           <div style={{
-            width: 48, height: 36, borderRadius: "40% 50% 45% 38%",
-            background: "radial-gradient(ellipse at 35% 30%, #6a5040, #3a2a1e 50%, #1e140e 90%)",
-            border: "2px solid #2a1a10",
-            boxShadow: "inset -4px -4px 8px rgba(0,0,0,0.6), inset 2px 2px 4px rgba(140,100,60,0.3), 0 0 18px rgba(255,80,0,0.5), 0 0 40px rgba(255,60,0,0.25)",
-            position: "relative", overflow: "hidden",
+            width: item.type === "treasure" ? 32 : 24,
+            height: item.type === "treasure" ? 32 : 24,
+            filter: item.type === "treasure"
+              ? "drop-shadow(0 0 8px rgba(255,200,0,0.8))"
+              : "drop-shadow(0 0 4px rgba(255,180,0,0.5))",
           }}>
-            {/* Glowing cracks */}
-            <div style={{ position: "absolute", top: "30%", left: "10%", width: "70%", height: 2, background: "rgba(255,100,20,0.7)", transform: "rotate(15deg)", borderRadius: 1, filter: "blur(0.5px)", boxShadow: "0 0 6px rgba(255,80,0,0.6)" }} />
-            <div style={{ position: "absolute", top: "55%", left: "20%", width: "55%", height: 2, background: "rgba(255,80,0,0.6)", transform: "rotate(-20deg)", borderRadius: 1, filter: "blur(0.5px)", boxShadow: "0 0 5px rgba(255,60,0,0.5)" }} />
-            <div style={{ position: "absolute", top: "40%", left: "45%", width: "40%", height: 2, background: "rgba(255,120,40,0.5)", transform: "rotate(50deg)", borderRadius: 1, filter: "blur(0.5px)", boxShadow: "0 0 4px rgba(255,80,0,0.4)" }} />
-            {/* Hot spot glow */}
-            <div style={{ position: "absolute", top: "20%", left: "25%", width: 12, height: 10, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,140,40,0.4), transparent)", filter: "blur(2px)" }} />
+            <Icon name={item.icon} size={item.type === "treasure" ? 28 : 20} />
           </div>
-          {/* Ground glow */}
           <div style={{
-            position: "absolute", left: "50%", bottom: -10, transform: "translateX(-50%)",
-            width: 90, height: 20,
-            background: "radial-gradient(ellipse at center, rgba(255,80,0,0.35) 0%, transparent 70%)",
-            pointerEvents: "none",
-          }} />
+            fontSize: 8, color: item.type === "treasure" ? "#ffd700" : "#e0c080",
+            textAlign: "center", textShadow: "0 1px 2px #000",
+            marginTop: -2,
+          }}>
+            {item.label}
+          </div>
         </div>
-      )}
+      ))}
 
       {/* Resource node – hold to mine */}
       {showResource && resourceNode && (() => {

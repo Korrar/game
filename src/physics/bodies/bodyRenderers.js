@@ -8,6 +8,7 @@ import { getNpcIconImage } from "../../rendering/icons.js";
 const ICON_SIZES = {
   humanoid: 48, quadruped: 44, floating: 44, scorpion: 40,
   spider: 38, frog: 36, serpent: 44, barricade: 52, tower: 56,
+  meteorBoulder: 60,
 };
 
 // ─── SHARED DRAW UTILS ───
@@ -64,6 +65,7 @@ const C2D_LIMBS = {
   serpent: { head:{s:"c",r:9,c:"b"}, torso:{s:"r",hw:8,hh:6,c:"b"}, seg2:{s:"r",hw:7,hh:5,c:"a"}, seg3:{s:"r",hw:6,hh:4,c:"b"}, tailTip:{s:"r",hw:3.5,hh:3,c:"a"}, lFin:{s:"r",hw:2,hh:4,c:"a"}, rFin:{s:"r",hw:2,hh:4,c:"a"} },
   barricade: { torso:{s:"r",hw:16,hh:23,c:"b"}, head:{s:"r",hw:5,hh:5,c:"a"}, plankL:{s:"r",hw:3,hh:18,c:"b"}, plankR:{s:"r",hw:3,hh:18,c:"b"}, crossbar:{s:"r",hw:18,hh:3,c:"a"} },
   tower: { torso:{s:"r",hw:12,hh:26,c:"b"}, head:{s:"r",hw:7,hh:7,c:"a"}, roofL:{s:"r",hw:3.5,hh:2.5,c:"a"}, roofR:{s:"r",hw:3.5,hh:2.5,c:"a"}, baseL:{s:"r",hw:3.5,hh:5,c:"a"}, baseR:{s:"r",hw:3.5,hh:5,c:"a"} },
+  meteorBoulder: { torso:{s:"r",hw:18,hh:16,c:"b"}, head:{s:"c",r:10,c:"a"}, fragL:{s:"r",hw:8,hh:10,c:"b"}, fragR:{s:"r",hw:8,hh:10,c:"b"}, crustT:{s:"r",hw:12,hh:6,c:"a"}, crustB:{s:"r",hw:14,hh:5,c:"a"} },
 };
 
 function drawRagdollLimbs(ctx, limbs, entry, alpha) {

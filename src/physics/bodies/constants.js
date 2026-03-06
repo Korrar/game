@@ -9,6 +9,7 @@ export const FROG_HALF_HEIGHT = 16;
 export const SERPENT_HALF_HEIGHT = 20;
 export const BARRICADE_HALF_HEIGHT = 28;
 export const TOWER_HALF_HEIGHT = 40;
+export const METEOR_BOULDER_HALF_HEIGHT = 24;
 
 export const HEAD_RADIUS = 10;
 export const QUAD_HEAD_RADIUS = 8;
@@ -23,4 +24,5 @@ export const HALF_HEIGHTS = {
   serpent: SERPENT_HALF_HEIGHT,
   barricade: BARRICADE_HALF_HEIGHT,
   tower: TOWER_HALF_HEIGHT,
+  meteorBoulder: METEOR_BOULDER_HALF_HEIGHT,
 };

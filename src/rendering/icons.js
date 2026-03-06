@@ -1380,6 +1380,72 @@ NPC_BODY_DRAW.tower = (ctx, s, bc, ac) => {
   ctx.fill();
 };
 
+NPC_BODY_DRAW.meteorBoulder = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2;
+  // Outer glow — pulsing purple/orange aura
+  const glowR = s * 0.46;
+  const glow = ctx.createRadialGradient(cx, cy, s * 0.15, cx, cy, glowR);
+  glow.addColorStop(0, "rgba(180,60,220,0.25)");
+  glow.addColorStop(0.5, "rgba(255,80,20,0.15)");
+  glow.addColorStop(1, "transparent");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, s, s);
+  // Main rock body — irregular shape
+  ctx.fillStyle = bc;
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.28, cy + s * 0.18);
+  ctx.lineTo(cx - s * 0.32, cy - s * 0.05);
+  ctx.lineTo(cx - s * 0.18, cy - s * 0.28);
+  ctx.lineTo(cx + s * 0.05, cy - s * 0.32);
+  ctx.lineTo(cx + s * 0.25, cy - s * 0.22);
+  ctx.lineTo(cx + s * 0.33, cy - s * 0.02);
+  ctx.lineTo(cx + s * 0.28, cy + s * 0.2);
+  ctx.lineTo(cx + s * 0.08, cy + s * 0.3);
+  ctx.lineTo(cx - s * 0.15, cy + s * 0.26);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, "#1a0e08", s * 0.025);
+  ctx.stroke();
+  // Dark crags and surface texture
+  ctx.fillStyle = ac;
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.15, cy + s * 0.1);
+  ctx.lineTo(cx - s * 0.22, cy - s * 0.08);
+  ctx.lineTo(cx - s * 0.08, cy - s * 0.18);
+  ctx.lineTo(cx + s * 0.06, cy - s * 0.05);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.1, cy - s * 0.15);
+  ctx.lineTo(cx + s * 0.22, cy - s * 0.08);
+  ctx.lineTo(cx + s * 0.18, cy + s * 0.08);
+  ctx.lineTo(cx + s * 0.04, cy + s * 0.02);
+  ctx.closePath();
+  ctx.fill();
+  // Glowing purple crystal veins
+  westernStroke(ctx, "rgba(160,50,220,0.8)", s * 0.02);
+  sketchLine(ctx, cx - s * 0.2, cy + s * 0.05, cx + s * 0.15, cy - s * 0.15, 0.6);
+  sketchLine(ctx, cx - s * 0.05, cy - s * 0.2, cx + s * 0.1, cy + s * 0.15, 0.5);
+  sketchLine(ctx, cx - s * 0.12, cy + s * 0.18, cx + s * 0.2, cy + s * 0.05, 0.4);
+  // Hot orange cracks
+  westernStroke(ctx, "rgba(255,100,20,0.7)", s * 0.015);
+  sketchLine(ctx, cx - s * 0.25, cy, cx - s * 0.05, cy - s * 0.12, 0.5);
+  sketchLine(ctx, cx + s * 0.08, cy - s * 0.08, cx + s * 0.26, cy + s * 0.1, 0.5);
+  // Bright purple hot spots
+  ctx.fillStyle = "rgba(180,60,255,0.5)";
+  sketchCircle(ctx, cx - s * 0.08, cy - s * 0.05, s * 0.06);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,120,40,0.4)";
+  sketchCircle(ctx, cx + s * 0.12, cy + s * 0.04, s * 0.05);
+  ctx.fill();
+  // Core glow at center
+  const coreGlow = ctx.createRadialGradient(cx, cy - s * 0.02, 0, cx, cy - s * 0.02, s * 0.12);
+  coreGlow.addColorStop(0, "rgba(255,200,140,0.35)");
+  coreGlow.addColorStop(1, "transparent");
+  ctx.fillStyle = coreGlow;
+  ctx.fillRect(cx - s * 0.15, cy - s * 0.15, s * 0.3, s * 0.3);
+};
+
 // ─── COMMON UI ICONS (replacing emoji) ───
 
 DRAW.skull = (ctx, s) => {

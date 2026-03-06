@@ -15,6 +15,7 @@ const GLOW_HIT = { color: 0xff2828, alpha: 0.7 };
 const ICON_SIZES = {
   humanoid: 48, quadruped: 44, floating: 44, scorpion: 40,
   spider: 38, frog: 36, serpent: 44, barricade: 52, tower: 56,
+  meteorBoulder: 60,
 };
 
 // ─── LIMB VISUAL DEFINITIONS ───
@@ -129,6 +130,14 @@ const LIMB_DEFS = {
     roofR:  { shape: "rect", hw: 3.5, hh: 2.5, color: "dark" },
     baseL:  { shape: "rect", hw: 3.5, hh: 5, color: "armor" },
     baseR:  { shape: "rect", hw: 3.5, hh: 5, color: "armor" },
+  },
+  meteorBoulder: {
+    torso:  { shape: "rect", hw: 18, hh: 16, color: "body" },
+    head:   { shape: "circle", r: 10, color: "armor" },
+    fragL:  { shape: "rect", hw: 8, hh: 10, color: "body" },
+    fragR:  { shape: "rect", hw: 8, hh: 10, color: "body" },
+    crustT: { shape: "rect", hw: 12, hh: 6, color: "dark" },
+    crustB: { shape: "rect", hw: 14, hh: 5, color: "dark" },
   },
 };
 
