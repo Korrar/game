@@ -294,7 +294,7 @@ function RiverMapCanvas({ riverMap, selectedPath, currentNode, onNodeClick, hasS
   );
 }
 
-export default function RiverMap({ roomNumber, onConfirm, onCancel, isMobile, shipUpgrades = [] }) {
+export default function RiverMap({ roomNumber, onConfirm, onCancel, onSkip, isMobile, shipUpgrades = [] }) {
   const hasScout = shipUpgrades.includes("crow_nest");
 
   const riverMap = useMemo(() => generateRiverMap(roomNumber), [roomNumber]);
@@ -536,6 +536,24 @@ export default function RiverMap({ roomNumber, onConfirm, onCancel, isMobile, sh
           ✕ Anuluj
         </button>
       </div>
+      {/* Quick travel — skip mini-game */}
+      {onSkip && (
+        <button
+          onClick={onSkip}
+          title="Pomiń żeglugę i dotrzyj natychmiast (mniejsza nagroda)"
+          style={{
+            marginTop: 10, background: "none",
+            color: "#8a7a6a", border: "1px solid #3a3a3a",
+            padding: "5px 16px", fontFamily: "monospace", fontSize: 12,
+            cursor: "pointer", borderRadius: 4,
+            transition: "color 0.2s, border-color 0.2s",
+          }}
+          onMouseEnter={e => { e.target.style.color = "#ffd700"; e.target.style.borderColor = "#8a6a20"; }}
+          onMouseLeave={e => { e.target.style.color = "#8a7a6a"; e.target.style.borderColor = "#3a3a3a"; }}
+        >
+          <GameIcon name="feather" size={12} /> Szybka Podróż (mniejsza nagroda)
+        </button>
+      )}
     </div>
   );
 }
