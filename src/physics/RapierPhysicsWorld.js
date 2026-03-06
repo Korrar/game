@@ -140,6 +140,15 @@ function _buildLimbs(RAPIER, world, bt, px, groundY) {
       addBox("baseR", px + 13, cy + 30, 3, 5);
       break;
     }
+    case "meteorBoulder": {
+      addBox("torso", px, cy, 17, 15);
+      addBall("head", px - 6, cy - 14, 9);
+      addBox("fragL", px - 16, cy + 4, 7, 9);
+      addBox("fragR", px + 16, cy + 4, 7, 9);
+      addBox("crustT", px + 4, cy - 10, 11, 5);
+      addBox("crustB", px, cy + 14, 13, 4);
+      break;
+    }
   }
 
   return bodies;
@@ -248,6 +257,14 @@ function _buildJoints(RAPIER, world, bt, limbBodies) {
       joint("head", "roofR", [6, -6], [-3, 0]);
       joint("torso", "baseL", [-11, 22], [0, -5]);
       joint("torso", "baseR", [11, 22], [0, -5]);
+      break;
+    }
+    case "meteorBoulder": {
+      joint("torso", "head", [-6, -14], [0, 8]);
+      joint("torso", "fragL", [-15, 2], [6, 0]);
+      joint("torso", "fragR", [15, 2], [-6, 0]);
+      joint("torso", "crustT", [4, -12], [0, 4]);
+      joint("torso", "crustB", [0, 13], [0, -3]);
       break;
     }
   }
@@ -556,6 +573,7 @@ export class PhysicsWorld {
       case "serpent": this._updateSerpent(entry, px, dir, bouncePhase, groundY); break;
       case "barricade": this._updateBarricade(entry, px, groundY); break;
       case "tower": this._updateTower(entry, px, groundY); break;
+      case "meteorBoulder": this._updateMeteorBoulder(entry, px, groundY); break;
       default: this._updateHumanoid(entry, px, dir, bouncePhase, groundY); break;
     }
   }
@@ -686,6 +704,17 @@ export class PhysicsWorld {
     this._setKin(lb.roofR, px + 12, cy - 28);
     this._setKin(lb.baseL, px - 13, cy + 30);
     this._setKin(lb.baseR, px + 13, cy + 30);
+  }
+
+  _updateMeteorBoulder(entry, px, groundY) {
+    const cy = (groundY || this.GY) - HALF_HEIGHTS.meteorBoulder;
+    const lb = entry.limbBodies;
+    this._setKin(lb.torso, px, cy);
+    this._setKin(lb.head, px - 6, cy - 14);
+    this._setKin(lb.fragL, px - 16, cy + 4);
+    this._setKin(lb.fragR, px + 16, cy + 4);
+    this._setKin(lb.crustT, px + 4, cy - 10);
+    this._setKin(lb.crustB, px, cy + 14);
   }
 
   // ─── COMBAT ───
