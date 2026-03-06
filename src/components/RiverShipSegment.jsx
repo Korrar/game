@@ -2805,6 +2805,38 @@ export default function RiverShipSegment({ roomNumber, onComplete, isMobile, shi
           {isMobile ? "Dotknij lewą/prawą stronę ekranu" : "← → / A D — steruj statkiem"}
         </div>
       )}
+      {phase === "playing" && (
+        <button
+          onClick={() => {
+            const s = stateRef.current;
+            if (!s) return;
+            // Stop the game loop
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+            // Give reduced rewards (half copper, no silver/gates bonus)
+            const baseCopper = 10 + roomNumber * 2;
+            const rewards = { copper: baseCopper };
+            setPhase("complete");
+            setHud(h => ({ ...h, hp: s.shipHp, time: Math.floor(s.elapsed), gatesHit: 0, treasureCollected: 0, lootCopper: 0 }));
+            setTimeout(() => {
+              onCompleteRef.current({ success: true, rewards, hpRemaining: s.shipHp, maxHp: s.shipMaxHp, score: 0, gatesHit: 0, treasureCollected: 0 });
+            }, 600);
+          }}
+          style={{
+            position: "absolute", bottom: isMobile ? 14 : 10, right: isMobile ? 14 : 20,
+            fontFamily: "monospace", fontSize: isMobile ? 11 : 13,
+            color: "#a09080", background: "rgba(10,5,2,0.7)",
+            border: "1px solid #5a4030", padding: "6px 14px",
+            cursor: "pointer", zIndex: 10,
+            transition: "color 0.2s, border-color 0.2s",
+          }}
+          onMouseEnter={e => { e.target.style.color = "#ffd700"; e.target.style.borderColor = "#a08030"; }}
+          onMouseLeave={e => { e.target.style.color = "#a09080"; e.target.style.borderColor = "#5a4030"; }}
+          title="Pomiń mini-grę i płyń szybko (mniejsza nagroda)"
+        >
+          <GameIcon name="feather" size={14} /> Szybka Podróż
+        </button>
+      )}
       {/* Node event overlay */}
       {nodeEvent && (
         <div style={{
