@@ -150,6 +150,19 @@ export const SABERS = [
     price: 140,
     effect: { type: "armor_pierce" },
   },
+  {
+    id: "moonblade",
+    name: "Miecz Pełni Księżyca",
+    icon: "moon",
+    color: "#d4a030",
+    trailColor: "#ffe066",
+    desc: "Legendarny miecz wykuty w blasku pełni księżyca. Losowe wzmocnienie 0-60% obrażeń i 0-60% mocy umiejętności.",
+    damage: 20,
+    rarity: "legendary",
+    price: 0, // not buyable, drop only
+    dropOnly: true,
+    effect: { type: "moonblade", bonusDmgRange: [0, 0.6], bonusSpellRange: [0, 0.6] },
+  },
 ];
 
 export const SABER_RARITY_COLOR = {
@@ -157,4 +170,5 @@ export const SABER_RARITY_COLOR = {
   uncommon: "#40b840",
   rare: "#40a8b8",
   epic: "#a050e0",
+  legendary: "#d4a030",
 };

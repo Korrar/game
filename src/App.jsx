@@ -57,6 +57,9 @@ import { FORTIFICATION_TREE, TRAP_COMBOS } from "./data/advancedTraps";
 import { FACTIONS, getFactionBonus, getFactionHostility, rollFactionQuest, rollFactionEvent } from "./data/factions";
 import { ARTIFACT_SETS, DISCOVERY_MILESTONES, JOURNAL_CATEGORIES, getDiscoveryMilestone, rollSecretRoom, getCompletedSetBonuses } from "./data/discovery";
 import { SABERS, SABER_RARITY_COLOR } from "./data/sabers";
+import { MORALE_CONFIG, MORALE_EVENTS, getMoraleThreshold } from "./data/morale";
+import { MUTATION_INTERVAL, MUTATIONS, selectMutationTargets, pickMutation } from "./data/mutations";
+import { GHOST_SHIP_CONFIG } from "./data/ghostShip";
 import ComboOverlay from "./components/ComboOverlay";
 import LevelUpPicker from "./components/LevelUpPicker";
 import SpellUpgradePicker from "./components/SpellUpgradePicker";
@@ -306,6 +309,33 @@ export default function App() {
   const equippedSaberRef = useRef("basic_saber");
   equippedSaberRef.current = equippedSaber;
   const getEquippedSaberData = () => SABERS.find(s => s.id === equippedSaberRef.current) || SABERS[0];
+  // Moonblade: rolled bonuses { dmgBonus: 0-0.6, spellBonus: 0-0.6 }
+  const [moonbladeBonus, setMoonbladeBonus] = useState(null);
+  const moonbladeBonusRef = useRef(null);
+  moonbladeBonusRef.current = moonbladeBonus;
+
+  // ─── FEATURE: Morale System ───
+  const [morale, setMorale] = useState(MORALE_CONFIG.initial);
+  const moraleRef = useRef(MORALE_CONFIG.initial);
+  moraleRef.current = morale;
+  const changeMorale = (eventId) => {
+    const ev = MORALE_EVENTS[eventId];
+    if (!ev) return;
+    setMorale(prev => Math.max(MORALE_CONFIG.min, Math.min(MORALE_CONFIG.max, prev + ev.delta)));
+  };
+
+  // ─── FEATURE: Enemy Mutations ───
+  const [activeMutations, setActiveMutations] = useState([]); // [{ npcName, mutation }]
+  const activeMutationsRef = useRef([]);
+  activeMutationsRef.current = activeMutations;
+  const [killsByType, setKillsByType] = useState({}); // { "Krokodyl": 5, ... }
+  const killsByTypeRef = useRef({});
+  killsByTypeRef.current = killsByType;
+
+  // ─── FEATURE: Ghost Ship ───
+  const [ghostShipActive, setGhostShipActive] = useState(false);
+  const ghostShipActiveRef = useRef(false);
+  ghostShipActiveRef.current = ghostShipActive;
 
   // ─── FEATURE: Magic Wand ───
   const [hasWand, setHasWand] = useState(false);
@@ -501,11 +531,18 @@ export default function App() {
   }, []);
 
   const addMoneyFn = useCallback((val) => {
+    // Ghost Ship: triple loot
+    const mult = ghostShipActiveRef.current ? GHOST_SHIP_CONFIG.lootMultiplier : 1;
+    const adjusted = mult > 1 ? {
+      copper: Math.round((val.copper || 0) * mult),
+      silver: Math.round((val.silver || 0) * mult),
+      gold: Math.round((val.gold || 0) * mult),
+    } : val;
     setMoney(prev => {
-      let tc = totalCopper(prev) + totalCopper(val);
+      let tc = totalCopper(prev) + totalCopper(adjusted);
       return copperToMoney(tc);
     });
-    setTotalGoldEarned(prev => prev + (val.gold || 0) + (val.silver || 0) / 100 + (val.copper || 0) / 10000);
+    setTotalGoldEarned(prev => prev + (adjusted.gold || 0) + (adjusted.silver || 0) / 100 + (adjusted.copper || 0) / 10000);
   }, []);
 
   // ─── XP & Level helpers ───
@@ -737,6 +774,10 @@ export default function App() {
 
   // Card drop handler – called on every NPC kill
   const handleCardDrop = useCallback((npcData) => {
+    // Track kills by enemy type for mutation system
+    if (npcData.name) {
+      setKillsByType(prev => ({ ...prev, [npcData.name]: (prev[npcData.name] || 0) + 1 }));
+    }
     const card = rollCardDrop(npcData.biomeId, npcData.name, npcData.rarity);
     if (!card) return;
     setBestiary(prev => ({
@@ -760,6 +801,9 @@ export default function App() {
 
   // Summon auto-attack handler (called from RAF loop via ref)
   summonAttackRef.current = (friendlyId, enemyId, damage) => {
+    // Morale: mercenary damage multiplier
+    const moraleLevel = getMoraleThreshold(moraleRef.current);
+    damage = Math.round(damage * moraleLevel.mercDmgMult);
     // War Drums: bonus damage from caravan aura
     const drumsData = CARAVAN_LEVELS[caravanLevelRef.current].warDrums;
     if (drumsData) damage = Math.round(damage * (1 + drumsData.bonus / 100));
@@ -873,11 +917,9 @@ export default function App() {
             }, 15000);
           }, 300);
         }
-        if (w.npcData.biomeId === "meteor" && Math.random() < 0.08) {
-          const sword = { icon: "moon", name: "Miecz Pełni Księżyca", desc: "Legendarny miecz wykuty w blasku pełni księżyca", rarity: "legendary", value: { gold: 15 }, id: Date.now() + Math.random(), biome: "Meteoryt", room };
-          setInventory(prev => [...prev, sword]);
-          setLoot(sword);
-          showMessage("Miecz Pełni Księżyca!", "#d4a030");
+        if (w.npcData.biomeId === "meteor" && Math.random() < 0.08 && !ownedSabersRef.current.includes("moonblade")) {
+          setOwnedSabers(prev => prev.includes("moonblade") ? prev : [...prev, "moonblade"]);
+          showMessage("Zdobyto: Miecz Pełni Księżyca! Załóż w ekwipunku.", "#d4a030");
         }
         const friendlyW = prev.find(ww => ww.id === friendlyId);
         const mercName = friendlyW ? friendlyW.npcData.name : "najemnik";
@@ -913,6 +955,7 @@ export default function App() {
         if (walkDataRef.current[friendlyId]) walkDataRef.current[friendlyId].alive = false;
         if (physicsRef.current) physicsRef.current.triggerRagdoll(friendlyId, "melee", meleeDirX);
         showMessage(`${w.npcData.name} poległ w walce!`, "#cc4040");
+        changeMorale("merc_death");
         setTimeout(() => setWalkers(pr => pr.map(ww => ww.id === friendlyId ? { ...ww, alive: false } : ww)), 2500);
         return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
       }
@@ -954,6 +997,7 @@ export default function App() {
     setKillStreak(0);
     sfxCaravanHit();
     setCaravanHp(prev => Math.max(0, prev - actualDmg));
+    changeMorale("caravan_hit");
     // Screen shake on caravan hit
     setScreenShake(true);
     setTimeout(() => setScreenShake(false), 150);
@@ -987,6 +1031,7 @@ export default function App() {
         if (walkDataRef.current[friendlyId]) walkDataRef.current[friendlyId].alive = false;
         if (physicsRef.current) physicsRef.current.triggerRagdoll(friendlyId, element || "melee", dirX);
         showMessage(`${w.npcData.name} poległ w walce!`, "#cc4040");
+        changeMorale("merc_death");
         setTimeout(() => setWalkers(pr => pr.map(ww => ww.id === friendlyId ? { ...ww, alive: false } : ww)), 2500);
         return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
       }
@@ -2262,6 +2307,25 @@ export default function App() {
     if (eventMercDmgBuffRef.current > 0) { setEventMercDmgBuff(0); eventMercDmgBuffRef.current = 0; }
     if (eventMercHpBuffRef.current > 0) { setEventMercHpBuff(0); eventMercHpBuffRef.current = 0; }
 
+    // Enemy Mutations: every 10 rooms, least-killed enemies evolve
+    if (newRoom > 1 && newRoom % MUTATION_INTERVAL === 0) {
+      const biomeEnemies = b.enemies || [];
+      if (biomeEnemies.length > 0) {
+        const targets = selectMutationTargets(killsByTypeRef.current, biomeEnemies);
+        const newMuts = targets.map(name => ({ npcName: name, mutation: pickMutation() }));
+        setActiveMutations(newMuts);
+        const mutNames = newMuts.map(m => `${m.npcName} → ${m.mutation.name}`).join(", ");
+        setTimeout(() => showMessage(`Mutacja wrogów! ${mutNames}`, "#cc60cc"), 1000);
+      }
+    }
+
+    // Ghost Ship: 10% chance after room 30
+    if (newRoom >= GHOST_SHIP_CONFIG.minRoom && Math.random() < GHOST_SHIP_CONFIG.chance && !isDefenseRoom) {
+      setGhostShipActive(true);
+      setTimeout(() => showMessage("Widmowy Statek! Najemnicy odmawiają walki... Łup x3!", "#8888cc"), 800);
+    } else {
+      setGhostShipActive(false);
+    }
 
     // Night mode (30% chance)
     const night = Math.random() < 0.3;
@@ -2743,9 +2807,9 @@ export default function App() {
     }
     setDefenseMode(null);
 
-    // Meteorite event – 12% chance, delayed fall after 1s
+    // Meteorite event – 18% chance, delayed fall after 1s
     if (meteorTimerRef.current) { clearTimeout(meteorTimerRef.current); meteorTimerRef.current = null; }
-    if (Math.random() < 0.12) {
+    if (Math.random() < 0.18) {
       const mx = 15 + Math.random() * 65;
       const landY = 20 + Math.random() * 5; // land at ground level (~20-25%, NPC line is 25%)
       setMeteorite({ x: mx, y: landY, phase: "pending" });
@@ -3087,9 +3151,14 @@ export default function App() {
     for (let i = 0; i < enemyCount; i++) {
       const delay = (isElite ? 1500 : 0) + i * (800 + Math.random() * 400);
       const tid = setTimeout(() => {
-        const npcData = pickNpc(biomeId);
+        const npcData = ghostShipActiveRef.current
+          ? { ...GHOST_SHIP_CONFIG.enemies[Math.floor(Math.random() * GHOST_SHIP_CONFIG.enemies.length)] }
+          : pickNpc(biomeId);
         if (!npcData) return;
         npcData.hp = Math.round(npcData.hp * hpMult);
+        // Apply active mutations if this enemy type matches
+        const mut = activeMutationsRef.current.find(m => m.npcName === npcData.name);
+        if (mut && mut.mutation) mut.mutation.apply(npcData);
         const wid = ++walkerIdCounter;
         const spawnX = 10 + Math.random() * 80; // spread across width
         const spawnY = 8 + Math.random() * 10;  // spawn behind horizon (8-18%)
@@ -3183,6 +3252,7 @@ export default function App() {
           setActiveBoss(null);
           setBossesDefeated(b => b + 1);
           sfxVictoryFanfare();
+          changeMorale("boss_kill");
           setMusicCombatIntensity(0); // calm down music after boss victory
           setDefenseMode(prev => prev ? { ...prev, phase: "complete" } : null);
           return;
@@ -3217,8 +3287,27 @@ export default function App() {
           }
           if (dm.currentWave >= dm.totalWaves) {
             sfxVictoryFanfare();
+            changeMorale("fast_victory");
             setMusicCombatIntensity(0); // calm down music after all waves cleared
             setDefenseMode(prev => prev ? { ...prev, phase: "complete" } : null);
+            // Ghost ship completion reward
+            if (ghostShipActiveRef.current) {
+              addMoneyFn(GHOST_SHIP_CONFIG.completionReward);
+              showMessage(GHOST_SHIP_CONFIG.completionMessage, "#d4a030");
+              setGhostShipActive(false);
+            }
+            // Morale: desertion check on low morale
+            const mt = getMoraleThreshold(moraleRef.current);
+            if (mt.desertionChance > 0) {
+              const friendlies = walkersRef.current.filter(w => w.alive && !w.dying && w.friendly);
+              friendlies.forEach(w => {
+                if (Math.random() < mt.desertionChance) {
+                  showMessage(`${w.npcData.name} dezerteruje! Morala zbyt niska!`, "#cc4040");
+                  if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
+                  setWalkers(prev => prev.filter(ww => ww.id !== w.id));
+                }
+              });
+            }
           } else {
             sfxWaveComplete();
             showMessage(`Fala ${dm.currentWave} pokonana!`, "#40e060");
@@ -3412,7 +3501,8 @@ export default function App() {
     setActiveFactionQuest(null); setFactionEvent(null);
     setJournal({ biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
     setOwnedArtifacts([]); setTotalDiscoveries(0); setSecretRoom(null); setShowJournal(false);
-    setOwnedSabers(["basic_saber"]); setEquippedSaber("basic_saber");
+    setOwnedSabers(["basic_saber"]); setEquippedSaber("basic_saber"); setMoonbladeBonus(null);
+    setMorale(MORALE_CONFIG.initial); setActiveMutations([]); setKillsByType({}); setGhostShipActive(false);
     setHasWand(false); setWandActive(false); wandOrbsRef.current = { active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {}, lastDrainTime: 0 };
     setSalvaActive(false); salvaRef.current = { active: false, cursorX: 50, cursorY: 50, lastShotTime: 0 };
     walkDataRef.current = {};
@@ -3450,7 +3540,8 @@ export default function App() {
       unlockedFortifications,
       factionRep,
       journal, ownedArtifacts, totalDiscoveries,
-      ownedSabers, equippedSaber,
+      ownedSabers, equippedSaber, moonbladeBonus,
+      morale, activeMutations, killsByType,
       hasWand,
       savedAt: Date.now(),
     };
@@ -3516,6 +3607,10 @@ export default function App() {
       setTotalDiscoveries(s.totalDiscoveries || 0);
       setOwnedSabers(s.ownedSabers || ["basic_saber"]);
       setEquippedSaber(s.equippedSaber || "basic_saber");
+      setMoonbladeBonus(s.moonbladeBonus || null);
+      setMorale(s.morale ?? MORALE_CONFIG.initial);
+      setActiveMutations(s.activeMutations || []);
+      setKillsByType(s.killsByType || {});
       setHasWand(s.hasWand || false);
       if (s.hasWand && !s.learnedSpells?.includes("wand")) {
         setLearnedSpells(prev => [...prev, "wand"]);
@@ -3552,7 +3647,8 @@ export default function App() {
         shipUpgrades, discoveredIslands,
         unlockedFortifications, factionRep,
         journal, ownedArtifacts, totalDiscoveries,
-        ownedSabers, equippedSaber,
+        ownedSabers, equippedSaber, moonbladeBonus,
+        morale, activeMutations, killsByType,
         savedAt: Date.now(),
       };
       try { localStorage.setItem("wrota_save", JSON.stringify(saveData)); } catch {}
@@ -3563,6 +3659,12 @@ export default function App() {
   const travelCaravan = () => {
     if (defenseMode && defenseMode.phase !== "complete") {
       showMessage("Nie możesz podróżować podczas obrony!", "#cc4040"); return;
+    }
+    if (activeBoss) {
+      showMessage("Nie możesz podróżować podczas walki z bossem!", "#cc4040"); return;
+    }
+    if (walkers.some(w => !w.friendly && w.alive && !w.dying)) {
+      showMessage("Nie możesz podróżować podczas walki!", "#cc4040"); return;
     }
     if (initiative < CARAVAN_COST) {
       showMessage("Za mało inicjatywy!", "#cc8040");
@@ -3998,17 +4100,15 @@ export default function App() {
         spawnTime: Date.now(),
       });
     }
-    // Rare legendary sword drop
-    if (Math.random() < 0.12) {
-      const sword = { icon: "moon", name: "Miecz Pełni Księżyca", desc: "Legendarny miecz wykuty w blasku pełni księżyca", rarity: "legendary", value: { gold: 15 }, id: Date.now() + Math.random(), biome: "Meteoryt", room };
+    // Rare legendary sword drop — now gives equippable saber
+    if (Math.random() < 0.12 && !ownedSabersRef.current.includes("moonblade")) {
       items.push({
         id: `gl_sword_${Date.now()}`,
-        type: "treasure",
-        treasure: sword,
+        type: "moonblade_saber",
         x: baseX + (Math.random() - 0.5) * 8,
         y: baseY + (Math.random() - 0.5) * 4,
         icon: "moon",
-        label: sword.name,
+        label: "Miecz Pełni Księżyca",
         collected: false,
         spawnTime: Date.now(),
       });
@@ -4046,6 +4146,9 @@ export default function App() {
       setInventory(prev => [...prev, item.treasure]);
       setLoot(item.treasure);
       showMessage(`${item.treasure.name}!`, "#d4a030");
+    } else if (item.type === "moonblade_saber") {
+      setOwnedSabers(prev => prev.includes("moonblade") ? prev : [...prev, "moonblade"]);
+      showMessage("Zdobyto: Miecz Pełni Księżyca! Załóż w ekwipunku.", "#d4a030");
     }
     // Small coin particle on pickup
     if (pixiRef.current) {
@@ -4132,8 +4235,10 @@ export default function App() {
   };
 
   const recruitFromCamp = (mercType, spawnXOverride) => {
+    if (ghostShipActiveRef.current) { showMessage("Najemnicy odmawiają walki na Widmowym Statku!", "#8888cc"); return; }
     const tc = totalCopper(money);
-    const need = totalCopper(mercType.cost);
+    const lvlMult = (KNIGHT_LEVELS[knightLevel]?.mult || 1);
+    const need = Math.round(totalCopper(mercType.cost) * lvlMult);
     if (tc < need) { showMessage("Za mało monet!", "#b83030"); return; }
     setMoney(copperToMoney(tc - need));
     sfxRecruit();
@@ -4288,6 +4393,10 @@ export default function App() {
       if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
       dmg = Math.round(dmg * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
       dmg = Math.round(dmg * perkSpellDmgMult);
+      // Moonblade: bonus spell/skill damage (0-60%)
+      if (equippedSaberRef.current === "moonblade" && moonbladeBonusRef.current) {
+        dmg = Math.round(dmg * (1 + moonbladeBonusRef.current.spellBonus));
+      }
       if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
 
       // Headshot bonus: +50% damage
@@ -4863,6 +4972,10 @@ export default function App() {
         const isCrit = Math.random() < 0.20;
         // Base damage from equipped saber
         let dmg = saberData.damage;
+        // Moonblade: bonus melee damage (0-60%)
+        if (equippedSaberRef.current === "moonblade" && moonbladeBonusRef.current) {
+          dmg = Math.round(dmg * (1 + moonbladeBonusRef.current.dmgBonus));
+        }
         dmg = Math.round(dmg * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
         if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
@@ -5376,11 +5489,9 @@ export default function App() {
               }, 15000);
             }, 300);
           }
-          if (npcData.biomeId === "meteor" && Math.random() < 0.08) {
-            const sword = { icon: "moon", name: "Miecz Pełni Księżyca", desc: "Legendarny miecz wykuty w blasku pełni księżyca", rarity: "legendary", value: { gold: 15 }, id: Date.now() + Math.random(), biome: "Meteoryt", room: roomRef.current };
-            setInventory(prev => [...prev, sword]);
-            setLoot(sword);
-            showMessage("Miecz Pełni Księżyca!", "#d4a030");
+          if (npcData.biomeId === "meteor" && Math.random() < 0.08 && !ownedSabersRef.current.includes("moonblade")) {
+            setOwnedSabers(prev => prev.includes("moonblade") ? prev : [...prev, "moonblade"]);
+            showMessage("Zdobyto: Miecz Pełni Księżyca! Załóż w ekwipunku.", "#d4a030");
           }
           if (!resistant) showMessage(`${npcData.name} pokonany! +${formatLootText(npcData.loot)}`, "#e05040");
           else setTimeout(() => showMessage(`${npcData.name} pokonany! +${formatLootText(npcData.loot)}`, "#e05040"), 800);
@@ -5777,7 +5888,15 @@ export default function App() {
     if (!ownedSabers.includes(saberId)) return;
     setEquippedSaber(saberId);
     const saber = SABERS.find(s => s.id === saberId);
-    showMessage(`Wyposażono: ${saber?.name || saberId}`, saber?.color || "#c0c0c0");
+    // Moonblade: roll random bonuses on equip
+    if (saberId === "moonblade") {
+      const dmgBonus = Math.round(Math.random() * 60) / 100; // 0.00 - 0.60
+      const spellBonus = Math.round(Math.random() * 60) / 100;
+      setMoonbladeBonus({ dmgBonus, spellBonus });
+      showMessage(`Miecz Pełni Księżyca! +${Math.round(dmgBonus * 100)}% obrażenia, +${Math.round(spellBonus * 100)}% moc umiejętności`, "#d4a030");
+    } else {
+      showMessage(`Wyposażono: ${saber?.name || saberId}`, saber?.color || "#c0c0c0");
+    }
   };
 
   const rollAmmoDrop = () => {
@@ -5794,7 +5913,7 @@ export default function App() {
   // 8% chance to drop a saber from monster kills
   const rollSaberDrop = () => {
     if (Math.random() > 0.08) return;
-    const unowned = SABERS.filter(s => !s.starter && !ownedSabersRef.current.includes(s.id));
+    const unowned = SABERS.filter(s => !s.starter && !s.dropOnly && !ownedSabersRef.current.includes(s.id));
     if (unowned.length === 0) return;
     const saber = unowned[Math.floor(Math.random() * unowned.length)];
     setOwnedSabers(prev => {
@@ -6071,7 +6190,48 @@ export default function App() {
           boxShadow: "inset 0 0 10px rgba(0,0,0,0.4)", whiteSpace: "nowrap",
           opacity: transitioning ? 0 : 1, transition: "opacity 0.5s",
         }}>
-          Etap #{room} — <Icon name={biome.icon} size={14} /> {biome.name}{isNight ? <>{" "}<Icon name="moon" size={14} /></> : ""}{weather ? <>{" "}<Icon name={weather.icon} size={14} /></> : ""}{defenseMode ? <>{" "}<Icon name="swords" size={14} /> OBRONA</> : ""}
+          Etap #{room} — <Icon name={biome.icon} size={14} /> {biome.name}{isNight ? <>{" "}<Icon name="moon" size={14} /></> : ""}{weather ? <>{" "}<Icon name={weather.icon} size={14} /></> : ""}{defenseMode ? <>{" "}<Icon name="swords" size={14} /> OBRONA</> : ""}{ghostShipActive ? <>{" "}<Icon name="ghost" size={14} /> WIDMOWY STATEK</> : ""}
+        </div>
+      )}
+
+      {/* Morale indicator */}
+      {room > 0 && (() => {
+        const mt = getMoraleThreshold(morale);
+        return (
+          <div style={{
+            position: "absolute", top: isMobile ? 54 : 76, right: 8, zIndex: 20,
+            background: "rgba(26,14,18,0.85)", border: `1px solid ${mt.color}`,
+            padding: "2px 8px", fontSize: 9, color: mt.color,
+            textShadow: "1px 1px 0 #000", whiteSpace: "nowrap",
+          }}>
+            Morala: {mt.name} ({morale})
+            <div style={{ width: 60, height: 3, background: "rgba(0,0,0,0.5)", marginTop: 2, borderRadius: 2 }}>
+              <div style={{ width: `${morale}%`, height: "100%", background: mt.color, borderRadius: 2, transition: "width 0.3s" }} />
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Ghost Ship overlay */}
+      {ghostShipActive && (
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1,
+          background: "radial-gradient(ellipse at center, rgba(80,80,160,0.1), rgba(40,40,100,0.25) 100%)",
+          pointerEvents: "none",
+        }} />
+      )}
+
+      {/* Mutation warning */}
+      {activeMutations.length > 0 && (
+        <div style={{
+          position: "absolute", top: isMobile ? 54 : 76, left: 8, zIndex: 20,
+          background: "rgba(26,14,18,0.85)", border: "1px solid #cc60cc",
+          padding: "2px 6px", fontSize: 8, color: "#cc60cc",
+          textShadow: "1px 1px 0 #000",
+        }}>
+          {activeMutations.map((m, i) => (
+            <div key={i}>{m.npcName}: {m.mutation.name}</div>
+          ))}
         </div>
       )}
 
@@ -6502,16 +6662,16 @@ export default function App() {
           transform: "translate(-50%, -50%)",
         }}>
           <div style={{
-            width: item.type === "treasure" ? 32 : 24,
-            height: item.type === "treasure" ? 32 : 24,
-            filter: item.type === "treasure"
+            width: (item.type === "treasure" || item.type === "moonblade_saber") ? 32 : 24,
+            height: (item.type === "treasure" || item.type === "moonblade_saber") ? 32 : 24,
+            filter: (item.type === "treasure" || item.type === "moonblade_saber")
               ? "drop-shadow(0 0 8px rgba(255,200,0,0.8))"
               : "drop-shadow(0 0 4px rgba(255,180,0,0.5))",
           }}>
-            <Icon name={item.icon} size={item.type === "treasure" ? 28 : 20} />
+            <Icon name={item.icon} size={(item.type === "treasure" || item.type === "moonblade_saber") ? 28 : 20} />
           </div>
           <div style={{
-            fontSize: 8, color: item.type === "treasure" ? "#ffd700" : "#e0c080",
+            fontSize: 8, color: (item.type === "treasure" || item.type === "moonblade_saber") ? "#ffd700" : "#e0c080",
             textAlign: "center", textShadow: "0 1px 2px #000",
             marginTop: -2,
           }}>
@@ -6806,7 +6966,7 @@ export default function App() {
           {/* Recruit buttons */}
           <div style={{ display: "flex", gap: 3, justifyContent: "center", marginTop: 3 }}>
             {MERCENARY_TYPES.map(m => {
-              const cost = totalCopper(m.cost);
+              const cost = Math.round(totalCopper(m.cost) * (KNIGHT_LEVELS[knightLevel]?.mult || 1));
               const canAfford = totalCopper(money) >= cost;
               return (
                 <div key={m.id} onClick={() => canAfford && recruitFromCamp(m)}
@@ -7645,7 +7805,7 @@ export default function App() {
           initiative={initiative}
           maxInitiative={MAX_INITIATIVE}
           cost={CARAVAN_COST}
-          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !riverSegment && !worldMap && !riverMapOpen}
+          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !activeBoss && !walkers.some(w => !w.friendly && w.alive && !w.dying) && !riverSegment && !worldMap && !riverMapOpen}
           onClick={travelCaravan}
           hp={caravanHp}
           maxHp={CARAVAN_LEVELS[caravanLevel].hp}
