@@ -560,6 +560,7 @@ export class PhysicsWorld {
 
     const px = (xPct / 100) * this.W;
     entry._px = px;
+    entry._yPct = yPct ?? 65; // 2.5D: store Y percentage for depth sorting
     const groundY = yPct != null ? (yPct / 100) * this.H : this.GY;
     const bt = entry.bodyType;
 

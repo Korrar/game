@@ -6,6 +6,7 @@ import { CharacterSprite } from "./CharacterSprite.js";
 import { ProjectileRenderer } from "./ProjectileRenderer.js";
 import { CombatParticles } from "./CombatParticles.js";
 import { DamageNumbers } from "./DamageNumbers.js";
+import { depthFromY, scaleAtDepth, zIndexAtDepth } from "./DepthSystem.js";
 
 export class PixiRenderer {
   constructor() {
@@ -59,6 +60,7 @@ export class PixiRenderer {
 
     // Create layers
     this.npcLayer = new Container();
+    this.npcLayer.sortableChildren = true; // 2.5D depth sorting by Y
     this.projectileLayer = new Container();
     this.particleLayer = new Container();
     this.uiLayer = new Container();
@@ -149,7 +151,13 @@ export class PixiRenderer {
       }
       if (entry.hitFlash > 0) entry.hitFlash--;
 
-      char.update(entry, this.W, this.H, this.GY, this.fogVisibility);
+      // 2.5D: compute depth from NPC's Y percentage and apply to sprite
+      const yPct = entry._yPct ?? 65; // default to mid-ground if not set
+      const depth = depthFromY(yPct);
+      const depthScale = scaleAtDepth(depth);
+      char.container.zIndex = zIndexAtDepth(depth);
+
+      char.update(entry, this.W, this.H, this.GY, this.fogVisibility, depth, depthScale);
     }
 
     // Remove dead NPCs

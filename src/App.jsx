@@ -19,6 +19,7 @@ import { BiomeAnimator } from "./renderers/biomeAnimator";
 import { PhysicsWorld } from "./physics/RapierPhysicsWorld";
 import { initRapier } from "./physics/rapierInit";
 import { PixiRenderer } from "./rendering/PixiRenderer";
+import { depthFromY, scaleAtDepth, zIndexAtDepth } from "./rendering/DepthSystem";
 import {
   startMusic, toggleMusic, changeBiomeMusic, setMusicCombatIntensity, startRiverAmbience, stopRiverAmbience, sfxDoor, sfxChest, sfxSell,
   sfxStore, sfxRetrieve, sfxUpgrade, sfxGather, sfxBuy,
@@ -1790,9 +1791,14 @@ export default function App() {
           const bounceY = w.stationary ? 0 : Math.abs(Math.sin(w.bouncePhase)) * 4;
           const lungeX = w.lungeOffset || 0;
           const yPos = w.y != null ? w.y : 25;
+          // 2.5D: depth-based scaling and z-ordering for DOM walker elements
+          const walkerDepth = depthFromY(yPos);
+          const walkerScale = scaleAtDepth(walkerDepth);
+          const walkerZ = 10 + zIndexAtDepth(walkerDepth); // base 10 to stay above backgrounds
           el.style.left = `${w.x}%`;
           el.style.top = `calc(${yPos}% - 75px)`;
-          el.style.transform = `translateX(-50%) translateY(${-bounceY}px) translateX(${lungeX * w.dir}px)`;
+          el.style.zIndex = walkerZ;
+          el.style.transform = `translateX(-50%) translateY(${-bounceY}px) translateX(${lungeX * w.dir}px) scale(${walkerScale})`;
         }
         // Update physics body to match walker position
         if (physicsRef.current) {
@@ -7256,8 +7262,8 @@ export default function App() {
             position: "absolute",
             left: `${obs.x}%`,
             bottom: `${obs.y}%`,
-            zIndex: 5,
-            transform: `translateX(-50%) translateX(${shakeX}px)`,
+            zIndex: 10 + zIndexAtDepth(depthFromY(100 - obs.y)),
+            transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})`,
             transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "none",
             opacity: isDestroying ? 0 : 1,
             pointerEvents: "none",

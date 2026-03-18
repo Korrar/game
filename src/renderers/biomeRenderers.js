@@ -1,5 +1,6 @@
 import { seedRng } from "../utils/helpers";
 import { getIconImage } from "../rendering/icons.js";
+import { DEPTH_CONFIG } from "../rendering/DepthSystem.js";
 
 export function renderBiome(ctx, biome, room, W, H, isNight) {
   const GY = H * 0.25;
@@ -43,6 +44,12 @@ export function renderBiome(ctx, biome, room, W, H, isNight) {
   gnd.addColorStop(0, biome.groundCol); gnd.addColorStop(1, biome.groundBot);
   ctx.fillStyle = gnd; ctx.fillRect(0, GY, W, H - GY);
 
+  // 2.5D: atmospheric depth haze on ground (horizon is hazier)
+  const haze = ctx.createLinearGradient(0, GY, 0, GY + (H - GY) * 0.5);
+  haze.addColorStop(0, "rgba(180,190,210,0.25)");
+  haze.addColorStop(1, "rgba(180,190,210,0)");
+  ctx.fillStyle = haze; ctx.fillRect(0, GY, W, (H - GY) * 0.5);
+
   // Night ground darkening
   if (isNight) {
     ctx.fillStyle = "rgba(0,0,12,0.35)";
@@ -67,14 +74,32 @@ export function renderBiome(ctx, biome, room, W, H, isNight) {
 }
 
 function drawScatter(ctx, W, H, GY, r, items) {
-  for (let i = 0; i < 9; i++) {
+  // 2.5D: collect scatter objects, sort by Y (far first), scale by depth
+  const groundH = H - GY;
+  const scatterList = [];
+  for (let i = 0; i < 12; i++) {
     const iconName = items[Math.floor(r() * items.length)];
-    const x = r() * (W - 50) + 25, y = GY + 12 + r() * (H - GY - 45);
-    ctx.globalAlpha = 0.35 + r() * 0.5;
-    const sz = Math.round(16 + r() * 20);
-    const img = getIconImage(iconName, sz);
+    const x = r() * (W - 50) + 25;
+    const y = GY + 12 + r() * (groundH - 45);
+    scatterList.push({ iconName, x, y, rVal: r() });
+  }
+  // Sort by Y ascending (far objects drawn first — painter's algorithm)
+  scatterList.sort((a, b) => a.y - b.y);
+
+  for (const s of scatterList) {
+    // Depth: 0 at horizon (GY), 1 at bottom (H)
+    const depthT = Math.max(0, Math.min(1, (s.y - GY) / groundH));
+    // Scale: far objects smaller (0.6x), near objects bigger (1.4x)
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = minScale + (maxScale - minScale) * depthT;
+    // Alpha: far objects more transparent
+    const alpha = (0.25 + s.rVal * 0.4) * (0.6 + depthT * 0.4);
+    ctx.globalAlpha = alpha;
+    const baseSz = 16 + s.rVal * 20;
+    const sz = Math.round(baseSz * scale);
+    const img = getIconImage(s.iconName, sz);
     if (img) {
-      ctx.drawImage(img, x - sz / 2, y - sz / 2, sz, sz);
+      ctx.drawImage(img, s.x - sz / 2, s.y - sz / 2, sz, sz);
     }
   }
   ctx.globalAlpha = 1;
