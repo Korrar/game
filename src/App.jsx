@@ -2319,6 +2319,8 @@ export default function App() {
     setNextRoomPreview({ biome: nextB, isDefense: nextIsDefense, isBoss: nextIsBoss, isRiver: nextIsRiver, room: newRoom + 1 });
     setRoom(newRoom);
     setPanOffset(0);
+    panOffsetRef.current = 0;
+    if (pixiRef.current) pixiRef.current.setPanOffset(0);
     const isDefenseRoom = newRoom > 0 && newRoom % 5 === 0;
 
     // Reset caravan HP in defense rooms
@@ -4799,6 +4801,8 @@ export default function App() {
     const dx = (panRef.current.startX - clientX) / gameScale;
     const newOffset = panRef.current.startOffset + dx;
     panOffsetRef.current = newOffset;
+    // Update PixiJS stage offset for NPCs/projectiles
+    if (pixiRef.current) pixiRef.current.setPanOffset(newOffset);
     // Directly re-render canvas for smooth dragging (bypass React state)
     if (canvasRef.current && biome) {
       const c = canvasRef.current;
@@ -4811,6 +4815,7 @@ export default function App() {
     panRef.current.dragging = false;
     // Sync React state with final offset
     setPanOffset(panOffsetRef.current);
+    if (pixiRef.current) pixiRef.current.setPanOffset(panOffsetRef.current);
   }, []);
 
   // ─── SKILLSHOT: Canvas click handler for aiming ───
@@ -6672,7 +6677,7 @@ export default function App() {
 
       {/* Caravan moved to bottom bar above SpellBar */}
 
-      {showChest && <Chest pos={chestPos} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} />}
+      {showChest && <Chest pos={chestPos} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} panOffset={panOffset} gameW={GAME_W} />}
 
       {/* Meteorite event – falling from sky */}
       {meteorite && meteorite.phase === "falling" && (
@@ -7337,10 +7342,11 @@ export default function App() {
         // HP bar color: green → yellow → red
         const hpColor = hpPct > 0.5 ? `rgb(${Math.round(255 * (1 - hpPct) * 2)},200,40)` : `rgb(255,${Math.round(200 * hpPct * 2)},40)`;
 
+        const panShiftPx = -(panOffset / GAME_W) * 100;
         return (
           <div key={`obs-${obs.id}`} style={{
             position: "absolute",
-            left: `${obs.x}%`,
+            left: `calc(${obs.x}% + ${panShiftPx}%)`,
             bottom: `${obs.y}%`,
             zIndex: 10 + zIndexAtDepth(depthFromY(100 - obs.y)),
             transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})`,
@@ -7438,7 +7444,7 @@ export default function App() {
             // Explosion visual
             return (
               <div key={trap.id} style={{
-                position: "absolute", left: `${trap.x}%`, bottom: "12%", zIndex: 13,
+                position: "absolute", left: `calc(${trap.x}% - ${(panOffset / GAME_W) * 100}%)`, bottom: "12%", zIndex: 13,
                 transform: "translateX(-50%)", pointerEvents: "none",
                 fontSize: 28, animation: "dmgFloat 1.5s ease-out forwards",
               }}><Icon name="fire" size={28} /></div>
@@ -7446,7 +7452,7 @@ export default function App() {
           }
           return (
             <div key={trap.id} style={{
-              position: "absolute", left: `${trap.x}%`, bottom: "22.5%", zIndex: 10,
+              position: "absolute", left: `calc(${trap.x}% - ${(panOffset / GAME_W) * 100}%)`, bottom: "22.5%", zIndex: 10,
               transform: "translateX(-50%)", pointerEvents: "none",
             }}>
               {/* Partially buried mine */}
@@ -7528,7 +7534,7 @@ export default function App() {
           }}
           style={{
             position: "absolute",
-            left: `${barrel.x}%`,
+            left: `calc(${barrel.x}% - ${(panOffset / GAME_W) * 100}%)`,
             top: `${barrel.y}%`,
             transform: "translate(-50%, -50%)",
             zIndex: 10,

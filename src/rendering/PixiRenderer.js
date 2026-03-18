@@ -31,6 +31,7 @@ export class PixiRenderer {
     this._shakeX = 0;
     this._shakeY = 0;
     this._shakeDecay = 0;
+    this._panOffset = 0;
     // Destruction systems
     this._debris = [];
     this._groundMarks = [];
@@ -128,6 +129,11 @@ export class PixiRenderer {
     delete this.characters[walkerId];
   }
 
+  // Panoramic offset for 360° scrolling
+  setPanOffset(offset) {
+    this._panOffset = offset || 0;
+  }
+
   // ─── RENDER FRAME ───
 
   render(bodies, projectiles, fogVisibility, playerSkillshots, mines, areaIndicators) {
@@ -135,16 +141,17 @@ export class PixiRenderer {
     this.fogVisibility = fogVisibility || 0;
 
     // Screen shake
+    const panX = -(this._panOffset || 0);
     if (this._shakeDecay > 0) {
       this._shakeX = (Math.random() - 0.5) * this._shakeDecay;
       this._shakeY = (Math.random() - 0.5) * this._shakeDecay;
       this._shakeDecay *= 0.9;
       if (this._shakeDecay < 0.5) this._shakeDecay = 0;
-      this.app.stage.position.set(this._shakeX, this._shakeY);
-    } else if (this._shakeX !== 0 || this._shakeY !== 0) {
+      this.app.stage.position.set(this._shakeX + panX, this._shakeY);
+    } else if (this._shakeX !== 0 || this._shakeY !== 0 || this.app.stage.position.x !== panX) {
       this._shakeX = 0;
       this._shakeY = 0;
-      this.app.stage.position.set(0, 0);
+      this.app.stage.position.set(panX, 0);
     }
 
     // Update NPC sprites

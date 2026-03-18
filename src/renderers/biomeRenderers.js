@@ -220,36 +220,67 @@ function drawPanoramaPOIs(ctx, viewW, H, GY, biome, room, normOff, panWorldW) {
     // Wrap to viewport
     for (let shift = -1; shift <= 1; shift++) {
       let screenX = poiWorldX - normOff + shift * panWorldW;
-      if (screenX < -50 || screenX > viewW + 50) continue;
+      if (screenX < -80 || screenX > viewW + 80) continue;
 
       const poiY = GY + poi.y * groundH;
       const depthT = poi.y;
-      const scale = 0.6 + depthT * 0.6;
-      const iconSize = Math.round(18 * scale);
+      const scale = 0.7 + depthT * 0.8;
+      const iconSize = Math.round(28 * scale);
 
-      // Glow — parse hex color to rgba
-      const glowR = 22 * scale;
+      // Outer glow (large, soft)
       const gc = poi.glow;
       const gr = parseInt(gc.slice(1, 3), 16), gg = parseInt(gc.slice(3, 5), 16), gb = parseInt(gc.slice(5, 7), 16);
-      const glow = ctx.createRadialGradient(screenX, poiY, 2, screenX, poiY, glowR);
-      glow.addColorStop(0, `rgba(${gr},${gg},${gb},0.4)`);
-      glow.addColorStop(1, "transparent");
-      ctx.fillStyle = glow;
-      ctx.fillRect(screenX - glowR, poiY - glowR, glowR * 2, glowR * 2);
+      const outerR = 40 * scale;
+      const outerGlow = ctx.createRadialGradient(screenX, poiY, 3, screenX, poiY, outerR);
+      outerGlow.addColorStop(0, `rgba(${gr},${gg},${gb},0.5)`);
+      outerGlow.addColorStop(0.5, `rgba(${gr},${gg},${gb},0.15)`);
+      outerGlow.addColorStop(1, "transparent");
+      ctx.fillStyle = outerGlow;
+      ctx.fillRect(screenX - outerR, poiY - outerR, outerR * 2, outerR * 2);
 
-      // Icon
-      ctx.globalAlpha = 0.5 + depthT * 0.4;
+      // Inner bright glow
+      const innerR = 16 * scale;
+      const innerGlow = ctx.createRadialGradient(screenX, poiY, 1, screenX, poiY, innerR);
+      innerGlow.addColorStop(0, `rgba(${gr},${gg},${gb},0.6)`);
+      innerGlow.addColorStop(1, "transparent");
+      ctx.fillStyle = innerGlow;
+      ctx.fillRect(screenX - innerR, poiY - innerR, innerR * 2, innerR * 2);
+
+      // Background plate for icon
+      ctx.globalAlpha = 0.35 + depthT * 0.3;
+      ctx.fillStyle = `rgba(0,0,0,0.4)`;
+      ctx.beginPath();
+      ctx.arc(screenX, poiY, iconSize * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ring around icon
+      ctx.strokeStyle = `rgba(${gr},${gg},${gb},${0.5 + depthT * 0.3})`;
+      ctx.lineWidth = 1.5 * scale;
+      ctx.beginPath();
+      ctx.arc(screenX, poiY, iconSize * 0.75, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Icon (bigger)
+      ctx.globalAlpha = 0.7 + depthT * 0.3;
       const img = getIconImage(poi.icon, iconSize);
       if (img) {
         ctx.drawImage(img, screenX - iconSize / 2, poiY - iconSize / 2, iconSize, iconSize);
       }
 
-      // Label
-      ctx.fillStyle = poi.glow;
-      ctx.globalAlpha = 0.4 + depthT * 0.3;
-      ctx.font = `${Math.round(9 * scale)}px monospace`;
+      // Label with background
+      const fontSize = Math.round(11 * scale);
+      ctx.font = `bold ${fontSize}px monospace`;
       ctx.textAlign = "center";
-      ctx.fillText(poi.label, screenX, poiY + iconSize / 2 + 10 * scale);
+      const labelY = poiY + iconSize / 2 + 12 * scale;
+      const textW = ctx.measureText(poi.label).width;
+      // Label background
+      ctx.globalAlpha = 0.35 + depthT * 0.2;
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.fillRect(screenX - textW / 2 - 4, labelY - fontSize + 1, textW + 8, fontSize + 4);
+      // Label text
+      ctx.globalAlpha = 0.7 + depthT * 0.3;
+      ctx.fillStyle = poi.glow;
+      ctx.fillText(poi.label, screenX, labelY);
       ctx.textAlign = "start";
       ctx.globalAlpha = 1;
       break; // only draw one copy
