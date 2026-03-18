@@ -2,11 +2,15 @@ import { seedRng } from "../utils/helpers";
 import { getIconImage } from "../rendering/icons.js";
 import { DEPTH_CONFIG } from "../rendering/DepthSystem.js";
 
-export function renderBiome(ctx, biome, room, W, H, isNight) {
+// Panoramic world is 3x wider than the viewport — seamless wrap-around
+export const PANORAMA_WORLD_W = 3;  // multiplier of viewport width
+
+export function renderBiome(ctx, biome, room, W, H, isNight, panOffset = 0) {
   const GY = H * 0.25;
   const rng = seedRng(room * 137 + 42);
+  const worldW = W * PANORAMA_WORLD_W;
 
-  // Sky
+  // Sky (full viewport, no pan — sky is always visible)
   const sky = ctx.createLinearGradient(0, 0, 0, GY);
   sky.addColorStop(0, biome.skyTop); sky.addColorStop(1, biome.skyBot);
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, GY);
@@ -72,12 +76,34 @@ export function renderBiome(ctx, biome, room, W, H, isNight) {
     ctx.fillRect(0, GY, W, H - GY);
   }
 
-  // Biome-specific
+  // Biome-specific + scatter: render in panoramic world space with wrapping
+  // We draw the content 3x shifted to create seamless wrap, clipped to viewport
   const fns = { jungle: drawJungle, island: drawIsland, desert: drawDesert, winter: drawWinter, city: drawCity, volcano: drawVolcano, summer: drawSummer, autumn: drawAutumn, spring: drawSpring, mushroom: drawMushroom, swamp: drawSwamp, sunset_beach: drawSunsetBeach, bamboo_falls: drawBambooFalls, blue_lagoon: drawBlueLagoon, olympus: drawOlympus, underworld: drawUnderworld };
-  if (fns[biome.renderFn]) fns[biome.renderFn](ctx, W, H, GY, rng);
+  const drawFn = fns[biome.renderFn];
+  const panWorldW = W * PANORAMA_WORLD_W;
+  // Normalize panOffset into [0, panWorldW)
+  const normOff = ((panOffset % panWorldW) + panWorldW) % panWorldW;
 
-  // Scatter
-  drawScatter(ctx, W, H, GY, rng, biome.scatter);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  ctx.clip();
+  // Draw biome content at shifted positions for seamless wrapping
+  for (let shift = -1; shift <= 1; shift++) {
+    const tx = -normOff + shift * panWorldW;
+    // Only draw if this copy overlaps the viewport
+    if (tx + panWorldW < -10 || tx > W + 10) continue;
+    ctx.save();
+    ctx.translate(tx, 0);
+    const shiftRng = seedRng(room * 137 + 42); // re-seed per copy so content is identical
+    if (drawFn) drawFn(ctx, panWorldW, H, GY, shiftRng);
+    drawScatter(ctx, panWorldW, H, GY, shiftRng, biome.scatter);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // Panoramic POIs — discoverable landmarks distributed around the 360° view
+  drawPanoramaPOIs(ctx, W, H, GY, biome, room, normOff, panWorldW);
 
   // Fog
   ctx.fillStyle = biome.fogCol; ctx.fillRect(0, 0, W, H);
@@ -86,6 +112,148 @@ export function renderBiome(ctx, biome, room, W, H, isNight) {
   if (isNight) {
     ctx.fillStyle = "rgba(5,5,20,0.15)";
     ctx.fillRect(0, 0, W, H);
+  }
+}
+
+// Panoramic POI definitions — landmarks visible when scrolling around
+const PANORAMA_POIS = {
+  jungle: [
+    { icon: "rock", label: "Ruiny Świątyni", y: 0.35, glow: "#40a040" },
+    { icon: "skull", label: "Totemy Tubylców", y: 0.45, glow: "#a06020" },
+    { icon: "treasure", label: "Ukryty Skarb", y: 0.55, glow: "#d4a030" },
+    { icon: "water", label: "Wodospad", y: 0.30, glow: "#4080c0" },
+  ],
+  island: [
+    { icon: "anchor", label: "Wrak Galeonu", y: 0.50, glow: "#3080a0" },
+    { icon: "treasure", label: "Piracka Skrytka", y: 0.40, glow: "#d4a030" },
+    { icon: "compass", label: "Latarnia Morska", y: 0.28, glow: "#ffe060" },
+  ],
+  desert: [
+    { icon: "rock", label: "Piramida", y: 0.30, glow: "#c0a040" },
+    { icon: "skull", label: "Cmentarzysko", y: 0.50, glow: "#a06030" },
+    { icon: "gem", label: "Oaza", y: 0.42, glow: "#40c080" },
+    { icon: "scroll", label: "Hieroglify", y: 0.38, glow: "#d0b060" },
+  ],
+  winter: [
+    { icon: "rock", label: "Lodowa Jaskinia", y: 0.35, glow: "#80c0ff" },
+    { icon: "fire", label: "Obozowisko", y: 0.50, glow: "#ff8040" },
+    { icon: "gem", label: "Kryształ Lodu", y: 0.40, glow: "#a0d0ff" },
+  ],
+  city: [
+    { icon: "shop", label: "Tawerna", y: 0.45, glow: "#ffa040" },
+    { icon: "shield", label: "Arsenał", y: 0.38, glow: "#8080a0" },
+    { icon: "scroll", label: "Biblioteka", y: 0.42, glow: "#c0a060" },
+    { icon: "gold", label: "Bank", y: 0.35, glow: "#d4a030" },
+  ],
+  volcano: [
+    { icon: "fire", label: "Krater", y: 0.30, glow: "#ff4020" },
+    { icon: "gem", label: "Obsydianowa Żyła", y: 0.48, glow: "#6040a0" },
+    { icon: "skull", label: "Ołtarz Ognia", y: 0.42, glow: "#ff6020" },
+  ],
+  summer: [
+    { icon: "herb", label: "Ogród Ziołowy", y: 0.45, glow: "#60c040" },
+    { icon: "water", label: "Staw", y: 0.50, glow: "#4080c0" },
+    { icon: "banjo", label: "Młyn", y: 0.35, glow: "#a08040" },
+  ],
+  autumn: [
+    { icon: "rock", label: "Kamienny Krąg", y: 0.40, glow: "#a06030" },
+    { icon: "treasure", label: "Stara Piwnica", y: 0.52, glow: "#c08030" },
+    { icon: "herb", label: "Grzybobranie", y: 0.48, glow: "#80a040" },
+  ],
+  spring: [
+    { icon: "water", label: "Źródełko", y: 0.42, glow: "#60a0d0" },
+    { icon: "feather", label: "Gniazdo Feniksa", y: 0.30, glow: "#ff8060" },
+    { icon: "herb", label: "Polana Kwiatów", y: 0.50, glow: "#e060a0" },
+  ],
+  mushroom: [
+    { icon: "gem", label: "Kryształowa Grota", y: 0.38, glow: "#a040e0" },
+    { icon: "eye", label: "Luminescencja", y: 0.48, glow: "#60e0a0" },
+    { icon: "vortex", label: "Portal Grzybni", y: 0.42, glow: "#c040ff" },
+  ],
+  swamp: [
+    { icon: "skull", label: "Bagienne Świece", y: 0.45, glow: "#60a040" },
+    { icon: "vortex", label: "Trzęsawisko", y: 0.52, glow: "#408040" },
+    { icon: "scroll", label: "Zapomniana Kaplica", y: 0.38, glow: "#a0a060" },
+  ],
+  olympus: [
+    { icon: "lightning", label: "Tron Zeusa", y: 0.30, glow: "#80b0ff" },
+    { icon: "shield", label: "Zbrojownia Ateny", y: 0.42, glow: "#c0c0d0" },
+    { icon: "star", label: "Ogród Hesperyd", y: 0.48, glow: "#ffe060" },
+    { icon: "harpoon", label: "Fontanna Posejdona", y: 0.38, glow: "#4080ff" },
+  ],
+  underworld: [
+    { icon: "skull", label: "Tron Hadesa", y: 0.35, glow: "#8040c0" },
+    { icon: "fire", label: "Pola Asfodelowe", y: 0.48, glow: "#60a060" },
+    { icon: "vortex", label: "Tartar", y: 0.42, glow: "#c04040" },
+    { icon: "eye", label: "Sąd Minosza", y: 0.38, glow: "#d0a0ff" },
+  ],
+  sunset_beach: [
+    { icon: "anchor", label: "Koralowy Rif", y: 0.50, glow: "#ff8060" },
+    { icon: "treasure", label: "Zatopiona Skrzynia", y: 0.55, glow: "#d4a030" },
+    { icon: "compass", label: "Wieża Obserwacyjna", y: 0.30, glow: "#ffc060" },
+  ],
+  bamboo_falls: [
+    { icon: "scroll", label: "Świątynia Zen", y: 0.35, glow: "#80c060" },
+    { icon: "gem", label: "Jadeitowa Grota", y: 0.45, glow: "#40c080" },
+    { icon: "water", label: "Ukryty Wodospad", y: 0.38, glow: "#60a0d0" },
+  ],
+  blue_lagoon: [
+    { icon: "gem", label: "Perłowa Muszla", y: 0.48, glow: "#80d0ff" },
+    { icon: "anchor", label: "Podwodne Ruiny", y: 0.55, glow: "#4080c0" },
+    { icon: "star", label: "Fosforyzujące Algi", y: 0.42, glow: "#40ffa0" },
+  ],
+};
+
+function drawPanoramaPOIs(ctx, viewW, H, GY, biome, room, normOff, panWorldW) {
+  const pois = PANORAMA_POIS[biome.renderFn];
+  if (!pois || pois.length === 0) return;
+
+  const rng = seedRng(room * 251 + 77); // separate seed for POI placement
+  const groundH = H - GY;
+
+  for (let i = 0; i < pois.length; i++) {
+    const poi = pois[i];
+    // Distribute POIs evenly across the panoramic world with some randomness
+    const baseX = (i / pois.length) * panWorldW + rng() * (panWorldW / pois.length * 0.6);
+    const poiWorldX = baseX % panWorldW;
+
+    // Wrap to viewport
+    for (let shift = -1; shift <= 1; shift++) {
+      let screenX = poiWorldX - normOff + shift * panWorldW;
+      if (screenX < -50 || screenX > viewW + 50) continue;
+
+      const poiY = GY + poi.y * groundH;
+      const depthT = poi.y;
+      const scale = 0.6 + depthT * 0.6;
+      const iconSize = Math.round(18 * scale);
+
+      // Glow — parse hex color to rgba
+      const glowR = 22 * scale;
+      const gc = poi.glow;
+      const gr = parseInt(gc.slice(1, 3), 16), gg = parseInt(gc.slice(3, 5), 16), gb = parseInt(gc.slice(5, 7), 16);
+      const glow = ctx.createRadialGradient(screenX, poiY, 2, screenX, poiY, glowR);
+      glow.addColorStop(0, `rgba(${gr},${gg},${gb},0.4)`);
+      glow.addColorStop(1, "transparent");
+      ctx.fillStyle = glow;
+      ctx.fillRect(screenX - glowR, poiY - glowR, glowR * 2, glowR * 2);
+
+      // Icon
+      ctx.globalAlpha = 0.5 + depthT * 0.4;
+      const img = getIconImage(poi.icon, iconSize);
+      if (img) {
+        ctx.drawImage(img, screenX - iconSize / 2, poiY - iconSize / 2, iconSize, iconSize);
+      }
+
+      // Label
+      ctx.fillStyle = poi.glow;
+      ctx.globalAlpha = 0.4 + depthT * 0.3;
+      ctx.font = `${Math.round(9 * scale)}px monospace`;
+      ctx.textAlign = "center";
+      ctx.fillText(poi.label, screenX, poiY + iconSize / 2 + 10 * scale);
+      ctx.textAlign = "start";
+      ctx.globalAlpha = 1;
+      break; // only draw one copy
+    }
   }
 }
 
