@@ -50,6 +50,22 @@ export function renderBiome(ctx, biome, room, W, H, isNight) {
   haze.addColorStop(1, "rgba(180,190,210,0)");
   ctx.fillStyle = haze; ctx.fillRect(0, GY, W, (H - GY) * 0.5);
 
+  // 2.5D: color desaturation band near horizon — washes out colors at distance
+  const desat = ctx.createLinearGradient(0, GY, 0, GY + (H - GY) * 0.35);
+  desat.addColorStop(0, `rgba(200,200,210,${DEPTH_CONFIG.desatMax})`);
+  desat.addColorStop(1, "rgba(200,200,210,0)");
+  ctx.fillStyle = desat; ctx.fillRect(0, GY, W, (H - GY) * 0.35);
+
+  // 2.5D: depth lines — subtle horizontal lines that reinforce perspective
+  ctx.strokeStyle = "rgba(0,0,0,0.03)";
+  ctx.lineWidth = 1;
+  const groundH = H - GY;
+  for (let i = 0; i < 6; i++) {
+    const t = i / 6;
+    const ly = GY + t * groundH * 0.7;
+    ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(W, ly); ctx.stroke();
+  }
+
   // Night ground darkening
   if (isNight) {
     ctx.fillStyle = "rgba(0,0,12,0.35)";
@@ -57,7 +73,7 @@ export function renderBiome(ctx, biome, room, W, H, isNight) {
   }
 
   // Biome-specific
-  const fns = { jungle: drawJungle, island: drawIsland, desert: drawDesert, winter: drawWinter, city: drawCity, volcano: drawVolcano, summer: drawSummer, autumn: drawAutumn, spring: drawSpring, mushroom: drawMushroom, swamp: drawSwamp, sunset_beach: drawSunsetBeach, bamboo_falls: drawBambooFalls, blue_lagoon: drawBlueLagoon };
+  const fns = { jungle: drawJungle, island: drawIsland, desert: drawDesert, winter: drawWinter, city: drawCity, volcano: drawVolcano, summer: drawSummer, autumn: drawAutumn, spring: drawSpring, mushroom: drawMushroom, swamp: drawSwamp, sunset_beach: drawSunsetBeach, bamboo_falls: drawBambooFalls, blue_lagoon: drawBlueLagoon, olympus: drawOlympus, underworld: drawUnderworld };
   if (fns[biome.renderFn]) fns[biome.renderFn](ctx, W, H, GY, rng);
 
   // Scatter
@@ -1153,4 +1169,206 @@ function drawBlueLagoon(ctx, W, H, GY, r) {
   tropGlow.addColorStop(1, "transparent");
   ctx.fillStyle = tropGlow;
   ctx.fillRect(0, 0, W, H);
+}
+
+function drawOlympus(ctx, W, H, GY, r) {
+  // --- Mountain ranges (layered, 2.5D depth) ---
+  for (let layer = 0; layer < 4; layer++) {
+    const baseY = GY - 10 + layer * 15;
+    const alpha = 0.15 + layer * 0.12;
+    const lightness = 70 - layer * 12;
+    ctx.fillStyle = `hsla(220,20%,${lightness}%,${alpha})`;
+    ctx.beginPath(); ctx.moveTo(0, baseY + 60);
+    for (let x = 0; x <= W; x += 12) {
+      const peak = Math.sin(x * 0.005 + layer * 2.1) * (50 - layer * 8) + Math.sin(x * 0.013 + layer) * 20;
+      ctx.lineTo(x, baseY - peak);
+    }
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+  }
+
+  // --- Greek temple / columns ---
+  const templeX = W * 0.3 + r() * W * 0.4;
+  const templeY = GY + 5;
+  ctx.globalAlpha = 0.3 + r() * 0.2;
+  // Columns
+  for (let c = 0; c < 6; c++) {
+    const cx = templeX - 50 + c * 20;
+    const ch = 60 + r() * 30;
+    // Column shaft
+    ctx.fillStyle = `hsl(40,15%,${75 + r() * 10}%)`;
+    ctx.fillRect(cx - 3, templeY - ch, 6, ch);
+    // Column capital (Ionic style)
+    ctx.fillRect(cx - 6, templeY - ch - 4, 12, 4);
+    // Column base
+    ctx.fillRect(cx - 5, templeY - 3, 10, 3);
+  }
+  // Pediment (triangle roof)
+  ctx.fillStyle = `hsl(40,12%,${72 + r() * 8}%)`;
+  ctx.beginPath();
+  ctx.moveTo(templeX - 60, templeY - 90 - r() * 20);
+  ctx.lineTo(templeX, templeY - 130 - r() * 20);
+  ctx.lineTo(templeX + 60, templeY - 90 - r() * 20);
+  ctx.closePath(); ctx.fill();
+  // Architrave
+  ctx.fillRect(templeX - 62, templeY - 90 - r() * 20, 124, 6);
+  ctx.globalAlpha = 1;
+
+  // --- Marble stone path ---
+  ctx.fillStyle = "rgba(200,195,180,0.12)";
+  for (let i = 0; i < 25; i++) {
+    const sx = r() * W, sy = GY + 15 + r() * (H - GY - 20);
+    ctx.fillRect(sx, sy, 12 + r() * 18, 4 + r() * 6);
+  }
+
+  // --- Olive trees ---
+  for (let i = 0; i < 4; i++) {
+    const tx = r() * W, ty = GY - 5 + r() * 20;
+    const th = 40 + r() * 50;
+    ctx.globalAlpha = 0.25 + r() * 0.2;
+    // Trunk
+    ctx.fillStyle = `hsl(30,30%,${30 + r() * 10}%)`;
+    ctx.fillRect(tx - 2, ty - th * 0.2, 4, th * 0.3);
+    // Canopy (silver-green olive leaves)
+    for (let l = 0; l < 3; l++) {
+      ctx.fillStyle = `hsl(${80 + r() * 30},${30 + r() * 15}%,${35 + r() * 15}%)`;
+      ctx.beginPath();
+      ctx.ellipse(tx + (r() - 0.5) * 12, ty - th * 0.25 - l * 10, 15 + r() * 10, 10 + r() * 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // --- Broken statue fragments ---
+  for (let i = 0; i < 3; i++) {
+    const sx = r() * W, sy = GY + 25 + r() * (H - GY - 40);
+    ctx.globalAlpha = 0.2 + r() * 0.1;
+    ctx.fillStyle = `hsl(40,10%,${70 + r() * 15}%)`;
+    // Fallen column piece
+    ctx.fillRect(sx, sy, 20 + r() * 25, 6 + r() * 4);
+    // Rubble
+    for (let j = 0; j < 3; j++) {
+      ctx.beginPath(); ctx.arc(sx + r() * 30, sy + 8 + r() * 8, 2 + r() * 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // --- Divine sky glow ---
+  const glow = ctx.createRadialGradient(W * 0.5, GY * 0.3, 20, W * 0.5, GY * 0.3, W * 0.5);
+  glow.addColorStop(0, "rgba(255,220,120,0.08)");
+  glow.addColorStop(0.5, "rgba(200,180,255,0.03)");
+  glow.addColorStop(1, "transparent");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, GY);
+}
+
+function drawUnderworld(ctx, W, H, GY, r) {
+  // --- Stygian river (dark flowing water at bottom) ---
+  const riverY = H * 0.82;
+  const riverG = ctx.createLinearGradient(0, riverY, 0, H);
+  riverG.addColorStop(0, "rgba(20,10,40,0.7)");
+  riverG.addColorStop(1, "rgba(10,5,25,0.9)");
+  ctx.fillStyle = riverG; ctx.fillRect(0, riverY, W, H - riverY);
+  // River surface glow
+  ctx.strokeStyle = "rgba(80,40,120,0.25)"; ctx.lineWidth = 2;
+  for (let row = 0; row < 4; row++) {
+    const y = riverY + row * 8 + 3;
+    ctx.beginPath();
+    for (let x = 0; x < W; x += 4) {
+      const yy = y + Math.sin(x * 0.02 + row * 2.5) * 3;
+      x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
+    }
+    ctx.stroke();
+  }
+
+  // --- Stalactites hanging from ceiling ---
+  for (let i = 0; i < 12; i++) {
+    const sx = r() * W, slen = 15 + r() * 40;
+    ctx.globalAlpha = 0.3 + r() * 0.25;
+    ctx.fillStyle = `hsl(${270 + r() * 30},15%,${15 + r() * 10}%)`;
+    ctx.beginPath();
+    ctx.moveTo(sx - 4 - r() * 3, GY - 8);
+    ctx.lineTo(sx, GY + slen);
+    ctx.lineTo(sx + 4 + r() * 3, GY - 8);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // --- Bone piles ---
+  for (let i = 0; i < 6; i++) {
+    const bx = r() * W, by = GY + 20 + r() * (H - GY - 40);
+    ctx.globalAlpha = 0.2 + r() * 0.15;
+    ctx.strokeStyle = `hsl(40,20%,${60 + r() * 20}%)`;
+    ctx.lineWidth = 1.5;
+    for (let b = 0; b < 4; b++) {
+      const ox = bx + (r() - 0.5) * 20, oy = by + r() * 8;
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + 8 + r() * 8, oy + (r() - 0.5) * 6); ctx.stroke();
+    }
+    // Skull
+    if (r() > 0.5) {
+      ctx.fillStyle = `hsl(40,15%,${65 + r() * 15}%)`;
+      ctx.beginPath(); ctx.arc(bx, by - 2, 3 + r() * 2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // --- Ghost flames (eerie green-purple fire) ---
+  for (let i = 0; i < 5; i++) {
+    const fx = r() * W, fy = GY + 10 + r() * (H - GY - 30);
+    const fh = 12 + r() * 18;
+    const flameG = ctx.createRadialGradient(fx, fy - fh * 0.3, 2, fx, fy, fh);
+    const hue = r() > 0.5 ? 280 : 140; // purple or green
+    flameG.addColorStop(0, `hsla(${hue},60%,50%,0.25)`);
+    flameG.addColorStop(1, "transparent");
+    ctx.fillStyle = flameG;
+    ctx.fillRect(fx - fh, fy - fh, fh * 2, fh * 2);
+  }
+
+  // --- Dark rocky formations ---
+  for (let i = 0; i < 6; i++) {
+    const rx = r() * W, ry = GY + r() * 15;
+    const rh = 25 + r() * 40, rw = 12 + r() * 20;
+    ctx.globalAlpha = 0.35 + r() * 0.2;
+    ctx.fillStyle = `hsl(${260 + r() * 30},10%,${10 + r() * 8}%)`;
+    ctx.beginPath();
+    ctx.moveTo(rx - rw / 2, ry);
+    ctx.lineTo(rx - rw * 0.3, ry - rh);
+    ctx.lineTo(rx + rw * 0.1, ry - rh * 0.8);
+    ctx.lineTo(rx + rw / 2, ry);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // --- Chains hanging ---
+  for (let i = 0; i < 3; i++) {
+    const cx = r() * W, clen = 30 + r() * 50;
+    ctx.strokeStyle = `rgba(100,80,60,${0.2 + r() * 0.15})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx, GY - 5);
+    for (let s = 0; s < clen; s += 6) {
+      ctx.lineTo(cx + Math.sin(s * 0.3) * 3, GY + s);
+    }
+    ctx.stroke();
+  }
+
+  // --- Ambient hellish glow from below ---
+  const hellGlow = ctx.createLinearGradient(0, H - 40, 0, H);
+  hellGlow.addColorStop(0, "transparent");
+  hellGlow.addColorStop(1, "rgba(120,30,60,0.15)");
+  ctx.fillStyle = hellGlow; ctx.fillRect(0, H - 40, W, 40);
+
+  // --- Gates of Hades silhouette ---
+  const gx = W * 0.5, gy = GY;
+  ctx.globalAlpha = 0.15;
+  ctx.fillStyle = "#0a0508";
+  // Left pillar
+  ctx.fillRect(gx - 55, gy - 80, 12, 80);
+  // Right pillar
+  ctx.fillRect(gx + 43, gy - 80, 12, 80);
+  // Arch
+  ctx.beginPath();
+  ctx.arc(gx, gy - 80, 55, Math.PI, 0);
+  ctx.lineTo(gx + 55, gy - 80);
+  ctx.arc(gx, gy - 80, 43, 0, Math.PI, true);
+  ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 1;
 }

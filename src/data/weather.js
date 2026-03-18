@@ -22,7 +22,7 @@ export const WEATHER_TYPES = {
     fogVisibility: 0.15,
     fxOverride: { fog: true, fogIntensity: 3.0 },
     excludeBiomes: ["desert", "volcano"],
-    weight: 1,
+    weight: 0.2,
     // Skillshot effect: enemies spawn closer (reduced visibility range)
     skillshotEffect: "reduced_range",
     rangeReduction: 0.7,

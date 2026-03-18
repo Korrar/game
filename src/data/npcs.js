@@ -100,6 +100,22 @@ export const BIOME_NPCS = {
     { icon: "water", name: "Duch Zatopionego Kapitana", hp: 65, resist: "ice", loot: { silver: 2 }, rarity: "epic", bodyColor: "#3060a0", armorColor: "#204070", bodyType: "floating", ability: { type: "iceShot", damage: 12, cooldown: 4000, element: "ice", range: 28 } },
     { icon: "skull", name: "Elektryczny Węgorz", hp: 38, resist: "ice", loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#40a0c0", armorColor: "#207090", bodyType: "serpent", ability: { type: "iceShot", damage: 10, cooldown: 4500, element: "lightning", range: 22 } },
   ],
+  olympus: [
+    { icon: "swords", name: "Spartański Wojownik", hp: 55, resist: null, loot: { copper: 18 }, rarity: "uncommon", bodyColor: "#c0a070", armorColor: "#8a6030", bodyType: "humanoid", ability: { type: "charge", damage: 14, cooldown: 5000, element: null, range: 26 } },
+    { icon: "lightning", name: "Kapłan Zeusa", hp: 65, resist: null, loot: { silver: 1, copper: 10 }, rarity: "rare", bodyColor: "#e0d8c0", armorColor: "#4060b0", bodyType: "humanoid", ability: { type: "shadowBolt", damage: 15, cooldown: 4000, element: "lightning", range: 30 } },
+    { icon: "star", name: "Gryfon Olimpijski", hp: 70, resist: null, loot: { silver: 1, copper: 15 }, rarity: "epic", bodyColor: "#c4a040", armorColor: "#8a7020", bodyType: "floating", ability: { type: "charge", damage: 18, cooldown: 5500, element: null, range: 32 } },
+    { icon: "skull", name: "Kamienny Gargulec", hp: 50, resist: "fire", loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#808080", armorColor: "#505050", bodyType: "quadruped", ability: { type: "charge", damage: 12, cooldown: 5000, element: null, range: 22 } },
+    { icon: "skull", name: "Minotaur", hp: 85, resist: null, loot: { silver: 2 }, rarity: "epic", bodyColor: "#6a4a30", armorColor: "#3a2818", bodyType: "quadruped", ability: { type: "charge", damage: 20, cooldown: 6000, element: null, range: 35 } },
+    { icon: "fire", name: "Chimera", hp: 75, resist: "fire", loot: { silver: 1, copper: 20 }, rarity: "rare", bodyColor: "#a06040", armorColor: "#604020", bodyType: "quadruped", ability: { type: "fireBreath", damage: 14, cooldown: 4500, element: "fire", range: 24 } },
+  ],
+  underworld: [
+    { icon: "skull", name: "Szkielet Hoplita", hp: 40, resist: null, loot: { copper: 14 }, rarity: "common", bodyColor: "#d0c8a0", armorColor: "#504030", bodyType: "humanoid", ability: { type: "charge", damage: 10, cooldown: 4500, element: null, range: 22 } },
+    { icon: "ghost", name: "Cień Achillesa", hp: 60, resist: "ice", loot: { silver: 1 }, rarity: "rare", bodyColor: "#5050a0", armorColor: "#303070", bodyType: "floating", ability: { type: "shadowBolt", damage: 14, cooldown: 4000, element: "shadow", range: 28 } },
+    { icon: "fire", name: "Demoniczny Pies Cerbera", hp: 80, resist: "fire", loot: { silver: 2 }, rarity: "epic", bodyColor: "#3a1a1a", armorColor: "#1a0a0a", bodyType: "quadruped", ability: { type: "fireBreath", damage: 16, cooldown: 5000, element: "fire", range: 24 } },
+    { icon: "skull", name: "Empuza", hp: 45, resist: null, loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#8a4060", armorColor: "#502040", bodyType: "humanoid", ability: { type: "poisonSpit", damage: 10, cooldown: 3500, element: "shadow", range: 22 } },
+    { icon: "poison", name: "Jadowitа Hydra", hp: 90, resist: null, loot: { silver: 2, copper: 10 }, rarity: "legendary", bodyColor: "#306040", armorColor: "#1a3020", bodyType: "serpent", ability: { type: "poisonSpit", damage: 12, cooldown: 3000, element: "shadow", range: 26 } },
+    { icon: "skull", name: "Harpia", hp: 35, resist: null, loot: { copper: 12 }, rarity: "common", bodyColor: "#706050", armorColor: "#504038", bodyType: "floating", ability: { type: "charge", damage: 10, cooldown: 4000, element: null, range: 24 } },
+  ],
   meteor: [
     { icon: "meteor", name: "Ognisty Strażnik", hp: 80, resist: "fire", loot: { silver: 2 }, rarity: "epic", bodyColor: "#8a4020", armorColor: "#5a2010", bodyType: "floating", ability: { type: "fireBreath", damage: 14, cooldown: 4500, element: "fire", range: 22 } },
     { icon: "skull", name: "Kościany Strażnik", hp: 60, resist: null, loot: { silver: 1, copper: 20 }, rarity: "rare", bodyColor: "#2a2040", armorColor: "#6040a0", bodyType: "humanoid", ability: { type: "shadowBolt", damage: 10, cooldown: 4000, element: "shadow", range: 28 } },

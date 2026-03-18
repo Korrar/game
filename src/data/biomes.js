@@ -41,4 +41,10 @@ export const BIOMES = [
   { id: "blue_lagoon", name: "Błękitna Laguna", icon: "water", skyTop: "#0a3a6a", skyBot: "#40b8e8", groundCol: "#1abcbc", groundBot: "#0a7a9a", fogCol: "rgba(80,200,240,0.06)", renderFn: "blue_lagoon", scatter: ["palm","water","flower","star","palm","water","flower","anchor"],
     fx: { waves: true, wind: 0.3, waterfall: true, fireflies: true, jellyfish: true, dolphins: true, ripples: true }, terrain: "forest",
     mapPos: { x: 0.68, y: 0.82 }, difficulty: 2, mapColor: "#2abcbc", mapSize: 34 },
+  { id: "olympus", name: "Góra Olimp", icon: "lightning", skyTop: "#1a3a8a", skyBot: "#80b0ff", groundCol: "#c8c0a8", groundBot: "#a8a088", fogCol: "rgba(180,200,255,0.10)", renderFn: "olympus", scatter: ["lightning","star","gem","swords","star","lightning","gem","star"],
+    fx: { wind: 0.4, leaves: true, lightning: true, sunsetGlow: true, clouds: true }, terrain: "mine",
+    mapPos: { x: 0.92, y: 0.35 }, difficulty: 3, mapColor: "#c8c0a8", mapSize: 40 },
+  { id: "underworld", name: "Królestwo Hadesa", icon: "skull", skyTop: "#0a0508", skyBot: "#1a0a18", groundCol: "#1a1520", groundBot: "#100a18", fogCol: "rgba(100,40,120,0.12)", renderFn: "underworld", scatter: ["skull","fire","skull","gem","skull","fire","skull","gem"],
+    fx: { embers: true, fog: true, fireflies: true, spores: true, ghostFlames: true }, terrain: "mine",
+    mapPos: { x: 0.45, y: 0.92 }, difficulty: 3, mapColor: "#3a2040", mapSize: 38 },
 ];

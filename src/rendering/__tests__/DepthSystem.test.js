@@ -12,6 +12,9 @@ import {
   yToScreenY,
   assignDepthLane,
   sortByDepth,
+  desatAtDepth,
+  parallaxAtDepth,
+  particleSizeAtDepth,
 } from "../DepthSystem.js";
 
 // ─── CONFIGURATION ───
@@ -38,6 +41,24 @@ describe("DEPTH_CONFIG", () => {
     // Y range should be in the ground area (25-90% is current walker range)
     expect(DEPTH_CONFIG.minY).toBeGreaterThanOrEqual(20);
     expect(DEPTH_CONFIG.maxY).toBeLessThanOrEqual(95);
+  });
+
+  it("defines desaturation range", () => {
+    expect(DEPTH_CONFIG.desatMin).toBeDefined();
+    expect(DEPTH_CONFIG.desatMax).toBeDefined();
+    expect(DEPTH_CONFIG.desatMin).toBeLessThanOrEqual(DEPTH_CONFIG.desatMax);
+  });
+
+  it("defines parallax speed range", () => {
+    expect(DEPTH_CONFIG.parallaxMin).toBeDefined();
+    expect(DEPTH_CONFIG.parallaxMax).toBeDefined();
+    expect(DEPTH_CONFIG.parallaxMin).toBeLessThan(DEPTH_CONFIG.parallaxMax);
+  });
+
+  it("defines particle size range", () => {
+    expect(DEPTH_CONFIG.particleSizeMin).toBeDefined();
+    expect(DEPTH_CONFIG.particleSizeMax).toBeDefined();
+    expect(DEPTH_CONFIG.particleSizeMin).toBeLessThan(DEPTH_CONFIG.particleSizeMax);
   });
 });
 
@@ -288,6 +309,88 @@ describe("sortByDepth", () => {
     const sorted = sortByDepth(items);
     expect(sorted[0].id).toBe(1);
     expect(sorted[1].id).toBe(2);
+  });
+});
+
+// ─── DESATURATION AT DEPTH ───
+
+describe("desatAtDepth", () => {
+  it("returns higher desaturation for far objects (depth 0)", () => {
+    const desatFar = desatAtDepth(0);
+    const desatNear = desatAtDepth(1);
+    expect(desatFar).toBeGreaterThan(desatNear);
+  });
+
+  it("returns values between 0 and 1", () => {
+    for (const d of [0, 0.25, 0.5, 0.75, 1]) {
+      const v = desatAtDepth(d);
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("near objects have no desaturation", () => {
+    expect(desatAtDepth(1)).toBeCloseTo(DEPTH_CONFIG.desatMin, 2);
+  });
+
+  it("far objects have maximum desaturation", () => {
+    expect(desatAtDepth(0)).toBeCloseTo(DEPTH_CONFIG.desatMax, 2);
+  });
+
+  it("clamps to valid range for out-of-bounds depth", () => {
+    expect(desatAtDepth(-0.5)).toBeCloseTo(DEPTH_CONFIG.desatMax, 2);
+    expect(desatAtDepth(1.5)).toBeCloseTo(DEPTH_CONFIG.desatMin, 2);
+  });
+});
+
+// ─── PARALLAX SPEED AT DEPTH ───
+
+describe("parallaxAtDepth", () => {
+  it("returns slower speed for far objects (depth 0)", () => {
+    const speedFar = parallaxAtDepth(0);
+    const speedNear = parallaxAtDepth(1);
+    expect(speedFar).toBeLessThan(speedNear);
+  });
+
+  it("returns minParallax at depth 0", () => {
+    expect(parallaxAtDepth(0)).toBeCloseTo(DEPTH_CONFIG.parallaxMin, 2);
+  });
+
+  it("returns maxParallax at depth 1", () => {
+    expect(parallaxAtDepth(1)).toBeCloseTo(DEPTH_CONFIG.parallaxMax, 2);
+  });
+
+  it("is monotonically increasing", () => {
+    expect(parallaxAtDepth(0)).toBeLessThan(parallaxAtDepth(0.5));
+    expect(parallaxAtDepth(0.5)).toBeLessThan(parallaxAtDepth(1));
+  });
+
+  it("clamps to valid range", () => {
+    expect(parallaxAtDepth(-1)).toBeCloseTo(DEPTH_CONFIG.parallaxMin, 2);
+    expect(parallaxAtDepth(2)).toBeCloseTo(DEPTH_CONFIG.parallaxMax, 2);
+  });
+});
+
+// ─── PARTICLE SIZE AT DEPTH ───
+
+describe("particleSizeAtDepth", () => {
+  it("returns smaller size for far objects", () => {
+    const sizeFar = particleSizeAtDepth(0);
+    const sizeNear = particleSizeAtDepth(1);
+    expect(sizeFar).toBeLessThan(sizeNear);
+  });
+
+  it("returns minParticleSize at depth 0", () => {
+    expect(particleSizeAtDepth(0)).toBeCloseTo(DEPTH_CONFIG.particleSizeMin, 2);
+  });
+
+  it("returns maxParticleSize at depth 1", () => {
+    expect(particleSizeAtDepth(1)).toBeCloseTo(DEPTH_CONFIG.particleSizeMax, 2);
+  });
+
+  it("is monotonically increasing", () => {
+    expect(particleSizeAtDepth(0.2)).toBeLessThan(particleSizeAtDepth(0.6));
+    expect(particleSizeAtDepth(0.6)).toBeLessThan(particleSizeAtDepth(0.9));
   });
 });
 
