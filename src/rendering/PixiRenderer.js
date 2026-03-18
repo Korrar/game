@@ -3,6 +3,7 @@
 
 import { Application, Container, Graphics, Text, TextStyle, BlurFilter } from "pixi.js";
 import { CharacterSprite } from "./CharacterSprite.js";
+import { wrapPxToScreen } from "../utils/panoramaWrap.js";
 import { ProjectileRenderer } from "./ProjectileRenderer.js";
 import { CombatParticles } from "./CombatParticles.js";
 import { DamageNumbers } from "./DamageNumbers.js";
@@ -153,10 +154,6 @@ export class PixiRenderer {
       this.app.stage.position.set(0, 0);
     }
 
-    // Panoramic wrapping constants
-    const worldW = this.W * 3; // PANORAMA_WORLD_W = 3
-    const panOff = ((this._panOffset || 0) % worldW + worldW) % worldW;
-
     // Update NPC sprites
     for (const [id, entry] of Object.entries(bodies)) {
       let char = this.characters[id];
@@ -187,18 +184,16 @@ export class PixiRenderer {
 
       char.update(entry, this.W, this.H, this.GY, this.fogVisibility, depth, depthScale);
 
-      // Panoramic 360° wrapping: NPC exists at 3 virtual positions
-      // (physX, physX + viewW, physX + 2*viewW) — show the visible copy
-      if (panOff > 0) {
-        const physX = char.container.x;
-        let bestX = -9999;
-        for (let copy = 0; copy < 3; copy++) {
-          let sx = (physX + copy * this.W) - panOff;
-          if (sx < 0) sx += worldW;
-          if (sx >= -80 && sx <= this.W + 80) { bestX = sx; break; }
+      // Panoramic 360° wrapping
+      const panOff = this._panOffset || 0;
+      if (panOff !== 0) {
+        const screenX = wrapPxToScreen(char.container.x, panOff, this.W);
+        if (screenX !== null) {
+          char.container.x = screenX;
+          char.container.visible = true;
+        } else {
+          char.container.visible = false;
         }
-        char.container.x = bestX;
-        char.container.visible = bestX > -9000;
       }
     }
 
