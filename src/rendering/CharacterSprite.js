@@ -5,6 +5,7 @@
 import { Container, Graphics, Sprite, Texture } from "pixi.js";
 import { HALF_HEIGHTS, FIGURE_HALF_HEIGHT } from "../physics/bodies/constants.js";
 import { getNpcIconCanvas } from "./icons.js";
+import { shadowAtDepth, fogAtDepth } from "./DepthSystem.js";
 
 // Glow color presets
 const GLOW_FRIENDLY = { color: 0x3cdc50, alpha: 0.5 };
@@ -197,6 +198,7 @@ export class CharacterSprite {
     this._bloodColorInt = 0xaa2020;
 
     this._lastDir = 1;
+    this._depthScale = 1;
   }
 
   _getLimbColor(colorKey) {
@@ -210,7 +212,7 @@ export class CharacterSprite {
     }
   }
 
-  update(entry, W, H, GY, fogVisibility) {
+  update(entry, W, H, GY, fogVisibility, depth = 0.5, depthScale = 1.0) {
     if (!entry.limbBodies) return;
 
     const limbs = {};
@@ -221,7 +223,7 @@ export class CharacterSprite {
       limbRots[name] = rb.rotation();
     }
 
-    // Calculate alpha with fog
+    // Calculate alpha with fog (horizontal distance fog + depth fog)
     let alpha = entry.fadeAlpha ?? 1;
     if (fogVisibility && !this.friendly && !entry.ragdoll) {
       const tx = entry._px || 0;
@@ -232,7 +234,13 @@ export class CharacterSprite {
         : 0.05;
       alpha *= fogAlpha;
     }
+    // 2.5D: atmospheric depth fog (far objects fade slightly)
+    const depthFog = fogAtDepth(depth);
+    alpha *= (1 - depthFog * 0.5); // subtle — don't fully obscure far NPCs
     this.container.alpha = alpha;
+
+    // Store depth scale for use in icon/flash sprite sizing
+    this._depthScale = depthScale;
 
     const dir = entry._dir || 1;
     this._lastDir = dir;
@@ -310,8 +318,10 @@ export class CharacterSprite {
 
     // ─── ALIVE: Normal icon rendering ───
 
-    // Shadow on ground
-    this._drawShadow(this.shadowGfx, tx, ty + halfH + 2, 14, 5);
+    // 2.5D: depth-aware shadow
+    const shadow = shadowAtDepth(depth);
+    this._drawShadow(this.shadowGfx, tx, ty + halfH + shadow.offsetY,
+      14 * shadow.scaleX, 5 * shadow.scaleY, shadow.alpha);
 
     // Ground aura
     this._drawGroundAura(tx, ty);
@@ -335,9 +345,9 @@ export class CharacterSprite {
     this.iconSprite.anchor.set(0.5, 0.5);
     this.flashSprite.anchor.set(0.5, 0.5);
 
-    // Mirror based on direction
-    this.iconSprite.scale.x = dir;
-    this.flashSprite.scale.x = dir;
+    // 2.5D: scale sprites by depth (direction via sign)
+    this.iconSprite.scale.set(dir * this._depthScale, this._depthScale);
+    this.flashSprite.scale.set(dir * this._depthScale, this._depthScale);
 
     // Glow ring around icon
     this._drawSymbolGlow(tx, ty, halfH, flash);
@@ -353,7 +363,8 @@ export class CharacterSprite {
     const glow = this.friendly ? GLOW_FRIENDLY : GLOW_ENEMY;
     const glowColor = flash ? GLOW_HIT.color : glow.color;
     const glowAlpha = (flash ? GLOW_HIT.alpha : glow.alpha) * pulse;
-    const r = this.iconSize * 0.5;
+    const scale = this._depthScale || 1;
+    const r = this.iconSize * 0.5 * scale;
     this.glowGfx.setStrokeStyle({ width: 2, color: glowColor, alpha: glowAlpha });
     this.glowGfx.circle(tx, ty, r);
     this.glowGfx.stroke();
@@ -367,9 +378,9 @@ export class CharacterSprite {
     this.auraGfx.fill({ color, alpha: 0.08 * pulse });
   }
 
-  _drawShadow(g, x, y, rx, ry) {
+  _drawShadow(g, x, y, rx, ry, alpha = 0.25) {
     g.ellipse(x, y, rx, ry);
-    g.fill({ color: 0x000000, alpha: 0.25 });
+    g.fill({ color: 0x000000, alpha });
   }
 
   _drawWeapon(limbs, entry, dir, GY) {

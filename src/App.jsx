@@ -19,6 +19,9 @@ import { BiomeAnimator } from "./renderers/biomeAnimator";
 import { PhysicsWorld } from "./physics/RapierPhysicsWorld";
 import { initRapier } from "./physics/rapierInit";
 import { PixiRenderer } from "./rendering/PixiRenderer";
+import { depthFromY, scaleAtDepth, zIndexAtDepth } from "./rendering/DepthSystem";
+import { findChainTargets, getChainDamage, getChainDelay } from "./systems/ChainReactions";
+import { getLeakParticles, getDamageVisuals } from "./systems/ProgressiveDamage";
 import {
   startMusic, toggleMusic, changeBiomeMusic, setMusicCombatIntensity, startRiverAmbience, stopRiverAmbience, sfxDoor, sfxChest, sfxSell,
   sfxStore, sfxRetrieve, sfxUpgrade, sfxGather, sfxBuy,
@@ -1790,9 +1793,14 @@ export default function App() {
           const bounceY = w.stationary ? 0 : Math.abs(Math.sin(w.bouncePhase)) * 4;
           const lungeX = w.lungeOffset || 0;
           const yPos = w.y != null ? w.y : 25;
+          // 2.5D: depth-based scaling and z-ordering for DOM walker elements
+          const walkerDepth = depthFromY(yPos);
+          const walkerScale = scaleAtDepth(walkerDepth);
+          const walkerZ = 10 + zIndexAtDepth(walkerDepth); // base 10 to stay above backgrounds
           el.style.left = `${w.x}%`;
           el.style.top = `calc(${yPos}% - 75px)`;
-          el.style.transform = `translateX(-50%) translateY(${-bounceY}px) translateX(${lungeX * w.dir}px)`;
+          el.style.zIndex = walkerZ;
+          el.style.transform = `translateX(-50%) translateY(${-bounceY}px) translateX(${lungeX * w.dir}px) scale(${walkerScale})`;
         }
         // Update physics body to match walker position
         if (physicsRef.current) {
@@ -1800,6 +1808,24 @@ export default function App() {
           physicsRef.current.updatePatrol(idNum, w.x, w.dir, w.bouncePhase, yPctForPhysics);
         }
       }
+      // ─── OBSTACLE LEAK PARTICLES (low HP obstacles emit material particles) ───
+      if (pixiRef.current) {
+        for (const obs of obstaclesRef.current) {
+          if (!obs.destructible || obs.destroying || obs.hp <= 0) continue;
+          const hpR = obs.maxHp > 0 ? obs.hp / obs.maxHp : 1;
+          const leak = getLeakParticles(hpR, obs.material);
+          if (leak && Math.random() < leak.rate) {
+            const lpx = (obs.x / 100) * GAME_W;
+            const lpy = GAME_H - (obs.y / 100) * GAME_H;
+            pixiRef.current.spawnObstacleHitSpark(
+              lpx + (Math.random() - 0.5) * 10,
+              lpy + (Math.random() - 0.5) * 10,
+              leak.color
+            );
+          }
+        }
+      }
+
       // ─── TRAP COLLISION CHECK ───
       const trapNow = dateNow;
       const curTraps = trapsRef.current;
@@ -3506,7 +3532,7 @@ export default function App() {
     setHasWand(false); setWandActive(false); wandOrbsRef.current = { active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {}, lastDrainTime: 0 };
     setSalvaActive(false); salvaRef.current = { active: false, cursorX: 50, cursorY: 50, lastShotTime: 0 };
     walkDataRef.current = {};
-    if (pixiRef.current) pixiRef.current.clearNpcs();
+    if (pixiRef.current) { pixiRef.current.clearNpcs(); pixiRef.current.clearDestruction(); }
     if (physicsRef.current) physicsRef.current.clear();
     setGameOverStats(null);
     localStorage.removeItem("wrota_save");
@@ -5139,6 +5165,8 @@ export default function App() {
       // Hit spark effect on every hit
       if (pixiRef.current) {
         pixiRef.current.spawnObstacleHitSpark(px, py, matDef.color);
+        // Ground mark at impact point
+        pixiRef.current.addGroundMark(px, py, element, dmg);
       }
       if (newHp <= 0) {
         // ─── DESTRUCTION ───
@@ -5157,11 +5185,26 @@ export default function App() {
             default:         pixiRef.current.spawnWoodSplinters(px, py); break;
           }
           pixiRef.current.screenShake(matDef.shakeIntensity || 3);
+          // Persistent debris fragments
+          pixiRef.current.spawnDebris(obs.material, px, py);
         }
         // Drop loot
         if (obs.loot && Object.keys(obs.loot).length > 0) {
           addMoneyFn(obs.loot);
           if (pixiRef.current) pixiRef.current.spawnGoldCoins(px, py, 0.4);
+        }
+        // Chain reactions — fire spreads to wood, lightning chains to metal, etc.
+        if (element) {
+          const chainTargets = findChainTargets(element, obs.x, obs.y, prev, obsId);
+          const chainDmg = getChainDamage(element, damage);
+          const chainDelay = getChainDelay(element);
+          if (chainTargets.length > 0 && chainDmg > 0) {
+            setTimeout(() => {
+              for (const target of chainTargets) {
+                damageObstacle(target.id, chainDmg, element);
+              }
+            }, chainDelay);
+          }
         }
         // Mark as destroying for fade-out animation, then remove after delay
         setTimeout(() => {
@@ -7246,8 +7289,9 @@ export default function App() {
         const hpPct = obs.maxHp > 0 ? obs.hp / obs.maxHp : 1;
         const damaged = obs.destructible && hpPct < 1;
         const isDestroying = obs.destroying;
-        // Crack overlay intensity based on damage
-        const crackIntensity = damaged ? (1 - hpPct) : 0;
+        // Progressive damage visuals (material-aware)
+        const dmgVis = getDamageVisuals(hpPct, obs.material);
+        const crackIntensity = dmgVis.crackOpacity;
         // HP bar color: green → yellow → red
         const hpColor = hpPct > 0.5 ? `rgb(${Math.round(255 * (1 - hpPct) * 2)},200,40)` : `rgb(255,${Math.round(200 * hpPct * 2)},40)`;
 
@@ -7256,8 +7300,8 @@ export default function App() {
             position: "absolute",
             left: `${obs.x}%`,
             bottom: `${obs.y}%`,
-            zIndex: 5,
-            transform: `translateX(-50%) translateX(${shakeX}px)`,
+            zIndex: 10 + zIndexAtDepth(depthFromY(100 - obs.y)),
+            transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})`,
             transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "none",
             opacity: isDestroying ? 0 : 1,
             pointerEvents: "none",
@@ -7280,20 +7324,28 @@ export default function App() {
                 ? `1.5px solid rgba(255,255,255,${damaged ? 0.3 + crackIntensity * 0.15 : 0.18})`
                 : "none",
             }}>
-              {/* Crack overlay - gets more intense as HP decreases */}
+              {/* Progressive damage: crack overlay (material-specific pattern) */}
               {crackIntensity > 0 && (
                 <div style={{
                   position: "absolute", inset: 0,
-                  background: `repeating-linear-gradient(${45 + crackIntensity * 30}deg, transparent, transparent ${6 - crackIntensity * 3}px, rgba(0,0,0,${0.15 + crackIntensity * 0.25}) ${6 - crackIntensity * 3}px, transparent ${7 - crackIntensity * 3}px)`,
+                  background: dmgVis.crackPattern === "shatter"
+                    ? `repeating-conic-gradient(from ${crackIntensity * 60}deg, transparent 0deg, transparent ${10 - crackIntensity * 4}deg, rgba(0,0,0,${0.15 + crackIntensity * 0.3}) ${10 - crackIntensity * 4}deg, transparent ${11 - crackIntensity * 4}deg)`
+                    : dmgVis.crackPattern === "splinter"
+                    ? `repeating-linear-gradient(${80 + crackIntensity * 20}deg, transparent, transparent ${5 - crackIntensity * 2}px, rgba(40,20,0,${0.2 + crackIntensity * 0.3}) ${5 - crackIntensity * 2}px, transparent ${6 - crackIntensity * 2}px)`
+                    : dmgVis.crackPattern === "dent"
+                    ? `radial-gradient(circle at ${30 + crackIntensity * 20}% ${40 + crackIntensity * 10}%, rgba(0,0,0,${crackIntensity * 0.4}) 0%, transparent ${20 + crackIntensity * 15}%)`
+                    : dmgVis.crackPattern === "wilt"
+                    ? `repeating-linear-gradient(${90 + crackIntensity * 45}deg, transparent, transparent ${8 - crackIntensity * 3}px, rgba(60,40,0,${0.1 + crackIntensity * 0.2}) ${8 - crackIntensity * 3}px, transparent ${9 - crackIntensity * 3}px)`
+                    : `repeating-linear-gradient(${45 + crackIntensity * 30}deg, transparent, transparent ${6 - crackIntensity * 3}px, rgba(0,0,0,${0.15 + crackIntensity * 0.25}) ${6 - crackIntensity * 3}px, transparent ${7 - crackIntensity * 3}px)`,
                   borderRadius: s.radius,
                   pointerEvents: "none",
                 }} />
               )}
-              {/* Damage darkening overlay */}
-              {crackIntensity > 0.3 && (
+              {/* Progressive damage: darkening overlay */}
+              {dmgVis.darkenAmount > 0.1 && (
                 <div style={{
                   position: "absolute", inset: 0,
-                  background: `rgba(0,0,0,${crackIntensity * 0.3})`,
+                  background: `rgba(0,0,0,${dmgVis.darkenAmount * 0.5})`,
                   borderRadius: s.radius,
                   pointerEvents: "none",
                 }} />

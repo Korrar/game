@@ -6,10 +6,15 @@ import { CharacterSprite } from "./CharacterSprite.js";
 import { ProjectileRenderer } from "./ProjectileRenderer.js";
 import { CombatParticles } from "./CombatParticles.js";
 import { DamageNumbers } from "./DamageNumbers.js";
+import { depthFromY, scaleAtDepth, zIndexAtDepth } from "./DepthSystem.js";
+import { createDebris, updateDebris, clearDebris, DEBRIS_CONFIG } from "../systems/DebrisSystem.js";
+import { createGroundMark, updateGroundMarks, clearGroundMarks, GROUND_MARKS_CONFIG } from "../systems/GroundMarks.js";
 
 export class PixiRenderer {
   constructor() {
     this.app = null;
+    this.groundMarkLayer = null; // Container for ground marks (below NPCs)
+    this.debrisLayer = null;     // Container for debris fragments (below NPCs)
     this.npcLayer = null;        // Container for all NPC sprites
     this.projectileLayer = null; // Container for projectiles
     this.particleLayer = null;   // Container for particles
@@ -26,6 +31,11 @@ export class PixiRenderer {
     this._shakeX = 0;
     this._shakeY = 0;
     this._shakeDecay = 0;
+    // Destruction systems
+    this._debris = [];
+    this._groundMarks = [];
+    this._debrisGfx = null;
+    this._groundMarkGfx = null;
   }
 
   async init(parentElement, width, height) {
@@ -57,12 +67,22 @@ export class PixiRenderer {
     canvas.style.zIndex = "12";
     parentElement.appendChild(canvas);
 
-    // Create layers
+    // Create layers (order = render order, bottom to top)
+    this.groundMarkLayer = new Container(); // ground scorch/frost/blood marks
+    this.debrisLayer = new Container();     // persistent debris fragments
     this.npcLayer = new Container();
+    this.npcLayer.sortableChildren = true; // 2.5D depth sorting by Y
     this.projectileLayer = new Container();
     this.particleLayer = new Container();
     this.uiLayer = new Container();
 
+    this._groundMarkGfx = new Graphics();
+    this.groundMarkLayer.addChild(this._groundMarkGfx);
+    this._debrisGfx = new Graphics();
+    this.debrisLayer.addChild(this._debrisGfx);
+
+    this.app.stage.addChild(this.groundMarkLayer);
+    this.app.stage.addChild(this.debrisLayer);
     this.app.stage.addChild(this.npcLayer);
     this.app.stage.addChild(this.projectileLayer);
     this.app.stage.addChild(this.particleLayer);
@@ -149,7 +169,13 @@ export class PixiRenderer {
       }
       if (entry.hitFlash > 0) entry.hitFlash--;
 
-      char.update(entry, this.W, this.H, this.GY, this.fogVisibility);
+      // 2.5D: compute depth from NPC's Y percentage and apply to sprite
+      const yPct = entry._yPct ?? 65; // default to mid-ground if not set
+      const depth = depthFromY(yPct);
+      const depthScale = scaleAtDepth(depth);
+      char.container.zIndex = zIndexAtDepth(depth);
+
+      char.update(entry, this.W, this.H, this.GY, this.fogVisibility, depth, depthScale);
     }
 
     // Remove dead NPCs
@@ -174,6 +200,12 @@ export class PixiRenderer {
 
     // Update damage numbers
     this.damageNumbers.update();
+
+    // Update debris
+    this._updateDebris();
+
+    // Update ground marks
+    this._updateGroundMarks();
   }
 
   // ─── EFFECTS ───
@@ -214,6 +246,110 @@ export class PixiRenderer {
   spawnMetalSparks(x, y) { this.combatParticles?.spawnMetalSparks(x, y); }
   spawnDustBurst(x, y) { this.combatParticles?.spawnDustBurst(x, y); }
   spawnObstacleHitSpark(x, y, color) { this.combatParticles?.spawnObstacleHitSpark(x, y, color); }
+
+  // ─── DEBRIS SYSTEM ───
+
+  spawnDebris(material, px, py) {
+    const newDebris = createDebris(material, px, py);
+    this._debris.push(...newDebris);
+    // Cap total debris
+    while (this._debris.length > DEBRIS_CONFIG.maxDebris) {
+      this._debris.shift();
+    }
+  }
+
+  _updateDebris() {
+    if (this._debris.length === 0) return;
+    const g = this._debrisGfx;
+    g.clear();
+
+    const groundY = this.H - 10;
+    const dead = updateDebris(this._debris, groundY);
+
+    // Remove dead debris (reverse order to preserve indices)
+    for (let i = dead.length - 1; i >= 0; i--) {
+      this._debris.splice(dead[i], 1);
+    }
+
+    // Render surviving debris
+    for (const d of this._debris) {
+      const lifeRatio = d.life / d.maxLife;
+      const alpha = lifeRatio < 0.2 ? lifeRatio / 0.2 : 1; // fade out in last 20%
+
+      if (d.shape === "diamond") {
+        const s = d.size;
+        const pts = [
+          d.x, d.y - s,
+          d.x + s * 0.6, d.y,
+          d.x, d.y + s,
+          d.x - s * 0.6, d.y,
+        ];
+        g.poly(pts);
+        g.fill({ color: d.color, alpha: alpha * 0.8 });
+      } else if (d.shape === "circle") {
+        g.circle(d.x, d.y, d.size);
+        g.fill({ color: d.color, alpha: alpha * 0.7 });
+      } else {
+        // rect with rotation
+        const cos = Math.cos(d.rotation), sin = Math.sin(d.rotation);
+        const hw = d.size, hh = d.size * 0.4;
+        const pts = [
+          d.x + (-hw * cos - (-hh) * sin), d.y + (-hw * sin + (-hh) * cos),
+          d.x + (hw * cos - (-hh) * sin),  d.y + (hw * sin + (-hh) * cos),
+          d.x + (hw * cos - hh * sin),     d.y + (hw * sin + hh * cos),
+          d.x + (-hw * cos - hh * sin),    d.y + (-hw * sin + hh * cos),
+        ];
+        g.poly(pts);
+        g.fill({ color: d.color, alpha: alpha * 0.8 });
+      }
+    }
+  }
+
+  // ─── GROUND MARKS ───
+
+  addGroundMark(px, py, element, damage) {
+    const mark = createGroundMark(px, py, element, damage);
+    this._groundMarks.push(mark);
+    while (this._groundMarks.length > GROUND_MARKS_CONFIG.maxMarks) {
+      this._groundMarks.shift();
+    }
+  }
+
+  _updateGroundMarks() {
+    if (this._groundMarks.length === 0) return;
+    const g = this._groundMarkGfx;
+    g.clear();
+
+    const dead = updateGroundMarks(this._groundMarks);
+
+    for (let i = dead.length - 1; i >= 0; i--) {
+      this._groundMarks.splice(dead[i], 1);
+    }
+
+    for (const m of this._groundMarks) {
+      const lifeRatio = m.life / m.maxLife;
+      const fadeAlpha = lifeRatio < 0.3 ? lifeRatio / 0.3 : 1;
+      const color = parseInt(m.style.color.replace(/rgba?\(/, "").split(",").slice(0, 3).map(c => {
+        const v = parseInt(c.trim());
+        return v.toString(16).padStart(2, "0");
+      }).join(""), 16);
+      const baseAlpha = m.style.alpha * fadeAlpha;
+
+      // Draw mark as irregular ellipse
+      g.ellipse(m.x, m.y, m.radius, m.radius * 0.5);
+      g.fill({ color, alpha: baseAlpha * 0.6 });
+      // Inner darker core
+      g.ellipse(m.x, m.y, m.radius * 0.5, m.radius * 0.25);
+      g.fill({ color, alpha: baseAlpha * 0.8 });
+    }
+  }
+
+  clearDestruction() {
+    this._debris = clearDebris();
+    this._groundMarks = clearGroundMarks();
+    if (this._debrisGfx) this._debrisGfx.clear();
+    if (this._groundMarkGfx) this._groundMarkGfx.clear();
+  }
 
   clearNpcs() {
     for (const id of Object.keys(this.characters)) {
