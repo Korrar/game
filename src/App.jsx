@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { wrapPctToScreen as _wrapPct } from "./utils/panoramaWrap.js";
 import { BIOMES } from "./data/biomes";
 import { RARITY_C, RARITY_L } from "./data/treasures";
 import { rollCardDrop, ALL_NPCS, BIOME_NAMES } from "./data/bestiary";
@@ -1802,7 +1803,14 @@ export default function App() {
           const walkerDepth = depthFromY(yPos);
           const walkerScale = scaleAtDepth(walkerDepth);
           const walkerZ = 10 + zIndexAtDepth(walkerDepth); // base 10 to stay above backgrounds
-          el.style.left = `${w.x}%`;
+          // Panoramic wrapping: position walker HTML overlay at wrapped screen X
+          const wrappedX = _wrapPct(w.x, panOffsetRef.current, GAME_W);
+          if (wrappedX === null) {
+            el.style.display = "none";
+            continue;
+          }
+          el.style.display = "";
+          el.style.left = `${wrappedX}%`;
           el.style.top = `calc(${yPos}% - 75px)`;
           el.style.zIndex = walkerZ;
           el.style.transform = `translateX(-50%) translateY(${-bounceY}px) translateX(${lungeX * w.dir}px) scale(${walkerScale})`;
@@ -4789,22 +4797,11 @@ export default function App() {
   // ─── PANORAMIC SCROLLING: Drag to look around when no action selected ───
   const canPanScroll = !skillshotMode && !placingTrap && (!defenseMode || defenseMode.phase === "complete" || defenseMode.phase === "setup");
 
-  // Wrap a percentage X position (0-100) into the visible viewport considering panoramic offset
-  // Returns the screen percentage, or null if not visible
-  const wrapPctToScreen = useCallback((pct) => {
-    const po = panOffsetRef.current || 0;
-    if (po === 0) return pct; // no panning, pass through
-    const panPct = (po / GAME_W) * 100;
-    const worldPct = 300; // 3 copies of 100%
-    const normPan = ((panPct % worldPct) + worldPct) % worldPct;
-    for (let copy = 0; copy < 3; copy++) {
-      const worldX = pct + copy * 100;
-      let sx = worldX - normPan;
-      if (sx < 0) sx += worldPct;
-      if (sx >= -10 && sx <= 110) return sx;
-    }
-    return null; // not visible
-  }, [GAME_W]);
+  // Convenience: wrap percentage position using current pan offset
+  const wrapPctToScreen = useCallback(
+    (pct) => _wrapPct(pct, panOffsetRef.current, GAME_W),
+    [GAME_W]
+  );
 
   const handlePanStart = useCallback((e) => {
     if (!canPanScroll) return;
@@ -4825,6 +4822,14 @@ export default function App() {
       const c = canvasRef.current;
       const ctx = c.getContext("2d");
       renderBiome(ctx, biome, room, c.width, c.height, isNight, newOffset);
+    }
+    // Throttled React state sync so CSS-positioned elements also update during drag
+    if (!panRef.current._rafPending) {
+      panRef.current._rafPending = true;
+      requestAnimationFrame(() => {
+        panRef.current._rafPending = false;
+        setPanOffset(panOffsetRef.current);
+      });
     }
   }, [gameScale, biome, room, isNight]);
 
@@ -6555,7 +6560,7 @@ export default function App() {
       {/* Player-placed defense trap visuals */}
       {playerTraps.map(pt => pt.active && (
         <div key={pt.id} style={{
-          position: "absolute", left: `${pt.x}%`, top: `${pt.y}%`,
+          position: "absolute", left: `${wrapPctToScreen(pt.x) ?? pt.x}%`, top: `${pt.y}%`,
           transform: "translate(-50%, -50%)", zIndex: 14,
           pointerEvents: "none",
         }}>
@@ -6702,7 +6707,7 @@ export default function App() {
       {/* Meteorite event – falling from sky */}
       {meteorite && meteorite.phase === "falling" && (
         <div style={{
-          position: "absolute", left: `${meteorite.x}%`, top: 0, zIndex: 18,
+          position: "absolute", left: `${wrapPctToScreen(meteorite.x) ?? meteorite.x}%`, top: 0, zIndex: 18,
           fontSize: 48, userSelect: "none", pointerEvents: "none",
           animation: `meteorFall 1s ease-in forwards`,
           "--meteor-land-y": `${(meteorite.y / 100) * GAME_H}px`,
@@ -6739,7 +6744,7 @@ export default function App() {
         const hpColor = hpPct > 0.5 ? "#ff6020" : hpPct > 0.25 ? "#ff4020" : "#cc2020";
         return (
           <div style={{
-            position: "absolute", left: `${meteorite.x}%`, top: `${meteorite.y - 3}%`,
+            position: "absolute", left: `${wrapPctToScreen(meteorite.x) ?? meteorite.x}%`, top: `${meteorite.y - 3}%`,
             transform: "translateX(-50%)", zIndex: 16, pointerEvents: "none",
             textAlign: "center",
           }}>
@@ -6766,7 +6771,7 @@ export default function App() {
       {/* Ground loot — clickable coins and items dropped by meteor */}
       {groundLoot.filter(i => !i.collected).map(item => (
         <div key={item.id} onClick={() => collectGroundLoot(item.id)} style={{
-          position: "absolute", left: `${item.x}%`, top: `${item.y}%`, zIndex: 15,
+          position: "absolute", left: `${wrapPctToScreen(item.x) ?? item.x}%`, top: `${item.y}%`, zIndex: 15,
           cursor: "pointer", userSelect: "none",
           animation: "meteorPulse 2s ease-in-out infinite",
           transform: "translate(-50%, -50%)",
@@ -6804,7 +6809,7 @@ export default function App() {
             onTouchStart={startMining}
             onTouchEnd={stopMining}
             style={{
-              position: "absolute", left: `${resourceNode.pos.x}%`, top: `${resourceNode.pos.y}%`, zIndex: 15,
+              position: "absolute", left: `${wrapPctToScreen(resourceNode.pos.x) ?? resourceNode.pos.x}%`, top: `${resourceNode.pos.y}%`, zIndex: 15,
               cursor: "pointer", userSelect: "none",
             }}
           >
@@ -6869,7 +6874,7 @@ export default function App() {
       {/* ─── FRUIT TREE (biome variant) ─── */}
       {fruitTree && (
         <div style={{
-          position: "absolute", left: `${fruitTree.x}%`, bottom: "12%", zIndex: 14,
+          position: "absolute", left: `${wrapPctToScreen(fruitTree.x) ?? fruitTree.x}%`, bottom: "12%", zIndex: 14,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           {/* Trunk */}
@@ -6896,7 +6901,7 @@ export default function App() {
             )}
             {fruitTree.fruits.map(f => !f.picked && (
               <div key={f.id} onClick={() => pickFruit(f.id)} style={{
-                position: "absolute", left: `${f.x}%`, top: `${f.y}%`,
+                position: "absolute", left: `${wrapPctToScreen(f.x) ?? f.x}%`, top: `${f.y}%`,
                 fontSize: 16, cursor: "pointer",
                 filter: "drop-shadow(0 0 4px rgba(255,200,60,0.5))",
                 animation: "keyF 2.5s ease-in-out infinite",
@@ -6913,7 +6918,7 @@ export default function App() {
       {/* ─── MINE (biome variant rock formation) ─── */}
       {mineNugget && (
         <div style={{
-          position: "absolute", left: `${mineNugget.x}%`, bottom: "12%", zIndex: 14,
+          position: "absolute", left: `${wrapPctToScreen(mineNugget.x) ?? mineNugget.x}%`, bottom: "12%", zIndex: 14,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           {/* Rock body */}
@@ -6932,7 +6937,7 @@ export default function App() {
               <div key={n.id}
                 onClick={() => pickNugget(n.id)}
                 style={{
-                  position: "absolute", left: `${n.x}%`, top: `${n.y}%`,
+                  position: "absolute", left: `${wrapPctToScreen(n.x) ?? n.x}%`, top: `${n.y}%`,
                   fontSize: 14, cursor: "pointer",
                   filter: "drop-shadow(0 0 6px rgba(212,160,48,0.6))",
                   animation: "resNode 3s ease-in-out infinite",
@@ -6951,7 +6956,7 @@ export default function App() {
         const [wr,wg,wb] = waterfall.rgb;
         return (
         <div style={{
-          position: "absolute", left: `${waterfall.x}%`, bottom: "12%", zIndex: 13,
+          position: "absolute", left: `${wrapPctToScreen(waterfall.x) ?? waterfall.x}%`, bottom: "12%", zIndex: 13,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           <div style={{
@@ -7026,7 +7031,7 @@ export default function App() {
       {/* ─── MERCENARY CAMP ─── */}
       {mercCamp && (
         <div style={{
-          position: "absolute", left: `${mercCamp.x}%`, bottom: "12%", zIndex: 14,
+          position: "absolute", left: `${wrapPctToScreen(mercCamp.x) ?? mercCamp.x}%`, bottom: "12%", zIndex: 14,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           {/* Tent */}
@@ -7220,7 +7225,7 @@ export default function App() {
         const ammoIcon = ammoIcons[wizardPoi.ammoType] || "dynamite";
         return (
           <div style={{
-            position: "absolute", left: `${wizardPoi.x}%`, bottom: "12%", zIndex: 14,
+            position: "absolute", left: `${wrapPctToScreen(wizardPoi.x) ?? wizardPoi.x}%`, bottom: "12%", zIndex: 14,
             transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
           }}>
             {/* Arsenal tent */}
@@ -7762,7 +7767,7 @@ export default function App() {
       {dmgPopups.map(p => (
         <div key={p.id} style={{
           position: "absolute",
-          left: `${p.x}%`,
+          left: `${wrapPctToScreen(p.x) ?? p.x}%`,
           top: `calc(${p.y || 65}% - 80px)`,
           zIndex: 50,
           fontWeight: "bold",
