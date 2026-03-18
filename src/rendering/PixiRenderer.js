@@ -140,19 +140,22 @@ export class PixiRenderer {
     if (!this.ready) return;
     this.fogVisibility = fogVisibility || 0;
 
-    // Screen shake
-    const panX = -(this._panOffset || 0);
+    // Screen shake (no panoramic shift on stage — wrapping is per-object)
     if (this._shakeDecay > 0) {
       this._shakeX = (Math.random() - 0.5) * this._shakeDecay;
       this._shakeY = (Math.random() - 0.5) * this._shakeDecay;
       this._shakeDecay *= 0.9;
       if (this._shakeDecay < 0.5) this._shakeDecay = 0;
-      this.app.stage.position.set(this._shakeX + panX, this._shakeY);
-    } else if (this._shakeX !== 0 || this._shakeY !== 0 || this.app.stage.position.x !== panX) {
+      this.app.stage.position.set(this._shakeX, this._shakeY);
+    } else if (this._shakeX !== 0 || this._shakeY !== 0) {
       this._shakeX = 0;
       this._shakeY = 0;
-      this.app.stage.position.set(panX, 0);
+      this.app.stage.position.set(0, 0);
     }
+
+    // Panoramic wrapping constants
+    const worldW = this.W * 3; // PANORAMA_WORLD_W = 3
+    const panOff = ((this._panOffset || 0) % worldW + worldW) % worldW;
 
     // Update NPC sprites
     for (const [id, entry] of Object.entries(bodies)) {
@@ -183,6 +186,20 @@ export class PixiRenderer {
       char.container.zIndex = zIndexAtDepth(depth);
 
       char.update(entry, this.W, this.H, this.GY, this.fogVisibility, depth, depthScale);
+
+      // Panoramic 360° wrapping: NPC exists at 3 virtual positions
+      // (physX, physX + viewW, physX + 2*viewW) — show the visible copy
+      if (panOff > 0) {
+        const physX = char.container.x;
+        let bestX = -9999;
+        for (let copy = 0; copy < 3; copy++) {
+          let sx = (physX + copy * this.W) - panOff;
+          if (sx < 0) sx += worldW;
+          if (sx >= -80 && sx <= this.W + 80) { bestX = sx; break; }
+        }
+        char.container.x = bestX;
+        char.container.visible = bestX > -9000;
+      }
     }
 
     // Remove dead NPCs
