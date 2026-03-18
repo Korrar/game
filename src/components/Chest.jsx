@@ -111,7 +111,7 @@ function ChestBody({ stage }) {
   );
 }
 
-export default function Chest({ pos, onClick, clicks = 0, maxClicks = CLICKS_TO_OPEN, panOffset = 0, gameW = 1280 }) {
+export default function Chest({ pos, onClick, clicks = 0, maxClicks = CLICKS_TO_OPEN }) {
   if (!pos) return null;
   const [shaking, setShaking] = useState(false);
 
@@ -132,7 +132,7 @@ export default function Chest({ pos, onClick, clicks = 0, maxClicks = CLICKS_TO_
       onClick={handleClick}
       style={{
         position: "absolute",
-        left: `calc(${pos.x}% - ${(panOffset / gameW) * 100}%)`,
+        left: `${pos.x}%`,
         top: `${pos.y}%`,
         zIndex: 15,
         cursor: isOpen ? "default" : "pointer",

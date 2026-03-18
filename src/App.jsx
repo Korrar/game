@@ -4789,6 +4789,23 @@ export default function App() {
   // ─── PANORAMIC SCROLLING: Drag to look around when no action selected ───
   const canPanScroll = !skillshotMode && !placingTrap && (!defenseMode || defenseMode.phase === "complete" || defenseMode.phase === "setup");
 
+  // Wrap a percentage X position (0-100) into the visible viewport considering panoramic offset
+  // Returns the screen percentage, or null if not visible
+  const wrapPctToScreen = useCallback((pct) => {
+    const po = panOffsetRef.current || 0;
+    if (po === 0) return pct; // no panning, pass through
+    const panPct = (po / GAME_W) * 100;
+    const worldPct = 300; // 3 copies of 100%
+    const normPan = ((panPct % worldPct) + worldPct) % worldPct;
+    for (let copy = 0; copy < 3; copy++) {
+      const worldX = pct + copy * 100;
+      let sx = worldX - normPan;
+      if (sx < 0) sx += worldPct;
+      if (sx >= -10 && sx <= 110) return sx;
+    }
+    return null; // not visible
+  }, [GAME_W]);
+
   const handlePanStart = useCallback((e) => {
     if (!canPanScroll) return;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -6677,7 +6694,10 @@ export default function App() {
 
       {/* Caravan moved to bottom bar above SpellBar */}
 
-      {showChest && <Chest pos={chestPos} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} panOffset={panOffset} gameW={GAME_W} />}
+      {showChest && (() => {
+        const cx = wrapPctToScreen(chestPos?.x ?? 50);
+        return cx !== null ? <Chest pos={{ ...chestPos, x: cx }} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} /> : null;
+      })()}
 
       {/* Meteorite event – falling from sky */}
       {meteorite && meteorite.phase === "falling" && (
@@ -7342,11 +7362,12 @@ export default function App() {
         // HP bar color: green → yellow → red
         const hpColor = hpPct > 0.5 ? `rgb(${Math.round(255 * (1 - hpPct) * 2)},200,40)` : `rgb(255,${Math.round(200 * hpPct * 2)},40)`;
 
-        const panShiftPx = -(panOffset / GAME_W) * 100;
+        const screenX = wrapPctToScreen(obs.x);
+        if (screenX === null) return null;
         return (
           <div key={`obs-${obs.id}`} style={{
             position: "absolute",
-            left: `calc(${obs.x}% + ${panShiftPx}%)`,
+            left: `${screenX}%`,
             bottom: `${obs.y}%`,
             zIndex: 10 + zIndexAtDepth(depthFromY(100 - obs.y)),
             transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})`,
@@ -7444,7 +7465,7 @@ export default function App() {
             // Explosion visual
             return (
               <div key={trap.id} style={{
-                position: "absolute", left: `calc(${trap.x}% - ${(panOffset / GAME_W) * 100}%)`, bottom: "12%", zIndex: 13,
+                position: "absolute", left: `${wrapPctToScreen(trap.x) ?? trap.x}%`, bottom: "12%", zIndex: 13,
                 transform: "translateX(-50%)", pointerEvents: "none",
                 fontSize: 28, animation: "dmgFloat 1.5s ease-out forwards",
               }}><Icon name="fire" size={28} /></div>
@@ -7452,7 +7473,7 @@ export default function App() {
           }
           return (
             <div key={trap.id} style={{
-              position: "absolute", left: `calc(${trap.x}% - ${(panOffset / GAME_W) * 100}%)`, bottom: "22.5%", zIndex: 10,
+              position: "absolute", left: `${wrapPctToScreen(trap.x) ?? trap.x}%`, bottom: "22.5%", zIndex: 10,
               transform: "translateX(-50%)", pointerEvents: "none",
             }}>
               {/* Partially buried mine */}
@@ -7534,7 +7555,7 @@ export default function App() {
           }}
           style={{
             position: "absolute",
-            left: `calc(${barrel.x}% - ${(panOffset / GAME_W) * 100}%)`,
+            left: `${wrapPctToScreen(barrel.x) ?? barrel.x}%`,
             top: `${barrel.y}%`,
             transform: "translate(-50%, -50%)",
             zIndex: 10,
