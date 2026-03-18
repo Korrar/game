@@ -678,6 +678,11 @@ export default function App() {
 
   const canvasRef = useRef(null);
   const animCanvasRef = useRef(null);
+  // Panoramic scrolling
+  const [panOffset, setPanOffset] = useState(0);
+  const panRef = useRef({ dragging: false, startX: 0, startOffset: 0 });
+  const panOffsetRef = useRef(0);
+  panOffsetRef.current = panOffset;
   const physicsCanvasRef = useRef(null);
   const vaultRef = useRef(null);
   const gameContainerRef = useRef(null);
@@ -2313,6 +2318,7 @@ export default function App() {
     const nextIsRiver = true; // river segment on every transition
     setNextRoomPreview({ biome: nextB, isDefense: nextIsDefense, isBoss: nextIsBoss, isRiver: nextIsRiver, room: newRoom + 1 });
     setRoom(newRoom);
+    setPanOffset(0);
     const isDefenseRoom = newRoom > 0 && newRoom % 5 === 0;
 
     // Reset caravan HP in defense rooms
@@ -2894,14 +2900,14 @@ export default function App() {
     }
   }, []);
 
-  // Render static biome
+  // Render static biome (with panoramic offset)
   useEffect(() => {
     if (!biome || !canvasRef.current) return;
     const c = canvasRef.current;
     c.width = GAME_W; c.height = GAME_H;
     const ctx = c.getContext("2d");
-    renderBiome(ctx, biome, room, c.width, c.height, isNight);
-  }, [biome, room, isNight, GAME_W, GAME_H]);
+    renderBiome(ctx, biome, room, c.width, c.height, isNight, panOffset);
+  }, [biome, room, isNight, GAME_W, GAME_H, panOffset]);
 
   // Animate biome overlay
   useEffect(() => {
@@ -4778,6 +4784,35 @@ export default function App() {
     // setSelectedSpell(null); -- removed: keep spell active for continuous skillshots
   }, [mana, cooldowns, showMessage, processSkillshotHit, spawnDmgPopup]);
 
+  // ─── PANORAMIC SCROLLING: Drag to look around when no action selected ───
+  const canPanScroll = !skillshotMode && !placingTrap && (!defenseMode || defenseMode.phase === "complete" || defenseMode.phase === "setup");
+
+  const handlePanStart = useCallback((e) => {
+    if (!canPanScroll) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    panRef.current = { dragging: true, startX: clientX, startOffset: panOffsetRef.current };
+  }, [canPanScroll]);
+
+  const handlePanMove = useCallback((e) => {
+    if (!panRef.current.dragging) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const dx = (panRef.current.startX - clientX) / gameScale;
+    const newOffset = panRef.current.startOffset + dx;
+    panOffsetRef.current = newOffset;
+    // Directly re-render canvas for smooth dragging (bypass React state)
+    if (canvasRef.current && biome) {
+      const c = canvasRef.current;
+      const ctx = c.getContext("2d");
+      renderBiome(ctx, biome, room, c.width, c.height, isNight, newOffset);
+    }
+  }, [gameScale, biome, room, isNight]);
+
+  const handlePanEnd = useCallback(() => {
+    panRef.current.dragging = false;
+    // Sync React state with final offset
+    setPanOffset(panOffsetRef.current);
+  }, []);
+
   // ─── SKILLSHOT: Canvas click handler for aiming ───
   const handleSkillshotClick = useCallback((e) => {
     if (!selectedSpell || !gameContainerRef.current) return;
@@ -6186,13 +6221,13 @@ export default function App() {
       {/* Scaled game container – fills entire screen on mobile */}
       <div ref={gameContainerRef}
         onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode && !isSalvaMode) ? handleSkillshotClick : undefined}
-        onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : undefined}
-        onMouseMove={(e) => { if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
-        onMouseUp={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : isSalvaMode ? stopSalva : undefined}
-        onMouseLeave={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : isSalvaMode ? stopSalva : undefined}
-        onTouchStart={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : undefined}
-        onTouchMove={(e) => { if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active && e.touches[0]) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current && e.touches[0]) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.touches[0].clientX; const cy = e.touches[0].clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
-        onTouchEnd={isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : isSalvaMode ? stopSalva : undefined}
+        onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
+        onMouseMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
+        onMouseUp={panRef.current.dragging ? handlePanEnd : isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : isSalvaMode ? stopSalva : undefined}
+        onMouseLeave={(e) => { handlePanEnd(); if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
+        onTouchStart={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
+        onTouchMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active && e.touches[0]) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current && e.touches[0]) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.touches[0].clientX; const cy = e.touches[0].clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
+        onTouchEnd={panRef.current.dragging ? handlePanEnd : isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : isSalvaMode ? stopSalva : undefined}
         style={{
         width: GAME_W, height: GAME_H,
         transform: `scale(${gameScale})`,
@@ -6201,7 +6236,7 @@ export default function App() {
         top: isMobile ? 0 : undefined,
         left: isMobile ? 0 : undefined,
         overflow: "hidden",
-        cursor: placingTrap ? "crosshair" : isSaberMode ? "none" : isWandMode ? "crosshair" : skillshotMode ? "crosshair" : "default",
+        cursor: placingTrap ? "crosshair" : isSaberMode ? "none" : isWandMode ? "crosshair" : skillshotMode ? "crosshair" : canPanScroll ? (panRef.current.dragging ? "grabbing" : "grab") : "default",
         animation: slowMotion
           ? "slowMoFlash 1s ease-out forwards"
           : screenShake ? "screenShake 0.08s infinite alternate" : "none",
@@ -6223,6 +6258,13 @@ export default function App() {
       <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H }} />
       <canvas ref={animCanvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none" }} />
       {/* PixiJS canvas is dynamically inserted by PixiRenderer into gameContainerRef */}
+
+      {/* Panoramic scroll indicator */}
+      {canPanScroll && biome && (
+        <div style={{ position: "absolute", bottom: isMobile ? 90 : 72, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 8, pointerEvents: "none", opacity: panOffset === 0 ? 0.6 : 0.35, transition: "opacity 0.3s" }}>
+          <span style={{ color: "#fff", fontSize: 10, fontFamily: "monospace", textShadow: "0 1px 3px #000", letterSpacing: 1 }}>◄ ROZEJRZYJ SIĘ ►</span>
+        </div>
+      )}
 
       {/* Room & biome label – top center below TopBar */}
       {biome && (
