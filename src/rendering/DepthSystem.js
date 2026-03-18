@@ -26,6 +26,18 @@ export const DEPTH_CONFIG = {
   // Atmospheric fog
   fogMin: 0.0,    // Fog at foreground (none)
   fogMax: 0.35,   // Fog at horizon (moderate haze)
+
+  // Color desaturation at distance (0 = full color, 1 = grayscale)
+  desatMin: 0.0,   // Foreground (full color)
+  desatMax: 0.25,  // Horizon (slightly washed out)
+
+  // Parallax speed multiplier per depth lane
+  parallaxMin: 0.3,  // Far objects move slowly
+  parallaxMax: 1.0,  // Near objects move at full speed
+
+  // Particle size scaling at depth
+  particleSizeMin: 0.5,
+  particleSizeMax: 1.4,
 };
 
 // ─── DEPTH FROM Y ───
@@ -102,6 +114,35 @@ export function assignDepthLane(yPct) {
   const { laneCount } = DEPTH_CONFIG;
   const lane = Math.floor(depth * laneCount);
   return Math.min(lane, laneCount - 1);
+}
+
+// ─── DESATURATION AT DEPTH ───
+// Returns desaturation amount (0 = full color, 1 = grayscale)
+// Far objects appear more washed-out (atmospheric perspective)
+
+export function desatAtDepth(depth) {
+  const d = Math.max(0, Math.min(1, depth));
+  const { desatMin, desatMax } = DEPTH_CONFIG;
+  return desatMax - (desatMax - desatMin) * d;
+}
+
+// ─── PARALLAX SPEED AT DEPTH ───
+// Returns parallax speed multiplier for a given depth
+// Far objects scroll slower, near objects faster
+
+export function parallaxAtDepth(depth) {
+  const d = Math.max(0, Math.min(1, depth));
+  const { parallaxMin, parallaxMax } = DEPTH_CONFIG;
+  return parallaxMin + (parallaxMax - parallaxMin) * d;
+}
+
+// ─── PARTICLE SIZE AT DEPTH ───
+// Returns particle size multiplier at a given depth
+
+export function particleSizeAtDepth(depth) {
+  const d = Math.max(0, Math.min(1, depth));
+  const { particleSizeMin, particleSizeMax } = DEPTH_CONFIG;
+  return particleSizeMin + (particleSizeMax - particleSizeMin) * d;
 }
 
 // ─── SORT BY DEPTH ───

@@ -97,6 +97,8 @@ export class BiomeAnimator {
     if (fx.heatShimmer) this._drawHeatShimmer();
     if (fx.lanterns) this._spawnLanterns();
     if (fx.ripples) this._drawRipples();
+    if (fx.ghostFlames) this._spawnGhostFlames();
+    if (fx.clouds) this._drawClouds();
 
     // Weather-specific visuals
     if (this.weather) {
@@ -160,6 +162,7 @@ export class BiomeAnimator {
         case "dolphin": this._updateDolphin(p); break;
         case "comet": this._updateComet(p); break;
         case "lantern": this._updateLantern(p, wind); break;
+        case "ghostFlame": this._updateGhostFlame(p); break;
       }
     }
 
@@ -2148,6 +2151,32 @@ export class BiomeAnimator {
     ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 0.35 * flick, 0, Math.PI * 2); ctx.fill();
   }
 
+  // ─── GHOST FLAME (Underworld floating fire) ───
+  _updateGhostFlame(p) {
+    p.y -= p.rise;
+    p.x += p.drift + Math.sin(p.age * 0.04 + p.flicker) * 0.5;
+    p.flicker += 0.08;
+    const fade = Math.min(1, p.age / 30) * Math.max(0, 1 - p.age / p.maxAge);
+    if (fade <= 0) { p.alive = false; return; }
+
+    const { ctx } = this;
+    const flick = 0.7 + Math.sin(p.flicker) * 0.3;
+    const a = fade * flick;
+    // Outer glow
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3);
+    g.addColorStop(0, `hsla(${p.hue},60%,50%,${a * 0.25})`);
+    g.addColorStop(0.6, `hsla(${p.hue},50%,30%,${a * 0.08})`);
+    g.addColorStop(1, "transparent");
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x - p.size * 3, p.y - p.size * 3, p.size * 6, p.size * 6);
+    // Core flame
+    ctx.fillStyle = `hsla(${p.hue},70%,60%,${a * 0.6})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 0.5 * flick, 0, Math.PI * 2); ctx.fill();
+    // Flame tip
+    ctx.fillStyle = `hsla(${p.hue},80%,80%,${a * 0.4})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y - p.size * 0.6, p.size * 0.2 * flick, 0, Math.PI * 2); ctx.fill();
+  }
+
   // ─── WATER RIPPLES (for ocean/lagoon) ───
   _drawRipples() {
     const { ctx, W, H, GY } = this;
@@ -2165,6 +2194,44 @@ export class BiomeAnimator {
       ctx.beginPath();
       ctx.ellipse(cx, cy, radius, radius * 0.2, 0, 0, Math.PI * 2);
       ctx.stroke();
+    }
+  }
+
+  // --- Ghost flames (Underworld eerie floating fire) ---
+  _spawnGhostFlames() {
+    if (this.time % 20 !== 0) return;
+    const { W, H, GY } = this;
+    const hue = Math.random() > 0.5 ? 280 : 140; // purple or green
+    this._spawn("ghostFlame", {
+      x: Math.random() * W,
+      y: GY + 20 + Math.random() * (H - GY - 60),
+      hue,
+      size: 4 + Math.random() * 8,
+      drift: (Math.random() - 0.5) * 0.3,
+      rise: 0.2 + Math.random() * 0.3,
+      maxAge: 120 + Math.random() * 80,
+      flicker: Math.random() * Math.PI * 2,
+    });
+  }
+
+  // --- Olympus floating clouds ---
+  _drawClouds() {
+    const { ctx, W, GY } = this;
+    const t = this.time * 0.002;
+    for (let i = 0; i < 5; i++) {
+      const cx = ((t * 15 + i * W * 0.22) % (W + 200)) - 100;
+      const cy = GY * 0.3 + i * GY * 0.12 + Math.sin(t + i * 1.7) * 5;
+      const cw = 60 + i * 15;
+      const ch = 15 + i * 3;
+      const alpha = 0.06 + Math.sin(t * 0.5 + i) * 0.02;
+      ctx.fillStyle = `rgba(230,235,255,${alpha})`;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, cw, ch, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Secondary puff
+      ctx.beginPath();
+      ctx.ellipse(cx + cw * 0.4, cy - ch * 0.3, cw * 0.6, ch * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 }

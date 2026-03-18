@@ -5,7 +5,7 @@
 import { Container, Graphics, Sprite, Texture } from "pixi.js";
 import { HALF_HEIGHTS, FIGURE_HALF_HEIGHT } from "../physics/bodies/constants.js";
 import { getNpcIconCanvas } from "./icons.js";
-import { shadowAtDepth, fogAtDepth } from "./DepthSystem.js";
+import { shadowAtDepth, fogAtDepth, desatAtDepth } from "./DepthSystem.js";
 
 // Glow color presets
 const GLOW_FRIENDLY = { color: 0x3cdc50, alpha: 0.5 };
@@ -238,6 +238,17 @@ export class CharacterSprite {
     const depthFog = fogAtDepth(depth);
     alpha *= (1 - depthFog * 0.5); // subtle — don't fully obscure far NPCs
     this.container.alpha = alpha;
+
+    // 2.5D: desaturate far-away sprites (atmospheric color perspective)
+    const desat = desatAtDepth(depth);
+    if (desat > 0.01 && this.container.filters !== undefined) {
+      // PixiJS ColorMatrixFilter for desaturation — only apply if significant
+      this.container.tint = desat > 0.1
+        ? 0xddddee  // slight blue-grey tint for distant objects
+        : 0xffffff;
+    } else if (this.container.tint !== 0xffffff) {
+      this.container.tint = 0xffffff;
+    }
 
     // Store depth scale for use in icon/flash sprite sizing
     this._depthScale = depthScale;
