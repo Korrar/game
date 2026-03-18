@@ -57,6 +57,19 @@ export const ARTIFACT_SETS = [
     ],
     setBonus: { desc: "Komplet: pułapki x2 obrażeń, +1 max pułapek, cooldown czarów -15%", effect: { trapDmgMult: 2.0, extraTraps: 1, cooldownMult: 0.85 } },
   },
+  {
+    id: "olympian_relics",
+    name: "Relikty Olimpu",
+    color: "#80b0ff",
+    desc: "Artefakty wykute przez bogów na szczycie Olimpu",
+    pieces: [
+      { id: "ol_bolt",   icon: "lightning", name: "Piorun Zeusa",         desc: "Trzaska nawet w ciszy", lore: "Wykuty przez cyklopów w głębinach Tartaru. Jeden piorun mógł rozłupać górę na pół." },
+      { id: "ol_helm",   icon: "skull",     name: "Hełm Hadesa",          desc: "Czyni nosiciela niewidocznym", lore: "Hades nosił go podczas Titanomachii. Kto go założy, znika z oczu śmiertelników i bogów." },
+      { id: "ol_trident", icon: "harpoon",  name: "Trójząb Posejdona",    desc: "Władca mórz i trzęsień", lore: "Jednym uderzeniem tworzył wyspy, drugim je zatapiał. Morze drży na jego widok." },
+      { id: "ol_shield", icon: "shield",    name: "Egida Ateny",          desc: "Tarcza z głową Meduzy", lore: "Noszona przez boginię mądrości. Twarz Meduzy zamienia w kamień każdego, kto spojrzy bez pozwolenia." },
+    ],
+    setBonus: { desc: "Komplet: +30% obrażeń, odporność na pioruny, +3 pancerza statku", effect: { dmgMult: 1.30, lightningResist: true, caravanArmor: 3 } },
+  },
 ];
 
 // Ukryte pokoje — specjalne pomieszczenia z zagadkami
@@ -116,6 +129,52 @@ export const SECRET_ROOMS = [
         { offer: "50 HP statku",  cost: { caravanHp: 50 },  reward: { permDmgBuff: 0.15 }, rewardDesc: "+15% obrażeń permanentnie" },
         { offer: "30 prochu",      cost: { mana: 30 },       reward: { artifact: true },     rewardDesc: "Fragment artefaktu" },
         { offer: "1 srebrny",      cost: { silver: 1 },      reward: { mercRevive: true },   rewardDesc: "Wskrzeszenie najemnika" },
+      ],
+    },
+  },
+  {
+    id: "olympian_forge",
+    name: "Kuźnia Hefajstosa",
+    icon: "fire",
+    themeColor: "#ff6030",
+    desc: "Starożytna kuźnia bogów — kowadło wciąż rozżarzone po tysiącleciach.",
+    puzzle: {
+      type: "timing",
+      desc: "Uderzaj w kowadło w rytm — wykuj boską broń!",
+      difficulty: 3,
+      reward: { spellDmgBuff: 0.2, duration: 8, artifact: true },
+      failPenalty: { caravanDmg: 10 },
+    },
+  },
+  {
+    id: "oracle_temple",
+    name: "Świątynia Wyroczni",
+    icon: "eye",
+    themeColor: "#d0a0ff",
+    desc: "Dym z kadzideł unosi się spiralą. Pytia czeka na twoją ofiarę.",
+    puzzle: {
+      type: "trade",
+      desc: "Wybierz ofiarę dla wyroczni — im większa, tym lepsza przepowiednia",
+      trades: [
+        { offer: "20 miedzi",      cost: { copper: 20 },     reward: { initiative: 80 },     rewardDesc: "+80 inicjatywy" },
+        { offer: "1 srebrny",      cost: { silver: 1 },      reward: { revealMap: 5 },       rewardDesc: "Mapa 5 kolejnych pokoi" },
+        { offer: "1 złoty",        cost: { gold: 1 },        reward: { artifact: true, gold: 2 }, rewardDesc: "Fragment artefaktu + 2 złote" },
+      ],
+    },
+  },
+  {
+    id: "styx_crossing",
+    name: "Przeprawa przez Styks",
+    icon: "water",
+    themeColor: "#3040a0",
+    desc: "Charon czeka w łodzi. Cena przeprawy jest nieoczekiwana.",
+    puzzle: {
+      type: "trade",
+      desc: "Charon żąda zapłaty — ale nie złotem...",
+      trades: [
+        { offer: "Wspomnienie (30 prochu)",   cost: { mana: 30 },      reward: { shadowDmgBuff: 0.15, duration: 8 }, rewardDesc: "+15% obrażeń cieni na 8 pokoi" },
+        { offer: "Krew (25 HP statku)",        cost: { caravanHp: 25 }, reward: { treasure: "legendary" },           rewardDesc: "Legendarny skarb z podziemi" },
+        { offer: "Czas (50 inicjatywy)",       cost: { initLoss: 50 },  reward: { tempMercs: 2, duration: 6 },       rewardDesc: "2 widmowych najemników na 6 pokoi" },
       ],
     },
   },

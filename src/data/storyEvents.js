@@ -165,6 +165,64 @@ export const STORY_ARCS = [
       { desc: "Wiedźma zdradza sekret: 'Pod trzecią wyspą leży skarb bogów morza.'", reward: { gold: 2, silver: 4, treasure: true }, icon: "star" },
     ],
   },
+  {
+    id: "olympus_trial",
+    name: "Próba Olimpu",
+    icon: "lightning",
+    themeColor: "#4080ff",
+    desc: "Bogowie Olimpu wystawiają cię na próbę — czy jesteś godny ich darów?",
+    totalSteps: 3,
+    stepChance: 0.22,
+    steps: [
+      { desc: "Kamienna tablica z wyrytym wyzwaniem: 'Udowodnij swoją odwagę!'", reward: { copper: 25 }, icon: "rock" },
+      { desc: "Piorun uderza tuż obok — to znak Zeusa! Moc przenika twoje oręż.", reward: { mana: 40, dynamite: 2 }, icon: "lightning" },
+      {
+        desc: "Stanąłeś przed Bramą Olimpu. Bóg wojny czeka.",
+        icon: "swords",
+        choices: [
+          { label: "Walcz z Aresem", desc: "70% szans na boską broń (+20% dmg na 10 pokoi). 30%: -30 HP statku", reward: { gamble: "ares_fight" }, icon: "swords" },
+          { label: "Złóż ofiarę", desc: "Oddaj 3 srebrne — bogowie błogosławią podwójnym łupem na 5 pokoi", cost: { silver: 3 }, reward: { lootBuff: 2.0, duration: 5 }, icon: "gem" },
+          { label: "Pokłoń się i odejdź", desc: "Pokorna droga — +50 miedzi i szacunek bogów", reward: { copper: 50, initiative: 40 }, icon: "shield" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "underworld_descent",
+    name: "Zejście do Hadesu",
+    icon: "skull",
+    themeColor: "#6a2080",
+    desc: "Brama do podziemnego królestwa otwiera się — czy odważysz się zejść?",
+    totalSteps: 3,
+    stepChance: 0.20,
+    steps: [
+      { desc: "Znaleziono obol — monetę na przeprawę przez Styks.", reward: { copper: 15, mana: 15 }, icon: "coin" },
+      { desc: "Charon przeprowadza cię przez rzekę. Cienie szepcą tajemnice...", reward: { initiative: 60, copper: 20 }, icon: "water" },
+      {
+        desc: "Stanąłeś przed tronem Hadesa. Bóg umarłych daje ci wybór.",
+        icon: "skull",
+        choices: [
+          { label: "Poproś o moc", desc: "Hades daje moc cieni — +25% obrażeń shadow na zawsze, ale -20 max HP statku", reward: { shadowDmgBuff: 0.25, permanent: true }, penalty: { maxHpLoss: 20 }, icon: "skull" },
+          { label: "Poproś o skarby", desc: "Skarby podziemi — 5 złota i legendarny artefakt", reward: { gold: 5, treasure: true }, icon: "treasure" },
+          { label: "Poproś o wiedzę", desc: "Hades ujawnia lokalizacje sekretnych pokoi na 10 pokoi", reward: { secretRoomBuff: true, duration: 10, copper: 30 }, icon: "eye" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "phoenix_egg",
+    name: "Jajo Feniksa",
+    icon: "fire",
+    themeColor: "#ff6030",
+    desc: "Legenda mówi o jaju feniksa ukrytym na szczycie wulkanu",
+    totalSteps: 3,
+    stepChance: 0.18,
+    steps: [
+      { desc: "Pióro feniksa lśni ognistym blaskiem — wskazuje drogę!", reward: { copper: 20 }, icon: "feather" },
+      { desc: "Wulkaniczne tunele prowadzą do gniazda — lawa płynie obok!", reward: { dynamite: 3, mana: 25 }, icon: "fire" },
+      { desc: "Jajo feniksa! Ciepłe jak słońce, pulsuje wewnętrzną mocą.", reward: { gold: 3, silver: 3, mana: 50 }, icon: "star" },
+    ],
+  },
 ];
 
 // Decyzje moralne — natychmiastowe rozgałęzienia w randomowych pokojach
@@ -248,6 +306,40 @@ export const MORAL_DILEMMAS = [
     choices: [
       { label: "Przyjmij wyścig", desc: "Wygrana: 5 srebrnych + szacunek portów. Przegrana: -30 miedzi", reward: { gamble: "sea_race" }, icon: "feather" },
       { label: "Zaproponuj sojusz", desc: "Zamiast ścigać się — razem polujesz na piratów (+1 srebrny)", reward: { silver: 1, tempMercs: 1, duration: 3 }, icon: "recruit" },
+    ],
+  },
+  {
+    id: "medusa_gaze",
+    name: "Spojrzenie Meduzy",
+    icon: "eye",
+    themeColor: "#50a050",
+    question: "Kamienny posąg wojownika blokuje drogę. Obok leży lusterko i miecz.",
+    choices: [
+      { label: "Użyj lusterka", desc: "Odbijesz wzrok Meduzy — kamień pęka, skarb za nim!", reward: { silver: 2, copper: 40 }, icon: "gem" },
+      { label: "Zniszcz posąg mieczem", desc: "Wywalczysz drogę siłą, ale stracisz czas (-30 inicjatywy)", reward: { copper: 60 }, penalty: { initLoss: 30 }, icon: "swords" },
+    ],
+  },
+  {
+    id: "sirens_call",
+    name: "Pieśń Syren",
+    icon: "water",
+    themeColor: "#6080c0",
+    question: "Melodyjny śpiew dobiega z oddali. Twoi najemnicy zaczynają iść jak w transie.",
+    choices: [
+      { label: "Zatkaj uszy woskiem", desc: "Bezpieczne przejście — zachowujesz załogę i zyskujesz pewność siebie", reward: { mana: 30, initiative: 30 }, icon: "shield" },
+      { label: "Słuchaj pieśni", desc: "Syreny ujawniają tajemnice morza — mapa do skarbu! Ale 1 najemnik odchodzi", reward: { gold: 2, treasure: true }, penalty: { mercLoss: 1 }, icon: "gem" },
+      { label: "Zaatakuj syreny", desc: "Syreny bronią się magią — ale ich perły są warte fortunę", reward: { gamble: "siren_fight" }, icon: "swords" },
+    ],
+  },
+  {
+    id: "labyrinth_entrance",
+    name: "Wejście do Labiryntu",
+    icon: "rock",
+    themeColor: "#8a6030",
+    question: "Kamienna brama z wyrytym bykiem prowadzi w dół. Nici Ariadny leżą u wejścia.",
+    choices: [
+      { label: "Wejdź z nicią", desc: "Bezpieczna eksploracja — gwarantowany epicki skarb", reward: { guaranteedEpic: true }, icon: "scroll" },
+      { label: "Wejdź bez nici", desc: "Ryzykowne ale zyskowne — 60%: legendarny skarb, 40%: pułapka i -25 HP", reward: { gamble: "labyrinth" }, icon: "skull" },
     ],
   },
 ];

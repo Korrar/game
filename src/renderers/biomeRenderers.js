@@ -122,158 +122,267 @@ function drawScatter(ctx, W, H, GY, r, items) {
 }
 
 function drawJungle(ctx, W, H, GY, r) {
-  for (let i = 0; i < 10; i++) {
-    const x = r() * W, by = GY - 10 + r() * 30, h = 70 + r() * 120, dp = r();
-    ctx.globalAlpha = 0.35 + dp * 0.6;
-    ctx.fillStyle = `hsl(25,40%,${18 + r() * 10}%)`; const tw = 5 + dp * 6;
-    ctx.fillRect(x - tw / 2, by - h * 0.35, tw, h * 0.35);
+  const groundH = H - GY;
+  // Collect trees with Y-position, sort by depth (painter's algorithm)
+  const trees = [];
+  for (let i = 0; i < 12; i++) {
+    trees.push({ x: r() * W, by: GY - 10 + r() * 40, h: 70 + r() * 120, rvals: [r(), r(), r(), r(), r(), r(), r(), r()] });
+  }
+  trees.sort((a, b) => a.by - b.by); // far first
+  for (const t of trees) {
+    const depthT = Math.max(0, Math.min(1, (t.by - GY) / (groundH * 0.5)));
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = minScale + (maxScale - minScale) * depthT;
+    ctx.globalAlpha = 0.3 + depthT * 0.6;
+    const tw = (5 + t.rvals[0] * 6) * scale;
+    // Trunk
+    ctx.fillStyle = `hsl(25,40%,${18 + t.rvals[1] * 10}%)`;
+    ctx.fillRect(t.x - tw / 2, t.by - t.h * 0.35 * scale, tw, t.h * 0.35 * scale);
+    // Vine
     ctx.strokeStyle = "rgba(40,120,20,0.4)"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(x, by - h * 0.3);
-    ctx.bezierCurveTo(x + 15, by - h * 0.2, x - 10, by - h * 0.1, x + 5, by); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(t.x, t.by - t.h * 0.3 * scale);
+    ctx.bezierCurveTo(t.x + 15 * scale, t.by - t.h * 0.2 * scale, t.x - 10 * scale, t.by - t.h * 0.1 * scale, t.x + 5 * scale, t.by); ctx.stroke();
+    // Canopy layers
     for (let l = 0; l < 4; l++) {
-      const ly = by - h * 0.35 - l * h * 0.18, rad = 22 + r() * 25 - l * 4;
-      ctx.fillStyle = `hsl(${105 + r() * 30},${45 + r() * 20}%,${16 + l * 6 + r() * 5}%)`;
-      ctx.beginPath(); ctx.ellipse(x, ly, rad, rad * 0.65, 0, 0, Math.PI * 2); ctx.fill();
+      const ly = t.by - t.h * 0.35 * scale - l * t.h * 0.18 * scale;
+      const rad = (22 + t.rvals[2 + l] * 25 - l * 4) * scale;
+      const light = 16 + l * 6 + t.rvals[2 + l] * 5 - (1 - depthT) * 4; // darker at distance
+      ctx.fillStyle = `hsl(${105 + t.rvals[2 + l] * 30},${45 + t.rvals[2 + l] * 20}%,${light}%)`;
+      ctx.beginPath(); ctx.ellipse(t.x, ly, rad, rad * 0.65, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
   ctx.globalAlpha = 1;
+  // Hanging moss near horizon (depth detail)
+  for (let i = 0; i < 8; i++) {
+    const mx = r() * W, my = GY + 5 + r() * 20;
+    ctx.strokeStyle = `rgba(60,100,30,${0.1 + r() * 0.1})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + (r() - 0.5) * 4, my + 10 + r() * 15); ctx.stroke();
+  }
 }
 
 function drawIsland(ctx, W, H, GY, r) {
-  for (let i = 0; i < 5; i++) {
-    const x = r() * W, by = GY - 5 + r() * 15, h = 50 + r() * 70, lean = (r() - 0.5) * 25;
-    ctx.globalAlpha = 0.45 + r() * 0.45;
-    ctx.strokeStyle = "#6B4420"; ctx.lineWidth = 4 + r() * 3;
-    ctx.beginPath(); ctx.moveTo(x, by); ctx.quadraticCurveTo(x + lean * 0.5, by - h * 0.5, x + lean, by - h); ctx.stroke();
-    const lx = x + lean, ly = by - h;
+  const groundH = H - GY;
+  // Collect palms with depth, sort far-first
+  const palms = [];
+  for (let i = 0; i < 6; i++) {
+    palms.push({ x: r() * W, by: GY - 5 + r() * 25, h: 50 + r() * 70, lean: (r() - 0.5) * 25, rv: [r(), r(), r(), r(), r(), r(), r()] });
+  }
+  palms.sort((a, b) => a.by - b.by);
+  for (const p of palms) {
+    const depthT = Math.max(0, Math.min(1, (p.by - GY + 10) / (groundH * 0.4)));
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = minScale + (maxScale - minScale) * depthT;
+    ctx.globalAlpha = 0.35 + depthT * 0.55;
+    ctx.strokeStyle = "#6B4420"; ctx.lineWidth = (4 + p.rv[0] * 3) * scale;
+    ctx.beginPath(); ctx.moveTo(p.x, p.by); ctx.quadraticCurveTo(p.x + p.lean * 0.5, p.by - p.h * 0.5 * scale, p.x + p.lean, p.by - p.h * scale); ctx.stroke();
+    const lx = p.x + p.lean, ly = p.by - p.h * scale;
     for (let j = 0; j < 6; j++) {
-      const a = (j / 6) * Math.PI * 2 + r() * 0.5, len = 25 + r() * 28;
-      ctx.strokeStyle = `hsl(${115 + r() * 20},50%,${28 + r() * 12}%)`; ctx.lineWidth = 2 + r() * 2;
+      const a = (j / 6) * Math.PI * 2 + p.rv[1] * 0.5, len = (25 + p.rv[2] * 28) * scale;
+      const light = 28 + p.rv[3] * 12 - (1 - depthT) * 6;
+      ctx.strokeStyle = `hsl(${115 + p.rv[4] * 20},50%,${light}%)`; ctx.lineWidth = (2 + p.rv[5] * 2) * scale;
       ctx.beginPath(); ctx.moveTo(lx, ly);
-      ctx.quadraticCurveTo(lx + Math.cos(a) * len * 0.6, ly + Math.sin(a) * len * 0.3 - 8, lx + Math.cos(a) * len, ly + Math.sin(a) * len * 0.5 + 8);
+      ctx.quadraticCurveTo(lx + Math.cos(a) * len * 0.6, ly + Math.sin(a) * len * 0.3 - 8 * scale, lx + Math.cos(a) * len, ly + Math.sin(a) * len * 0.5 + 8 * scale);
       ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
+  // Water with depth-fading waves
   const wy = H * 0.82;
   const g = ctx.createLinearGradient(0, wy, 0, H);
   g.addColorStop(0, "rgba(30,120,200,0.7)"); g.addColorStop(1, "rgba(10,60,120,0.9)");
   ctx.fillStyle = g; ctx.fillRect(0, wy, W, H - wy);
-  ctx.strokeStyle = "rgba(150,220,255,0.35)"; ctx.lineWidth = 2;
   for (let row = 0; row < 5; row++) {
     const y = wy + row * 10 + 4;
+    const rowAlpha = 0.2 + (row / 5) * 0.25; // waves get brighter closer
+    ctx.strokeStyle = `rgba(150,220,255,${rowAlpha})`; ctx.lineWidth = 1.5 + row * 0.3;
     ctx.beginPath();
     for (let x = 0; x < W; x += 4) { const yy = y + Math.sin(x * 0.03 + row * 2) * 3.5; x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy); }
     ctx.stroke();
   }
-
-  // Distant ship silhouette on the horizon
+  // Distant ship (at horizon — very faded)
   const sx = W * 0.85, sy = wy - 2;
-  ctx.globalAlpha = 0.25;
-  // Hull
+  ctx.globalAlpha = 0.15; // more faded = more distant feel
   ctx.fillStyle = "#1a1a2a";
-  ctx.beginPath(); ctx.moveTo(sx - 22, sy); ctx.lineTo(sx - 18, sy + 8);
-  ctx.lineTo(sx + 18, sy + 8); ctx.lineTo(sx + 22, sy);
-  ctx.quadraticCurveTo(sx, sy - 3, sx - 22, sy); ctx.fill();
-  // Mast
-  ctx.fillRect(sx - 1, sy - 28, 2, 28);
-  // Sail
-  ctx.fillStyle = "#2a2a3a";
-  ctx.beginPath(); ctx.moveTo(sx + 1, sy - 26); ctx.lineTo(sx + 1, sy - 8);
-  ctx.quadraticCurveTo(sx + 14, sy - 17, sx + 1, sy - 26); ctx.fill();
-  // Flag
-  ctx.fillStyle = "#1a1a1a";
-  ctx.fillRect(sx + 1, sy - 29, 8, 4);
+  ctx.beginPath(); ctx.moveTo(sx - 18, sy); ctx.lineTo(sx - 14, sy + 6); ctx.lineTo(sx + 14, sy + 6); ctx.lineTo(sx + 18, sy); ctx.quadraticCurveTo(sx, sy - 3, sx - 18, sy); ctx.fill();
+  ctx.fillRect(sx - 1, sy - 22, 2, 22);
+  ctx.fillStyle = "#2a2a3a"; ctx.beginPath(); ctx.moveTo(sx + 1, sy - 20); ctx.lineTo(sx + 1, sy - 6); ctx.quadraticCurveTo(sx + 11, sy - 13, sx + 1, sy - 20); ctx.fill();
   ctx.globalAlpha = 1;
+  // Rocky tidepools (foreground detail)
+  for (let i = 0; i < 3; i++) {
+    const rx = r() * W, ry = H - 15 - r() * 25;
+    ctx.fillStyle = `rgba(80,100,120,${0.2 + r() * 0.15})`;
+    ctx.beginPath(); ctx.ellipse(rx, ry, 8 + r() * 12, 4 + r() * 5, r() * 0.3, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 function drawDesert(ctx, W, H, GY, r) {
-  for (let l = 0; l < 4; l++) {
-    const by = GY - 15 + l * 22;
-    ctx.fillStyle = `hsl(38,60%,${58 + l * 5}%)`;
+  const groundH = H - GY;
+  // Dune layers with depth perspective — closer layers are larger amplitude and more saturated
+  for (let l = 0; l < 5; l++) {
+    const depthT = l / 4; // 0=far, 1=near
+    const by = GY - 15 + l * 25;
+    const sat = 50 + depthT * 15;
+    const light = 62 - (1 - depthT) * 8 + l * 3;
+    ctx.fillStyle = `hsl(38,${sat}%,${light}%)`;
     ctx.beginPath(); ctx.moveTo(0, by + 35);
-    for (let x = 0; x <= W; x += 18) ctx.lineTo(x, by + Math.sin(x * (0.003 + l * 0.001) + l * 1.5) * (28 + l * 8));
+    const amp = (20 + l * 12) * (0.7 + depthT * 0.3);
+    for (let x = 0; x <= W; x += 14) ctx.lineTo(x, by + Math.sin(x * (0.003 + l * 0.001) + l * 1.5) * amp);
     ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
   }
-  ctx.fillStyle = "rgba(180,140,60,0.25)";
-  for (let i = 0; i < 60; i++) ctx.fillRect(r() * W, GY + r() * (H - GY), 2, 1);
-
-  // Cacti silhouettes
-  for (let i = 0; i < 3; i++) {
-    const cx = W * 0.15 + r() * W * 0.7;
-    const cy = GY + 10 + r() * 30;
-    const ch = 25 + r() * 30;
-    ctx.globalAlpha = 0.2 + r() * 0.15;
+  // Sand particles — denser in foreground
+  for (let i = 0; i < 60; i++) {
+    const sy = GY + r() * groundH;
+    const depthT = (sy - GY) / groundH;
+    ctx.fillStyle = `rgba(180,140,60,${0.15 + depthT * 0.2})`;
+    ctx.fillRect(r() * W, sy, 1 + depthT, 1);
+  }
+  // Cacti with depth sorting
+  const cacti = [];
+  for (let i = 0; i < 5; i++) cacti.push({ x: W * 0.1 + r() * W * 0.8, y: GY + 8 + r() * 40, h: 20 + r() * 35, rv: [r(), r(), r(), r()] });
+  cacti.sort((a, b) => a.y - b.y);
+  for (const c of cacti) {
+    const depthT = Math.max(0, Math.min(1, (c.y - GY) / (groundH * 0.5)));
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = minScale + (maxScale - minScale) * depthT;
+    ctx.globalAlpha = 0.15 + depthT * 0.25;
     ctx.fillStyle = "#2a5a1a";
-    ctx.fillRect(cx - 3, cy - ch, 6, ch);
-    // Arms
-    if (r() > 0.3) {
-      const armY = cy - ch * 0.6;
-      ctx.fillRect(cx + 3, armY, 10, 4);
-      ctx.fillRect(cx + 9, armY - 10, 4, 14);
+    const cw = 3 * scale;
+    ctx.fillRect(c.x - cw, c.y - c.h * scale, cw * 2, c.h * scale);
+    if (c.rv[0] > 0.3) {
+      const armY = c.y - c.h * 0.6 * scale;
+      ctx.fillRect(c.x + cw, armY, 10 * scale, 4 * scale);
+      ctx.fillRect(c.x + 9 * scale, armY - 10 * scale, 4 * scale, 14 * scale);
     }
-    if (r() > 0.4) {
-      const armY = cy - ch * 0.4;
-      ctx.fillRect(cx - 13, armY, 10, 4);
-      ctx.fillRect(cx - 13, armY - 8, 4, 12);
+    if (c.rv[1] > 0.4) {
+      const armY = c.y - c.h * 0.4 * scale;
+      ctx.fillRect(c.x - 13 * scale, armY, 10 * scale, 4 * scale);
+      ctx.fillRect(c.x - 13 * scale, armY - 8 * scale, 4 * scale, 12 * scale);
     }
   }
   ctx.globalAlpha = 1;
-
-  // Bleached bones
-  ctx.strokeStyle = "rgba(220,210,190,0.15)";
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 2; i++) {
-    const bx = r() * W, by = GY + 20 + r() * (H - GY - 40);
+  // Bleached bones with depth
+  for (let i = 0; i < 3; i++) {
+    const bx = r() * W, by = GY + 20 + r() * (groundH - 40);
+    const depthT = (by - GY) / groundH;
+    ctx.strokeStyle = `rgba(220,210,190,${0.08 + depthT * 0.12})`;
+    ctx.lineWidth = 1.5 + depthT;
     ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + 12, by + 6); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(bx + 3, by + 8); ctx.lineTo(bx + 10, by); ctx.stroke();
+  }
+  // Wagon wheel ruts (foreground detail)
+  ctx.strokeStyle = "rgba(140,110,50,0.08)";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 2; i++) {
+    const ry = H - 30 - i * 12;
+    ctx.beginPath();
+    for (let x = 0; x < W; x += 6) ctx.lineTo(x, ry + Math.sin(x * 0.02 + i) * 2);
+    ctx.stroke();
   }
 }
 
 function drawWinter(ctx, W, H, GY, r) {
-  for (let i = 0; i < 8; i++) {
-    const x = r() * W, by = GY - 5 + r() * 15, h = 50 + r() * 80;
-    ctx.globalAlpha = 0.4 + r() * 0.5;
-    ctx.fillStyle = "#4a2a12"; ctx.fillRect(x - 3, by - h * 0.22, 6, h * 0.22);
+  const groundH = H - GY;
+  // Collect trees, sort by Y for depth
+  const trees = [];
+  for (let i = 0; i < 10; i++) {
+    trees.push({ x: r() * W, by: GY - 5 + r() * 20, h: 50 + r() * 80, rv: [r(), r(), r(), r(), r()] });
+  }
+  trees.sort((a, b) => a.by - b.by);
+  for (const t of trees) {
+    const depthT = Math.max(0, Math.min(1, (t.by - GY + 10) / (groundH * 0.4)));
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = minScale + (maxScale - minScale) * depthT;
+    ctx.globalAlpha = 0.3 + depthT * 0.6;
+    // Trunk
+    const tw = 3 * scale;
+    ctx.fillStyle = "#4a2a12"; ctx.fillRect(t.x - tw, t.by - t.h * 0.22 * scale, tw * 2, t.h * 0.22 * scale);
+    // Pine layers
     for (let l = 0; l < 4; l++) {
-      const ly = by - h * 0.22 - l * h * 0.17, w = 24 - l * 4 + r() * 8;
-      ctx.fillStyle = `hsl(${145 + r() * 20},35%,${16 + l * 5}%)`;
-      ctx.beginPath(); ctx.moveTo(x - w, ly); ctx.lineTo(x, ly - h * 0.18); ctx.lineTo(x + w, ly); ctx.closePath(); ctx.fill();
+      const ly = t.by - t.h * 0.22 * scale - l * t.h * 0.17 * scale;
+      const w = (24 - l * 4 + t.rv[0] * 8) * scale;
+      const light = 16 + l * 5 + t.rv[1] * 5 - (1 - depthT) * 5;
+      ctx.fillStyle = `hsl(${145 + t.rv[2] * 20},${30 + depthT * 10}%,${light}%)`;
+      ctx.beginPath(); ctx.moveTo(t.x - w, ly); ctx.lineTo(t.x, ly - t.h * 0.18 * scale); ctx.lineTo(t.x + w, ly); ctx.closePath(); ctx.fill();
     }
-    ctx.fillStyle = "rgba(230,240,255,0.55)";
-    for (let l = 0; l < 3; l++) { ctx.beginPath(); ctx.ellipse(x, by - h * 0.22 - l * h * 0.17 - h * 0.15, 16 - l * 3, 4, 0, 0, Math.PI * 2); ctx.fill(); }
+    // Snow on branches
+    ctx.fillStyle = `rgba(230,240,255,${0.35 + depthT * 0.3})`;
+    for (let l = 0; l < 3; l++) {
+      const ly = t.by - t.h * 0.22 * scale - l * t.h * 0.17 * scale - t.h * 0.15 * scale;
+      ctx.beginPath(); ctx.ellipse(t.x, ly, (16 - l * 3) * scale, 4 * scale, 0, 0, Math.PI * 2); ctx.fill();
+    }
   }
   ctx.globalAlpha = 1;
-  ctx.fillStyle = "rgba(230,240,255,0.45)";
-  for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.ellipse(r() * W, GY + r() * (H - GY) * 0.4, 50 + r() * 100, 12 + r() * 12, 0, 0, Math.PI * 2); ctx.fill(); }
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
-  for (let i = 0; i < 40; i++) { ctx.beginPath(); ctx.arc(r() * W, r() * H, 1 + r() * 2.5, 0, Math.PI * 2); ctx.fill(); }
+  // Snow drifts with depth — larger drifts in foreground
+  for (let i = 0; i < 6; i++) {
+    const dy = GY + r() * groundH * 0.45;
+    const depthT = (dy - GY) / groundH;
+    const dw = (50 + r() * 100) * (0.6 + depthT * 0.8);
+    ctx.fillStyle = `rgba(230,240,255,${0.3 + depthT * 0.2})`;
+    ctx.beginPath(); ctx.ellipse(r() * W, dy, dw, (12 + r() * 12) * (0.7 + depthT * 0.5), 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // Ice crystals — denser closer to camera
+  for (let i = 0; i < 40; i++) {
+    const iy = r() * H;
+    const depthT = Math.max(0, (iy - GY) / groundH);
+    const size = (1 + r() * 2.5) * (0.5 + depthT * 0.8);
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + depthT * 0.3})`;
+    ctx.beginPath(); ctx.arc(r() * W, iy, size, 0, Math.PI * 2); ctx.fill();
+  }
+  // Frozen footprints (foreground detail)
+  ctx.fillStyle = "rgba(180,200,220,0.08)";
+  for (let i = 0; i < 6; i++) {
+    const fx = W * 0.3 + r() * W * 0.4, fy = H - 20 - r() * 40;
+    ctx.beginPath(); ctx.ellipse(fx, fy, 3, 5, r() * 0.3, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 function drawCity(ctx, W, H, GY, r) {
-  ctx.fillStyle = "#3a3428"; ctx.fillRect(0, GY + 5, W, H - GY - 5);
-  ctx.fillStyle = "rgba(60,55,45,0.4)";
-  for (let i = 0; i < 80; i++) ctx.fillRect(r() * W, GY + 10 + r() * (H - GY - 15), 8 + r() * 12, 6 + r() * 8);
-
-  const count = 7 + Math.floor(r() * 5);
+  const groundH = H - GY;
+  // Cobblestone ground with depth — smaller stones at horizon
+  ctx.fillStyle = "#3a3428"; ctx.fillRect(0, GY + 5, W, groundH - 5);
+  for (let i = 0; i < 100; i++) {
+    const sy = GY + 10 + r() * (groundH - 15);
+    const depthT = (sy - GY) / groundH;
+    const sz = (6 + r() * 8) * (0.5 + depthT * 0.7);
+    ctx.fillStyle = `rgba(60,55,45,${0.25 + depthT * 0.2})`;
+    ctx.fillRect(r() * W, sy, sz * 1.3, sz);
+  }
+  // Buildings — sorted by position, farther ones smaller and lighter
+  const buildings = [];
+  const count = 8 + Math.floor(r() * 4);
   for (let i = 0; i < count; i++) {
-    const bx = (i / count) * W + (r() - 0.5) * 25, bw = 38 + r() * 55, bh = 80 + r() * 140, by = GY - bh + 10;
-    ctx.fillStyle = `hsl(${30 + r() * 15},${20 + r() * 15}%,${25 + r() * 20}%)`; ctx.fillRect(bx, by, bw, bh);
-    ctx.strokeStyle = "#3a2210"; ctx.lineWidth = 3; ctx.strokeRect(bx, by, bw, bh);
-    ctx.beginPath(); ctx.moveTo(bx, by + bh * 0.33); ctx.lineTo(bx + bw, by + bh * 0.33); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(bx, by + bh * 0.66); ctx.lineTo(bx + bw, by + bh * 0.66); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(bx + bw * 0.5, by); ctx.lineTo(bx + bw * 0.5, by + bh); ctx.stroke();
-    ctx.fillStyle = `hsl(${10 + r() * 15},${40 + r() * 15}%,${22 + r() * 10}%)`;
-    ctx.beginPath(); ctx.moveTo(bx - 8, by); ctx.lineTo(bx + bw / 2, by - 25 - r() * 20); ctx.lineTo(bx + bw + 8, by); ctx.closePath(); ctx.fill();
+    buildings.push({ x: (i / count) * W + (r() - 0.5) * 25, w: 38 + r() * 55, h: 80 + r() * 140, layer: r(), rv: [r(), r(), r(), r()] });
+  }
+  buildings.sort((a, b) => a.layer - b.layer); // draw far buildings first
+  for (const b of buildings) {
+    const depthT = b.layer;
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = 0.75 + depthT * 0.35;
+    const bw = b.w * scale, bh = b.h * scale, by = GY - bh + 10;
+    ctx.globalAlpha = 0.5 + depthT * 0.5;
+    const light = 25 + b.rv[0] * 20 - (1 - depthT) * 8;
+    ctx.fillStyle = `hsl(${30 + b.rv[1] * 15},${15 + depthT * 10}%,${light}%)`; ctx.fillRect(b.x, by, bw, bh);
+    ctx.strokeStyle = `rgba(58,34,16,${0.3 + depthT * 0.5})`; ctx.lineWidth = 2 + depthT; ctx.strokeRect(b.x, by, bw, bh);
+    // Floor lines
+    ctx.beginPath(); ctx.moveTo(b.x, by + bh * 0.33); ctx.lineTo(b.x + bw, by + bh * 0.33); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(b.x, by + bh * 0.66); ctx.lineTo(b.x + bw, by + bh * 0.66); ctx.stroke();
+    // Roof
+    ctx.fillStyle = `hsl(${10 + b.rv[2] * 15},${35 + depthT * 15}%,${22 + b.rv[3] * 10}%)`;
+    ctx.beginPath(); ctx.moveTo(b.x - 6, by); ctx.lineTo(b.x + bw / 2, by - (20 + b.rv[3] * 15) * scale); ctx.lineTo(b.x + bw + 6, by); ctx.closePath(); ctx.fill();
+    // Windows — brighter in foreground
     const rows = Math.floor(bh / 30), cols = Math.floor(bw / 22);
     for (let ro = 0; ro < rows; ro++) for (let co = 0; co < cols; co++) {
       if (r() > 0.3) {
-        const wx = bx + 6 + co * 22, wy = by + 10 + ro * 30;
-        ctx.fillStyle = r() > 0.5 ? `rgba(255,180,60,${0.4 + r() * 0.4})` : "rgba(40,30,20,0.8)";
-        ctx.fillRect(wx, wy, 10, 14);
+        const wx = b.x + 6 + co * 22 * scale, wy = by + 10 + ro * 30 * scale;
+        const winAlpha = (0.3 + r() * 0.3) * (0.5 + depthT * 0.5);
+        ctx.fillStyle = r() > 0.5 ? `rgba(255,180,60,${winAlpha})` : `rgba(40,30,20,${0.5 + depthT * 0.3})`;
+        ctx.fillRect(wx, wy, 10 * scale, 14 * scale);
       }
     }
   }
+  ctx.globalAlpha = 1;
+  // Street lamps
   ctx.textAlign = "center";
   for (let i = 0; i < 4; i++) {
     const lx = 80 + i * (W - 160) / 3;
@@ -284,170 +393,319 @@ function drawCity(ctx, W, H, GY, r) {
     const fireImg = getIconImage("fire", 13); if (fireImg) ctx.drawImage(fireImg, lx - 6, GY - 24, 13, 13);
   }
   ctx.textAlign = "start";
+  // Puddles in foreground (street detail)
+  for (let i = 0; i < 3; i++) {
+    const px = r() * W, py = H - 25 - r() * 30;
+    ctx.fillStyle = "rgba(60,80,100,0.08)";
+    ctx.beginPath(); ctx.ellipse(px, py, 15 + r() * 20, 4 + r() * 3, 0, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 function drawVolcano(ctx, W, H, GY, r) {
-  for (let i = 0; i < 4; i++) {
-    const ly = GY + 15 + r() * (H - GY - 35);
-    ctx.strokeStyle = `rgba(${200 + r() * 55},${50 + r() * 40},10,0.65)`;
-    ctx.lineWidth = 5 + r() * 10; ctx.beginPath(); let x = 0; ctx.moveTo(x, ly);
-    while (x < W) { x += 25 + r() * 35; ctx.lineTo(x, ly + (r() - 0.5) * 25); } ctx.stroke();
-    ctx.strokeStyle = "rgba(255,100,20,0.12)"; ctx.lineWidth = 18 + r() * 12; ctx.stroke();
-  }
-  ctx.fillStyle = "rgba(255,120,20,0.5)";
-  for (let i = 0; i < 15; i++) { ctx.beginPath(); ctx.arc(r() * W, r() * H, 1 + r() * 2.5, 0, Math.PI * 2); ctx.fill(); }
-
-  // Volcanic rocks / obsidian chunks
+  const groundH = H - GY;
+  // Lava streams with depth — brighter closer to camera
   for (let i = 0; i < 5; i++) {
-    const rx = r() * W, ry = GY + 10 + r() * (H - GY - 30);
-    const rs = 5 + r() * 10;
-    ctx.globalAlpha = 0.3 + r() * 0.2;
-    ctx.fillStyle = `rgb(${30 + r() * 20},${15 + r() * 10},${15 + r() * 10})`;
+    const ly = GY + 12 + r() * (groundH - 30);
+    const depthT = (ly - GY) / groundH;
+    const red = 180 + depthT * 75 + r() * 30;
+    const green = 40 + r() * 40 + depthT * 15;
+    ctx.strokeStyle = `rgba(${red},${green},10,${0.4 + depthT * 0.3})`;
+    ctx.lineWidth = (4 + r() * 8) * (0.6 + depthT * 0.6); ctx.beginPath(); let x = 0; ctx.moveTo(x, ly);
+    while (x < W) { x += 20 + r() * 30; ctx.lineTo(x, ly + (r() - 0.5) * 20); } ctx.stroke();
+    // Glow around lava
+    ctx.strokeStyle = `rgba(255,100,20,${0.06 + depthT * 0.08})`; ctx.lineWidth = (16 + r() * 10) * (0.5 + depthT * 0.5); ctx.stroke();
+  }
+  // Sparks
+  for (let i = 0; i < 15; i++) {
+    const sy = r() * H;
+    const depthT = Math.max(0, (sy - GY) / groundH);
+    const size = (1 + r() * 2.5) * (0.5 + depthT * 0.8);
+    ctx.fillStyle = `rgba(255,120,20,${0.3 + depthT * 0.3})`;
+    ctx.beginPath(); ctx.arc(r() * W, sy, size, 0, Math.PI * 2); ctx.fill();
+  }
+  // Rocks sorted by depth
+  const rocks = [];
+  for (let i = 0; i < 7; i++) rocks.push({ x: r() * W, y: GY + 10 + r() * (groundH - 30), s: 5 + r() * 10, rv: [r(), r(), r(), r()] });
+  rocks.sort((a, b) => a.y - b.y);
+  for (const rk of rocks) {
+    const depthT = (rk.y - GY) / groundH;
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = minScale + (maxScale - minScale) * depthT;
+    const rs = rk.s * scale;
+    ctx.globalAlpha = 0.2 + depthT * 0.35;
+    ctx.fillStyle = `rgb(${30 + rk.rv[0] * 20},${15 + rk.rv[1] * 10},${15 + rk.rv[1] * 10})`;
     ctx.beginPath();
-    ctx.moveTo(rx, ry - rs); ctx.lineTo(rx + rs * 0.8, ry - rs * 0.2);
-    ctx.lineTo(rx + rs * 0.5, ry + rs * 0.3); ctx.lineTo(rx - rs * 0.6, ry + rs * 0.2);
-    ctx.lineTo(rx - rs * 0.7, ry - rs * 0.4); ctx.closePath(); ctx.fill();
-    // Molten glow on some rocks
-    if (r() > 0.5) {
-      ctx.fillStyle = `rgba(255,${80 + r() * 60},20,${0.15 + r() * 0.1})`;
-      ctx.beginPath(); ctx.arc(rx, ry, rs * 0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.moveTo(rk.x, rk.y - rs); ctx.lineTo(rk.x + rs * 0.8, rk.y - rs * 0.2);
+    ctx.lineTo(rk.x + rs * 0.5, rk.y + rs * 0.3); ctx.lineTo(rk.x - rs * 0.6, rk.y + rs * 0.2);
+    ctx.lineTo(rk.x - rs * 0.7, rk.y - rs * 0.4); ctx.closePath(); ctx.fill();
+    if (rk.rv[2] > 0.4) {
+      ctx.fillStyle = `rgba(255,${80 + rk.rv[3] * 60},20,${(0.1 + depthT * 0.12)})`;
+      ctx.beginPath(); ctx.arc(rk.x, rk.y, rs * 0.4, 0, Math.PI * 2); ctx.fill();
     }
   }
   ctx.globalAlpha = 1;
-
-  // Smoke wisps
-  for (let i = 0; i < 3; i++) {
-    const sx = r() * W, sy = GY * 0.5 + r() * GY * 0.4;
-    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 25 + r() * 20);
-    g.addColorStop(0, `rgba(60,50,40,${0.06 + r() * 0.04})`);
-    g.addColorStop(1, "transparent");
-    ctx.fillStyle = g;
-    ctx.fillRect(sx - 45, sy - 45, 90, 90);
+  // Smoke wisps in sky
+  for (let i = 0; i < 4; i++) {
+    const sx = r() * W, sy = GY * 0.4 + r() * GY * 0.4;
+    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 30 + r() * 25);
+    g.addColorStop(0, `rgba(60,50,40,${0.05 + r() * 0.04})`); g.addColorStop(1, "transparent");
+    ctx.fillStyle = g; ctx.fillRect(sx - 50, sy - 50, 100, 100);
+  }
+  // Cracked ground in foreground
+  ctx.strokeStyle = "rgba(180,80,20,0.1)"; ctx.lineWidth = 1;
+  for (let i = 0; i < 5; i++) {
+    const cx = r() * W, cy = H - 20 - r() * 30;
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    for (let j = 0; j < 3; j++) ctx.lineTo(cx + (r() - 0.5) * 30, cy + (r() - 0.5) * 15);
+    ctx.stroke();
   }
 }
 
 function drawSummer(ctx, W, H, GY, r) {
-  // Wheat fields – rows of golden stalks
-  for (let row = 0; row < 3; row++) {
-    const by = GY + 15 + row * 30;
-    for (let i = 0; i < 40; i++) {
-      const x = r() * W, h = 25 + r() * 35;
-      ctx.globalAlpha = 0.5 + r() * 0.4;
-      ctx.strokeStyle = `hsl(${42 + r() * 15},${50 + r() * 20}%,${45 + r() * 15}%)`;
-      ctx.lineWidth = 1.5 + r();
+  const groundH = H - GY;
+  // Wheat fields with depth — rows get denser and larger toward camera
+  for (let row = 0; row < 4; row++) {
+    const by = GY + 10 + row * 28;
+    const depthT = row / 3;
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = minScale + (maxScale - minScale) * depthT;
+    const stalks = 30 + Math.floor(depthT * 20);
+    for (let i = 0; i < stalks; i++) {
+      const x = r() * W, h = (25 + r() * 35) * scale;
+      ctx.globalAlpha = 0.35 + depthT * 0.5;
+      const light = 45 + r() * 15 - (1 - depthT) * 6;
+      ctx.strokeStyle = `hsl(${42 + r() * 15},${45 + depthT * 15}%,${light}%)`;
+      ctx.lineWidth = (1.2 + r()) * scale;
       ctx.beginPath(); ctx.moveTo(x, by); ctx.lineTo(x + (r() - 0.5) * 6, by - h); ctx.stroke();
-      // Wheat head
       ctx.fillStyle = `hsl(${40 + r() * 10},60%,${55 + r() * 15}%)`;
-      ctx.beginPath(); ctx.ellipse(x + (r() - 0.5) * 6, by - h - 3, 2, 5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x + (r() - 0.5) * 6, by - h - 3 * scale, 2 * scale, 5 * scale, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
   ctx.globalAlpha = 1;
-  // Flowers scattered
-  for (let i = 0; i < 12; i++) {
-    const fx = r() * W, fy = GY + 5 + r() * (H - GY - 15);
+  // Flowers with depth — bigger in foreground
+  for (let i = 0; i < 15; i++) {
+    const fx = r() * W, fy = GY + 5 + r() * (groundH - 15);
+    const depthT = (fy - GY) / groundH;
+    const size = (2 + r() * 2) * (0.6 + depthT * 0.7);
     const hue = [0, 45, 280, 320, 60][Math.floor(r() * 5)];
     ctx.fillStyle = `hsl(${hue},70%,60%)`;
-    ctx.beginPath(); ctx.arc(fx, fy, 2.5 + r() * 2, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = `hsl(50,80%,65%)`; ctx.beginPath(); ctx.arc(fx, fy, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(fx, fy, size, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "hsl(50,80%,65%)"; ctx.beginPath(); ctx.arc(fx, fy, size * 0.4, 0, Math.PI * 2); ctx.fill();
   }
-  // Sun glow (top right)
+  // Butterflies (foreground detail)
+  for (let i = 0; i < 4; i++) {
+    const bx = r() * W, by = GY + 10 + r() * 40;
+    ctx.fillStyle = `hsla(${[320, 45, 280, 0][i]},60%,60%,0.15)`;
+    ctx.beginPath(); ctx.ellipse(bx - 3, by, 3, 2, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(bx + 3, by, 3, 2, 0.3, 0, Math.PI * 2); ctx.fill();
+  }
+  // Sun glow
   const sg = ctx.createRadialGradient(W * 0.85, GY * 0.15, 10, W * 0.85, GY * 0.15, 120);
   sg.addColorStop(0, "rgba(255,240,140,0.25)"); sg.addColorStop(1, "transparent");
   ctx.fillStyle = sg; ctx.fillRect(W * 0.65, 0, W * 0.35, GY * 0.5);
 }
 
 function drawAutumn(ctx, W, H, GY, r) {
-  // Deciduous trees with orange/red/brown foliage
-  for (let i = 0; i < 10; i++) {
-    const x = r() * W, by = GY - 5 + r() * 15, h = 60 + r() * 90;
-    ctx.globalAlpha = 0.4 + r() * 0.5;
-    // Trunk
-    const tw = 5 + r() * 5;
-    ctx.fillStyle = `hsl(25,${30 + r() * 15}%,${20 + r() * 10}%)`;
-    ctx.fillRect(x - tw / 2, by - h * 0.3, tw, h * 0.3);
-    // Crown – 2-3 overlapping ellipses in autumn colours
+  const groundH = H - GY;
+  // Collect trees with depth position
+  const trees = [];
+  for (let i = 0; i < 12; i++) {
+    trees.push({ x: r() * W, by: GY - 5 + r() * 20, h: 60 + r() * 90, rv: [r(), r(), r(), r(), r(), r(), r(), r()] });
+  }
+  trees.sort((a, b) => a.by - b.by);
+  for (const t of trees) {
+    const depthT = Math.max(0, Math.min(1, (t.by - GY + 10) / (groundH * 0.4)));
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = minScale + (maxScale - minScale) * depthT;
+    ctx.globalAlpha = 0.3 + depthT * 0.6;
+    const tw = (5 + t.rv[0] * 5) * scale;
+    ctx.fillStyle = `hsl(25,${25 + depthT * 10}%,${20 + t.rv[1] * 10 - (1 - depthT) * 5}%)`;
+    ctx.fillRect(t.x - tw / 2, t.by - t.h * 0.3 * scale, tw, t.h * 0.3 * scale);
     for (let c = 0; c < 3; c++) {
-      const hue = [10, 25, 35, 45, 0][Math.floor(r() * 5)];
-      const cx = x + (r() - 0.5) * 18, cy = by - h * 0.3 - r() * h * 0.25;
-      const rw = 18 + r() * 22, rh = 14 + r() * 18;
-      ctx.fillStyle = `hsl(${hue},${50 + r() * 25}%,${30 + r() * 20}%)`;
+      const hue = [10, 25, 35, 45, 0][Math.floor(t.rv[2 + c] * 5)];
+      const cx = t.x + (t.rv[5] - 0.5) * 18 * scale, cy = t.by - t.h * 0.3 * scale - t.rv[6] * t.h * 0.25 * scale;
+      const rw = (18 + t.rv[7] * 22) * scale, rh = (14 + t.rv[2] * 18) * scale;
+      const sat = 45 + depthT * 15 + t.rv[3] * 20;
+      ctx.fillStyle = `hsl(${hue},${sat}%,${30 + t.rv[4] * 20 - (1 - depthT) * 6}%)`;
       ctx.beginPath(); ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
   ctx.globalAlpha = 1;
-  // Fallen leaves on ground
-  ctx.fillStyle = "rgba(160,80,20,0.3)";
-  for (let i = 0; i < 30; i++) {
-    ctx.beginPath(); ctx.ellipse(r() * W, GY + 3 + r() * (H - GY) * 0.4, 4 + r() * 6, 2 + r() * 3, r() * Math.PI, 0, Math.PI * 2); ctx.fill();
+  // Fallen leaves — bigger/more opaque in foreground
+  for (let i = 0; i < 35; i++) {
+    const ly = GY + 3 + r() * groundH * 0.45;
+    const depthT = (ly - GY) / groundH;
+    const size = (3 + r() * 5) * (0.5 + depthT * 0.8);
+    ctx.fillStyle = `rgba(160,80,20,${0.15 + depthT * 0.25})`;
+    ctx.beginPath(); ctx.ellipse(r() * W, ly, size, size * 0.5, r() * Math.PI, 0, Math.PI * 2); ctx.fill();
+  }
+  // Mushroom cluster (foreground detail)
+  for (let i = 0; i < 3; i++) {
+    const mx = r() * W, my = H - 15 - r() * 25;
+    ctx.fillStyle = "rgba(180,120,60,0.12)";
+    ctx.fillRect(mx - 1, my - 6, 2, 6);
+    ctx.fillStyle = "rgba(160,60,30,0.15)";
+    ctx.beginPath(); ctx.ellipse(mx, my - 6, 4, 2.5, 0, Math.PI, Math.PI * 2); ctx.fill();
   }
 }
 
 function drawSpring(ctx, W, H, GY, r) {
-  // Fresh green trees with blossoms
-  for (let i = 0; i < 9; i++) {
-    const x = r() * W, by = GY - 5 + r() * 12, h = 55 + r() * 80;
-    ctx.globalAlpha = 0.45 + r() * 0.5;
-    // Trunk
-    ctx.fillStyle = `hsl(25,30%,${22 + r() * 10}%)`; ctx.fillRect(x - 3, by - h * 0.28, 6, h * 0.28);
-    // Leafy crown
+  const groundH = H - GY;
+  // Trees with depth-sorted blossoms
+  const trees = [];
+  for (let i = 0; i < 10; i++) {
+    trees.push({ x: r() * W, by: GY - 5 + r() * 18, h: 55 + r() * 80, rv: [r(), r(), r(), r(), r(), r(), r(), r()] });
+  }
+  trees.sort((a, b) => a.by - b.by);
+  for (const t of trees) {
+    const depthT = Math.max(0, Math.min(1, (t.by - GY + 10) / (groundH * 0.35)));
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = minScale + (maxScale - minScale) * depthT;
+    ctx.globalAlpha = 0.35 + depthT * 0.55;
+    const tw = 3 * scale;
+    ctx.fillStyle = `hsl(25,30%,${22 + t.rv[0] * 10 - (1 - depthT) * 4}%)`; ctx.fillRect(t.x - tw, t.by - t.h * 0.28 * scale, tw * 2, t.h * 0.28 * scale);
     for (let c = 0; c < 3; c++) {
-      const cx = x + (r() - 0.5) * 14, cy = by - h * 0.28 - r() * h * 0.2;
-      ctx.fillStyle = `hsl(${110 + r() * 30},${50 + r() * 20}%,${35 + r() * 20}%)`;
-      ctx.beginPath(); ctx.ellipse(cx, cy, 16 + r() * 18, 12 + r() * 14, 0, 0, Math.PI * 2); ctx.fill();
+      const cx = t.x + (t.rv[1 + c] - 0.5) * 14 * scale, cy = t.by - t.h * 0.28 * scale - t.rv[4] * t.h * 0.2 * scale;
+      const rw = (16 + t.rv[5] * 18) * scale, rh = (12 + t.rv[6] * 14) * scale;
+      ctx.fillStyle = `hsl(${110 + t.rv[1 + c] * 30},${45 + depthT * 15}%,${35 + t.rv[7] * 20 - (1 - depthT) * 5}%)`;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2); ctx.fill();
     }
-    // Blossoms (pink/white dots)
+    // Blossoms — more visible when closer
     for (let b = 0; b < 5; b++) {
-      const bx = x + (r() - 0.5) * 30, bby = by - h * 0.28 - r() * h * 0.35;
-      ctx.fillStyle = r() > 0.5 ? `rgba(255,180,200,${0.6 + r() * 0.3})` : `rgba(255,255,255,${0.5 + r() * 0.3})`;
-      ctx.beginPath(); ctx.arc(bx, bby, 1.5 + r() * 2, 0, Math.PI * 2); ctx.fill();
+      const bx = t.x + (r() - 0.5) * 30 * scale, bby = t.by - t.h * 0.28 * scale - r() * t.h * 0.35 * scale;
+      const blossomAlpha = (0.4 + depthT * 0.4 + r() * 0.2);
+      ctx.fillStyle = r() > 0.5 ? `rgba(255,180,200,${blossomAlpha})` : `rgba(255,255,255,${blossomAlpha * 0.8})`;
+      ctx.beginPath(); ctx.arc(bx, bby, (1.5 + r() * 2) * scale, 0, Math.PI * 2); ctx.fill();
     }
   }
   ctx.globalAlpha = 1;
-  // Ground flowers
-  for (let i = 0; i < 20; i++) {
-    const fx = r() * W, fy = GY + 4 + r() * (H - GY - 10);
+  // Ground flowers with depth
+  for (let i = 0; i < 25; i++) {
+    const fx = r() * W, fy = GY + 4 + r() * (groundH - 10);
+    const depthT = (fy - GY) / groundH;
+    const size = (2 + r() * 2) * (0.5 + depthT * 0.7);
     const hue = [320, 350, 280, 45, 0][Math.floor(r() * 5)];
     ctx.fillStyle = `hsl(${hue},70%,65%)`;
-    ctx.beginPath(); ctx.arc(fx, fy, 2 + r() * 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(fx, fy, size, 0, Math.PI * 2); ctx.fill();
   }
-  // Grass tufts
-  ctx.strokeStyle = "rgba(40,140,30,0.35)"; ctx.lineWidth = 1.5;
-  for (let i = 0; i < 25; i++) {
-    const gx = r() * W, gy = GY + 2 + r() * 15;
+  // Grass tufts — taller in foreground
+  for (let i = 0; i < 30; i++) {
+    const gx = r() * W, gy = GY + 2 + r() * 20;
+    const depthT = Math.max(0, (gy - GY) / (groundH * 0.3));
+    ctx.strokeStyle = `rgba(40,140,30,${0.2 + depthT * 0.25})`; ctx.lineWidth = 1 + depthT;
+    const gh = (8 + r() * 8) * (0.6 + depthT * 0.6);
     for (let s = 0; s < 3; s++) {
-      ctx.beginPath(); ctx.moveTo(gx + s * 3, gy); ctx.lineTo(gx + s * 3 + (r() - 0.5) * 5, gy - 8 - r() * 8); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(gx + s * 3, gy); ctx.lineTo(gx + s * 3 + (r() - 0.5) * 5, gy - gh); ctx.stroke();
     }
+  }
+  // Bee near flowers (foreground detail)
+  for (let i = 0; i < 2; i++) {
+    const bx = r() * W, by = GY + 10 + r() * 30;
+    ctx.fillStyle = "rgba(200,180,40,0.15)";
+    ctx.beginPath(); ctx.ellipse(bx, by, 2.5, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(40,30,10,0.1)"; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(bx, by - 1.5); ctx.lineTo(bx - 2, by - 3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx, by - 1.5); ctx.lineTo(bx + 2, by - 3); ctx.stroke();
   }
 }
 
 function drawMushroom(ctx, W, H, GY, r) {
-  for (let i = 0; i < 12; i++) {
-    const mx = r() * W, my = GY + r() * (H - GY) * 0.6, mh = 18 + r() * 40, mw = 10 + r() * 20;
-    const hue = [320, 280, 20, 0, 50][Math.floor(r() * 5)];
-    ctx.globalAlpha = 0.45 + r() * 0.5;
-    ctx.fillStyle = "hsl(40,30%,75%)"; ctx.fillRect(mx - 2.5, my - mh * 0.38, 5, mh * 0.38);
-    ctx.fillStyle = `hsl(${hue},60%,${32 + r() * 18}%)`; ctx.beginPath(); ctx.ellipse(mx, my - mh * 0.38, mw, mw * 0.45, 0, Math.PI, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.45)";
-    for (let d = 0; d < 3; d++) { ctx.beginPath(); ctx.arc(mx + (r() - 0.5) * mw, my - mh * 0.38 - r() * mw * 0.28, 1.5 + r() * 1.5, 0, Math.PI * 2); ctx.fill(); }
+  const groundH = H - GY;
+  // Mushrooms sorted by depth
+  const shrooms = [];
+  for (let i = 0; i < 14; i++) {
+    shrooms.push({ x: r() * W, y: GY + r() * groundH * 0.65, h: 18 + r() * 40, w: 10 + r() * 20, hue: [320, 280, 20, 0, 50][Math.floor(r() * 5)], rv: [r(), r(), r()] });
+  }
+  shrooms.sort((a, b) => a.y - b.y);
+  for (const m of shrooms) {
+    const depthT = Math.max(0, Math.min(1, (m.y - GY) / (groundH * 0.65)));
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = minScale + (maxScale - minScale) * depthT;
+    ctx.globalAlpha = 0.3 + depthT * 0.6;
+    const sw = 2.5 * scale, sh = m.h * 0.38 * scale;
+    const capW = m.w * scale, capH = m.w * 0.45 * scale;
+    // Stem
+    ctx.fillStyle = `hsl(40,${25 + depthT * 10}%,${70 + m.rv[0] * 10}%)`;
+    ctx.fillRect(m.x - sw, m.y - sh, sw * 2, sh);
+    // Cap
+    const light = 32 + m.rv[1] * 18 - (1 - depthT) * 6;
+    ctx.fillStyle = `hsl(${m.hue},${50 + depthT * 15}%,${light}%)`;
+    ctx.beginPath(); ctx.ellipse(m.x, m.y - sh, capW, capH, 0, Math.PI, Math.PI * 2); ctx.fill();
+    // Spots
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + depthT * 0.25})`;
+    for (let d = 0; d < 3; d++) {
+      const spotSize = (1 + m.rv[2] * 1.5) * scale;
+      ctx.beginPath(); ctx.arc(m.x + (r() - 0.5) * capW, m.y - sh - r() * capH * 0.6, spotSize, 0, Math.PI * 2); ctx.fill();
+    }
   }
   ctx.globalAlpha = 1;
-  for (let i = 0; i < 15; i++) {
+  // Bioluminescent glows with depth — larger/brighter closer
+  for (let i = 0; i < 18; i++) {
     const sx = r() * W, sy = r() * H;
-    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 7);
-    g.addColorStop(0, `hsla(${280 + r() * 60},80%,60%,0.25)`); g.addColorStop(1, "transparent");
-    ctx.fillStyle = g; ctx.fillRect(sx - 7, sy - 7, 14, 14);
+    const depthT = Math.max(0, (sy - GY) / groundH);
+    const size = (5 + r() * 4) * (0.5 + depthT * 0.7);
+    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, size);
+    g.addColorStop(0, `hsla(${280 + r() * 60},80%,60%,${0.15 + depthT * 0.15})`); g.addColorStop(1, "transparent");
+    ctx.fillStyle = g; ctx.fillRect(sx - size, sy - size, size * 2, size * 2);
   }
+  // Crystal formations (cave detail)
+  for (let i = 0; i < 4; i++) {
+    const cx = r() * W, cy = GY + 5 + r() * 15;
+    const ch = 8 + r() * 15;
+    ctx.globalAlpha = 0.1 + r() * 0.1;
+    ctx.fillStyle = `hsl(${270 + r() * 40},50%,50%)`;
+    ctx.beginPath(); ctx.moveTo(cx - 2, cy); ctx.lineTo(cx, cy - ch); ctx.lineTo(cx + 2, cy); ctx.closePath(); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawSwamp(ctx, W, H, GY, r) {
-  for (let i = 0; i < 7; i++) { ctx.fillStyle = `rgba(30,60,20,${0.3 + r() * 0.3})`; ctx.beginPath(); ctx.ellipse(r() * W, GY + 10 + r() * (H - GY - 20), 40 + r() * 80, 10 + r() * 15, r(), 0, Math.PI * 2); ctx.fill(); }
-  for (let i = 0; i < 5; i++) {
-    const x = r() * W, by = GY + r() * 10, h = 40 + r() * 55;
-    ctx.strokeStyle = `hsl(30,20%,${15 + r() * 10}%)`; ctx.lineWidth = 3 + r() * 4;
-    ctx.beginPath(); ctx.moveTo(x, by); ctx.lineTo(x + (r() - 0.5) * 15, by - h); ctx.stroke();
-    for (let b = 0; b < 3; b++) { const bh = h * 0.3 + r() * h * 0.5; ctx.lineWidth = 1 + r() * 2; ctx.beginPath(); ctx.moveTo(x + (r() - 0.5) * 8, by - bh); ctx.lineTo(x + (r() - 0.5) * 30, by - bh - 10 - r() * 15); ctx.stroke(); }
+  const groundH = H - GY;
+  // Murky water pools with depth — larger/darker closer
+  for (let i = 0; i < 8; i++) {
+    const py = GY + 10 + r() * (groundH - 20);
+    const depthT = (py - GY) / groundH;
+    const pw = (40 + r() * 80) * (0.5 + depthT * 0.8);
+    const ph = (10 + r() * 15) * (0.5 + depthT * 0.6);
+    ctx.fillStyle = `rgba(30,60,20,${0.2 + depthT * 0.25})`;
+    ctx.beginPath(); ctx.ellipse(r() * W, py, pw, ph, r() * 0.3, 0, Math.PI * 2); ctx.fill();
   }
-  for (let i = 0; i < 5; i++) { const fx = r() * W, fy = GY - 10 + r() * 30; const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, 50 + r() * 50); g.addColorStop(0, "rgba(60,80,40,0.12)"); g.addColorStop(1, "transparent"); ctx.fillStyle = g; ctx.fillRect(fx - 60, fy - 25, 120, 50); }
+  // Dead trees sorted by depth
+  const trees = [];
+  for (let i = 0; i < 6; i++) {
+    trees.push({ x: r() * W, by: GY + r() * 15, h: 40 + r() * 55, rv: [r(), r(), r(), r(), r()] });
+  }
+  trees.sort((a, b) => a.by - b.by);
+  for (const t of trees) {
+    const depthT = Math.max(0, Math.min(1, (t.by - GY) / (groundH * 0.3)));
+    const { minScale, maxScale } = DEPTH_CONFIG;
+    const scale = minScale + (maxScale - minScale) * depthT;
+    ctx.globalAlpha = 0.3 + depthT * 0.5;
+    ctx.strokeStyle = `hsl(30,20%,${15 + t.rv[0] * 10 - (1 - depthT) * 3}%)`; ctx.lineWidth = (3 + t.rv[1] * 4) * scale;
+    ctx.beginPath(); ctx.moveTo(t.x, t.by); ctx.lineTo(t.x + (t.rv[2] - 0.5) * 15, t.by - t.h * scale); ctx.stroke();
+    // Branches
+    for (let b = 0; b < 3; b++) {
+      const bh = (t.h * 0.3 + t.rv[3 + b % 2] * t.h * 0.5) * scale;
+      ctx.lineWidth = (1 + t.rv[4] * 2) * scale;
+      ctx.beginPath(); ctx.moveTo(t.x + (r() - 0.5) * 8, t.by - bh); ctx.lineTo(t.x + (r() - 0.5) * 30, t.by - bh - (10 + r() * 15) * scale); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  // Swamp mist — denser near horizon
+  for (let i = 0; i < 6; i++) {
+    const fx = r() * W, fy = GY - 10 + r() * 35;
+    const depthT = Math.max(0, (fy - GY + 15) / (groundH * 0.3));
+    const size = (40 + r() * 50) * (1.2 - depthT * 0.4);
+    const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, size);
+    g.addColorStop(0, `rgba(60,80,40,${0.08 + (1 - depthT) * 0.06})`); g.addColorStop(1, "transparent");
+    ctx.fillStyle = g; ctx.fillRect(fx - size, fy - size * 0.4, size * 2, size * 0.8);
+  }
+  // Lily pads (foreground detail)
+  for (let i = 0; i < 5; i++) {
+    const lx = r() * W, ly = H - 20 - r() * 40;
+    ctx.fillStyle = `rgba(40,100,30,${0.1 + r() * 0.08})`;
+    ctx.beginPath(); ctx.ellipse(lx, ly, 6 + r() * 5, 3 + r() * 2, r() * 0.5, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 // ─── SUNSET BEACH (Złota Plaża Zachodu) ───
@@ -1172,203 +1430,176 @@ function drawBlueLagoon(ctx, W, H, GY, r) {
 }
 
 function drawOlympus(ctx, W, H, GY, r) {
-  // --- Mountain ranges (layered, 2.5D depth) ---
-  for (let layer = 0; layer < 4; layer++) {
-    const baseY = GY - 10 + layer * 15;
-    const alpha = 0.15 + layer * 0.12;
-    const lightness = 70 - layer * 12;
-    ctx.fillStyle = `hsla(220,20%,${lightness}%,${alpha})`;
+  const groundH = H - GY;
+  // --- Mountain ranges with depth perspective (closer = more saturated) ---
+  for (let layer = 0; layer < 5; layer++) {
+    const depthT = layer / 4;
+    const baseY = GY - 15 + layer * 18;
+    const alpha = 0.1 + depthT * 0.18;
+    const lightness = 75 - depthT * 20;
+    const sat = 12 + depthT * 12;
+    ctx.fillStyle = `hsla(220,${sat}%,${lightness}%,${alpha})`;
     ctx.beginPath(); ctx.moveTo(0, baseY + 60);
-    for (let x = 0; x <= W; x += 12) {
-      const peak = Math.sin(x * 0.005 + layer * 2.1) * (50 - layer * 8) + Math.sin(x * 0.013 + layer) * 20;
+    const amp = (55 - layer * 8) * (0.6 + depthT * 0.4);
+    for (let x = 0; x <= W; x += 10) {
+      const peak = Math.sin(x * 0.005 + layer * 2.1) * amp + Math.sin(x * 0.013 + layer) * (15 + depthT * 10);
       ctx.lineTo(x, baseY - peak);
     }
     ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
   }
-
-  // --- Greek temple / columns ---
+  // --- Temple with depth scale ---
   const templeX = W * 0.3 + r() * W * 0.4;
   const templeY = GY + 5;
-  ctx.globalAlpha = 0.3 + r() * 0.2;
-  // Columns
+  const templeDepth = 0.25; // temple is near horizon
+  const templeScale = DEPTH_CONFIG.minScale + (DEPTH_CONFIG.maxScale - DEPTH_CONFIG.minScale) * templeDepth;
+  ctx.globalAlpha = 0.25 + templeDepth * 0.25;
   for (let c = 0; c < 6; c++) {
-    const cx = templeX - 50 + c * 20;
-    const ch = 60 + r() * 30;
-    // Column shaft
-    ctx.fillStyle = `hsl(40,15%,${75 + r() * 10}%)`;
-    ctx.fillRect(cx - 3, templeY - ch, 6, ch);
-    // Column capital (Ionic style)
-    ctx.fillRect(cx - 6, templeY - ch - 4, 12, 4);
-    // Column base
-    ctx.fillRect(cx - 5, templeY - 3, 10, 3);
+    const cx = templeX - 50 * templeScale + c * 20 * templeScale;
+    const ch = (60 + r() * 30) * templeScale;
+    ctx.fillStyle = `hsl(40,15%,${72 + r() * 10}%)`; ctx.fillRect(cx - 3 * templeScale, templeY - ch, 6 * templeScale, ch);
+    ctx.fillRect(cx - 6 * templeScale, templeY - ch - 4 * templeScale, 12 * templeScale, 4 * templeScale);
+    ctx.fillRect(cx - 5 * templeScale, templeY - 3, 10 * templeScale, 3);
   }
-  // Pediment (triangle roof)
   ctx.fillStyle = `hsl(40,12%,${72 + r() * 8}%)`;
-  ctx.beginPath();
-  ctx.moveTo(templeX - 60, templeY - 90 - r() * 20);
-  ctx.lineTo(templeX, templeY - 130 - r() * 20);
-  ctx.lineTo(templeX + 60, templeY - 90 - r() * 20);
-  ctx.closePath(); ctx.fill();
-  // Architrave
-  ctx.fillRect(templeX - 62, templeY - 90 - r() * 20, 124, 6);
+  const roofOff = (90 + r() * 20) * templeScale;
+  ctx.beginPath(); ctx.moveTo(templeX - 60 * templeScale, templeY - roofOff); ctx.lineTo(templeX, templeY - roofOff * 1.4); ctx.lineTo(templeX + 60 * templeScale, templeY - roofOff); ctx.closePath(); ctx.fill();
+  ctx.fillRect(templeX - 62 * templeScale, templeY - roofOff, 124 * templeScale, 6 * templeScale);
   ctx.globalAlpha = 1;
-
-  // --- Marble stone path ---
-  ctx.fillStyle = "rgba(200,195,180,0.12)";
-  for (let i = 0; i < 25; i++) {
-    const sx = r() * W, sy = GY + 15 + r() * (H - GY - 20);
-    ctx.fillRect(sx, sy, 12 + r() * 18, 4 + r() * 6);
+  // --- Marble stones with depth ---
+  for (let i = 0; i < 30; i++) {
+    const sy = GY + 15 + r() * (groundH - 20);
+    const depthT = (sy - GY) / groundH;
+    const stoneScale = 0.5 + depthT * 0.8;
+    ctx.fillStyle = `rgba(200,195,180,${0.06 + depthT * 0.1})`;
+    ctx.fillRect(r() * W, sy, (12 + r() * 18) * stoneScale, (4 + r() * 6) * stoneScale);
   }
-
-  // --- Olive trees ---
-  for (let i = 0; i < 4; i++) {
-    const tx = r() * W, ty = GY - 5 + r() * 20;
-    const th = 40 + r() * 50;
-    ctx.globalAlpha = 0.25 + r() * 0.2;
-    // Trunk
-    ctx.fillStyle = `hsl(30,30%,${30 + r() * 10}%)`;
-    ctx.fillRect(tx - 2, ty - th * 0.2, 4, th * 0.3);
-    // Canopy (silver-green olive leaves)
+  // --- Olive trees sorted by depth ---
+  const olives = [];
+  for (let i = 0; i < 5; i++) olives.push({ x: r() * W, y: GY - 5 + r() * 25, h: 40 + r() * 50, rv: [r(), r(), r(), r()] });
+  olives.sort((a, b) => a.y - b.y);
+  for (const t of olives) {
+    const depthT = Math.max(0, Math.min(1, (t.y - GY + 10) / (groundH * 0.4)));
+    const scale = DEPTH_CONFIG.minScale + (DEPTH_CONFIG.maxScale - DEPTH_CONFIG.minScale) * depthT;
+    ctx.globalAlpha = 0.2 + depthT * 0.35;
+    ctx.fillStyle = `hsl(30,${25 + depthT * 10}%,${30 + t.rv[0] * 10}%)`;
+    ctx.fillRect(t.x - 2 * scale, t.y - t.h * 0.2 * scale, 4 * scale, t.h * 0.3 * scale);
     for (let l = 0; l < 3; l++) {
-      ctx.fillStyle = `hsl(${80 + r() * 30},${30 + r() * 15}%,${35 + r() * 15}%)`;
-      ctx.beginPath();
-      ctx.ellipse(tx + (r() - 0.5) * 12, ty - th * 0.25 - l * 10, 15 + r() * 10, 10 + r() * 6, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillStyle = `hsl(${80 + t.rv[1] * 30},${25 + depthT * 15}%,${35 + t.rv[2] * 15 - (1 - depthT) * 5}%)`;
+      ctx.beginPath(); ctx.ellipse(t.x + (t.rv[3] - 0.5) * 12 * scale, t.y - t.h * 0.25 * scale - l * 10 * scale, (15 + t.rv[0] * 10) * scale, (10 + t.rv[1] * 6) * scale, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
   ctx.globalAlpha = 1;
-
-  // --- Broken statue fragments ---
-  for (let i = 0; i < 3; i++) {
-    const sx = r() * W, sy = GY + 25 + r() * (H - GY - 40);
-    ctx.globalAlpha = 0.2 + r() * 0.1;
+  // --- Ruins with depth ---
+  for (let i = 0; i < 4; i++) {
+    const sy = GY + 25 + r() * (groundH - 40);
+    const depthT = (sy - GY) / groundH;
+    const scale = 0.5 + depthT * 0.8;
+    ctx.globalAlpha = 0.12 + depthT * 0.15;
     ctx.fillStyle = `hsl(40,10%,${70 + r() * 15}%)`;
-    // Fallen column piece
-    ctx.fillRect(sx, sy, 20 + r() * 25, 6 + r() * 4);
-    // Rubble
-    for (let j = 0; j < 3; j++) {
-      ctx.beginPath(); ctx.arc(sx + r() * 30, sy + 8 + r() * 8, 2 + r() * 3, 0, Math.PI * 2); ctx.fill();
-    }
+    ctx.fillRect(r() * W, sy, (20 + r() * 25) * scale, (6 + r() * 4) * scale);
+    for (let j = 0; j < 3; j++) { ctx.beginPath(); ctx.arc(r() * W, sy + (8 + r() * 8) * scale, (2 + r() * 3) * scale, 0, Math.PI * 2); ctx.fill(); }
   }
   ctx.globalAlpha = 1;
-
-  // --- Divine sky glow ---
+  // --- Divine glow ---
   const glow = ctx.createRadialGradient(W * 0.5, GY * 0.3, 20, W * 0.5, GY * 0.3, W * 0.5);
-  glow.addColorStop(0, "rgba(255,220,120,0.08)");
-  glow.addColorStop(0.5, "rgba(200,180,255,0.03)");
-  glow.addColorStop(1, "transparent");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, GY);
+  glow.addColorStop(0, "rgba(255,220,120,0.08)"); glow.addColorStop(0.5, "rgba(200,180,255,0.03)"); glow.addColorStop(1, "transparent");
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, GY);
+  // --- Amphora shards (foreground detail) ---
+  for (let i = 0; i < 3; i++) {
+    const ax = r() * W, ay = H - 15 - r() * 25;
+    ctx.fillStyle = `rgba(180,120,70,${0.1 + r() * 0.08})`;
+    ctx.beginPath(); ctx.arc(ax, ay, 3 + r() * 3, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 function drawUnderworld(ctx, W, H, GY, r) {
-  // --- Stygian river (dark flowing water at bottom) ---
+  const groundH = H - GY;
+  // --- Styx river with depth-fading waves ---
   const riverY = H * 0.82;
   const riverG = ctx.createLinearGradient(0, riverY, 0, H);
-  riverG.addColorStop(0, "rgba(20,10,40,0.7)");
-  riverG.addColorStop(1, "rgba(10,5,25,0.9)");
+  riverG.addColorStop(0, "rgba(20,10,40,0.7)"); riverG.addColorStop(1, "rgba(10,5,25,0.9)");
   ctx.fillStyle = riverG; ctx.fillRect(0, riverY, W, H - riverY);
-  // River surface glow
-  ctx.strokeStyle = "rgba(80,40,120,0.25)"; ctx.lineWidth = 2;
-  for (let row = 0; row < 4; row++) {
-    const y = riverY + row * 8 + 3;
+  for (let row = 0; row < 5; row++) {
+    const y = riverY + row * 7 + 3;
+    const rowAlpha = 0.12 + (row / 5) * 0.2;
+    ctx.strokeStyle = `rgba(80,40,120,${rowAlpha})`; ctx.lineWidth = 1.5 + row * 0.3;
     ctx.beginPath();
-    for (let x = 0; x < W; x += 4) {
-      const yy = y + Math.sin(x * 0.02 + row * 2.5) * 3;
-      x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
-    }
+    for (let x = 0; x < W; x += 4) { const yy = y + Math.sin(x * 0.02 + row * 2.5) * 3; x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy); }
     ctx.stroke();
   }
-
-  // --- Stalactites hanging from ceiling ---
-  for (let i = 0; i < 12; i++) {
-    const sx = r() * W, slen = 15 + r() * 40;
-    ctx.globalAlpha = 0.3 + r() * 0.25;
-    ctx.fillStyle = `hsl(${270 + r() * 30},15%,${15 + r() * 10}%)`;
-    ctx.beginPath();
-    ctx.moveTo(sx - 4 - r() * 3, GY - 8);
-    ctx.lineTo(sx, GY + slen);
-    ctx.lineTo(sx + 4 + r() * 3, GY - 8);
-    ctx.closePath(); ctx.fill();
+  // --- Stalactites with depth ---
+  for (let i = 0; i < 14; i++) {
+    const sx = r() * W, slen = 15 + r() * 45;
+    const depthT = Math.min(1, slen / 60);
+    ctx.globalAlpha = 0.2 + depthT * 0.3;
+    const light = 13 + r() * 10 + depthT * 4;
+    ctx.fillStyle = `hsl(${270 + r() * 30},15%,${light}%)`;
+    const baseW = (3 + r() * 3) * (0.7 + depthT * 0.5);
+    ctx.beginPath(); ctx.moveTo(sx - baseW, GY - 8); ctx.lineTo(sx, GY + slen); ctx.lineTo(sx + baseW, GY - 8); ctx.closePath(); ctx.fill();
   }
   ctx.globalAlpha = 1;
-
-  // --- Bone piles ---
+  // --- Bone piles sorted by depth ---
+  const bones = [];
+  for (let i = 0; i < 8; i++) bones.push({ x: r() * W, y: GY + 20 + r() * (groundH - 40), rv: [r(), r(), r(), r()] });
+  bones.sort((a, b) => a.y - b.y);
+  for (const b of bones) {
+    const depthT = (b.y - GY) / groundH;
+    const scale = 0.5 + depthT * 0.8;
+    ctx.globalAlpha = 0.12 + depthT * 0.2;
+    ctx.strokeStyle = `hsl(40,20%,${55 + b.rv[0] * 20}%)`; ctx.lineWidth = 1.2 * scale;
+    for (let j = 0; j < 4; j++) {
+      const ox = b.x + (b.rv[1] - 0.5) * 20 * scale, oy = b.y + r() * 8;
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + (8 + r() * 8) * scale, oy + (r() - 0.5) * 6); ctx.stroke();
+    }
+    if (b.rv[2] > 0.5) {
+      ctx.fillStyle = `hsl(40,15%,${60 + b.rv[3] * 15}%)`; ctx.beginPath(); ctx.arc(b.x, b.y - 2, (3 + r() * 2) * scale, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+  // --- Ghost flames with depth ---
   for (let i = 0; i < 6; i++) {
-    const bx = r() * W, by = GY + 20 + r() * (H - GY - 40);
-    ctx.globalAlpha = 0.2 + r() * 0.15;
-    ctx.strokeStyle = `hsl(40,20%,${60 + r() * 20}%)`;
-    ctx.lineWidth = 1.5;
-    for (let b = 0; b < 4; b++) {
-      const ox = bx + (r() - 0.5) * 20, oy = by + r() * 8;
-      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + 8 + r() * 8, oy + (r() - 0.5) * 6); ctx.stroke();
-    }
-    // Skull
-    if (r() > 0.5) {
-      ctx.fillStyle = `hsl(40,15%,${65 + r() * 15}%)`;
-      ctx.beginPath(); ctx.arc(bx, by - 2, 3 + r() * 2, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-  ctx.globalAlpha = 1;
-
-  // --- Ghost flames (eerie green-purple fire) ---
-  for (let i = 0; i < 5; i++) {
-    const fx = r() * W, fy = GY + 10 + r() * (H - GY - 30);
-    const fh = 12 + r() * 18;
+    const fx = r() * W, fy = GY + 10 + r() * (groundH - 30);
+    const depthT = (fy - GY) / groundH;
+    const fh = (10 + r() * 16) * (0.6 + depthT * 0.6);
     const flameG = ctx.createRadialGradient(fx, fy - fh * 0.3, 2, fx, fy, fh);
-    const hue = r() > 0.5 ? 280 : 140; // purple or green
-    flameG.addColorStop(0, `hsla(${hue},60%,50%,0.25)`);
-    flameG.addColorStop(1, "transparent");
-    ctx.fillStyle = flameG;
-    ctx.fillRect(fx - fh, fy - fh, fh * 2, fh * 2);
+    const hue = r() > 0.5 ? 280 : 140;
+    flameG.addColorStop(0, `hsla(${hue},60%,50%,${0.15 + depthT * 0.15})`); flameG.addColorStop(1, "transparent");
+    ctx.fillStyle = flameG; ctx.fillRect(fx - fh, fy - fh, fh * 2, fh * 2);
   }
-
-  // --- Dark rocky formations ---
-  for (let i = 0; i < 6; i++) {
-    const rx = r() * W, ry = GY + r() * 15;
-    const rh = 25 + r() * 40, rw = 12 + r() * 20;
-    ctx.globalAlpha = 0.35 + r() * 0.2;
+  // --- Rocky formations at horizon ---
+  for (let i = 0; i < 7; i++) {
+    const rx = r() * W, ry = GY + r() * 18;
+    const depthT = Math.max(0, (ry - GY) / (groundH * 0.3));
+    const scale = 0.6 + depthT * 0.5;
+    const rh = (25 + r() * 40) * scale, rw = (12 + r() * 20) * scale;
+    ctx.globalAlpha = 0.25 + depthT * 0.25;
     ctx.fillStyle = `hsl(${260 + r() * 30},10%,${10 + r() * 8}%)`;
-    ctx.beginPath();
-    ctx.moveTo(rx - rw / 2, ry);
-    ctx.lineTo(rx - rw * 0.3, ry - rh);
-    ctx.lineTo(rx + rw * 0.1, ry - rh * 0.8);
-    ctx.lineTo(rx + rw / 2, ry);
-    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(rx - rw / 2, ry); ctx.lineTo(rx - rw * 0.3, ry - rh); ctx.lineTo(rx + rw * 0.1, ry - rh * 0.8); ctx.lineTo(rx + rw / 2, ry); ctx.closePath(); ctx.fill();
   }
   ctx.globalAlpha = 1;
-
-  // --- Chains hanging ---
-  for (let i = 0; i < 3; i++) {
+  // --- Chains with depth ---
+  for (let i = 0; i < 4; i++) {
     const cx = r() * W, clen = 30 + r() * 50;
-    ctx.strokeStyle = `rgba(100,80,60,${0.2 + r() * 0.15})`;
-    ctx.lineWidth = 2;
+    const chainDepth = (clen - 30) / 50;
+    ctx.strokeStyle = `rgba(100,80,60,${0.12 + chainDepth * 0.18})`; ctx.lineWidth = 1.5 + chainDepth;
     ctx.beginPath(); ctx.moveTo(cx, GY - 5);
-    for (let s = 0; s < clen; s += 6) {
-      ctx.lineTo(cx + Math.sin(s * 0.3) * 3, GY + s);
-    }
+    for (let s = 0; s < clen; s += 5) ctx.lineTo(cx + Math.sin(s * 0.3) * (2 + chainDepth * 2), GY + s);
     ctx.stroke();
   }
-
-  // --- Ambient hellish glow from below ---
-  const hellGlow = ctx.createLinearGradient(0, H - 40, 0, H);
-  hellGlow.addColorStop(0, "transparent");
-  hellGlow.addColorStop(1, "rgba(120,30,60,0.15)");
-  ctx.fillStyle = hellGlow; ctx.fillRect(0, H - 40, W, 40);
-
-  // --- Gates of Hades silhouette ---
+  // --- Hellish glow ---
+  const hellGlow = ctx.createLinearGradient(0, H - 50, 0, H);
+  hellGlow.addColorStop(0, "transparent"); hellGlow.addColorStop(1, "rgba(120,30,60,0.18)");
+  ctx.fillStyle = hellGlow; ctx.fillRect(0, H - 50, W, 50);
+  // --- Gates of Hades ---
   const gx = W * 0.5, gy = GY;
-  ctx.globalAlpha = 0.15;
-  ctx.fillStyle = "#0a0508";
-  // Left pillar
-  ctx.fillRect(gx - 55, gy - 80, 12, 80);
-  // Right pillar
-  ctx.fillRect(gx + 43, gy - 80, 12, 80);
-  // Arch
-  ctx.beginPath();
-  ctx.arc(gx, gy - 80, 55, Math.PI, 0);
-  ctx.lineTo(gx + 55, gy - 80);
-  ctx.arc(gx, gy - 80, 43, 0, Math.PI, true);
-  ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.15; ctx.fillStyle = "#0a0508";
+  ctx.fillRect(gx - 55, gy - 80, 12, 80); ctx.fillRect(gx + 43, gy - 80, 12, 80);
+  ctx.beginPath(); ctx.arc(gx, gy - 80, 55, Math.PI, 0); ctx.lineTo(gx + 55, gy - 80); ctx.arc(gx, gy - 80, 43, 0, Math.PI, true); ctx.closePath(); ctx.fill();
   ctx.globalAlpha = 1;
+  // --- Charred marks (foreground detail) ---
+  for (let i = 0; i < 4; i++) {
+    const mx = r() * W, my = H - 15 - r() * 30;
+    ctx.fillStyle = `rgba(40,15,30,${0.08 + r() * 0.06})`;
+    ctx.beginPath(); ctx.ellipse(mx, my, 8 + r() * 10, 3 + r() * 2, r() * 0.5, 0, Math.PI * 2); ctx.fill();
+  }
 }

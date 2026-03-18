@@ -21,6 +21,18 @@ export const TREASURES = [
   { icon: "gem", name: "Diament Siedmiu Mórz", desc: "Wszystkie kolory oceanów", rarity: "legendary", value: { gold: 5, silver: 5 } },
   { icon: "pirate", name: "Flaga Czarnobrodego", desc: "Legenda wśród piratów", rarity: "legendary", value: { gold: 8 } },
   { icon: "crown", name: "Korona Piratów", desc: "Kawałek zaginionego skarbu", rarity: "legendary", value: { gold: 10 } },
+  // Greek-themed treasures
+  { icon: "lightning", name: "Piorun Zeusa", desc: "Iskrzy przy dotyku", rarity: "epic", value: { gold: 2, silver: 3 } },
+  { icon: "swords", name: "Miecz Achillesa", desc: "Ostrze nie tępieje od tysiącleci", rarity: "rare", value: { silver: 6 } },
+  { icon: "gem", name: "Kamień Filozoficzny", desc: "Pulsuje wewnętrznym blaskiem", rarity: "epic", value: { gold: 1, silver: 8 } },
+  { icon: "star", name: "Gwiazdozbiór Oriona", desc: "Miniaturowa konstelacja w krysztale", rarity: "rare", value: { silver: 5, copper: 30 } },
+  { icon: "scroll", name: "Zwój Archimedesa", desc: "Tajemne wzory geometryczne", rarity: "uncommon", value: { copper: 35 } },
+  { icon: "shield", name: "Tarcza Spartan", desc: "Lambda wyryta w brązie", rarity: "uncommon", value: { silver: 1, copper: 15 } },
+  { icon: "water", name: "Łza Posejdona", desc: "Perła z głębin oceanu", rarity: "rare", value: { silver: 7 } },
+  { icon: "skull", name: "Maska Hadesa", desc: "Kto ją nosi, staje się niewidoczny", rarity: "legendary", value: { gold: 7, silver: 3 } },
+  { icon: "fire", name: "Ogień Prometeusza", desc: "Płomień który nigdy nie gaśnie", rarity: "epic", value: { gold: 1, silver: 6 } },
+  { icon: "herb", name: "Gałązka Oliwna", desc: "Symbol pokoju i zwycięstwa", rarity: "common", value: { copper: 8 } },
+  { icon: "coin", name: "Obol Charona", desc: "Moneta na przeprawę przez Styks", rarity: "uncommon", value: { copper: 28 } },
 ];
 
 export const RARITY_W = { common: 40, uncommon: 28, rare: 18, epic: 10, legendary: 4 };
