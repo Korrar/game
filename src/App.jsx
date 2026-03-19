@@ -2929,25 +2929,26 @@ export default function App() {
     }
   }, []);
 
-  // Render static biome — re-renders on biome/room/night change
-  // NOTE: panOffset is NOT a dependency — panning re-renders directly in handlePanMove
-  // to avoid expensive re-render cycles that cause black screen on biome transitions
+  // Render biome background — on biome/room/night/panOffset change
   useEffect(() => {
     if (!biome || !canvasRef.current) return;
     const c = canvasRef.current;
-    c.width = GAME_W; c.height = GAME_H;
+    // Only reset canvas size when dimensions actually change (avoids unnecessary clear)
+    if (c.width !== GAME_W || c.height !== GAME_H) { c.width = GAME_W; c.height = GAME_H; }
     const ctx = c.getContext("2d");
     try {
-      renderBiome(ctx, biome, room, c.width, c.height, isNight, panOffsetRef.current);
+      // Clear before draw (canvas isn't auto-cleared when dimensions unchanged)
+      ctx.clearRect(0, 0, GAME_W, GAME_H);
+      renderBiome(ctx, biome, room, c.width, c.height, isNight, panOffset);
     } catch (e) {
-      console.error("renderBiome crashed:", e, { biomeId: biome?.id, room, panOffset: panOffsetRef.current });
+      console.error("renderBiome crashed:", e, { biomeId: biome?.id, room, panOffset });
       ctx.fillStyle = "#200000";
       ctx.fillRect(0, 0, c.width, c.height);
       ctx.fillStyle = "#ff4040";
       ctx.font = "14px monospace";
       ctx.fillText(`Biome render error: ${e.message}`, 20, 30);
     }
-  }, [biome, room, isNight, GAME_W, GAME_H]); // panOffset intentionally excluded
+  }, [biome, room, isNight, GAME_W, GAME_H, panOffset]);
 
   // Animate biome overlay
   useEffect(() => {
@@ -4954,11 +4955,22 @@ export default function App() {
     panOffsetRef.current = newOffset;
     // Update PixiJS stage offset for NPCs/projectiles
     if (pixiRef.current) pixiRef.current.setPanOffset(newOffset);
-    // Directly re-render canvas for smooth dragging (bypass React state)
+    // Directly re-render canvas for smooth dragging
     if (canvasRef.current && biome) {
       const c = canvasRef.current;
       const ctx = c.getContext("2d");
       renderBiome(ctx, biome, room, c.width, c.height, isNight, newOffset);
+    }
+    // Sync React state (throttled via rAF) so CSS elements also update during drag
+    if (!panRef.current._rafPending) {
+      panRef.current._rafPending = true;
+      requestAnimationFrame(() => {
+        panRef.current._rafPending = false;
+        // Only sync if still actively dragging — don't interfere with room transitions
+        if (panRef.current.dragging) {
+          setPanOffset(panOffsetRef.current);
+        }
+      });
     }
   }, [gameScale, biome, room, isNight]);
 
