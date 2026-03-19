@@ -505,7 +505,7 @@ export class PhysicsWorld {
 
   _halfH(bt) { return HALF_HEIGHTS[bt] || FIGURE_HALF_HEIGHT; }
 
-  spawnNpc(walkerId, xPct, npcData, friendly = false) {
+  spawnNpc(walkerId, xPct, npcData, friendly = false, yPct) {
     if (!this.world || !this.rapier) return;
     const px = (xPct / 100) * this.W;
     const bt = npcData.bodyType || "humanoid";
@@ -523,6 +523,7 @@ export class PhysicsWorld {
       attackAnim: 0,
       _dir: 1,
       _px: px,
+      _yPct: yPct ?? 65,
     };
   }
 
