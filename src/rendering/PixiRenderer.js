@@ -214,11 +214,11 @@ export class PixiRenderer {
       }
     }
 
-    // Update projectiles (NPC + player skillshots)
-    this.projectileRenderer.update(projectiles, playerSkillshots, mines, areaIndicators);
+    // Update projectiles (NPC + player skillshots, with panoramic wrapping)
+    this.projectileRenderer.update(projectiles, playerSkillshots, mines, areaIndicators, this._panOffset || 0, this.W);
 
-    // Update particles
-    this.combatParticles.update();
+    // Update particles (with panoramic wrapping)
+    this.combatParticles.update(this._panOffset || 0, this.W);
 
     // Update damage numbers (with panoramic wrapping)
     this.damageNumbers.update(this._panOffset || 0, this.W);
@@ -293,33 +293,36 @@ export class PixiRenderer {
       this._debris.splice(dead[i], 1);
     }
 
-    // Render surviving debris
+    // Render surviving debris (with panoramic wrapping)
+    const panOff = this._panOffset || 0;
     for (const d of this._debris) {
+      const sx = panOff ? wrapPxToScreen(d.x, panOff, this.W) : d.x;
+      if (sx === null) continue;
       const lifeRatio = d.life / d.maxLife;
       const alpha = lifeRatio < 0.2 ? lifeRatio / 0.2 : 1; // fade out in last 20%
 
       if (d.shape === "diamond") {
         const s = d.size;
         const pts = [
-          d.x, d.y - s,
-          d.x + s * 0.6, d.y,
-          d.x, d.y + s,
-          d.x - s * 0.6, d.y,
+          sx, d.y - s,
+          sx + s * 0.6, d.y,
+          sx, d.y + s,
+          sx - s * 0.6, d.y,
         ];
         g.poly(pts);
         g.fill({ color: d.color, alpha: alpha * 0.8 });
       } else if (d.shape === "circle") {
-        g.circle(d.x, d.y, d.size);
+        g.circle(sx, d.y, d.size);
         g.fill({ color: d.color, alpha: alpha * 0.7 });
       } else {
         // rect with rotation
         const cos = Math.cos(d.rotation), sin = Math.sin(d.rotation);
         const hw = d.size, hh = d.size * 0.4;
         const pts = [
-          d.x + (-hw * cos - (-hh) * sin), d.y + (-hw * sin + (-hh) * cos),
-          d.x + (hw * cos - (-hh) * sin),  d.y + (hw * sin + (-hh) * cos),
-          d.x + (hw * cos - hh * sin),     d.y + (hw * sin + hh * cos),
-          d.x + (-hw * cos - hh * sin),    d.y + (-hw * sin + hh * cos),
+          sx + (-hw * cos - (-hh) * sin), d.y + (-hw * sin + (-hh) * cos),
+          sx + (hw * cos - (-hh) * sin),  d.y + (hw * sin + (-hh) * cos),
+          sx + (hw * cos - hh * sin),     d.y + (hw * sin + hh * cos),
+          sx + (-hw * cos - hh * sin),    d.y + (-hw * sin + hh * cos),
         ];
         g.poly(pts);
         g.fill({ color: d.color, alpha: alpha * 0.8 });
@@ -348,7 +351,10 @@ export class PixiRenderer {
       this._groundMarks.splice(dead[i], 1);
     }
 
+    const gmPanOff = this._panOffset || 0;
     for (const m of this._groundMarks) {
+      const mx = gmPanOff ? wrapPxToScreen(m.x, gmPanOff, this.W) : m.x;
+      if (mx === null) continue;
       const lifeRatio = m.life / m.maxLife;
       const fadeAlpha = lifeRatio < 0.3 ? lifeRatio / 0.3 : 1;
       const color = parseInt(m.style.color.replace(/rgba?\(/, "").split(",").slice(0, 3).map(c => {
@@ -358,10 +364,10 @@ export class PixiRenderer {
       const baseAlpha = m.style.alpha * fadeAlpha;
 
       // Draw mark as irregular ellipse
-      g.ellipse(m.x, m.y, m.radius, m.radius * 0.5);
+      g.ellipse(mx, m.y, m.radius, m.radius * 0.5);
       g.fill({ color, alpha: baseAlpha * 0.6 });
       // Inner darker core
-      g.ellipse(m.x, m.y, m.radius * 0.5, m.radius * 0.25);
+      g.ellipse(mx, m.y, m.radius * 0.5, m.radius * 0.25);
       g.fill({ color, alpha: baseAlpha * 0.8 });
     }
   }

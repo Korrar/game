@@ -2,6 +2,7 @@
 // Replaces Canvas2D CombatEffects with better blending and glow
 
 import { Graphics } from "pixi.js";
+import { wrapPxToScreen } from "../utils/panoramaWrap.js";
 
 const _isMobile = ("ontouchstart" in window || navigator.maxTouchPoints > 0) && window.innerWidth < 900;
 const MAX_PARTICLES = _isMobile ? 100 : 250;
@@ -13,6 +14,8 @@ export class CombatParticles {
     this.gfx = new Graphics();
     this.layer.addChild(this.gfx);
     this.mobile = _isMobile;
+    this._panOffset = 0;
+    this._gameW = 1280;
   }
 
   // Scale particle counts for mobile
@@ -547,8 +550,13 @@ export class CombatParticles {
     });
   }
 
-  update() {
+  update(panOffset, gameW) {
+    if (panOffset !== undefined) this._panOffset = panOffset;
+    if (gameW !== undefined) this._gameW = gameW;
     this.gfx.clear();
+
+    const po = this._panOffset;
+    const gw = this._gameW;
 
     // Swap-and-pop removal to avoid O(n^2) splice
     let len = this.particles.length;
@@ -565,25 +573,29 @@ export class CombatParticles {
         continue;
       }
 
+      // Convert world X to screen X for panoramic wrapping
+      const sx = po ? wrapPxToScreen(p.x, po, gw) : p.x;
+      if (sx === null) continue; // off-screen, skip drawing
+
       const lifeRatio = p.life / p.maxLife;
       const alpha = lifeRatio > 0.7 ? 1 : lifeRatio / 0.7;
       const size = p.shrink ? p.size * lifeRatio : p.size;
 
       if (p.type === "diamond") {
-        this.gfx.moveTo(p.x, p.y - size);
-        this.gfx.lineTo(p.x + size * 0.6, p.y);
-        this.gfx.lineTo(p.x, p.y + size);
-        this.gfx.lineTo(p.x - size * 0.6, p.y);
+        this.gfx.moveTo(sx, p.y - size);
+        this.gfx.lineTo(sx + size * 0.6, p.y);
+        this.gfx.lineTo(sx, p.y + size);
+        this.gfx.lineTo(sx - size * 0.6, p.y);
         this.gfx.closePath();
         this.gfx.fill({ color: p.color, alpha: alpha * 0.8 });
       } else {
         // On mobile: skip glow halo to reduce draw calls
         if (!this.mobile) {
-          this.gfx.circle(p.x, p.y, size * 2);
+          this.gfx.circle(sx, p.y, size * 2);
           this.gfx.fill({ color: p.color, alpha: alpha * 0.1 });
         }
         // Core
-        this.gfx.circle(p.x, p.y, size);
+        this.gfx.circle(sx, p.y, size);
         this.gfx.fill({ color: p.color, alpha: alpha * 0.7 });
       }
     }
