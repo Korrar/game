@@ -701,7 +701,9 @@ export default function App() {
   const [panOffset, setPanOffset] = useState(0);
   const panRef = useRef({ dragging: false, startX: 0, startOffset: 0 });
   const panOffsetRef = useRef(0);
-  panOffsetRef.current = panOffset;
+  // Sync ref from state ONLY when not actively dragging — during drag,
+  // handlePanMove owns the ref and state may lag behind by a frame
+  if (!panRef.current.dragging) panOffsetRef.current = panOffset;
   const physicsCanvasRef = useRef(null);
   const vaultRef = useRef(null);
   const gameContainerRef = useRef(null);
@@ -2932,6 +2934,9 @@ export default function App() {
   // Render biome background — on biome/room/night/panOffset change
   useEffect(() => {
     if (!biome || !canvasRef.current) return;
+    // During active drag, handlePanMove renders the canvas directly — skip
+    // the effect to avoid re-drawing with a stale panOffset state value
+    if (panRef.current.dragging) return;
     const c = canvasRef.current;
     // Only reset canvas size when dimensions actually change (avoids unnecessary clear)
     if (c.width !== GAME_W || c.height !== GAME_H) { c.width = GAME_W; c.height = GAME_H; }
@@ -6423,8 +6428,8 @@ export default function App() {
           onJournal={() => togglePanel("journal")} onShip={() => togglePanel("ship")}
           onFortifications={defenseMode ? null : () => togglePanel("fortifications")} />
       )}
-      <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H }} />
-      <canvas ref={animCanvasRef} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none" }} />
+      <canvas ref={canvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H }} />
+      <canvas ref={animCanvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none" }} />
       {/* PixiJS canvas is dynamically inserted by PixiRenderer into gameContainerRef */}
 
       {/* Panoramic scroll indicator */}
