@@ -292,7 +292,7 @@ function drawScatter(ctx, W, H, GY, r, items) {
   // 2.5D: collect scatter objects, sort by Y (far first), scale by depth
   const groundH = H - GY;
   const scatterList = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 18; i++) {
     const iconName = items[Math.floor(r() * items.length)];
     const x = r() * (W - 50) + 25;
     const y = GY + 12 + r() * (groundH - 45);
@@ -307,10 +307,10 @@ function drawScatter(ctx, W, H, GY, r, items) {
     // Scale: far objects smaller (0.6x), near objects bigger (1.4x)
     const { minScale, maxScale } = DEPTH_CONFIG;
     const scale = minScale + (maxScale - minScale) * depthT;
-    // Alpha: far objects more transparent
-    const alpha = (0.25 + s.rVal * 0.4) * (0.6 + depthT * 0.4);
+    // Alpha: far objects more transparent (minimum 0.3 for visibility)
+    const alpha = Math.max(0.3, (0.35 + s.rVal * 0.35) * (0.65 + depthT * 0.35));
     ctx.globalAlpha = alpha;
-    const baseSz = 16 + s.rVal * 20;
+    const baseSz = 20 + s.rVal * 24;
     const sz = Math.round(baseSz * scale);
     const img = getIconImage(s.iconName, sz);
     if (img) {

@@ -237,6 +237,8 @@ export class CharacterSprite {
     // 2.5D: atmospheric depth fog (far objects fade slightly)
     const depthFog = fogAtDepth(depth);
     alpha *= (1 - depthFog * 0.5); // subtle — don't fully obscure far NPCs
+    // Ensure minimum visibility — enemies should always be at least faintly visible
+    alpha = Math.max(alpha, 0.15);
     this.container.alpha = alpha;
 
     // 2.5D: desaturate far-away sprites (atmospheric color perspective)
