@@ -182,18 +182,21 @@ export class PixiRenderer {
       const depthScale = scaleAtDepth(depth);
       char.container.zIndex = zIndexAtDepth(depth);
 
+      // Reset container offset before update so sprites draw at world positions
+      char.container.x = 0;
+
       char.update(entry, this.W, this.H, this.GY, this.fogVisibility, depth, depthScale);
 
-      // Panoramic 360° wrapping
+      // Panoramic 360° wrapping: offset container so world-space sprites
+      // appear at the correct screen position after camera pan
       const panOff = this._panOffset || 0;
-      if (panOff !== 0) {
-        const screenX = wrapPxToScreen(char.container.x, panOff, this.W);
-        if (screenX !== null) {
-          char.container.x = screenX;
-          char.container.visible = true;
-        } else {
-          char.container.visible = false;
-        }
+      const npcWorldX = entry._px ?? 0;
+      const screenX = wrapPxToScreen(npcWorldX, panOff, this.W);
+      if (screenX !== null) {
+        char.container.x = screenX - npcWorldX;
+        char.container.visible = true;
+      } else {
+        char.container.visible = false;
       }
     }
 
@@ -217,8 +220,8 @@ export class PixiRenderer {
     // Update particles
     this.combatParticles.update();
 
-    // Update damage numbers
-    this.damageNumbers.update();
+    // Update damage numbers (with panoramic wrapping)
+    this.damageNumbers.update(this._panOffset || 0, this.W);
 
     // Update debris
     this._updateDebris();
