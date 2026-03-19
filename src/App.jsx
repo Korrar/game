@@ -1832,7 +1832,7 @@ export default function App() {
           // 2.5D: depth-based scaling and z-ordering for DOM walker elements
           const walkerDepth = depthFromY(yPos);
           const walkerScale = scaleAtDepth(walkerDepth);
-          const walkerZ = 10 + zIndexAtDepth(walkerDepth); // base 10 to stay above backgrounds
+          const walkerZ = 14 + zIndexAtDepth(walkerDepth); // base 14 to stay above PixiJS canvas (z-12)
           // Panoramic wrapping: position walker HTML overlay at wrapped screen X
           const wrappedX = _wrapPct(w.x, panOffsetRef.current, GAME_W);
           if (wrappedX === null) {
@@ -6502,8 +6502,8 @@ export default function App() {
           onJournal={() => togglePanel("journal")} onShip={() => togglePanel("ship")}
           onFortifications={defenseMode ? null : () => togglePanel("fortifications")} />
       )}
-      <canvas ref={canvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H }} />
-      <canvas ref={animCanvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none" }} />
+      <canvas ref={canvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, zIndex: 1 }} />
+      <canvas ref={animCanvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none", zIndex: 2 }} />
       {/* PixiJS canvas is dynamically inserted by PixiRenderer into gameContainerRef */}
 
       {/* Panoramic scroll indicator */}
@@ -7557,6 +7557,18 @@ export default function App() {
         );
       })()}
 
+      {/* ─── DEBUG: obstacle/walker count ─── */}
+      {biome && (
+        <div style={{
+          position: "absolute", bottom: 4, left: 4, zIndex: 200,
+          background: "rgba(0,0,0,0.7)", color: "#0f0", fontSize: 10,
+          fontFamily: "monospace", padding: "2px 6px", borderRadius: 3,
+          pointerEvents: "none",
+        }}>
+          OBS:{obstacles.length} NPC:{walkers.filter(w => w.alive).length}
+        </div>
+      )}
+
       {/* ─── DESTRUCTIBLE OBSTACLES ─── */}
       {obstacles.map(obs => {
         const obsStyles = {
@@ -7646,7 +7658,7 @@ export default function App() {
             position: "absolute",
             left: `${screenX}%`,
             bottom: `${obs.y}%`,
-            zIndex: 10 + zIndexAtDepth(depthFromY(100 - obs.y)),
+            zIndex: 14 + zIndexAtDepth(depthFromY(100 - obs.y)),
             transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})`,
             transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "none",
             opacity: isDestroying ? 0 : 1,
@@ -7654,13 +7666,13 @@ export default function App() {
           }}>
             {/* Main obstacle body */}
             <div style={{
-              width: s.w,
-              height: s.h,
+              width: Math.max(s.w, 18),
+              height: Math.max(s.h, 14),
               background: s.bg,
               borderRadius: s.radius,
               boxShadow: isHit
-                ? `${s.shadow}, 0 0 8px rgba(255,200,100,0.6)`
-                : s.shadow,
+                ? `${s.shadow}, 0 0 8px rgba(255,200,100,0.6), 0 0 12px rgba(255,255,255,0.3)`
+                : `${s.shadow}, 0 0 6px rgba(255,255,255,0.15)`,
               position: "relative",
               overflow: "hidden",
               transform: isDestroying ? "scale(1.3)" : "none",
