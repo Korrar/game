@@ -222,7 +222,20 @@ export default function App() {
   fruitTreeStateRef.current = fruitTree;
   const nuggetRef = useRef({ active: false, intervalId: null });
   // Destructible obstacles per room
-  const [obstacles, setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
+  const [obstacles, _setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
+  // Wrapper to trace every obstacles state change
+  const setObstacles = useCallback((val) => {
+    if (typeof val === 'function') {
+      _setObstacles(prev => {
+        const next = val(prev);
+        if (next.length !== prev.length) console.log(`[OBS TRACE] functional: ${prev.length} → ${next.length}`);
+        return next;
+      });
+    } else {
+      console.log(`[OBS TRACE] direct set: ${val.length} items`, new Error().stack?.split('\n')[2]?.trim());
+      _setObstacles(val);
+    }
+  }, []);
   const obstaclesRef = useRef(obstacles);
   obstaclesRef.current = obstacles;
 
@@ -2371,6 +2384,7 @@ export default function App() {
   }, []);
 
   const enterRoom = useCallback((newRoom, tools, forcedBiome) => {
+    console.log(`[ENTER ROOM] room=${newRoom} tools=${tools?.length} forcedBiome=${!!forcedBiome}`);
     const b = forcedBiome || BIOMES[Math.floor(Math.random() * BIOMES.length)];
     setBiome(b);
     // Generate next room preview for spyglass
@@ -2624,6 +2638,8 @@ export default function App() {
     setBiomePoi(newBiomePoi);
 
     // ─── OBSTACLES (destructible per biome) ───
+    // Wrapped in try/catch to detect any silent errors
+    try {
     // Explosive obstacles (small chance) per biome
     const EXPLOSIVE_VARIANTS = {
       jungle:   "gas_mushroom",     island:   "powder_keg",       desert:   "oil_barrel",
@@ -2690,7 +2706,22 @@ export default function App() {
       });
     }
     setObstacles(newObstacles);
-    console.log(`[ROOM ${newRoom}] Spawned ${newObstacles.length} obstacles, isDefense=${isDefenseRoom}, biome=${bid}`);
+    console.log(`[ROOM ${newRoom}] Spawned ${newObstacles.length} obstacles, isDefense=${isDefenseRoom}, biome=${bid}`, newObstacles.slice(0, 2));
+    } catch (obsError) {
+      console.error("[OBSTACLE ERROR] Failed to generate obstacles:", obsError);
+      // Fallback: generate minimal obstacles so game is playable
+      const fallbackObs = [];
+      for (let fb = 0; fb < 10; fb++) {
+        fallbackObs.push({
+          id: Date.now() + fb, type: "moss_boulder", x: 10 + fb * 8, y: 20 + Math.random() * 40,
+          biomeId: bid, hp: 30, maxHp: 30, destructible: true, material: "stone",
+          loot: { copper: 3 }, explosive: false, explosionDmg: 0, explosionRadius: 0,
+          explosionElement: "fire", hitAnim: 0, destroying: false,
+        });
+      }
+      setObstacles(fallbackObs);
+      console.log(`[OBSTACLE FALLBACK] Created ${fallbackObs.length} fallback obstacles`);
+    }
 
     // ─── TRAPS ───
     // (enemy mines removed — explosive obstacles are part of biome obstacles now)
@@ -2766,9 +2797,10 @@ export default function App() {
     const newWalkData = {};
     if (!isDefenseRoom) {
       const count = 3 + Math.floor(Math.random() * 3);
+      console.log(`[NPC SPAWN] Spawning ${count} exploration NPCs for biome=${b.id}`);
       for (let i = 0; i < count; i++) {
         let npcData = pickNpc(b.id);
-        if (!npcData) continue;
+        if (!npcData) { console.warn(`[NPC SPAWN] pickNpc returned null for biome=${b.id}`); continue; }
         const roomScale = 1 + Math.min(newRoom / 25, 1.5);
         npcData = { ...npcData, hp: Math.round(npcData.hp * roomScale) };
         const wid = ++walkerIdCounter;
@@ -2821,6 +2853,7 @@ export default function App() {
     }
     // Collect preserved walker React state via ref (avoids stale closure + batching issues)
     const keptWalkerState = walkersRef.current.filter(pw => pw.alive && !pw.dying && pw.friendly && !pw.isBarricade && preservedData[pw.id]);
+    console.log(`[WALKERS] Setting walkers: ${keptWalkerState.length} kept + ${newWalkers.length} new = ${keptWalkerState.length + newWalkers.length} total`);
     setWalkers([...keptWalkerState, ...newWalkers]);
     walkDataRef.current = { ...preservedData, ...newWalkData };
     npcElsRef.current = {};
@@ -7611,9 +7644,9 @@ export default function App() {
           pointerEvents: "none", border: "1px solid #0f0",
           lineHeight: 1.4,
         }}>
-          <div>OBS:{obstacles.length} NPC:{walkers.filter(w => w.alive).length} R:{room}</div>
+          <div>OBS:{obstacles.length} NPC:{walkers.filter(w => w.alive).length}({walkers.filter(w => w.alive && !w.friendly).length}E) R:{room}</div>
           <div>DEF:{defenseMode ? `${defenseMode.phase} W${defenseMode.currentWave}/${defenseMode.totalWaves}` : "none"}</div>
-          <div>PAN:{Math.round(panOffset)} WF:{waterfall ? "Y" : "N"} FT:{fruitTree ? "Y" : "N"}</div>
+          <div style={{color:"#ff0"}}>F12→Console for [OBS TRACE] logs</div>
         </div>
       )}
 
