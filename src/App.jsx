@@ -13,6 +13,8 @@ import { SKILLSHOT_TYPES, ACCURACY_COMBO_THRESHOLD, ACCURACY_COMBO_BONUS, HEADSH
 import { totalCopper, copperToMoney, pickTreasure, formatValHTML } from "./utils/helpers";
 import { rollRandomEvent } from "./data/randomEvents";
 import { rollWeather, applyWeatherDamage } from "./data/weather";
+import { rollModifier, applyModifierDamage } from "./data/biomeModifiers";
+import { rollInteractables } from "./data/biomeInteractables";
 import { OBSTACLE_DEFS, OBSTACLE_MATERIALS, WEAKNESS_MULT, RESIST_MULT as OBS_RESIST_MULT } from "./data/obstacles";
 import { renderBiome } from "./renderers/biomeRenderers";
 import { renderVault } from "./renderers/vaultRenderer";
@@ -203,6 +205,14 @@ export default function App() {
   const [weather, setWeather] = useState(null);
   const weatherRef = useRef(null);
   weatherRef.current = weather;
+  // Biome environmental modifier (passive per-biome hazard)
+  const [biomeModifier, setBiomeModifier] = useState(null);
+  const biomeModifierRef = useRef(null);
+  biomeModifierRef.current = biomeModifier;
+  // Biome interactive terrain elements (clickable/shootable per-room objects)
+  const [interactables, setInteractables] = useState([]);
+  const interactablesRef = useRef([]);
+  interactablesRef.current = interactables;
   // Element combo system: track last element hit on each NPC
   // Combos: fire+ice = "Steam Burst" (+50%), lightning+fire = "Overcharge" (+40%), ice+lightning = "Shatter" (+60%)
   const elementDebuffs = useRef({}); // { npcId: { element, timestamp } }
@@ -2438,6 +2448,19 @@ export default function App() {
     const roomWeather = rollWeather(b.id);
     setWeather(roomWeather);
     if (roomWeather) { sfxWeather(roomWeather.id); showMessage(`${roomWeather.name}!`, "#80a0cc"); }
+    // Biome environmental modifier (60% chance)
+    const roomModifier = rollModifier(b.id);
+    setBiomeModifier(roomModifier);
+    if (roomModifier) {
+      setTimeout(() => showMessage(`${roomModifier.name}: ${roomModifier.desc}`, "#c0a0ff"), 800);
+    }
+    // Biome interactive terrain elements
+    if (!isDefenseRoom) {
+      const roomInteractables = rollInteractables(b.id);
+      setInteractables(roomInteractables);
+    } else {
+      setInteractables([]);
+    }
     // Room challenge (40% chance)
     const challenge = rollChallenge(newRoom, isDefenseRoom);
     setRoomChallenge(challenge);
@@ -3186,6 +3209,62 @@ export default function App() {
     }, interval);
     return () => clearInterval(iv);
   }, [weather?.id, defenseMode?.phase]);
+
+  // ─── BIOME MODIFIER: Periodic effects (heal, damage zones, etc.) ───
+  useEffect(() => {
+    if (!biomeModifier) return;
+    const eff = biomeModifier.effect;
+    // Periodic heal (e.g. spring regeneration)
+    if (eff.type === "periodic_heal" && eff.interval) {
+      const iv = setInterval(() => {
+        setCaravanHp(prev => Math.min(prev + eff.healAmount, caravanMaxHpRef.current));
+        showMessage(`${biomeModifier.name}: +${eff.healAmount} HP`, "#80ff80");
+      }, eff.interval);
+      return () => clearInterval(iv);
+    }
+    // Periodic damage (volcano eruption, island tidal surge)
+    if (eff.type === "periodic_damage" && eff.interval) {
+      const iv = setInterval(() => {
+        // Damage enemies in zone
+        const enemies = walkersRef.current.filter(w => w.alive && !w.dying && !w.friendly);
+        for (const e of enemies) {
+          const wd = walkDataRef.current[e.id];
+          if (!wd) continue;
+          const inZone = eff.zone === "random" ? Math.random() < 0.3 : eff.zone === "bottom" ? wd.y > (100 - eff.zoneSize) : true;
+          if (!inZone) continue;
+          setWalkers(prev => prev.map(w => w.id !== e.id || !w.alive ? w : { ...w, hp: Math.max(0, w.hp - eff.damage) }));
+          spawnDmgPopup(e.id, `${eff.damage}`, eff.element === "fire" ? "#ff6020" : "#4488ff");
+        }
+        // Damage player if specified
+        if (eff.hitsPlayer && eff.playerDamage) {
+          setCaravanHp(prev => Math.max(0, prev - eff.playerDamage));
+          showMessage(`${biomeModifier.name}: -${eff.playerDamage} HP!`, "#ff4040");
+        } else {
+          showMessage(`${biomeModifier.name}!`, "#c080ff");
+        }
+        // Visual FX
+        if (pixiRef.current && eff.element === "fire") {
+          const fx = 200 + Math.random() * 880;
+          pixiRef.current.spawnFire(fx, GAME_H * 0.3);
+          pixiRef.current.screenShake(4);
+        }
+      }, eff.interval);
+      return () => clearInterval(iv);
+    }
+    // Confusion (mushroom spores — enemies attack each other)
+    if (eff.type === "confusion" && eff.interval) {
+      const iv = setInterval(() => {
+        const enemies = walkersRef.current.filter(w => w.alive && !w.dying && !w.friendly);
+        for (const e of enemies) {
+          const confDmg = Math.round(e.maxHp * 0.08);
+          setWalkers(prev => prev.map(w => w.id !== e.id || !w.alive ? w : { ...w, hp: Math.max(0, w.hp - confDmg) }));
+        }
+        showMessage("Halucynogenne Spory — wrogowie się atakują!", "#c080ff");
+        if (pixiRef.current) pixiRef.current.spawnPoisonCloud(GAME_W * 0.5, GAME_H * 0.4);
+      }, eff.interval);
+      return () => clearInterval(iv);
+    }
+  }, [biomeModifier?.id]);
 
   // Passive mana regen: mana_spring relic + knowledge upgrade
   useEffect(() => {
@@ -5593,6 +5672,27 @@ export default function App() {
     }
   }, [damageObstacle]);
 
+  // Check interactable hits during saber swipe
+  const saberCheckInteractableHits = useCallback((x, y) => {
+    for (let i = 0; i < interactablesRef.current.length; i++) {
+      const item = interactablesRef.current[i];
+      if (item.used || item.action !== "saber") continue;
+      const dx = item.x - x, dy = (100 - item.y) - y;
+      if (dx * dx + dy * dy < 64) { // ~8% radius
+        setInteractables(prev => prev.map((it, idx) => idx === i ? { ...it, used: true } : it));
+        showMessage(`${item.name}: Aktywowano!`, "#ffd740");
+        if (item.reward.type === "loot") addMoneyFn({ copper: item.reward.copper });
+        else if (item.reward.type === "heal") setCaravanHp(prev => Math.min(prev + item.reward.amount, caravanMaxHpRef.current));
+        else if (item.reward.type === "aoe_damage" && pixiRef.current) {
+          const px = (item.x / 100) * GAME_W, py = GAME_H - (item.y / 100) * GAME_H;
+          pixiRef.current.spawnGoreExplosion(px, py);
+        }
+        sfxMeleeHit();
+        break;
+      }
+    }
+  }, [showMessage, addMoneyFn]);
+
   const handleSaberDown = useCallback((e) => {
     if (!isSaberMode) return;
     if (Date.now() < saberCdRef.current) return;
@@ -5606,7 +5706,8 @@ export default function App() {
     sfxSaberSwipe();
     saberCheckHits(pos.x, pos.y);
     saberCheckObstacleHits(pos.x, pos.y);
-  }, [isSaberMode, saberGetGamePos, saberCheckHits, saberCheckObstacleHits]);
+    saberCheckInteractableHits(pos.x, pos.y);
+  }, [isSaberMode, saberGetGamePos, saberCheckHits, saberCheckObstacleHits, saberCheckInteractableHits]);
 
   const handleSaberMove = useCallback((e) => {
     if (!saberSwipingRef.current) return;
@@ -5617,7 +5718,8 @@ export default function App() {
     setSaberTrail(prev => [...prev, { x: pos.px, y: pos.py }].slice(-30));
     saberCheckHits(pos.x, pos.y);
     saberCheckObstacleHits(pos.x, pos.y);
-  }, [saberGetGamePos, saberCheckHits, saberCheckObstacleHits]);
+    saberCheckInteractableHits(pos.x, pos.y);
+  }, [saberGetGamePos, saberCheckHits, saberCheckObstacleHits, saberCheckInteractableHits]);
 
   const handleSaberUp = useCallback(() => {
     if (!saberSwipingRef.current) return;
@@ -6592,7 +6694,7 @@ export default function App() {
           boxShadow: "inset 0 0 10px rgba(0,0,0,0.4)", whiteSpace: "nowrap",
           opacity: transitioning ? 0 : 1, transition: "opacity 0.5s",
         }}>
-          Etap #{room} — <Icon name={biome.icon} size={14} /> {biome.name}{isNight ? <>{" "}<Icon name="moon" size={14} /></> : ""}{weather ? <>{" "}<Icon name={weather.icon} size={14} /></> : ""}{defenseMode ? <>{" "}<Icon name="swords" size={14} /> OBRONA</> : ""}{ghostShipActive ? <>{" "}<Icon name="ghost" size={14} /> WIDMOWY STATEK</> : ""}
+          Etap #{room} — <Icon name={biome.icon} size={14} /> {biome.name}{isNight ? <>{" "}<Icon name="moon" size={14} /></> : ""}{weather ? <>{" "}<Icon name={weather.icon} size={14} /></> : ""}{biomeModifier ? <>{" "}<Icon name={biomeModifier.icon} size={14} /></> : ""}{defenseMode ? <>{" "}<Icon name="swords" size={14} /> OBRONA</> : ""}{ghostShipActive ? <>{" "}<Icon name="ghost" size={14} /> WIDMOWY STATEK</> : ""}
         </div>
       )}
 
@@ -6939,6 +7041,18 @@ export default function App() {
           {weather.skillshotEffect === "extra_gravity" && " Cięższe pociski"}
           {weather.skillshotEffect === "lightning_strikes" && " Pioruny!"}
           {weather.skillshotEffect === "reduced_range" && " Ograniczona widoczność"}
+        </div>
+      )}
+
+      {/* Biome Modifier Indicator */}
+      {biomeModifier && (
+        <div style={{
+          position: "absolute", bottom: isMobile ? 100 : (weather?.skillshotEffect ? 30 : 12), left: 8, zIndex: 20,
+          background: "rgba(14,8,10,0.85)", border: "1px solid #c0a0ff",
+          padding: "2px 8px", borderRadius: 4, fontSize: isMobile ? 9 : 10,
+          color: "#c0a0ff", pointerEvents: "none", maxWidth: 200,
+        }}>
+          <Icon name={biomeModifier.icon} size={10} /> {biomeModifier.name}
         </div>
       )}
 
@@ -7830,7 +7944,52 @@ export default function App() {
 
       {/* (Mine traps removed — explosive obstacles are part of biome obstacles now) */}
 
-      {/* (Barrels removed — explosive obstacles are part of biome obstacles now) */}
+      {/* ─── BIOME INTERACTABLE ELEMENTS ─── */}
+      {interactables.map((item, idx) => {
+        if (item.used) return null;
+        const screenX = wrapPctToScreen(item.x);
+        if (screenX === null) return null;
+        const actionColors = { shoot: "#ff6040", click: "#40c0ff", saber: "#ffd740", proximity: "#80ff80" };
+        const actionLabels = { shoot: "Strzel", click: "Kliknij", saber: "Tnij", proximity: "Podejdź" };
+        return (
+          <div key={`inter_${item.id}_${idx}`} style={{
+            position: "absolute", left: `${screenX}%`, bottom: `${item.y}%`,
+            transform: "translateX(-50%)", zIndex: 14, cursor: item.action === "click" || item.action === "proximity" ? "pointer" : "default",
+            userSelect: "none", textAlign: "center",
+          }}
+          onClick={() => {
+            if (item.used || (item.action !== "click" && item.action !== "proximity")) return;
+            setInteractables(prev => prev.map((it, i) => i === idx ? { ...it, used: true } : it));
+            showMessage(`${item.name}: ${item.reward.type === "heal" ? `+${item.reward.amount} HP` : item.reward.type === "loot" ? `+${item.reward.copper} miedzi!` : "Aktywowano!"}`, actionColors[item.action]);
+            // Apply reward
+            if (item.reward.type === "heal") setCaravanHp(prev => Math.min(prev + item.reward.amount, caravanMaxHpRef.current));
+            else if (item.reward.type === "loot") addMoneyFn({ copper: item.reward.copper });
+            else if (item.reward.type === "heal_and_mana") {
+              setCaravanHp(prev => Math.min(prev + item.reward.heal, caravanMaxHpRef.current));
+              setMana(prev => prev + item.reward.mana);
+            }
+          }}
+          >
+            <div style={{
+              width: 32, height: 32, borderRadius: "50%",
+              background: `radial-gradient(circle, ${actionColors[item.action]}40, ${actionColors[item.action]}15)`,
+              border: `2px solid ${actionColors[item.action]}80`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              animation: "pulse 2s ease-in-out infinite",
+              boxShadow: `0 0 8px ${actionColors[item.action]}40`,
+            }}>
+              <Icon name={item.icon} size={16} />
+            </div>
+            <div style={{
+              fontSize: 8, color: actionColors[item.action], marginTop: 2,
+              textShadow: "1px 1px 0 #000, -1px -1px 0 #000",
+              fontWeight: "bold", whiteSpace: "nowrap",
+            }}>
+              {actionLabels[item.action]}
+            </div>
+          </div>
+        );
+      })}
 
       {/* ─── WALKING NPCs (DOM hitboxes – visual rendering on physics canvas) ─── */}
       {walkers.map(w => {
