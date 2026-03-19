@@ -222,20 +222,7 @@ export default function App() {
   fruitTreeStateRef.current = fruitTree;
   const nuggetRef = useRef({ active: false, intervalId: null });
   // Destructible obstacles per room
-  const [obstacles, _setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
-  // Wrapper to trace every obstacles state change
-  const setObstacles = useCallback((val) => {
-    if (typeof val === 'function') {
-      _setObstacles(prev => {
-        const next = val(prev);
-        if (next.length !== prev.length) console.log(`[OBS TRACE] functional: ${prev.length} → ${next.length}`);
-        return next;
-      });
-    } else {
-      console.log(`[OBS TRACE] direct set: ${val.length} items`, new Error().stack?.split('\n')[2]?.trim());
-      _setObstacles(val);
-    }
-  }, []);
+  const [obstacles, setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
   const obstaclesRef = useRef(obstacles);
   obstaclesRef.current = obstacles;
 
@@ -2384,7 +2371,6 @@ export default function App() {
   }, []);
 
   const enterRoom = useCallback((newRoom, tools, forcedBiome) => {
-    console.log(`[ENTER ROOM] room=${newRoom} tools=${tools?.length} forcedBiome=${!!forcedBiome}`);
     const b = forcedBiome || BIOMES[Math.floor(Math.random() * BIOMES.length)];
     setBiome(b);
     // Generate next room preview for spyglass
@@ -2542,7 +2528,7 @@ export default function App() {
     };
 
     // Build list of candidate POIs, roll each, then cap at MAX_POIS
-    let newTree = null, newMine = null, newWater = null, newCamp = null, newWizard = null;
+    let newTree = null, newMine = null, newWater = null, newCamp = null, newWizard = null, newBiomePoi = null;
     if (!isDefenseRoom) {
 
     if (terrain === "forest" && Math.random() < 0.35) {
@@ -2603,7 +2589,6 @@ export default function App() {
     }
 
     // ─── BIOME-SPECIFIC POI (unique interaction per biome) ───
-    let newBiomePoi = null;
     if (poiCount() < MAX_POIS && Math.random() < 0.30) {
       const bpx = pickX(15, 280);
       if (bpx !== null) {
@@ -2797,10 +2782,9 @@ export default function App() {
     const newWalkData = {};
     if (!isDefenseRoom) {
       const count = 3 + Math.floor(Math.random() * 3);
-      console.log(`[NPC SPAWN] Spawning ${count} exploration NPCs for biome=${b.id}`);
       for (let i = 0; i < count; i++) {
         let npcData = pickNpc(b.id);
-        if (!npcData) { console.warn(`[NPC SPAWN] pickNpc returned null for biome=${b.id}`); continue; }
+        if (!npcData) continue;
         const roomScale = 1 + Math.min(newRoom / 25, 1.5);
         npcData = { ...npcData, hp: Math.round(npcData.hp * roomScale) };
         const wid = ++walkerIdCounter;
@@ -2853,7 +2837,6 @@ export default function App() {
     }
     // Collect preserved walker React state via ref (avoids stale closure + batching issues)
     const keptWalkerState = walkersRef.current.filter(pw => pw.alive && !pw.dying && pw.friendly && !pw.isBarricade && preservedData[pw.id]);
-    console.log(`[WALKERS] Setting walkers: ${keptWalkerState.length} kept + ${newWalkers.length} new = ${keptWalkerState.length + newWalkers.length} total`);
     setWalkers([...keptWalkerState, ...newWalkers]);
     walkDataRef.current = { ...preservedData, ...newWalkData };
     npcElsRef.current = {};
@@ -7646,7 +7629,6 @@ export default function App() {
         }}>
           <div>OBS:{obstacles.length} NPC:{walkers.filter(w => w.alive).length}({walkers.filter(w => w.alive && !w.friendly).length}E) R:{room}</div>
           <div>DEF:{defenseMode ? `${defenseMode.phase} W${defenseMode.currentWave}/${defenseMode.totalWaves}` : "none"}</div>
-          <div style={{color:"#ff0"}}>F12→Console for [OBS TRACE] logs</div>
         </div>
       )}
 
