@@ -7665,10 +7665,10 @@ export default function App() {
               overflow: "hidden",
               transform: isDestroying ? "scale(1.3)" : "none",
               transition: isDestroying ? "transform 0.35s ease-out" : "none",
-              opacity: damaged ? 0.6 + hpPct * 0.35 : 0.85,
+              opacity: damaged ? 0.6 + hpPct * 0.35 : 0.9,
               border: obs.destructible && !isDestroying
-                ? `1.5px solid rgba(255,255,255,${damaged ? 0.3 + crackIntensity * 0.15 : 0.18})`
-                : "none",
+                ? `2px solid rgba(255,255,255,${damaged ? 0.3 + crackIntensity * 0.15 : 0.25})`
+                : "1px solid rgba(255,255,255,0.15)",
             }}>
               {/* Progressive damage: crack overlay (material-specific pattern) */}
               {crackIntensity > 0 && (
@@ -7773,7 +7773,7 @@ export default function App() {
               position: "absolute",
               left: "50%",
               top: "calc(25% - 75px)",
-              zIndex: isBossWalker ? 12 : 11,
+              zIndex: isBossWalker ? 15 : 14,
               display: "flex", flexDirection: "column", alignItems: "center",
               cursor: !isFriendly && selectedSpell ? "crosshair" : isFriendly ? "default" : "pointer",
               userSelect: "none",
@@ -7813,6 +7813,27 @@ export default function App() {
                 fontSize: 14, animation: "dmgFloat 0.5s ease-out",
                 color: "#ff4040", fontWeight: "bold", pointerEvents: "none",
               }}><Icon name="skull" size={14} /></div>
+            )}
+            {/* NPC icon + name label — visible fallback when PixiJS sprite is loading */}
+            {w.alive && !w.dying && (
+              <div style={{
+                display: "flex", flexDirection: "column", alignItems: "center",
+                pointerEvents: "none", marginBottom: 2,
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: "50%",
+                  background: isFriendly ? "rgba(40,120,40,0.5)" : "rgba(120,40,40,0.5)",
+                  border: `2px solid ${isFriendly ? "#4a8a4a" : "#8a4a4a"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  boxShadow: `0 0 8px ${isFriendly ? "rgba(40,120,40,0.4)" : "rgba(120,40,40,0.4)"}`,
+                }}>
+                  <Icon name={w.npcData?.icon || "skull"} size={18} />
+                </div>
+                <div style={{
+                  fontSize: 8, color: isFriendly ? "#6a8" : "#c88",
+                  textShadow: "1px 1px 0 #000", whiteSpace: "nowrap", marginTop: 1,
+                }}>{w.npcData?.name || "Wróg"}</div>
+              </div>
             )}
             {/* HP Bar — skip for boss (uses BossHpBar at top) */}
             {w.alive && !w.dying && !isBossWalker && (
