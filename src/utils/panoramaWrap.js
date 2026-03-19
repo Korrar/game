@@ -39,6 +39,21 @@ export function wrapPctToScreen(pct, panOffset, gameW) {
  * @param {number} gameW     – viewport width in pixels (e.g. 1280)
  * @returns {number|null}    – screen-space pixel X, or null if off-screen
  */
+/**
+ * Convert a screen-space pixel X back to world-space pixel X.
+ * Inverse of wrapPxToScreen — used to convert click positions to world coords.
+ *
+ * @param {number} screenX  – screen-space pixel X
+ * @param {number} panOffset – camera pan offset in pixels
+ * @param {number} gameW     – viewport width in pixels
+ * @returns {number}         – world-space pixel X (wrapped into [0, worldW))
+ */
+export function screenPxToWorld(screenX, panOffset, gameW) {
+  if (!panOffset) return screenX;
+  const worldW = gameW * PANORAMA_WORLD_W;
+  return ((screenX + panOffset) % worldW + worldW) % worldW;
+}
+
 export function wrapPxToScreen(physX, panOffset, gameW) {
   if (!panOffset) return physX; // no panning → pass-through
 
