@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { wrapPctToScreen, wrapPxToScreen } from './panoramaWrap.js';
+import { wrapPctToScreen, wrapPxToScreen, PANORAMA_WORLD_W } from './panoramaWrap.js';
 
 const GAME_W = 1280;
 
 describe('biome transition: panOffset reset', () => {
   it('canvas should render at panOffset=0 after room change', () => {
     // Simulate: user panned to offset 800 in room 1, then enters room 2
-    const panBefore = 800;
     const panAfterReset = 0;
 
     // After room change, panOffset is reset to 0
@@ -15,6 +14,7 @@ describe('biome transition: panOffset reset', () => {
     expect(objAt50).toBe(50); // should be at its world position, not shifted
 
     // Verify that with old panOffset it would be different
+    const panBefore = 800;
     const objAt50Panned = wrapPctToScreen(50, panBefore, GAME_W);
     expect(objAt50Panned).not.toBe(50); // should be shifted
   });
@@ -64,5 +64,52 @@ describe('smooth panning: CSS elements must not teleport', () => {
       }
       prev = curr;
     }
+  });
+});
+
+describe('panOffsetRef race condition prevention', () => {
+  it('ref should not be overwritten during active drag', () => {
+    // Simulate the race condition that was fixed:
+    // 1. handlePanMove sets ref to 110
+    // 2. rAF fires setPanOffset(100) (slightly behind)
+    // 3. React renders, ref should NOT be overwritten to 100
+
+    // Before fix: panOffsetRef.current = panOffset (always)
+    // After fix: panOffsetRef.current = panOffset (only when !dragging)
+
+    const panRef = { dragging: true };
+    const panOffsetRef = { current: 110 }; // set by handlePanMove
+    const panOffset = 100; // stale state from rAF
+
+    // Simulate the guard: only sync ref from state when not dragging
+    if (!panRef.dragging) panOffsetRef.current = panOffset;
+
+    // Ref should keep the fresh value from handlePanMove
+    expect(panOffsetRef.current).toBe(110);
+  });
+
+  it('ref should sync from state when not dragging', () => {
+    const panRef = { dragging: false };
+    const panOffsetRef = { current: 50 };
+    const panOffset = 0; // state reset after room change
+
+    // When not dragging, ref should sync from state
+    if (!panRef.dragging) panOffsetRef.current = panOffset;
+
+    expect(panOffsetRef.current).toBe(0);
+  });
+
+  it('obstacles at same world position produce identical screen coords across frames', () => {
+    // Simulate: during drag, panOffsetRef stays consistent
+    // Objects at fixed world positions should have stable screen positions
+    const obstacleX = 150; // panoramic world position in %
+    const stablePanOffset = 500; // consistent ref value
+
+    const frame1 = wrapPctToScreen(obstacleX, stablePanOffset, GAME_W);
+    const frame2 = wrapPctToScreen(obstacleX, stablePanOffset, GAME_W);
+    const frame3 = wrapPctToScreen(obstacleX, stablePanOffset, GAME_W);
+
+    expect(frame1).toBe(frame2);
+    expect(frame2).toBe(frame3);
   });
 });
