@@ -73,7 +73,16 @@ export const OBSTACLE_DEFS = {
   barnacle_rock:    { material: "stone",   hp: 60,  loot: { copper: 4 },  destructible: true  },
   rusted_cage:      { material: "metal",   hp: 70,  loot: { copper: 5 },  destructible: true  },
   mast_fragment:    { material: "wood",    hp: 65,  loot: { copper: 7 },  destructible: true  },
-  powder_keg:       { material: "wood",    hp: 10,  loot: { copper: 2 },  destructible: true  },
+  powder_keg:       { material: "wood",    hp: 10,  loot: { copper: 2 },  destructible: true, explosive: true, explosionDmg: 35, explosionRadius: 18 },
+
+  // ─── EXPLOSIVE / VOLATILE ───
+  oil_barrel:       { material: "metal",   hp: 15,  loot: { copper: 3 },  destructible: true, explosive: true, explosionDmg: 30, explosionRadius: 16, element: "fire" },
+  dynamite_crate:   { material: "wood",    hp: 8,   loot: { copper: 4 },  destructible: true, explosive: true, explosionDmg: 45, explosionRadius: 22, element: "fire" },
+  gas_mushroom:     { material: "organic", hp: 12,  loot: { copper: 2 },  destructible: true, explosive: true, explosionDmg: 20, explosionRadius: 14, element: "poison" },
+  volatile_crystal: { material: "crystal", hp: 20,  loot: { copper: 5 },  destructible: true, explosive: true, explosionDmg: 25, explosionRadius: 15, element: "lightning" },
+  magma_rock:       { material: "stone",   hp: 25,  loot: { copper: 3 },  destructible: true, explosive: true, explosionDmg: 30, explosionRadius: 16, element: "fire" },
+  frozen_gas_vent:  { material: "ice",     hp: 18,  loot: { copper: 2 },  destructible: true, explosive: true, explosionDmg: 22, explosionRadius: 14, element: "ice" },
+  swamp_gas_pod:    { material: "organic", hp: 10,  loot: { copper: 1 },  destructible: true, explosive: true, explosionDmg: 18, explosionRadius: 12, element: "poison" },
 
   // ─── INDESTRUCTIBLE / TERRAIN ───
   tide_pool:     { material: "stone",   hp: 0,   loot: {},              destructible: false },

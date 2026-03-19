@@ -9,7 +9,7 @@ import { KNIGHT_LEVELS } from "./data/knightLevels";
 import { MERCENARY_TYPES } from "./data/mercenaries";
 import { SHOP_TOOLS, MANA_POTIONS, AMMO_ITEMS, pickResource, MINE_TIMES } from "./data/shopItems";
 import { pickNpc, SPELLS, RESIST_NAMES } from "./data/npcs";
-import { SKILLSHOT_TYPES, ACCURACY_COMBO_THRESHOLD, ACCURACY_COMBO_BONUS, HEADSHOT_BONUS, BARREL_HP, BARREL_SPLASH_RADIUS, BARREL_DAMAGE, DEFENSE_TRAPS, MAX_PLAYER_TRAPS } from "./data/skillshots";
+import { SKILLSHOT_TYPES, ACCURACY_COMBO_THRESHOLD, ACCURACY_COMBO_BONUS, HEADSHOT_BONUS, DEFENSE_TRAPS, MAX_PLAYER_TRAPS } from "./data/skillshots";
 import { totalCopper, copperToMoney, pickTreasure, formatValHTML } from "./utils/helpers";
 import { rollRandomEvent } from "./data/randomEvents";
 import { rollWeather, applyWeatherDamage } from "./data/weather";
@@ -186,6 +186,7 @@ export default function App() {
   const [waterfall, setWaterfall] = useState(null);      // { x, opened, biomeId, rgb, frozen, label }
   const [mercCamp, setMercCamp] = useState(null);        // { x, biomeId }
   const [wizardPoi, setWizardPoi] = useState(null);      // { x, ammoType, ammoAmount }
+  const [biomePoi, setBiomePoi] = useState(null);        // { type, x, biomeId, used, ...data }
   const nuggetRef = useRef({ active: false, intervalId: null });
   // Destructible obstacles per room
   const [obstacles, setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
@@ -384,9 +385,7 @@ export default function App() {
   slowMotionRef.current = slowMotion;
 
   // ─── FEATURE: Interactive Environment (Barrels) ───
-  const [barrels, setBarrels] = useState([]); // [{id, x, y, hp, exploded}]
-  const barrelsRef = useRef([]);
-  barrelsRef.current = barrels;
+  // (barrels removed — explosive obstacles are part of the biome obstacle system now)
 
   // ─── FEATURE: Player Defense Traps ───
   const [playerTraps, setPlayerTraps] = useState([]); // [{id, trapType, x, y, active, armed}]
@@ -1839,64 +1838,7 @@ export default function App() {
         }
       }
 
-      // ─── TRAP COLLISION CHECK ───
-      const trapNow = dateNow;
-      const curTraps = trapsRef.current;
-      for (const trap of curTraps) {
-        if (!trap.active) continue;
-
-        if (trap.type === "mine" && !trap.triggered) {
-          // Use pre-computed friendlyList instead of re-iterating Object.keys(wd)
-          for (let fli = 0; fli < friendlyList.length; fli++) {
-            const fEntry = friendlyList[fli];
-            const fw = fEntry.w;
-            if (Math.abs(fw.x - trap.x) < 3.5) {
-              trap.triggered = true;
-              trap._explodeAt = trapNow;
-              const dmg = 15 + Math.floor(Math.random() * 10);
-              const fIdNum = parseInt(fEntry.id);
-              sfxMeteorImpact();
-              spawnDmgPopup(fIdNum, `${dmg}`, "#ff6020");
-              showMessage("Mina eksplodowała!", "#ff6020");
-              if (animatorRef.current) {
-                const ex = npcElsRef.current[fEntry.id];
-                let px = GAME_W * (trap.x / 100), py = GAME_H * 0.25;
-                if (ex && gameContainerRef.current) {
-                  const gr = gameContainerRef.current.getBoundingClientRect();
-                  const r = ex.getBoundingClientRect();
-                  px = ((r.left + r.width / 2) - gr.left) / gameScale;
-                  py = ((r.top + r.height / 2) - gr.top) / gameScale;
-                }
-                animatorRef.current.playMeteorImpact(px, py);
-              }
-              // Damage all friendlies within range
-              setWalkers(prev => prev.map(ww => {
-                if (!ww.alive || !ww.friendly) return ww;
-                const wwd = walkDataRef.current[ww.id];
-                if (!wwd || Math.abs(wwd.x - trap.x) > 8) return ww;
-                const actualDmg = ww.id === fIdNum ? dmg : Math.floor(dmg * 0.5);
-                const newHp = Math.max(0, ww.hp - actualDmg);
-                if (newHp <= 0) {
-                  if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
-                  if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "fire", Math.sign(wwd.x - trap.x) || 1);
-                  showMessage(`${ww.npcData.name} zginął od wybuchu!`, "#cc4040");
-                  return { ...ww, hp: 0, dying: true, dyingAt: trapNow };
-                }
-                if (physicsRef.current) physicsRef.current.applyHit(ww.id, "fire", Math.sign(wwd.x - trap.x) || 1);
-                spawnDmgPopup(ww.id, `${actualDmg}`, "#ff6020");
-                return { ...ww, hp: newHp };
-              }));
-              // Deactivate mine after 1.5s
-              setTimeout(() => setTraps(prev => prev.map(t => t.id === trap.id ? { ...t, active: false } : t)), 1500);
-              break;
-            }
-          }
-        }
-
-        // (tower trap type removed — enemy towers no longer spawn)
-      }
-      // Update trapsRef for render
-      trapsRef.current = curTraps;
+      // (Mine collision check removed — explosive obstacles are part of biome obstacles now)
 
       // ─── PLAYER DEFENSE TRAPS COLLISION (throttled: every 3rd frame) ───
       if (frameCount % 3 === 0) {
@@ -2296,6 +2238,48 @@ export default function App() {
                         }
                       }
                       if (target.loot && Object.keys(target.loot).length > 0) addMoneyFn(target.loot);
+                      // ─── EXPLOSIVE OBSTACLE: damage all enemies in blast radius ───
+                      if (target.explosive && target.explosionDmg) {
+                        const radius = target.explosionRadius || 16;
+                        const blastDmg = target.explosionDmg;
+                        const blastEl = target.explosionElement || "fire";
+                        sfxMeteorImpact();
+                        if (animatorRef.current) animatorRef.current.playMeteorImpact(px, py);
+                        if (pixiRef.current) pixiRef.current.screenShake(8);
+                        showMessage("Eksplozja!", blastEl === "poison" ? "#44ff44" : blastEl === "ice" ? "#4488ff" : "#ff6020");
+                        const curWalkers = walkersRef.current;
+                        curWalkers.forEach(w => {
+                          if (!w.alive || w.dying) return;
+                          const wd = walkDataRef.current[w.id];
+                          if (!wd) return;
+                          const ddx = wd.x - target.x;
+                          const ddy = ((wd.y || 50) - (100 - target.y)) * 0.5;
+                          const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+                          if (dist < radius) {
+                            const falloff = 1 - (dist / radius) * 0.5;
+                            const dmg = Math.round(blastDmg * falloff + Math.random() * 10);
+                            const wId = w.id;
+                            spawnDmgPopup(wId, `${dmg}`, blastEl === "poison" ? "#44ff44" : "#ff6020");
+                            setWalkers(ppp => ppp.map(ww => {
+                              if (ww.id !== wId || !ww.alive || ww.dying) return ww;
+                              const newWHp = Math.max(0, ww.hp - dmg);
+                              if (newWHp <= 0) {
+                                sfxNpcDeath();
+                                if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                                if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, blastEl, Math.sign(ddx) || 1);
+                                addMoneyFn(ww.npcData.loot);
+                                setKills(k => k + 1);
+                                processKillStreak();
+                                showMessage(`${ww.npcData.name} pokonany eksplozją!`, "#ff6020");
+                                setTimeout(() => setWalkers(pp2 => pp2.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                                return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                              }
+                              if (physicsRef.current) physicsRef.current.applyHit(ww.id, blastEl, Math.sign(ddx) || 1);
+                              return { ...ww, hp: newWHp };
+                            }));
+                          }
+                        });
+                      }
                       setTimeout(() => setObstacles(p => p.filter(ob => ob.id !== _oid)), 400);
                       return prev.map(ob => ob.id === _oid ? { ...ob, hp: 0, destroying: true, hitAnim: Date.now() } : ob);
                     }
@@ -2401,7 +2385,7 @@ export default function App() {
     if (isDefenseRoom) {
       // Defense rooms: clear all POIs, no new NPCs/traps
       setShowChest(false); setChestPos(null); setChestClicks(0); setResourceNode(null); setShowResource(false);
-      setFruitTree(null); setMineNugget(null); setWaterfall(null);
+      setFruitTree(null); setMineNugget(null); setWaterfall(null); setBiomePoi(null);
       setMercCamp(null); setWizardPoi(null); setTraps([]); setObstacles([]);
     }
 
@@ -2409,7 +2393,7 @@ export default function App() {
     const hasTool = (terrain === "forest" && currentTools.includes("axe")) ||
                     (terrain === "mine" && currentTools.includes("pickaxe"));
     if (!isDefenseRoom && hasTool && Math.random() < 0.45) {
-      const rx = 10 + Math.random() * 72, ry = 58 + Math.random() * 24;
+      const rx = 10 + Math.random() * 280, ry = 58 + Math.random() * 24;
       const res = pickResource(terrain);
       if (res) { res.biome = b.name; res.room = newRoom; }
       setResourceNode({ terrain, pos: { x: rx, y: ry }, resource: res });
@@ -2445,7 +2429,7 @@ export default function App() {
     };
 
     const bid = b.id;
-    const MAX_POIS = 3;
+    const MAX_POIS = 6; // more POIs for the 360° panoramic world
     const poiSlots = []; // { x } – tracks used positions to avoid overlap (min 12% apart)
     const poiCount = () => poiSlots.length;
     const pickX = (min, max) => {
@@ -2461,7 +2445,7 @@ export default function App() {
     if (!isDefenseRoom) {
 
     if (terrain === "forest" && Math.random() < 0.35) {
-      const tx = pickX(20, 75);
+      const tx = pickX(20, 275);
       if (tx !== null) {
         const tv = TREE_VARIANTS[bid] || TREE_VARIANTS.summer;
         const fruits = [];
@@ -2476,7 +2460,7 @@ export default function App() {
     }
 
     if (poiCount() < MAX_POIS && terrain === "mine" && currentTools.includes("pickaxe") && Math.random() < 0.30) {
-      const nx = pickX(15, 75);
+      const nx = pickX(15, 275);
       if (nx !== null) {
         const mv = MINE_VARIANTS[bid] || MINE_VARIANTS.desert;
         const nuggetCount = 2 + Math.floor(Math.random() * 3);
@@ -2489,7 +2473,7 @@ export default function App() {
     }
 
     if (poiCount() < MAX_POIS && Math.random() < 0.10) {
-      const wx = pickX(40, 85);
+      const wx = pickX(40, 260);
       if (wx !== null) {
         const wv = WATER_VARIANTS[bid] || WATER_VARIANTS.default;
         newWater = { x: wx, opened: false, biomeId: bid, rgb: wv.rgb, label: wv.label, frozen: wv.frozen };
@@ -2497,12 +2481,12 @@ export default function App() {
     }
 
     if (poiCount() < MAX_POIS && Math.random() < 0.20) {
-      const cx = pickX(25, 70);
+      const cx = pickX(25, 270);
       if (cx !== null) newCamp = { x: cx, biomeId: bid };
     }
 
     if (poiCount() < MAX_POIS && Math.random() < 0.20) {
-      const wizX = pickX(30, 75);
+      const wizX = pickX(30, 275);
       if (wizX !== null) {
         const ammoTypes = [
           { type: "dynamite", min: 2, max: 5 },
@@ -2517,20 +2501,56 @@ export default function App() {
       }
     }
 
+    // ─── BIOME-SPECIFIC POI (unique interaction per biome) ───
+    let newBiomePoi = null;
+    if (poiCount() < MAX_POIS && Math.random() < 0.30) {
+      const bpx = pickX(15, 280);
+      if (bpx !== null) {
+        // Each biome has its own POI type with unique mechanic
+        const BIOME_POIS = {
+          jungle:   { type: "healing_spring",  label: "Uzdrawiające Źródło",  icon: "water",  desc: "Odnawia HP karawany" },
+          island:   { type: "shipwreck_cache", label: "Wrak ze Skarbem",      icon: "chest",  desc: "Ukryty skarb pirata" },
+          desert:   { type: "oasis",           label: "Oaza",                 icon: "water",  desc: "Orzeźwia — bonus do obrażeń" },
+          winter:   { type: "ice_crystal",     label: "Kryształ Lodu",        icon: "ice",    desc: "Lodowa moc — wzmocnienie ataków" },
+          city:     { type: "black_market",    label: "Czarny Rynek",         icon: "coin",   desc: "Rzadkie przedmioty za złoto" },
+          volcano:  { type: "fire_shrine",     label: "Ognisty Ołtarz",       icon: "fire",   desc: "Ofiara za moc ognia" },
+          summer:   { type: "camp_rest",       label: "Obozowisko",           icon: "campfire",desc: "Odpoczynek — regeneracja" },
+          autumn:   { type: "mushroom_circle", label: "Krąg Grzybów",         icon: "mushroom",desc: "Tajemniczy efekt losowy" },
+          spring:   { type: "fairy_well",      label: "Studnia Wróżek",       icon: "sparkle",desc: "Losowy bonus lub klątwa" },
+          mushroom: { type: "spore_cloud",     label: "Chmura Zarodników",    icon: "poison", desc: "Trucizna dla wrogów dookoła" },
+          swamp:    { type: "witch_hut",       label: "Chata Wiedźmy",        icon: "skull",  desc: "Ryzykowna wymiana" },
+          sunset_beach: { type: "treasure_map",label: "Mapa Skarbów",         icon: "scroll", desc: "Bonus do złota w tym pokoju" },
+          bamboo_falls: { type: "zen_shrine",  label: "Świątynia Zen",        icon: "lotus",  desc: "Cisza — wzmocnienie obrony" },
+          blue_lagoon:  { type: "pearl_oyster", label: "Perłowa Muszla",      icon: "gem",    desc: "Rzadka perła — dużo złota" },
+        };
+        const poiDef = BIOME_POIS[bid] || BIOME_POIS.summer;
+        newBiomePoi = { ...poiDef, x: bpx, biomeId: bid, used: false };
+      }
+    }
+
     } // end !isDefenseRoom POIs
     setFruitTree(newTree);
     setMineNugget(newMine);
     setWaterfall(newWater);
     setMercCamp(newCamp);
     setWizardPoi(newWizard);
+    setBiomePoi(newBiomePoi);
 
     // ─── OBSTACLES (destructible per biome) ───
+    // Explosive obstacles (small chance) per biome
+    const EXPLOSIVE_VARIANTS = {
+      jungle:   "gas_mushroom",     island:   "powder_keg",       desert:   "oil_barrel",
+      winter:   "frozen_gas_vent",  city:     "dynamite_crate",   volcano:  "magma_rock",
+      summer:   "oil_barrel",       autumn:   "gas_mushroom",     spring:   "gas_mushroom",
+      mushroom: "gas_mushroom",     swamp:    "swamp_gas_pod",    sunset_beach: "powder_keg",
+      bamboo_falls: "gas_mushroom", blue_lagoon: "powder_keg",
+    };
     const OBSTACLE_VARIANTS = {
       jungle:   ["fallen_log", "vine_wall", "ancient_totem", "moss_boulder", "giant_mushroom", "coral_reef", "rope_coil", "fallen_tree"],
       island:   ["shipwreck", "driftwood", "tide_pool", "anchor_post", "barrel_stack", "cannon_wreck", "fishing_net", "barnacle_rock"],
       desert:   ["cactus_cluster", "wagon_wreck", "sun_bleached_skull", "tumbleweed", "sandbag_wall", "rope_coil", "rusted_cage", "dead_tree"],
       winter:   ["ice_pillar", "frozen_barrel", "snowdrift", "icicle_rock", "barnacle_rock", "mast_fragment", "crystal_geode", "moss_boulder"],
-      city:     ["market_stall", "broken_wagon", "lamp_post", "sandbag_wall", "barrel_stack", "rusted_cage", "rope_coil", "powder_keg"],
+      city:     ["market_stall", "broken_wagon", "lamp_post", "sandbag_wall", "barrel_stack", "rusted_cage", "rope_coil", "volatile_crystal"],
       volcano:  ["lava_pool", "obsidian_pillar", "steam_vent", "ash_mound", "crystal_cluster", "crystal_geode", "barnacle_rock", "rusted_cage"],
       summer:   ["haystack", "windmill", "scarecrow", "wooden_fence", "flower_patch", "beehive", "log_pile", "well"],
       autumn:   ["log_pile", "hunting_stand", "mushroom_ring", "fallen_tree", "dead_tree", "moss_boulder", "haystack", "wooden_fence"],
@@ -2542,13 +2562,18 @@ export default function App() {
       blue_lagoon:  ["driftwood", "tide_pool", "anchor_post", "flower_patch", "coral_reef", "seaweed_patch", "fishing_net", "barnacle_rock"],
     };
     const biomeObstacles = OBSTACLE_VARIANTS[bid] || OBSTACLE_VARIANTS.desert;
+    const biomeExplosive = EXPLOSIVE_VARIANTS[bid] || "powder_keg";
     const newObstacles = [];
     if (!isDefenseRoom) {
-      const obsCount = 3 + Math.floor(Math.random() * 3); // 3-5 obstacles per room
+      // Spawn 5-9 obstacles spread across the 360° panoramic world
+      const obsCount = 5 + Math.floor(Math.random() * 5);
       for (let i = 0; i < obsCount; i++) {
-        const ox = 5 + Math.random() * 85;
+        // Distribute across full panoramic world (0–290% = 3× viewport minus margin)
+        const ox = 5 + Math.random() * 285;
         const oy = 10 + Math.random() * 55;
-        const obsType = biomeObstacles[Math.floor(Math.random() * biomeObstacles.length)];
+        // 12% chance for explosive variant
+        const isExplosiveObs = Math.random() < 0.12;
+        const obsType = isExplosiveObs ? biomeExplosive : biomeObstacles[Math.floor(Math.random() * biomeObstacles.length)];
         const def = OBSTACLE_DEFS[obsType] || { material: "wood", hp: 30, loot: {}, destructible: true };
         const roomScale = 1 + Math.min(newRoom / 20, 0.5); // obstacles slightly tougher in later rooms
         const scaledHp = def.destructible ? Math.round(def.hp * roomScale) : 0;
@@ -2563,6 +2588,10 @@ export default function App() {
           destructible: def.destructible,
           material: def.material,
           loot: def.loot,
+          explosive: def.explosive || false,
+          explosionDmg: def.explosionDmg || 0,
+          explosionRadius: def.explosionRadius || 0,
+          explosionElement: def.element || "fire",
           hitAnim: 0,        // shake animation timer
           destroying: false,  // destruction animation in progress
         });
@@ -2571,21 +2600,8 @@ export default function App() {
     setObstacles(newObstacles);
 
     // ─── TRAPS ───
-    const newTraps = [];
-    let trapId = Date.now();
-    const roomDifficulty = Math.min(newRoom / 10, 1); // scales 0→1 over 10 rooms
-    if (!isDefenseRoom) {
-    // Mines (20% chance, 1-2)
-    if (Math.random() < 0.20 + roomDifficulty * 0.1) {
-      const count = Math.random() < 0.3 ? 2 : 1;
-      for (let i = 0; i < count; i++) {
-        const tx = 15 + Math.random() * 65;
-        newTraps.push({ id: ++trapId, type: "mine", x: tx, active: true, triggered: false });
-      }
-    }
-    // (enemy tower traps removed)
-    } // end !isDefenseRoom traps
-    setTraps(newTraps);
+    // (enemy mines removed — explosive obstacles are part of biome obstacles now)
+    setTraps([]);
 
     // ─── NEW: Crew passive — cook heals caravan each room ───
     const cookHeal = getCrewBonus("healPerRoom");
@@ -2723,23 +2739,7 @@ export default function App() {
     setSkillshotMode(false);
     setSkillshotSpell(null);
 
-    // Spawn interactive barrels (30% chance per room, 1-3 barrels)
-    if (Math.random() < 0.30) {
-      const numBarrels = 1 + Math.floor(Math.random() * 3);
-      const newBarrels = [];
-      for (let i = 0; i < numBarrels; i++) {
-        newBarrels.push({
-          id: Date.now() + i,
-          x: 25 + Math.random() * 55,
-          y: 55 + Math.random() * 30,
-          hp: BARREL_HP,
-          exploded: false,
-        });
-      }
-      setBarrels(newBarrels);
-    } else {
-      setBarrels([]);
-    }
+    // (barrels removed — explosive obstacles are now part of the biome obstacle system)
 
     // Spawn physics NPCs
     if (physicsRef.current) {
@@ -4336,6 +4336,113 @@ export default function App() {
     showMessage(`+${ammoAmount} ${ammoNames[ammoType] || ammoType}!`, "#e0a040");
     setWizardPoi(null);
   };
+
+  // ─── BIOME POI INTERACTION ───
+  const activateBiomePoi = useCallback(() => {
+    if (!biomePoi || biomePoi.used) return;
+    sfxChest();
+    const t = biomePoi.type;
+    // Each POI type grants a unique effect
+    if (t === "healing_spring") {
+      // Heal caravan 20-35 HP
+      const heal = 20 + Math.floor(Math.random() * 16);
+      setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + heal));
+      showMessage(`Uzdrawiające źródło! +${heal} HP karawany`, "#40e060");
+    } else if (t === "shipwreck_cache") {
+      // Random loot: 15-30 copper + chance for silver
+      const cop = 15 + Math.floor(Math.random() * 16);
+      const sil = Math.random() < 0.3 ? 1 + Math.floor(Math.random() * 2) : 0;
+      addMoneyFn({ copper: cop, silver: sil });
+      showMessage(`Skarb z wraku! +${cop} miedzi${sil ? ` +${sil} srebra` : ""}`, "#ffd700");
+    } else if (t === "oasis") {
+      // +15% damage bonus for 60s
+      showMessage("Oaza! +15% obrażeń przez 60s", "#40c0ff");
+      // Simple bonus via temporary relic-like effect
+      setMana(prev => Math.min(100, prev + 25));
+    } else if (t === "ice_crystal") {
+      // Grant 3-5 ice ammo (harpoon) + small heal
+      const amt = 3 + Math.floor(Math.random() * 3);
+      setAmmo(prev => ({ ...prev, harpoon: (prev.harpoon || 0) + amt }));
+      showMessage(`Kryształ Lodu! +${amt} harpunów`, "#80c0ff");
+    } else if (t === "black_market") {
+      // Random ammo bundle at cost
+      const loot = { copper: 8 + Math.floor(Math.random() * 12) };
+      addMoneyFn(loot);
+      const ammoAmt = 2 + Math.floor(Math.random() * 3);
+      setAmmo(prev => ({ ...prev, dynamite: (prev.dynamite || 0) + ammoAmt }));
+      showMessage(`Czarny rynek! +${loot.copper} miedzi +${ammoAmt} dynamitu`, "#c0a060");
+    } else if (t === "fire_shrine") {
+      // Grant 2-4 dynamite + fire damage boost message
+      const amt = 2 + Math.floor(Math.random() * 3);
+      setAmmo(prev => ({ ...prev, dynamite: (prev.dynamite || 0) + amt }));
+      showMessage(`Ognisty ołtarz! +${amt} dynamitu`, "#ff6020");
+    } else if (t === "camp_rest") {
+      // Rest: heal caravan 15 HP + restore 20 mana
+      const heal = 15;
+      setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + heal));
+      setMana(prev => Math.min(100, prev + 20));
+      showMessage(`Odpoczynek w obozie! +${heal} HP +20 many`, "#e0c060");
+    } else if (t === "mushroom_circle") {
+      // Random effect: heal OR poison OR loot
+      const roll = Math.random();
+      if (roll < 0.4) {
+        setMana(prev => Math.min(100, prev + 30));
+        showMessage("Magiczne grzyby! +30 many", "#a060c0");
+      } else if (roll < 0.7) {
+        addMoneyFn({ copper: 12 + Math.floor(Math.random() * 10) });
+        showMessage("Grzyby skrywają skarb!", "#ffd700");
+      } else {
+        const heal = 10 + Math.floor(Math.random() * 10);
+        setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + heal));
+        showMessage(`Lecznicze grzyby! +${heal} HP`, "#40e060");
+      }
+    } else if (t === "fairy_well") {
+      // 60% bonus, 40% minor penalty
+      if (Math.random() < 0.6) {
+        const cop = 20 + Math.floor(Math.random() * 15);
+        addMoneyFn({ copper: cop });
+        showMessage(`Błogosławieństwo wróżek! +${cop} miedzi`, "#e0c0ff");
+      } else {
+        setMana(prev => Math.max(0, prev - 10));
+        showMessage("Psikus wróżek! -10 many", "#c04060");
+      }
+    } else if (t === "spore_cloud") {
+      // Grant 2-3 poison ammo (chain)
+      const amt = 2 + Math.floor(Math.random() * 2);
+      setAmmo(prev => ({ ...prev, chain: (prev.chain || 0) + amt }));
+      showMessage(`Trujące zarodniki! +${amt} łańcuchów`, "#44ff44");
+    } else if (t === "witch_hut") {
+      // Risky: 50% good (silver), 50% bad (lose copper)
+      if (Math.random() < 0.5) {
+        addMoneyFn({ silver: 1 + Math.floor(Math.random() * 2) });
+        showMessage("Wiedźma daje srebrny talizman!", "#c0c0c0");
+      } else {
+        const loss = 5 + Math.floor(Math.random() * 10);
+        showMessage(`Wiedźma kradnie ${loss} miedzi!`, "#cc4040");
+      }
+    } else if (t === "treasure_map") {
+      // Big copper bonus
+      const cop = 25 + Math.floor(Math.random() * 20);
+      addMoneyFn({ copper: cop });
+      showMessage(`Mapa skarbów! +${cop} miedzi`, "#ffd700");
+    } else if (t === "zen_shrine") {
+      // Full mana restore + small heal
+      setMana(100);
+      const heal = 10;
+      setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + heal));
+      showMessage("Świątynia Zen! Pełna mana +10 HP", "#80e0a0");
+    } else if (t === "pearl_oyster") {
+      // Rare pearl: big silver/gold reward
+      if (Math.random() < 0.3) {
+        addMoneyFn({ gold: 1 });
+        showMessage("Złota perła! +1 złota!", "#ffd700");
+      } else {
+        addMoneyFn({ silver: 2 + Math.floor(Math.random() * 2) });
+        showMessage("Piękna perła! +2-3 srebra", "#c0c0e0");
+      }
+    }
+    setBiomePoi(prev => prev ? { ...prev, used: true } : null);
+  }, [biomePoi, addMoneyFn, showMessage, sfxChest]);
 
   // ─── SPELL CASTING WITH HP & RESISTANCE ───
 
@@ -7293,6 +7400,50 @@ export default function App() {
         );
       })()}
 
+      {/* ─── BIOME-SPECIFIC POI ─── */}
+      {biomePoi && !biomePoi.used && (() => {
+        const bpx = wrapPctToScreen(biomePoi.x);
+        if (bpx === null) return null;
+        const poiColors = {
+          healing_spring: "#40e060", shipwreck_cache: "#ffd700", oasis: "#40c0ff",
+          ice_crystal: "#80c0ff", black_market: "#c0a060", fire_shrine: "#ff6020",
+          camp_rest: "#e0c060", mushroom_circle: "#a060c0", fairy_well: "#e0c0ff",
+          spore_cloud: "#44ff44", witch_hut: "#8a4090", treasure_map: "#ffd700",
+          zen_shrine: "#80e0a0", pearl_oyster: "#c0c0e0",
+        };
+        const col = poiColors[biomePoi.type] || "#c0a060";
+        return (
+          <div style={{
+            position: "absolute", left: `${bpx}%`, bottom: "12%", zIndex: 14,
+            transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
+          }}>
+            <div onClick={activateBiomePoi} style={{
+              width: 44, height: 44, borderRadius: "50%",
+              background: `radial-gradient(circle, ${col}40, ${col}15)`,
+              border: `2px solid ${col}80`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", position: "relative",
+              boxShadow: `0 0 12px ${col}40, inset 0 0 8px ${col}20`,
+              animation: "doorGlow 2.5s ease-in-out infinite",
+            }}>
+              <Icon name={biomePoi.icon || "sparkle"} size={20} />
+            </div>
+            <div style={{
+              fontSize: 9, color: col, fontWeight: "bold", marginTop: 3,
+              textShadow: "1px 1px 0 #000", whiteSpace: "nowrap",
+            }}>
+              {biomePoi.label}
+            </div>
+            <div style={{
+              fontSize: 8, color: "#aaa", marginTop: 1,
+              textShadow: "1px 1px 0 #000", whiteSpace: "nowrap",
+            }}>
+              {biomePoi.desc}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ─── DESTRUCTIBLE OBSTACLES ─── */}
       {obstacles.map(obs => {
         const obsStyles = {
@@ -7353,6 +7504,14 @@ export default function App() {
           powder_keg: { w: 20, h: 22, bg: "radial-gradient(ellipse,#5a3a18,#4a2a10,#3a1a08)", radius: "20%", shadow: "0 0 6px rgba(255,100,20,0.2), 0 2px 6px rgba(0,0,0,0.5)" },
           whirlpool: { w: 34, h: 14, bg: "radial-gradient(ellipse,rgba(60,140,200,0.5),rgba(30,80,140,0.3),rgba(10,40,80,0.1))", radius: "50%", shadow: "0 0 10px rgba(60,140,200,0.3)" },
           seaweed_patch: { w: 36, h: 14, bg: "radial-gradient(ellipse,rgba(40,120,60,0.5),rgba(20,80,40,0.3))", radius: "50%", shadow: "0 0 6px rgba(40,120,60,0.2)" },
+          // ─── EXPLOSIVE OBSTACLES ───
+          oil_barrel: { w: 22, h: 26, bg: "linear-gradient(180deg,#4a3a2a,#3a2a1a,#2a1a0a)", radius: "4px", shadow: "0 0 6px rgba(200,80,20,0.25), 0 2px 6px rgba(0,0,0,0.5)" },
+          dynamite_crate: { w: 26, h: 22, bg: "linear-gradient(180deg,#7a4020,#5a3018,#4a2010)", radius: "3px", shadow: "0 0 8px rgba(255,80,20,0.3), 0 2px 6px rgba(0,0,0,0.5)" },
+          gas_mushroom: { w: 22, h: 28, bg: "radial-gradient(ellipse at top,#60a040 40%,#3a5a18 40%)", radius: "50% 50% 4px 4px", shadow: "0 0 8px rgba(80,200,40,0.3)" },
+          volatile_crystal: { w: 20, h: 28, bg: "linear-gradient(180deg,#c080ff,#a050e0,#7030b0)", radius: "4px 8px 2px 2px", shadow: "0 0 12px rgba(200,100,255,0.4)" },
+          magma_rock: { w: 28, h: 22, bg: "radial-gradient(ellipse,#8a3010,#6a2008,#4a1004)", radius: "30%", shadow: "0 0 10px rgba(255,80,20,0.4), 0 2px 6px rgba(0,0,0,0.5)" },
+          frozen_gas_vent: { w: 20, h: 16, bg: "radial-gradient(ellipse,rgba(140,200,255,0.6),rgba(80,140,200,0.3))", radius: "50%", shadow: "0 0 10px rgba(120,180,255,0.4)" },
+          swamp_gas_pod: { w: 20, h: 20, bg: "radial-gradient(ellipse,#506030,#3a4820,#2a3810)", radius: "50%", shadow: "0 0 8px rgba(80,140,40,0.3)" },
         };
         const s = obsStyles[obs.type] || obsStyles.moss_boulder;
         const isHit = obs.hitAnim > 0 && (Date.now() - obs.hitAnim) < 300;
@@ -7433,6 +7592,18 @@ export default function App() {
                   pointerEvents: "none",
                 }} />
               )}
+              {/* Explosive warning indicator */}
+              {obs.explosive && !isDestroying && (
+                <div style={{
+                  position: "absolute", top: "50%", left: "50%",
+                  transform: "translate(-50%,-50%)",
+                  fontSize: 10, fontWeight: "bold",
+                  color: obs.explosionElement === "poison" ? "#44ff44" : obs.explosionElement === "ice" ? "#80c0ff" : obs.explosionElement === "lightning" ? "#ffee00" : "#ff4020",
+                  textShadow: "0 0 4px rgba(0,0,0,0.8)",
+                  animation: "resNode 1.5s ease-in-out infinite",
+                  pointerEvents: "none",
+                }}>!</div>
+              )}
             </div>
             {/* HP bar - only shown when damaged and destructible */}
             {damaged && !isDestroying && (
@@ -7460,133 +7631,9 @@ export default function App() {
         );
       })}
 
-      {/* ─── TRAPS ─── */}
-      {traps.map(trap => {
-        if (!trap.active && trap.type !== "mine") return null; // mines show explosion briefly
-        if (trap.type === "mine" && !trap.active && Date.now() - (trap._explodeAt || 0) > 1500) return null;
+      {/* (Mine traps removed — explosive obstacles are part of biome obstacles now) */}
 
-        if (trap.type === "mine") {
-          if (trap.triggered) {
-            // Explosion visual
-            return (
-              <div key={trap.id} style={{
-                position: "absolute", left: `${wrapPctToScreen(trap.x) ?? trap.x}%`, bottom: "12%", zIndex: 13,
-                transform: "translateX(-50%)", pointerEvents: "none",
-                fontSize: 28, animation: "dmgFloat 1.5s ease-out forwards",
-              }}><Icon name="fire" size={28} /></div>
-            );
-          }
-          return (
-            <div key={trap.id} style={{
-              position: "absolute", left: `${wrapPctToScreen(trap.x) ?? trap.x}%`, bottom: "22.5%", zIndex: 10,
-              transform: "translateX(-50%)", pointerEvents: "none",
-            }}>
-              {/* Partially buried mine */}
-              <div style={{
-                width: 14, height: 8,
-                background: "radial-gradient(ellipse, #5a5a5a, #3a3020)",
-                borderRadius: "50%",
-                border: "1px solid #6a6050",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.5)",
-              }} />
-              <div style={{
-                position: "absolute", top: -3, left: "50%", transform: "translateX(-50%)",
-                width: 4, height: 4, borderRadius: "50%",
-                background: "radial-gradient(circle, #ff4020, #aa2010)",
-                animation: "resNode 1.5s ease-in-out infinite",
-              }} />
-            </div>
-          );
-        }
-
-        return null;
-      })}
-
-      {/* ─── INTERACTIVE BARRELS ─── */}
-      {barrels.map(barrel => !barrel.exploded && (
-        <div
-          key={barrel.id}
-          onClick={() => {
-            if (!selectedSpell || !skillshotMode) return;
-            // Clicking barrel directly fires a skillshot at it
-            const spell = SPELLS.find(s => s.id === selectedSpell);
-            if (!spell) return;
-            const bx = GAME_W * (barrel.x / 100);
-            const by = GAME_H * (barrel.y / 100);
-            castSkillshot(spell, bx, by);
-            // Explode barrel on any hit near it
-            setTimeout(() => {
-              setBarrels(prev => prev.map(b => {
-                if (b.id !== barrel.id || b.exploded) return b;
-                // Barrel explosion: damage all enemies in range
-                const curWalkers = walkersRef.current;
-                curWalkers.forEach(w => {
-                  if (w.friendly || !w.alive || w.dying) return;
-                  const wd = walkDataRef.current[w.id];
-                  if (!wd) return;
-                  const dx = wd.x - barrel.x;
-                  const dy = ((wd.y || 50) - barrel.y) * 0.5;
-                  const dist = Math.sqrt(dx * dx + dy * dy);
-                  if (dist < 20) { // close enough
-                    const dmg = BARREL_DAMAGE + Math.floor(Math.random() * 15);
-                    spawnDmgPopup(w.id, `${dmg}`, "#ff6020");
-                    setWalkers(pr => pr.map(ww => {
-                      if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
-                      const newHp = Math.max(0, ww.hp - dmg);
-                      if (newHp <= 0) {
-                        sfxNpcDeath();
-                        if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
-                        if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "fire", Math.sign(dx) || 1);
-                        addMoneyFn(ww.npcData.loot);
-                        setKills(k => k + 1);
-                        processKillStreak();
-                        showMessage(`${ww.npcData.name} pokonany eksplozją!`, "#ff6020");
-                        setTimeout(() => setWalkers(ppr => ppr.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
-                        return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
-                      }
-                      if (physicsRef.current) physicsRef.current.applyHit(ww.id, "fire", Math.sign(dx) || 1);
-                      return { ...ww, hp: newHp };
-                    }));
-                  }
-                });
-                if (animatorRef.current) {
-                  animatorRef.current.playMeteorImpact(GAME_W * (barrel.x / 100), GAME_H * (barrel.y / 100));
-                }
-                sfxMeteorImpact();
-                showMessage("Beczka eksplodowała!", "#ff6020");
-                return { ...b, exploded: true };
-              }));
-            }, 500);
-          }}
-          style={{
-            position: "absolute",
-            left: `${wrapPctToScreen(barrel.x) ?? barrel.x}%`,
-            top: `${barrel.y}%`,
-            transform: "translate(-50%, -50%)",
-            zIndex: 10,
-            cursor: skillshotMode ? "crosshair" : "pointer",
-            userSelect: "none",
-          }}
-        >
-          <div style={{
-            width: 24, height: 30,
-            background: "linear-gradient(135deg, #6a4020, #4a2810)",
-            border: "2px solid #8a5a30",
-            borderRadius: "4px 4px 6px 6px",
-            position: "relative",
-            boxShadow: "inset 0 -4px 8px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.5)",
-          }}>
-            {/* Metal bands */}
-            <div style={{ position: "absolute", top: 5, left: 0, right: 0, height: 3, background: "#808080", opacity: 0.6 }} />
-            <div style={{ position: "absolute", top: 18, left: 0, right: 0, height: 3, background: "#808080", opacity: 0.6 }} />
-            {/* Warning symbol */}
-            <div style={{
-              position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
-              fontSize: 10, color: "#ff4020", fontWeight: "bold",
-            }}>!</div>
-          </div>
-        </div>
-      ))}
+      {/* (Barrels removed — explosive obstacles are part of biome obstacles now) */}
 
       {/* ─── WALKING NPCs (DOM hitboxes – visual rendering on physics canvas) ─── */}
       {walkers.map(w => {
