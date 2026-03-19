@@ -4029,6 +4029,37 @@ export default function App() {
         break;
       }
       case "cursedChestSkip": break;
+      case "shipwreckSalvage": {
+        const sr = outcome.salvageResult;
+        if (sr.reward) {
+          if (sr.reward.copper) addMoneyFn({ copper: sr.reward.copper });
+          if (sr.reward.silver) addMoneyFn({ silver: sr.reward.silver });
+          if (sr.reward.dynamite) setAmmo(prev => ({ ...prev, dynamite: (prev.dynamite || 0) + sr.reward.dynamite }));
+          if (sr.reward.cannonball) setAmmo(prev => ({ ...prev, cannonball: (prev.cannonball || 0) + sr.reward.cannonball }));
+          if (sr.reward.harpoon) setAmmo(prev => ({ ...prev, harpoon: (prev.harpoon || 0) + sr.reward.harpoon }));
+          if (sr.reward.initiative) setInitiative(prev => Math.min(MAX_INITIATIVE, prev + sr.reward.initiative));
+          if (sr.reward.tempMercs) {
+            const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
+            setTimeout(() => spawnFreeMerc(mt, 0.75), 600);
+          }
+          sfxEventSuccess();
+          showMessage(sr.text, "#3080a0");
+        }
+        break;
+      }
+      case "shipwreckSkip": break;
+      case "oracleAccept": {
+        const p = outcome.prophecy;
+        sfxEventSuccess();
+        showMessage(p.text, "#d0a0ff");
+        // Oracle buffs are applied as room-limited effects
+        if (p.effect === "fireResist") setEnemyBuffRooms(p.value); // reuse buff room counter
+        if (p.effect === "critBuff") setPlayerDoubleDmgRooms(p.value);
+        if (p.effect === "lootBuff") setEnemyBuffRooms(p.value);
+        if (p.effect === "dodgeBuff") setEnemyBuffRooms(p.value);
+        break;
+      }
+      case "oracleSkip": break;
     }
     // Complete the room transition — use pending biome from world map
     setRandomEvent(null);

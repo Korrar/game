@@ -284,6 +284,115 @@ function WoundedView({ event, onResolve }) {
   );
 }
 
+// ─── SHIPWRECK ───
+function ShipwreckView({ event, onResolve }) {
+  const [salvaged, setSalvaged] = useState(false);
+  const result = event.salvageResult;
+
+  const handleSalvage = () => {
+    setSalvaged(true);
+    setTimeout(() => onResolve({ type: "shipwreckSalvage", salvageResult: result }), 1500);
+  };
+
+  return (
+    <div>
+      <SectionHeader event={event} />
+      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 10px rgba(48,128,160,0.5))" }}><EIcon name={event.icon} size={46} /></div>
+      <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
+      <div style={{ fontSize: 14, color: "#a89878", marginBottom: 18, fontStyle: "italic" }}>
+        Wrak statku osiadł na mieliźnie. Może kryje coś wartościowego...
+      </div>
+
+      {/* Ship visual */}
+      <div style={{ margin: "0 auto 18px", width: 80, height: 50, position: "relative" }}>
+        <div style={{
+          position: "absolute", bottom: 0, left: 5, right: 5, height: 25,
+          background: "linear-gradient(180deg,#5a4a30,#3a2a18)", borderRadius: "4px 4px 8px 8px",
+          border: "1px solid #6a5a40",
+          boxShadow: "0 0 8px rgba(48,128,160,0.2)",
+          transform: "rotate(-5deg)",
+        }} />
+        <div style={{
+          position: "absolute", bottom: 15, left: "50%", transform: "translateX(-50%)",
+          width: 3, height: 28, background: "#6a5a40",
+        }} />
+        <div style={{
+          position: "absolute", top: 2, left: "50%", transform: "translateX(-50%)",
+          fontSize: 14, color: event.themeColor, filter: `drop-shadow(0 0 6px ${event.themeColor}66)`,
+        }}><EIcon name="anchor" size={14} /></div>
+      </div>
+
+      {!salvaged ? (
+        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+          <Btn label="Przeszukaj" color={event.themeColor} onClick={handleSalvage} />
+          <Btn label="Omiń" color="#888" onClick={() => onResolve({ type: "shipwreckSkip" })} />
+        </div>
+      ) : (
+        <div style={{ animation: "eventAppear 0.4s ease-out" }}>
+          <div style={{
+            fontSize: 19, fontWeight: "bold", marginBottom: 4, color: "#40e060",
+            textShadow: "0 0 10px rgba(60,200,80,0.4)",
+          }}>{result.text}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ORACLE ───
+function OracleView({ event, onResolve }) {
+  const [revealed, setRevealed] = useState(false);
+  const prophecy = event.prophecy;
+
+  const handleConsult = () => {
+    setRevealed(true);
+    setTimeout(() => onResolve({ type: "oracleAccept", prophecy }), 2000);
+  };
+
+  return (
+    <div>
+      <SectionHeader event={event} />
+      <div style={{ fontSize: 46, marginBottom: 4, filter: "drop-shadow(0 0 12px rgba(180,140,255,0.5))" }}><EIcon name={event.icon} size={46} /></div>
+      <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8, textShadow: `0 0 8px ${event.themeColor}33` }}>{event.name}</div>
+      <div style={{ fontSize: 14, color: "#a89878", marginBottom: 18, fontStyle: "italic" }}>
+        Tajemnicza postać w kapturze oferuje wgląd w przyszłość...
+      </div>
+
+      {/* Oracle visual */}
+      <div style={{ margin: "0 auto 18px", width: 60, height: 50, position: "relative" }}>
+        <div style={{
+          position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+          width: 40, height: 40, borderRadius: "50%",
+          background: revealed
+            ? "radial-gradient(#d0a0ff, #4020a0)"
+            : "radial-gradient(#8060c0, #2a1040)",
+          boxShadow: `0 0 ${revealed ? 30 : 14}px ${revealed ? "#d0a0ff" : "#6040a0"}`,
+          transition: "all 0.5s",
+        }} />
+        <div style={{
+          position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+          fontSize: 20, color: "#fff", opacity: revealed ? 1 : 0.6,
+        }}><EIcon name="eye" size={20} /></div>
+      </div>
+
+      {!revealed ? (
+        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+          <Btn label="Słuchaj proroctwa" color={event.themeColor} onClick={handleConsult} />
+          <Btn label="Odejdź" color="#888" onClick={() => onResolve({ type: "oracleSkip" })} />
+        </div>
+      ) : (
+        <div style={{ animation: "eventAppear 0.4s ease-out" }}>
+          <div style={{
+            fontSize: 17, fontWeight: "bold", marginBottom: 4, color: event.themeColor,
+            textShadow: `0 0 10px ${event.themeColor}66`,
+          }}>{prophecy.text}</div>
+          <div style={{ fontSize: 14, color: "#a89878" }}>{prophecy.desc}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN EXPORT ───
 export default function EventModal({ event, money, onResolve }) {
   if (!event) return null;
@@ -295,6 +404,16 @@ export default function EventModal({ event, money, onResolve }) {
         {event.id === "altar" && <AltarView event={event} onResolve={onResolve} />}
         {event.id === "wounded" && <WoundedView event={event} onResolve={onResolve} />}
         {event.id === "cursed_chest" && <CursedChestView event={event} onResolve={onResolve} />}
+        {event.id === "shipwreck" && <ShipwreckView event={event} onResolve={onResolve} />}
+        {event.id === "oracle" && <OracleView event={event} onResolve={onResolve} />}
+        {!["merchant", "altar", "wounded", "cursed_chest", "shipwreck", "oracle"].includes(event.id) && (
+          <div>
+            <SectionHeader event={event} />
+            <div style={{ fontSize: 46, marginBottom: 4 }}><EIcon name={event.icon} size={46} /></div>
+            <div style={{ fontSize: 21, fontWeight: "bold", color: event.themeColor, marginBottom: 8 }}>{event.name}</div>
+            <Btn label="Kontynuuj" color="#888" onClick={() => onResolve({ type: "skip" })} />
+          </div>
+        )}
       </div>
     </div>
   );
