@@ -70,6 +70,25 @@ import SpellUpgradePicker from "./components/SpellUpgradePicker";
 import BossHpBar from "./components/BossHpBar";
 import { getIconUrl, getNpcIconUrl } from "./rendering/icons";
 
+// Error boundary to catch rendering crashes and display them instead of black screen
+import { Component } from "react";
+class GameErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error("GameErrorBoundary:", error, info); }
+  render() {
+    if (this.state.error) return (
+      <div style={{ color: "#ff4040", background: "#1a0a0a", padding: 20, fontFamily: "monospace", whiteSpace: "pre-wrap" }}>
+        <h2>Błąd gry</h2>
+        <p>{this.state.error.message}</p>
+        <p>{this.state.error.stack}</p>
+        <button onClick={() => this.setState({ error: null })} style={{ color: "#fff", background: "#444", padding: "8px 16px", cursor: "pointer" }}>Spróbuj ponownie</button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 function Icon({ name, size = 16, style: st }) {
   const url = getIconUrl(name, size);
   if (!url) return null;
@@ -2910,14 +2929,25 @@ export default function App() {
     }
   }, []);
 
-  // Render static biome (with panoramic offset)
+  // Render static biome — re-renders on biome/room/night change
+  // NOTE: panOffset is NOT a dependency — panning re-renders directly in handlePanMove
+  // to avoid expensive re-render cycles that cause black screen on biome transitions
   useEffect(() => {
     if (!biome || !canvasRef.current) return;
     const c = canvasRef.current;
     c.width = GAME_W; c.height = GAME_H;
     const ctx = c.getContext("2d");
-    renderBiome(ctx, biome, room, c.width, c.height, isNight, panOffset);
-  }, [biome, room, isNight, GAME_W, GAME_H, panOffset]);
+    try {
+      renderBiome(ctx, biome, room, c.width, c.height, isNight, panOffsetRef.current);
+    } catch (e) {
+      console.error("renderBiome crashed:", e, { biomeId: biome?.id, room, panOffset: panOffsetRef.current });
+      ctx.fillStyle = "#200000";
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.fillStyle = "#ff4040";
+      ctx.font = "14px monospace";
+      ctx.fillText(`Biome render error: ${e.message}`, 20, 30);
+    }
+  }, [biome, room, isNight, GAME_W, GAME_H]); // panOffset intentionally excluded
 
   // Animate biome overlay
   useEffect(() => {
@@ -4929,14 +4959,6 @@ export default function App() {
       const c = canvasRef.current;
       const ctx = c.getContext("2d");
       renderBiome(ctx, biome, room, c.width, c.height, isNight, newOffset);
-    }
-    // Throttled React state sync so CSS-positioned elements also update during drag
-    if (!panRef.current._rafPending) {
-      panRef.current._rafPending = true;
-      requestAnimationFrame(() => {
-        panRef.current._rafPending = false;
-        setPanOffset(panOffsetRef.current);
-      });
     }
   }, [gameScale, biome, room, isNight]);
 
