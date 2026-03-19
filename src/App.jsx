@@ -216,6 +216,10 @@ export default function App() {
   const [mercCamp, setMercCamp] = useState(null);        // { x, biomeId }
   const [wizardPoi, setWizardPoi] = useState(null);      // { x, ammoType, ammoAmount }
   const [biomePoi, setBiomePoi] = useState(null);        // { type, x, biomeId, used, ...data }
+  const waterfallStateRef = useRef(waterfall);
+  waterfallStateRef.current = waterfall;
+  const fruitTreeStateRef = useRef(fruitTree);
+  fruitTreeStateRef.current = fruitTree;
   const nuggetRef = useRef({ active: false, intervalId: null });
   // Destructible obstacles per room
   const [obstacles, setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
@@ -241,6 +245,9 @@ export default function App() {
   const [kills, setKills] = useState(0);
   const walkDataRef = useRef({});
   const npcElsRef = useRef({});
+  const waterfallElRef = useRef(null);
+  const fruitTreeElRef = useRef(null);
+  const obsElsRef = useRef({});
   const walkRafRef = useRef(null);
   const summonAttackRef = useRef(null);
   const enemyAttackFriendlyRef = useRef(null);
@@ -1851,6 +1858,38 @@ export default function App() {
           physicsRef.current.updatePatrol(idNum, w.x, w.dir, w.bouncePhase, yPctForPhysics);
         }
       }
+      // ─── POI DOM ELEMENTS: sync position with panning (bypass React render lag) ───
+      {
+        const po = panOffsetRef.current;
+        const wfEl = waterfallElRef.current;
+        if (wfEl) {
+          const wfState = waterfallStateRef.current;
+          if (wfState) {
+            const sx = _wrapPct(wfState.x, po, GAME_W);
+            if (sx === null) { wfEl.style.display = "none"; }
+            else { wfEl.style.display = ""; wfEl.style.left = `${sx}%`; }
+          }
+        }
+        const ftEl = fruitTreeElRef.current;
+        if (ftEl) {
+          const ftState = fruitTreeStateRef.current;
+          if (ftState) {
+            const sx = _wrapPct(ftState.x, po, GAME_W);
+            if (sx === null) { ftEl.style.display = "none"; }
+            else { ftEl.style.display = ""; ftEl.style.left = `${sx}%`; }
+          }
+        }
+        // Sync obstacle DOM positions during panning
+        for (const obs of obstaclesRef.current) {
+          const oel = obsElsRef.current[obs.id];
+          if (oel) {
+            const sx = _wrapPct(obs.x, po, GAME_W);
+            if (sx === null) { oel.style.display = "none"; }
+            else { oel.style.display = ""; oel.style.left = `${sx}%`; }
+          }
+        }
+      }
+
       // ─── OBSTACLE LEAK PARTICLES (low HP obstacles emit material particles) ───
       if (pixiRef.current) {
         for (const obs of obstaclesRef.current) {
@@ -2425,7 +2464,8 @@ export default function App() {
       // Defense rooms: clear all POIs, no new NPCs/traps
       setShowChest(false); setChestPos(null); setChestClicks(0); setResourceNode(null); setShowResource(false);
       setFruitTree(null); setMineNugget(null); setWaterfall(null); setBiomePoi(null);
-      setMercCamp(null); setWizardPoi(null); setTraps([]); setObstacles([]);
+      setMercCamp(null); setWizardPoi(null); setTraps([]);
+      // Note: obstacles are now generated for ALL rooms (line ~2652), so don't clear them here
     }
 
     const terrain = b.terrain;
@@ -2650,6 +2690,7 @@ export default function App() {
       });
     }
     setObstacles(newObstacles);
+    console.log(`[ROOM ${newRoom}] Spawned ${newObstacles.length} obstacles, isDefense=${isDefenseRoom}, biome=${bid}`);
 
     // ─── TRAPS ───
     // (enemy mines removed — explosive obstacles are part of biome obstacles now)
@@ -2783,6 +2824,7 @@ export default function App() {
     setWalkers([...keptWalkerState, ...newWalkers]);
     walkDataRef.current = { ...preservedData, ...newWalkData };
     npcElsRef.current = {};
+    obsElsRef.current = {};
     setSelectedSpell(null);
     setDragHighlight(null);
     setDmgPopups([]);
@@ -3151,7 +3193,7 @@ export default function App() {
       setDefenseMode(prev => {
         if (!prev) return null;
         const t = prev.timer - 1;
-        if (t <= 0) return { ...prev, phase: "wave_active", timer: 0 };
+        if (t <= 0) { console.log("[DEFENSE] Phase → wave_active"); return { ...prev, phase: "wave_active", timer: 0 }; }
         return { ...prev, timer: t };
       });
     }, 1000);
@@ -3275,6 +3317,7 @@ export default function App() {
         const wid = ++walkerIdCounter;
         const spawnX = 10 + Math.random() * 80; // spread across width
         const spawnY = 25 + Math.random() * 15; // spawn at horizon line (25-40%)
+        console.log(`[SPAWN] Enemy #${wid} "${npcData.name}" at x=${spawnX.toFixed(1)} y=${spawnY.toFixed(1)} hp=${npcData.hp}`);
         setWalkers(prev => [...prev, {
           id: wid, npcData, alive: true, dying: false, hp: npcData.hp, maxHp: npcData.hp,
         }]);
@@ -7095,7 +7138,7 @@ export default function App() {
 
       {/* ─── FRUIT TREE (biome variant) ─── */}
       {fruitTree && (
-        <div style={{
+        <div ref={fruitTreeElRef} style={{
           position: "absolute", left: `${wrapPctToScreen(fruitTree.x) ?? fruitTree.x}%`, bottom: "12%", zIndex: 14,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
@@ -7177,7 +7220,7 @@ export default function App() {
       {waterfall && (() => {
         const [wr,wg,wb] = waterfall.rgb;
         return (
-        <div style={{
+        <div ref={waterfallElRef} style={{
           position: "absolute", left: `${wrapPctToScreen(waterfall.x) ?? waterfall.x}%`, bottom: "12%", zIndex: 13,
           transform: "translateX(-50%)", userSelect: "none",
         }}>
@@ -7559,15 +7602,18 @@ export default function App() {
         );
       })()}
 
-      {/* ─── DEBUG: obstacle/walker count ─── */}
+      {/* ─── DEBUG: game state diagnostics ─── */}
       {biome && (
         <div style={{
           position: "absolute", bottom: 4, left: 4, zIndex: 200,
-          background: "rgba(0,0,0,0.7)", color: "#0f0", fontSize: 10,
-          fontFamily: "monospace", padding: "2px 6px", borderRadius: 3,
-          pointerEvents: "none",
+          background: "rgba(0,0,0,0.85)", color: "#0f0", fontSize: 11,
+          fontFamily: "monospace", padding: "4px 8px", borderRadius: 3,
+          pointerEvents: "none", border: "1px solid #0f0",
+          lineHeight: 1.4,
         }}>
-          OBS:{obstacles.length} NPC:{walkers.filter(w => w.alive).length}
+          <div>OBS:{obstacles.length} NPC:{walkers.filter(w => w.alive).length} R:{room}</div>
+          <div>DEF:{defenseMode ? `${defenseMode.phase} W${defenseMode.currentWave}/${defenseMode.totalWaves}` : "none"}</div>
+          <div>PAN:{Math.round(panOffset)} WF:{waterfall ? "Y" : "N"} FT:{fruitTree ? "Y" : "N"}</div>
         </div>
       )}
 
@@ -7656,7 +7702,7 @@ export default function App() {
         const screenX = wrapPctToScreen(obs.x);
         if (screenX === null) return null;
         return (
-          <div key={`obs-${obs.id}`} style={{
+          <div key={`obs-${obs.id}`} ref={el => { if (el) obsElsRef.current[obs.id] = el; }} style={{
             position: "absolute",
             left: `${screenX}%`,
             bottom: `${obs.y}%`,
@@ -7774,9 +7820,9 @@ export default function App() {
           const wd = walkDataRef.current[w.id];
           if (wd) {
             const distPct = Math.abs(wd.x - 20) / 100; // player at ~20%
-            fogAlpha = distPct < weather.fogVisibility ? 1.0
+            fogAlpha = Math.max(0.3, distPct < weather.fogVisibility ? 1.0
               : distPct < weather.fogVisibility * 2 ? 1.0 - ((distPct - weather.fogVisibility) / weather.fogVisibility)
-              : 0.05;
+              : 0.15);
           }
         }
         return (
