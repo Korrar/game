@@ -1,13 +1,18 @@
 // ProjectileRenderer — PixiJS-based projectile rendering with enhanced glow effects
 import { Container, Graphics } from "pixi.js";
+import { wrapPxToScreen } from "../utils/panoramaWrap.js";
 
 export class ProjectileRenderer {
   constructor(layer) {
     this.layer = layer;
     this.sprites = new Map(); // projectile ref → Graphics
+    this._panOffset = 0;
+    this._gameW = 1280;
   }
 
-  update(projectiles, playerSkillshots, mines, areaIndicators) {
+  update(projectiles, playerSkillshots, mines, areaIndicators, panOffset, gameW) {
+    if (panOffset !== undefined) this._panOffset = panOffset;
+    if (gameW !== undefined) this._gameW = gameW;
     // Combine all active objects into one set
     const allActive = new Set([
       ...projectiles,
@@ -25,6 +30,9 @@ export class ProjectileRenderer {
       }
     }
 
+    const po = this._panOffset;
+    const gw = this._gameW;
+
     // Draw/update each NPC projectile
     for (const proj of projectiles) {
       let gfx = this.sprites.get(proj);
@@ -35,6 +43,7 @@ export class ProjectileRenderer {
       }
       gfx.clear();
       this._drawProjectile(gfx, proj);
+      this._applyPan(gfx, proj.x, po, gw);
     }
 
     // Draw player skillshot projectiles
@@ -48,6 +57,7 @@ export class ProjectileRenderer {
         }
         gfx.clear();
         this._drawSkillshot(gfx, proj);
+        this._applyPan(gfx, proj.x, po, gw);
       }
     }
 
@@ -62,6 +72,7 @@ export class ProjectileRenderer {
         }
         gfx.clear();
         this._drawMine(gfx, mine);
+        this._applyPan(gfx, mine.x, po, gw);
       }
     }
 
@@ -76,7 +87,24 @@ export class ProjectileRenderer {
         }
         gfx.clear();
         this._drawAreaIndicator(gfx, ind);
+        this._applyPan(gfx, ind.x, po, gw);
       }
+    }
+  }
+
+  // Offset Graphics container so world-space drawing appears at correct screen position
+  _applyPan(gfx, worldX, panOffset, gameW) {
+    if (!panOffset) {
+      gfx.position.x = 0;
+      gfx.visible = true;
+      return;
+    }
+    const screenX = wrapPxToScreen(worldX, panOffset, gameW);
+    if (screenX !== null) {
+      gfx.position.x = screenX - worldX;
+      gfx.visible = true;
+    } else {
+      gfx.visible = false;
     }
   }
 
