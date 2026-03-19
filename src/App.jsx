@@ -183,6 +183,16 @@ export default function App() {
   const [loot, setLoot] = useState(null);
   const [msg, setMsg] = useState(null);
   const [transitioning, setTransitioning] = useState(false);
+  const transitionTimerRef = useRef(null);
+  // Safety: auto-clear transitioning overlay after 5s to prevent permanent black screen
+  useEffect(() => {
+    if (transitioning) {
+      transitionTimerRef.current = setTimeout(() => { setTransitioning(false); console.warn("Transition safety timeout — forced clear"); }, 5000);
+    } else {
+      if (transitionTimerRef.current) { clearTimeout(transitionTimerRef.current); transitionTimerRef.current = null; }
+    }
+    return () => { if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current); };
+  }, [transitioning]);
   const [musicOn, setMusicOn] = useState(true);
 
   // Tools & resources
@@ -3810,7 +3820,10 @@ export default function App() {
     if (nextRoom % 10 === 1 && nextRoom > 1) {
       const seaEvt = rollSeaEvent();
       if (seaEvt) {
-        setTimeout(() => { setSeaEvent(seaEvt); sfxEventAppear(); }, 300);
+        setTimeout(() => {
+          setTransitioning(false); // clear overlay BEFORE showing modal
+          setSeaEvent(seaEvt); sfxEventAppear();
+        }, 300);
         const island = rollIslandDiscovery();
         if (island) {
           setDiscoveredIslands(prev => [...prev, island]);
@@ -3822,14 +3835,17 @@ export default function App() {
     const event = rollRandomEvent(nextRoom);
     if (event) {
       setTimeout(() => {
+        setTransitioning(false); // clear overlay BEFORE showing modal
         const sfxMap = { merchant: sfxMerchant, altar: sfxAltar, wounded: sfxEventAppear };
         (sfxMap[event.id] || sfxEventAppear)();
         setRandomEvent(event);
       }, 450);
     } else {
       setTimeout(() => {
-        enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current);
-        pendingDestBiomeRef.current = null;
+        try {
+          enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current);
+          pendingDestBiomeRef.current = null;
+        } catch (e) { console.error("enterRoom failed:", e); }
         setTimeout(() => setTransitioning(false), 150);
       }, 300);
     }
@@ -3874,8 +3890,10 @@ export default function App() {
     } else {
       // Continue to next room — use the destination biome from world map
       setTimeout(() => {
-        enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current);
-        pendingDestBiomeRef.current = null;
+        try {
+          enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current);
+          pendingDestBiomeRef.current = null;
+        } catch (e) { console.error("enterRoom failed:", e); }
         setTimeout(() => setTransitioning(false), 150);
       }, 300);
     }
@@ -4063,8 +4081,10 @@ export default function App() {
     }
     // Complete the room transition — use pending biome from world map
     setRandomEvent(null);
-    enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current);
-    pendingDestBiomeRef.current = null;
+    try {
+      enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current);
+      pendingDestBiomeRef.current = null;
+    } catch (e) { console.error("enterRoom failed:", e); }
     setTimeout(() => setTransitioning(false), 150);
   }, [money, room, ownedTools, addMoneyFn, showMessage, spawnFreeMerc]);
 
@@ -9126,7 +9146,7 @@ export default function App() {
                 }
                 setSeaEvent(null);
                 // Resume travel after sea event — use pending biome from world map
-                setTimeout(() => { enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current); pendingDestBiomeRef.current = null; setTimeout(() => setTransitioning(false), 150); }, 300);
+                setTimeout(() => { try { enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current); pendingDestBiomeRef.current = null; } catch (e) { console.error("enterRoom failed:", e); } setTimeout(() => setTransitioning(false), 150); }, 300);
               }} style={{ display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: `1px solid ${seaEvent.themeColor}88`, color: "#d8c8a8", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
                 <Icon name={choice.icon} size={14} /> <strong>{choice.label}</strong> — {choice.desc}
               </button>
@@ -9147,7 +9167,7 @@ export default function App() {
               showMessage(seaEvent.resultText, seaEvent.themeColor);
               setSeaEvent(null);
               // Resume travel after sea event — use pending biome from world map
-              setTimeout(() => { enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current); pendingDestBiomeRef.current = null; setTimeout(() => setTransitioning(false), 150); }, 300);
+              setTimeout(() => { try { enterRoom(room + 1, ownedTools, pendingDestBiomeRef.current); pendingDestBiomeRef.current = null; } catch (e) { console.error("enterRoom failed:", e); } setTimeout(() => setTransitioning(false), 150); }, 300);
             }} style={{ padding: "8px 16px", background: "none", border: `1px solid ${seaEvent.themeColor}`, color: seaEvent.themeColor, fontSize: 13, cursor: "pointer" }}>
               Kontynuuj Rejs
             </button>
