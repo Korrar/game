@@ -1,5 +1,6 @@
 // DamageNumbers — floating damage numbers with glow effects
 import { Container, Text, TextStyle } from "pixi.js";
+import { wrapPxToScreen } from "../utils/panoramaWrap.js";
 
 const ELEMENT_COLORS = {
   fire: "#ff6030",
@@ -62,11 +63,13 @@ export class DamageNumbers {
 
     const textObj = new Text({ text, style });
     textObj.anchor.set(0.5, 0.5);
-    textObj.position.set(x + (Math.random() - 0.5) * 20, y - 10);
+    const worldX = x + (Math.random() - 0.5) * 20;
+    textObj.position.set(worldX, y - 10);
 
     this.layer.addChild(textObj);
     this.numbers.push({
       text: textObj,
+      worldX, // store world X for panoramic wrapping
       vy: -2 - (isCrit ? 1 : 0),
       life: isCrit ? 50 : 35,
       maxLife: isCrit ? 50 : 35,
@@ -74,12 +77,21 @@ export class DamageNumbers {
     });
   }
 
-  update() {
+  update(panOffset = 0, gameW = 1280) {
     for (let i = this.numbers.length - 1; i >= 0; i--) {
       const n = this.numbers[i];
       n.text.position.y += n.vy;
       n.vy *= 0.96; // decelerate
       n.life--;
+
+      // Panoramic wrapping: keep damage number at correct screen X
+      const screenX = wrapPxToScreen(n.worldX, panOffset, gameW);
+      if (screenX !== null) {
+        n.text.position.x = screenX;
+        n.text.visible = true;
+      } else {
+        n.text.visible = false;
+      }
 
       const lifeRatio = n.life / n.maxLife;
       n.text.alpha = lifeRatio > 0.3 ? 1 : lifeRatio / 0.3;
