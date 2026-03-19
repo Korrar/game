@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { wrapPctToScreen as _wrapPct } from "./utils/panoramaWrap.js";
+import { wrapPctToScreen as _wrapPct, screenPxToWorld as _screenToWorld } from "./utils/panoramaWrap.js";
 import { BIOMES } from "./data/biomes";
 import { RARITY_C, RARITY_L } from "./data/treasures";
 import { rollCardDrop, ALL_NPCS, BIOME_NAMES } from "./data/bestiary";
@@ -2208,7 +2208,7 @@ export default function App() {
               // Skip if we just bounced off this obstacle
               if (proj._bounceIds.has(o.id)) continue;
 
-              // AABB collision: obstacle center in pixel coords
+              // AABB collision: obstacle center in world pixel coords
               const sz = _obsSizes[o.type] || _defaultSize;
               const ocx = (o.x / 100) * GAME_W;
               const ocy = GAME_H - (o.y / 100) * GAME_H;
@@ -2656,7 +2656,7 @@ export default function App() {
     const biomeExplosive = EXPLOSIVE_VARIANTS[bid] || "powder_keg";
     const newObstacles = [];
     // Spawn obstacles in both exploration and defense rooms (fewer in defense)
-    const obsCount = isDefenseRoom ? (8 + Math.floor(Math.random() * 4)) : (20 + Math.floor(Math.random() * 6));
+    const obsCount = isDefenseRoom ? (6 + Math.floor(Math.random() * 3)) : (14 + Math.floor(Math.random() * 4));
     for (let i = 0; i < obsCount; i++) {
       // Ensure ~50% of obstacles spawn in the initial viewport (0-100%)
       // and ~50% in the panoramic world (100-290%) for better visibility
@@ -2691,7 +2691,6 @@ export default function App() {
       });
     }
     setObstacles(newObstacles);
-    console.log(`[ROOM ${newRoom}] Spawned ${newObstacles.length} obstacles, isDefense=${isDefenseRoom}, biome=${bid}`, newObstacles.slice(0, 2));
     } catch (obsError) {
       console.error("[OBSTACLE ERROR] Failed to generate obstacles:", obsError);
       // Fallback: generate minimal obstacles so game is playable
@@ -5128,14 +5127,14 @@ export default function App() {
     if (!spell || !spell.skillshot) return;
     if (spell.id === "summon") return;
 
-    // Get click position in game coordinates
+    // Get click position in game coordinates (screen space)
     const gr = gameContainerRef.current.getBoundingClientRect();
-    const clickX = (e.clientX - gr.left) / gameScale;
+    const screenX = (e.clientX - gr.left) / gameScale;
     const clickY = (e.clientY - gr.top) / gameScale;
 
-    // Convert to physics pixel coordinates
-    // The physics uses GAME_W/GAME_H coordinates
-    castSkillshot(spell, clickX, clickY);
+    // Convert screen X to world X (account for panoramic panning)
+    const worldX = _screenToWorld(screenX, panOffsetRef.current, GAME_W);
+    castSkillshot(spell, worldX, clickY);
   }, [selectedSpell, gameScale, castSkillshot]);
 
   // ─── RAPID FIRE: Hold-to-fire for Strzał ───
@@ -5156,7 +5155,8 @@ export default function App() {
       const gr = gameContainerRef.current.getBoundingClientRect();
       const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
       const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
-      return { x: (cx - gr.left) / gameScale, y: (cy - gr.top) / gameScale };
+      const screenX = (cx - gr.left) / gameScale;
+      return { x: _screenToWorld(screenX, panOffsetRef.current, GAME_W), y: (cy - gr.top) / gameScale };
     };
     const pos = getPos(e);
     rapidFireRef.current.lastPos = pos;
@@ -5188,7 +5188,8 @@ export default function App() {
     const gr = gameContainerRef.current.getBoundingClientRect();
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    rapidFireRef.current.lastPos = { x: (cx - gr.left) / gameScale, y: (cy - gr.top) / gameScale };
+    const screenX = (cx - gr.left) / gameScale;
+    rapidFireRef.current.lastPos = { x: _screenToWorld(screenX, panOffsetRef.current, GAME_W), y: (cy - gr.top) / gameScale };
   }, [gameScale]);
 
   const stopRapidFire = useCallback(() => {
@@ -5212,7 +5213,9 @@ export default function App() {
     const gr = gameContainerRef.current.getBoundingClientRect();
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    const cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100;
+    const screenPx = (cx - gr.left) / gameScale;
+    const worldPx = _screenToWorld(screenPx, panOffsetRef.current, GAME_W);
+    const cursorX = (worldPx / GAME_W) * 100;
     const cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100;
     setWandActive(true);
     wandOrbsRef.current = { active: true, startTime: Date.now(), cursorX, cursorY, hitCooldowns: {}, lastDrainTime: Date.now() };
@@ -5265,7 +5268,9 @@ export default function App() {
     const gr = gameContainerRef.current.getBoundingClientRect();
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    const cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100;
+    const screenPx = (cx - gr.left) / gameScale;
+    const worldPx = _screenToWorld(screenPx, panOffsetRef.current, GAME_W);
+    const cursorX = (worldPx / GAME_W) * 100;
     const cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100;
     // Check initial resources
     if ((ammoRef.current.cannonball || 0) < 1) { showMessage("Brak kul armatnich!", "#c04040"); return; }
@@ -5280,7 +5285,9 @@ export default function App() {
     if (!gr) return;
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    salvaRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100;
+    const sxPx = (cx - gr.left) / gameScale;
+    const wxPx = _screenToWorld(sxPx, panOffsetRef.current, GAME_W);
+    salvaRef.current.cursorX = (wxPx / GAME_W) * 100;
     salvaRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100;
   }, [gameScale]);
 
@@ -5316,9 +5323,11 @@ export default function App() {
     const gr = gameContainerRef.current.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const gx = (clientX - gr.left) / gameScale;
+    const screenPx = (clientX - gr.left) / gameScale;
     const gy = (clientY - gr.top) / gameScale;
-    return { x: (gx / GAME_W) * 100, y: (gy / GAME_H) * 100, px: gx, py: gy };
+    // Convert screen X to world X for hit detection against world-space objects
+    const worldPx = _screenToWorld(screenPx, panOffsetRef.current, GAME_W);
+    return { x: (worldPx / GAME_W) * 100, y: (gy / GAME_H) * 100, px: screenPx, py: gy };
   }, [gameScale]);
 
   const saberCheckHits = useCallback((x, y) => {
