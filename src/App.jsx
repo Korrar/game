@@ -1832,7 +1832,7 @@ export default function App() {
           // 2.5D: depth-based scaling and z-ordering for DOM walker elements
           const walkerDepth = depthFromY(yPos);
           const walkerScale = scaleAtDepth(walkerDepth);
-          const walkerZ = 10 + zIndexAtDepth(walkerDepth); // base 10 to stay above backgrounds
+          const walkerZ = 14 + zIndexAtDepth(walkerDepth); // base 14 to stay above PixiJS canvas (z-12)
           // Panoramic wrapping: position walker HTML overlay at wrapped screen X
           const wrappedX = _wrapPct(w.x, panOffsetRef.current, GAME_W);
           if (wrappedX === null) {
@@ -6502,8 +6502,8 @@ export default function App() {
           onJournal={() => togglePanel("journal")} onShip={() => togglePanel("ship")}
           onFortifications={defenseMode ? null : () => togglePanel("fortifications")} />
       )}
-      <canvas ref={canvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H }} />
-      <canvas ref={animCanvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none" }} />
+      <canvas ref={canvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, zIndex: 1 }} />
+      <canvas ref={animCanvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none", zIndex: 2 }} />
       {/* PixiJS canvas is dynamically inserted by PixiRenderer into gameContainerRef */}
 
       {/* Panoramic scroll indicator */}
@@ -7557,6 +7557,18 @@ export default function App() {
         );
       })()}
 
+      {/* ─── DEBUG: obstacle/walker count ─── */}
+      {biome && (
+        <div style={{
+          position: "absolute", bottom: 4, left: 4, zIndex: 200,
+          background: "rgba(0,0,0,0.7)", color: "#0f0", fontSize: 10,
+          fontFamily: "monospace", padding: "2px 6px", borderRadius: 3,
+          pointerEvents: "none",
+        }}>
+          OBS:{obstacles.length} NPC:{walkers.filter(w => w.alive).length}
+        </div>
+      )}
+
       {/* ─── DESTRUCTIBLE OBSTACLES ─── */}
       {obstacles.map(obs => {
         const obsStyles = {
@@ -7646,7 +7658,7 @@ export default function App() {
             position: "absolute",
             left: `${screenX}%`,
             bottom: `${obs.y}%`,
-            zIndex: 10 + zIndexAtDepth(depthFromY(100 - obs.y)),
+            zIndex: 14 + zIndexAtDepth(depthFromY(100 - obs.y)),
             transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})`,
             transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "none",
             opacity: isDestroying ? 0 : 1,
@@ -7654,21 +7666,21 @@ export default function App() {
           }}>
             {/* Main obstacle body */}
             <div style={{
-              width: s.w,
-              height: s.h,
+              width: Math.max(s.w, 18),
+              height: Math.max(s.h, 14),
               background: s.bg,
               borderRadius: s.radius,
               boxShadow: isHit
-                ? `${s.shadow}, 0 0 8px rgba(255,200,100,0.6)`
-                : s.shadow,
+                ? `${s.shadow}, 0 0 8px rgba(255,200,100,0.6), 0 0 12px rgba(255,255,255,0.3)`
+                : `${s.shadow}, 0 0 6px rgba(255,255,255,0.15)`,
               position: "relative",
               overflow: "hidden",
               transform: isDestroying ? "scale(1.3)" : "none",
               transition: isDestroying ? "transform 0.35s ease-out" : "none",
-              opacity: damaged ? 0.6 + hpPct * 0.35 : 0.85,
+              opacity: damaged ? 0.6 + hpPct * 0.35 : 0.9,
               border: obs.destructible && !isDestroying
-                ? `1.5px solid rgba(255,255,255,${damaged ? 0.3 + crackIntensity * 0.15 : 0.18})`
-                : "none",
+                ? `2px solid rgba(255,255,255,${damaged ? 0.3 + crackIntensity * 0.15 : 0.25})`
+                : "1px solid rgba(255,255,255,0.15)",
             }}>
               {/* Progressive damage: crack overlay (material-specific pattern) */}
               {crackIntensity > 0 && (
@@ -7773,7 +7785,7 @@ export default function App() {
               position: "absolute",
               left: "50%",
               top: "calc(25% - 75px)",
-              zIndex: isBossWalker ? 12 : 11,
+              zIndex: isBossWalker ? 15 : 14,
               display: "flex", flexDirection: "column", alignItems: "center",
               cursor: !isFriendly && selectedSpell ? "crosshair" : isFriendly ? "default" : "pointer",
               userSelect: "none",
@@ -7813,6 +7825,27 @@ export default function App() {
                 fontSize: 14, animation: "dmgFloat 0.5s ease-out",
                 color: "#ff4040", fontWeight: "bold", pointerEvents: "none",
               }}><Icon name="skull" size={14} /></div>
+            )}
+            {/* NPC icon + name label — visible fallback when PixiJS sprite is loading */}
+            {w.alive && !w.dying && (
+              <div style={{
+                display: "flex", flexDirection: "column", alignItems: "center",
+                pointerEvents: "none", marginBottom: 2,
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: "50%",
+                  background: isFriendly ? "rgba(40,120,40,0.5)" : "rgba(120,40,40,0.5)",
+                  border: `2px solid ${isFriendly ? "#4a8a4a" : "#8a4a4a"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  boxShadow: `0 0 8px ${isFriendly ? "rgba(40,120,40,0.4)" : "rgba(120,40,40,0.4)"}`,
+                }}>
+                  <Icon name={w.npcData?.icon || "skull"} size={18} />
+                </div>
+                <div style={{
+                  fontSize: 8, color: isFriendly ? "#6a8" : "#c88",
+                  textShadow: "1px 1px 0 #000", whiteSpace: "nowrap", marginTop: 1,
+                }}>{w.npcData?.name || "Wróg"}</div>
+              </div>
             )}
             {/* HP Bar — skip for boss (uses BossHpBar at top) */}
             {w.alive && !w.dying && !isBossWalker && (
