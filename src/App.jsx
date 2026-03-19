@@ -2345,6 +2345,13 @@ export default function App() {
     panOffsetRef.current = 0;
     panRef.current.dragging = false; // ensure dragging state is reset so canvas renders
     if (pixiRef.current) pixiRef.current.setPanOffset(0);
+    // Immediately clear all POIs to prevent stale visuals from previous room
+    setFruitTree(null);
+    setMineNugget(null);
+    setWaterfall(null);
+    setMercCamp(null);
+    setWizardPoi(null);
+    setBiomePoi(null);
     const isDefenseRoom = newRoom > 0 && newRoom % 5 === 0;
 
     // Reset caravan HP in defense rooms
@@ -2608,8 +2615,8 @@ export default function App() {
     const biomeExplosive = EXPLOSIVE_VARIANTS[bid] || "powder_keg";
     const newObstacles = [];
     if (!isDefenseRoom) {
-      // Spawn 5-9 obstacles spread across the 360° panoramic world
-      const obsCount = 5 + Math.floor(Math.random() * 5);
+      // Spawn 20-25 obstacles spread across the 360° panoramic world
+      const obsCount = 20 + Math.floor(Math.random() * 6);
       for (let i = 0; i < obsCount; i++) {
         // Distribute across full panoramic world (0–290% = 3× viewport minus margin)
         const ox = 5 + Math.random() * 285;
@@ -2711,11 +2718,11 @@ export default function App() {
     // ─── NEW: Journal — biome discovery ───
     addDiscovery("biomes", { id: b.id, name: b.name });
 
-    // Walking NPCs – 70% chance, 1-2 NPCs
+    // Walking NPCs – always spawn 3-5 NPCs in non-defense rooms
     const newWalkers = [];
     const newWalkData = {};
-    if (!isDefenseRoom && Math.random() < 0.70) {
-      const count = Math.random() < 0.55 ? 1 : 2;
+    if (!isDefenseRoom) {
+      const count = 3 + Math.floor(Math.random() * 3);
       for (let i = 0; i < count; i++) {
         let npcData = pickNpc(b.id);
         if (!npcData) continue;
