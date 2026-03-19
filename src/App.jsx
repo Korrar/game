@@ -2333,6 +2333,7 @@ export default function App() {
     setRoom(newRoom);
     setPanOffset(0);
     panOffsetRef.current = 0;
+    panRef.current.dragging = false; // ensure dragging state is reset so canvas renders
     if (pixiRef.current) pixiRef.current.setPanOffset(0);
     const isDefenseRoom = newRoom > 0 && newRoom % 5 === 0;
 
@@ -2436,16 +2437,24 @@ export default function App() {
       spring:   { crown: ["#30a020","#20801a","#106010"], trunk: "#6a4a22", fruits: ["coin","gem","gold","star"], label: "Kwitnące Drzewo" },
       mushroom: { crown: ["#6040a0","#4a3080","#302060"], trunk: "#6a5a40", fruits: ["mushroom","mushroom","mushroom"], label: "Grzyborost" },
       swamp:    { crown: ["#2a5a1a","#1a4010","#0e3008"], trunk: "#3a3018", fruits: ["coin","coin"], label: "Bagienny Dąb" },
+      sunset_beach: { crown: ["#1a7a10","#0e5a08","#064004"], trunk: "#8a6a38", fruits: ["coin","coin","gold"], label: "Palma Zachodu" },
+      bamboo_falls: { crown: ["#2a8a30","#1a6a20","#105010"], trunk: "#6a8a30", fruits: ["coin","gem","herb"], label: "Bambusowe Drzewo" },
+      blue_lagoon:  { crown: ["#1a7a10","#0e6a08","#045a04"], trunk: "#7a5a30", fruits: ["coin","coin","gem"], label: "Tropikalna Palma" },
     };
     const MINE_VARIANTS = {
       desert:  { rockCol: ["#8a7a60","#6a6050","#5a5040"], oreIcon: "gem", label: "Piaskowa Skała" },
       city:    { rockCol: ["#5a5550","#4a4540","#3a3530"], oreIcon: "rock", label: "Ruiny Kopalni" },
       volcano: { rockCol: ["#4a2a1a","#3a2010","#2a1808"], oreIcon: "fire", label: "Wulkaniczna Żyła" },
+      olympus: { rockCol: ["#c8c0a8","#a8a088","#8a8070"], oreIcon: "gem", label: "Marmurowa Skała" },
+      underworld: { rockCol: ["#2a1a30","#1a1020","#100818"], oreIcon: "gem", label: "Żyła Styksu" },
     };
     const WATER_VARIANTS = {
       jungle:  { rgb: [40,180,100], label: "Leśny Wodospad", frozen: false },
       winter:  { rgb: [160,200,255], label: "Zamrożony Wodospad", frozen: true },
       swamp:   { rgb: [60,100,40], label: "Bagienny Spływ", frozen: false },
+      bamboo_falls: { rgb: [60,180,140], label: "Bambusowy Wodospad", frozen: false },
+      blue_lagoon:  { rgb: [40,180,220], label: "Lazurowy Wodospad", frozen: false },
+      spring:  { rgb: [60,160,200], label: "Wiosenny Potok", frozen: false },
       default: { rgb: [80,160,255], label: "Wodospad", frozen: false },
     };
 
@@ -2565,6 +2574,7 @@ export default function App() {
       summer:   "oil_barrel",       autumn:   "gas_mushroom",     spring:   "gas_mushroom",
       mushroom: "gas_mushroom",     swamp:    "swamp_gas_pod",    sunset_beach: "powder_keg",
       bamboo_falls: "gas_mushroom", blue_lagoon: "powder_keg",
+      olympus: "volatile_crystal",  underworld: "magma_rock",
     };
     const OBSTACLE_VARIANTS = {
       jungle:   ["fallen_log", "vine_wall", "ancient_totem", "moss_boulder", "giant_mushroom", "coral_reef", "rope_coil", "fallen_tree"],
@@ -2581,6 +2591,8 @@ export default function App() {
       sunset_beach: ["driftwood", "tide_pool", "shipwreck", "anchor_post", "barrel_stack", "coral_reef", "fishing_net", "barnacle_rock"],
       bamboo_falls: ["moss_boulder", "fallen_log", "vine_wall", "flower_patch", "coral_reef", "rope_coil", "giant_mushroom", "lily_pad"],
       blue_lagoon:  ["driftwood", "tide_pool", "anchor_post", "flower_patch", "coral_reef", "seaweed_patch", "fishing_net", "barnacle_rock"],
+      olympus:      ["obsidian_pillar", "moss_boulder", "crystal_cluster", "crystal_geode", "ancient_totem", "stone_bridge", "fallen_log", "volatile_crystal"],
+      underworld:   ["stalactite", "obsidian_pillar", "lava_pool", "crystal_cluster", "fog_pool", "dead_tree", "ash_mound", "crystal_geode"],
     };
     const biomeObstacles = OBSTACLE_VARIANTS[bid] || OBSTACLE_VARIANTS.desert;
     const biomeExplosive = EXPLOSIVE_VARIANTS[bid] || "powder_keg";
@@ -2932,11 +2944,15 @@ export default function App() {
   }, []);
 
   // Render biome background — on biome/room/night/panOffset change
+  const prevBiomeIdRef = useRef(null);
   useEffect(() => {
     if (!biome || !canvasRef.current) return;
     // During active drag, handlePanMove renders the canvas directly — skip
-    // the effect to avoid re-drawing with a stale panOffset state value
-    if (panRef.current.dragging) return;
+    // the effect to avoid re-drawing with a stale panOffset state value.
+    // BUT always render on biome/room change to prevent black screen after transitions.
+    const biomeChanged = prevBiomeIdRef.current !== biome.id;
+    if (biomeChanged) prevBiomeIdRef.current = biome.id;
+    if (panRef.current.dragging && !biomeChanged) return;
     const c = canvasRef.current;
     // Only reset canvas size when dimensions actually change (avoids unnecessary clear)
     if (c.width !== GAME_W || c.height !== GAME_H) { c.width = GAME_W; c.height = GAME_H; }
@@ -6396,11 +6412,11 @@ export default function App() {
         onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode && !isSalvaMode) ? handleSkillshotClick : undefined}
         onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
         onMouseMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
-        onMouseUp={panRef.current.dragging ? handlePanEnd : isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : isSalvaMode ? stopSalva : undefined}
+        onMouseUp={(e) => { if (panRef.current.dragging) { handlePanEnd(); return; } if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
         onMouseLeave={(e) => { handlePanEnd(); if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
         onTouchStart={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
         onTouchMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active && e.touches[0]) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current && e.touches[0]) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.touches[0].clientX; const cy = e.touches[0].clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
-        onTouchEnd={panRef.current.dragging ? handlePanEnd : isSaberMode ? handleSaberUp : isRapidFireMode ? stopRapidFire : isWandMode ? stopWand : isSalvaMode ? stopSalva : undefined}
+        onTouchEnd={(e) => { if (panRef.current.dragging) { handlePanEnd(); return; } if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
         style={{
         width: GAME_W, height: GAME_H,
         transform: `scale(${gameScale})`,
