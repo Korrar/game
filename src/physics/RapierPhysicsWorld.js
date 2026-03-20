@@ -1125,8 +1125,9 @@ export class PhysicsWorld {
         if (!hitAnybody && proj.onMiss) proj.onMiss();
       }
 
-      // Remove if hit, expired, or off-screen
-      if (hit || proj.age > proj.maxAge || proj.x < -50 || proj.x > this.W + 50 || proj.y > this.H + 30) {
+      // Remove if hit, expired, or off-screen (use panoramic world width for X bounds)
+      const worldW = this.W * 3; // PANORAMA_WORLD_W = 3
+      if (hit || proj.age > proj.maxAge || proj.x < -50 || proj.x > worldW + 50 || proj.y > this.H + 30) {
         if (!hitAnybody && !hit && proj.onMiss) proj.onMiss();
         this.playerSkillshots.splice(i, 1);
       }
