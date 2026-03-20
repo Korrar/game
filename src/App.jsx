@@ -1701,8 +1701,8 @@ export default function App() {
               }
             }
             } // end !barricadeBlock
-          } else if (defenseModeRef.current?.phase === "wave_active") {
-            // No friendly target – check for player barricades first
+          } else if (combatEngagedRef.current || defenseModeRef.current?.phase === "wave_active") {
+            // No friendly target – march toward caravan; check for player barricades first
             w.combatState = null;
             let blockedByBarricade = false;
             const pTrapsForBlock = playerTrapsRef.current;
