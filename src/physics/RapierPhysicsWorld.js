@@ -815,11 +815,12 @@ export class PhysicsWorld {
 
   // ─── PROJECTILE SYSTEM ───
 
-  spawnProjectile(sourceId, targetXPct, type, damage, element, onHit, targetId) {
+  spawnProjectile(sourceId, targetXPct, type, damage, element, onHit, targetId, panOffset = 0) {
     const entry = this.bodies[sourceId];
     if (!entry) return;
-    const sPos = entry.limbBodies.torso ? entry.limbBodies.torso.translation() : { x: 0, y: 0 };
-    const sx = sPos.x, sy = sPos.y;
+    // Spawn from the bottom center of the current camera viewport
+    const sx = screenPxToWorld(this.W * 0.50, panOffset, this.W);
+    const sy = this.H * 0.85;
     const tx = (targetXPct / 100) * this.W;
     const targetEntry = targetId != null ? this.bodies[targetId] : null;
     const tPos = targetEntry?.limbBodies?.torso?.translation();
