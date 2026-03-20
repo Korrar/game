@@ -1240,7 +1240,7 @@ export default function App() {
                     physicsRef.current.spawnProjectile(
                       idNum, targetXPct, "arrow", w.projectileDamage || w.damage || 8, null,
                       (hitId, dmg) => { if (summonAttackRef.current) summonAttackRef.current(_idNum, hitId, dmg); },
-                      parseInt(nearId)
+                      parseInt(nearId), panOffsetRef.current
                     );
                   }
                 }
@@ -1297,7 +1297,7 @@ export default function App() {
                       physicsRef.current.spawnProjectile(
                         idNum, targetXPct, "mageSpell", Math.round((w.spellDamage || 14) * rangedAuraBonus), w.spellElement || "fire",
                         (hitId, dmg) => { if (summonAttackRef.current) summonAttackRef.current(_idNum, hitId, dmg); },
-                        parseInt(nearId)
+                        parseInt(nearId), panOffsetRef.current
                       );
                     }
                   } else if ((w.currentMana || 0) < (w.spellCost || 15) && nearDist < 8) {
@@ -1328,7 +1328,7 @@ export default function App() {
                       physicsRef.current.spawnProjectile(
                         idNum, targetXPct, "arrow", Math.round((w.projectileDamage || 6) * rangedAuraBonus), null,
                         (hitId, dmg) => { if (summonAttackRef.current) summonAttackRef.current(_idNum, hitId, dmg); },
-                        parseInt(nearId)
+                        parseInt(nearId), panOffsetRef.current
                       );
                     }
                   }
@@ -1463,7 +1463,7 @@ export default function App() {
                     physicsRef.current.spawnProjectile(
                       idNum, targetXPct, projType, ability.damage, ability.element,
                       (hitId, dmg, elem) => { if (enemyAbilityRef.current) enemyAbilityRef.current(_idNum, hitId, dmg, elem); },
-                      parseInt(friendId)
+                      parseInt(friendId), panOffsetRef.current
                     );
                   }
                   break;
@@ -1498,7 +1498,7 @@ export default function App() {
                           spawnDmgPopup(_idNum, `+${healAmt}`, "#40c040");
                         }
                       },
-                      parseInt(friendId)
+                      parseInt(friendId), panOffsetRef.current
                     );
                   }
                   break;
