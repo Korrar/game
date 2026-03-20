@@ -1425,6 +1425,7 @@ export default function App() {
         } else {
           // Enemy AI: find nearest friendly from pre-computed list
           let friendX = null, friendY = null, friendDist = Infinity, friendId = null;
+          let targetIsCaravan = false;
           for (let fi = 0; fi < friendlyList.length; fi++) {
             const f = friendlyList[fi].w;
             const dx = f.x - w.x;
@@ -1432,8 +1433,18 @@ export default function App() {
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist < friendDist) { friendDist = dist; friendX = f.x; friendY = f.y || 50; friendId = friendlyList[fi].id; }
           }
+          // Fallback: target the caravan if no friendly NPCs found
+          if (friendX === null) {
+            const caravanX = 50, caravanY = 92;
+            const dxC = caravanX - w.x;
+            const dyC = (caravanY - (w.y || 50)) * 0.5;
+            friendDist = Math.sqrt(dxC * dxC + dyC * dyC);
+            friendX = caravanX;
+            friendY = caravanY;
+            targetIsCaravan = true;
+          }
 
-          // NPC ability usage (any combat encounter)
+          // NPC ability usage (any combat encounter) — targets friendly NPCs or caravan
           if (w.ability && friendX !== null) {
             const ability = w.ability;
             const abCdKey = "ab" + id;
@@ -1442,6 +1453,8 @@ export default function App() {
               const dirX = friendX > w.x ? 1 : -1;
               const _idNum = idNum; // capture for closures
               if (physicsRef.current) physicsRef.current.triggerAttackAnim(idNum);
+              // Caravan target pixel position for projectile targetPos
+              const _caravanPosPx = targetIsCaravan ? { x: (50 / 100) * GAME_W, y: GAME_H * 0.85 } : null;
               switch (ability.type) {
                 case "fireBreath":
                   if (physicsRef.current) {
@@ -1449,7 +1462,11 @@ export default function App() {
                     const ty = GAME_H * 0.25 - 30;
                     physicsRef.current.fx.spawnFireBreath(tx, ty, dirX);
                   }
-                  if (enemyAbilityRef.current) enemyAbilityRef.current(idNum, parseInt(friendId), ability.damage, ability.element);
+                  if (targetIsCaravan) {
+                    if (attackCaravanRef.current) attackCaravanRef.current(idNum, ability.damage);
+                  } else {
+                    if (enemyAbilityRef.current) enemyAbilityRef.current(idNum, parseInt(friendId), ability.damage, ability.element);
+                  }
                   break;
                 case "poisonSpit":
                 case "iceShot":
@@ -1458,12 +1475,14 @@ export default function App() {
                   const projType = ability.type === "poisonSpit" ? "poisonSpit"
                     : ability.type === "iceShot" ? "iceShard_npc" : "shadowBolt_npc";
                   if (physicsRef.current) {
-                    const targetWd = wd[friendId];
-                    const targetXPct = targetWd ? targetWd.x : friendX;
+                    const targetXPct = targetIsCaravan ? 50 : (wd[friendId] ? wd[friendId].x : friendX);
                     physicsRef.current.spawnProjectile(
                       idNum, targetXPct, projType, ability.damage, ability.element,
-                      (hitId, dmg, elem) => { if (enemyAbilityRef.current) enemyAbilityRef.current(_idNum, hitId, dmg, elem); },
-                      parseInt(friendId), panOffsetRef.current
+                      targetIsCaravan
+                        ? (hitId, dmg, elem) => { if (attackCaravanRef.current) attackCaravanRef.current(_idNum, dmg); }
+                        : (hitId, dmg, elem) => { if (enemyAbilityRef.current) enemyAbilityRef.current(_idNum, hitId, dmg, elem); },
+                      targetIsCaravan ? null : parseInt(friendId),
+                      _caravanPosPx
                     );
                   }
                   break;
@@ -1474,18 +1493,25 @@ export default function App() {
                   w.speed = origSpeed * 3;
                   w.dir = friendX > w.x ? 1 : -1;
                   setTimeout(() => { if (wd[id]) wd[id].speed = origSpeed; }, 800);
-                  if (enemyAbilityRef.current) enemyAbilityRef.current(idNum, parseInt(friendId), ability.damage, "melee");
+                  if (targetIsCaravan) {
+                    if (attackCaravanRef.current) attackCaravanRef.current(idNum, ability.damage);
+                  } else {
+                    if (enemyAbilityRef.current) enemyAbilityRef.current(idNum, parseInt(friendId), ability.damage, "melee");
+                  }
                   break;
                 }
                 case "drain": {
                   // Like shadowBolt but heals boss for 50% of damage dealt
                   if (physicsRef.current) {
-                    const targetWd = wd[friendId];
-                    const targetXPct = targetWd ? targetWd.x : friendX;
+                    const targetXPct = targetIsCaravan ? 50 : (wd[friendId] ? wd[friendId].x : friendX);
                     physicsRef.current.spawnProjectile(
                       idNum, targetXPct, "shadowBolt_npc", ability.damage, "shadow",
                       (hitId, dmg, elem) => {
-                        if (enemyAbilityRef.current) enemyAbilityRef.current(_idNum, hitId, dmg, elem);
+                        if (targetIsCaravan) {
+                          if (attackCaravanRef.current) attackCaravanRef.current(_idNum, dmg);
+                        } else {
+                          if (enemyAbilityRef.current) enemyAbilityRef.current(_idNum, hitId, dmg, elem);
+                        }
                         // Heal boss for 50% of damage dealt
                         const bossWd = wd[id];
                         if (bossWd && bossWd.isBoss) {
@@ -1498,7 +1524,8 @@ export default function App() {
                           spawnDmgPopup(_idNum, `+${healAmt}`, "#40c040");
                         }
                       },
-                      parseInt(friendId), panOffsetRef.current
+                      targetIsCaravan ? null : parseInt(friendId),
+                      _caravanPosPx
                     );
                   }
                   break;
@@ -6849,6 +6876,28 @@ export default function App() {
       <canvas ref={canvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, zIndex: 1 }} />
       <canvas ref={animCanvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none", zIndex: 2 }} />
       {/* PixiJS canvas is dynamically inserted by PixiRenderer into gameContainerRef */}
+
+      {/* Caravan HP bar — always visible during combat */}
+      {room > 0 && (
+        <div style={{
+          position: "absolute", bottom: isMobile ? 110 : 92, left: "50%", transform: "translateX(-50%)",
+          zIndex: 25, display: "flex", alignItems: "center", gap: 6,
+          background: "rgba(14,8,6,0.88)", border: "2px solid #8a6a30",
+          borderRadius: 6, padding: "3px 12px", boxShadow: "0 0 8px rgba(0,0,0,0.6)",
+        }}>
+          <Icon name="convoy" size={14} />
+          <div style={{ width: 80, height: 8, background: "rgba(0,0,0,0.6)", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{
+              width: `${CARAVAN_LEVELS[caravanLevel].hp > 0 ? (caravanHp / CARAVAN_LEVELS[caravanLevel].hp) * 100 : 100}%`,
+              height: "100%", borderRadius: 4, transition: "width 0.3s, background 0.3s",
+              background: caravanHp / CARAVAN_LEVELS[caravanLevel].hp > 0.5 ? "#40e060" : caravanHp / CARAVAN_LEVELS[caravanLevel].hp > 0.25 ? "#e0c040" : "#e04040",
+            }} />
+          </div>
+          <span style={{ color: "#ccc", fontSize: 10, fontWeight: "bold", fontFamily: "monospace", textShadow: "1px 1px 0 #000" }}>
+            {caravanHp}/{CARAVAN_LEVELS[caravanLevel].hp}
+          </span>
+        </div>
+      )}
 
       {/* Panoramic scroll indicator */}
       {canPanScroll && biome && (
