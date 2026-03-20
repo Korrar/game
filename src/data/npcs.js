@@ -98,7 +98,7 @@ export const BIOME_NPCS = {
     { icon: "skull", name: "Jadowita Ryba", hp: 20, resist: "ice", loot: { copper: 6 }, rarity: "common", bodyColor: "#e08040", armorColor: "#b06030", bodyType: "frog", ability: { type: "poisonSpit", damage: 6, cooldown: 3500, element: "shadow", range: 18 } },
     { icon: "skull", name: "Morski Jeż", hp: 24, resist: "ice", loot: { copper: 8 }, rarity: "common", bodyColor: "#302060", armorColor: "#1a1040", bodyType: "spider", ability: { type: "poisonSpit", damage: 5, cooldown: 3000, element: "shadow", range: 16 } },
     { icon: "water", name: "Duch Zatopionego Kapitana", hp: 65, resist: "ice", loot: { silver: 2 }, rarity: "epic", bodyColor: "#3060a0", armorColor: "#204070", bodyType: "floating", ability: { type: "iceShot", damage: 12, cooldown: 4000, element: "ice", range: 28 } },
-    { icon: "skull", name: "Elektryczny Węgorz", hp: 38, resist: "ice", loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#40a0c0", armorColor: "#207090", bodyType: "serpent", ability: { type: "iceShot", damage: 10, cooldown: 4500, element: "lightning", range: 22 } },
+    { icon: "skull", name: "Elektryczny Węgorz", hp: 38, resist: "ice", loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#40a0c0", armorColor: "#207090", bodyType: "serpent", ability: { type: "shadowBolt", damage: 10, cooldown: 4500, element: "lightning", range: 22 } },
   ],
   olympus: [
     { icon: "swords", name: "Spartański Wojownik", hp: 55, resist: null, loot: { copper: 18 }, rarity: "uncommon", bodyColor: "#c0a070", armorColor: "#8a6030", bodyType: "humanoid", ability: { type: "charge", damage: 14, cooldown: 5000, element: null, range: 26 } },

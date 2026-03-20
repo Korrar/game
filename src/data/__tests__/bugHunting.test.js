@@ -191,7 +191,45 @@ describe("Bug 8: Combo element consistency", () => {
   });
 });
 
-// ─── BUG 9: NPC data validation ───
+// ─── BUG 9: NPC ability type must match element ───
+
+describe("Bug 9: NPC ability type-element consistency", () => {
+  const abilityElementMap = {
+    fireBreath: "fire",
+    iceShot: "ice",
+    // shadowBolt can use shadow or lightning
+    // poisonSpit uses shadow element
+    // charge uses null element
+  };
+
+  it("iceShot abilities should always use ice element", () => {
+    for (const [biomeId, pool] of Object.entries(BIOME_NPCS)) {
+      for (const npc of pool) {
+        if (npc.ability && npc.ability.type === "iceShot") {
+          expect(
+            npc.ability.element,
+            `${biomeId}/${npc.name} has iceShot with element "${npc.ability.element}" instead of "ice"`
+          ).toBe("ice");
+        }
+      }
+    }
+  });
+
+  it("fireBreath abilities should always use fire element", () => {
+    for (const [biomeId, pool] of Object.entries(BIOME_NPCS)) {
+      for (const npc of pool) {
+        if (npc.ability && npc.ability.type === "fireBreath") {
+          expect(
+            npc.ability.element,
+            `${biomeId}/${npc.name} has fireBreath with element "${npc.ability.element}" instead of "fire"`
+          ).toBe("fire");
+        }
+      }
+    }
+  });
+});
+
+// ─── BUG 10: NPC data validation ───
 
 describe("Bug 9: NPC data integrity", () => {
   it("all NPCs should have positive HP", () => {
@@ -242,7 +280,7 @@ describe("Bug 9: NPC data integrity", () => {
 
 // ─── BUG 10: Boss data validation ───
 
-describe("Bug 10: Boss data integrity", () => {
+describe("Bug 11: Boss data integrity", () => {
   it("all bosses should have unique IDs", () => {
     const ids = BOSSES.map(b => b.id);
     expect(new Set(ids).size).toBe(ids.length);
