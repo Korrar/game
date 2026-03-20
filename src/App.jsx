@@ -266,6 +266,7 @@ export default function App() {
   const enemyAttackFriendlyRef = useRef(null);
   const enemyAbilityRef = useRef(null);
   const attackCaravanRef = useRef(null);
+  const enemyAttackEnemyRef = useRef(null); // confusion: enemies attack each other
 
   // Caravan HP system
   const [caravanLevel, setCaravanLevel] = useState(0);
@@ -422,6 +423,7 @@ export default function App() {
   // ─── FEATURE: Skillshot Aiming System ───
   const [skillshotMode, setSkillshotMode] = useState(false); // true when player is aiming
   const combatEngagedRef = useRef(false); // enemies passive until player first attacks
+  const confusionActiveRef = useRef(false); // mushroom spores — enemies attack each other
   const [skillshotSpell, setSkillshotSpell] = useState(null); // spell being aimed
   const [accuracy, setAccuracy] = useState({ hits: 0, misses: 0, headshots: 0 });
   const [accuracyStreak, setAccuracyStreak] = useState(0); // consecutive hits without miss
@@ -1039,6 +1041,37 @@ export default function App() {
     }));
   };
 
+  // Confusion: enemy attacks another enemy (mushroom spores)
+  enemyAttackEnemyRef.current = (attackerId, targetId, damage) => {
+    sfxMeleeHit();
+    spawnDmgPopup(targetId, `${damage}`, "#c080ff");
+    const aw = walkDataRef.current[attackerId];
+    if (aw) { aw.lungeFrames = 8; aw.lungeOffset = 12; }
+    const tw = walkDataRef.current[targetId];
+    const meleeDirX = (aw && tw) ? Math.sign(tw.x - aw.x) || 1 : 1;
+    const tel = npcElsRef.current[targetId];
+    if (tel && animatorRef.current && gameContainerRef.current) {
+      const gr = gameContainerRef.current.getBoundingClientRect();
+      const r = tel.getBoundingClientRect();
+      animatorRef.current.playMeleeClash(((r.left + r.width / 2) - gr.left) / gameScale, ((r.top + r.height / 2) - gr.top) / gameScale, "#c080ff");
+    }
+    setWalkers(prev => prev.map(w => {
+      if (w.id !== targetId || !w.alive || w.friendly) return w;
+      const newHp = Math.max(0, w.hp - damage);
+      if (newHp <= 0) {
+        if (walkDataRef.current[targetId]) walkDataRef.current[targetId].alive = false;
+        if (physicsRef.current) physicsRef.current.triggerRagdoll(targetId, "melee", meleeDirX);
+        const npcData = w.npcData || {};
+        if (npcData.loot) addMoneyFn(npcData.loot);
+        showMessage(`${npcData.name || "Wróg"} pokonany przez sojusznika!`, "#c080ff");
+        setTimeout(() => setWalkers(pr => pr.map(ww => ww.id === targetId ? { ...ww, alive: false } : ww)), 2500);
+        return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
+      }
+      if (physicsRef.current) physicsRef.current.applyHit(targetId, "melee", meleeDirX);
+      return { ...w, hp: newHp };
+    }));
+  };
+
   // Enemy attacks caravan (called from RAF loop via ref)
   attackCaravanRef.current = (enemyId, damage) => {
     // Caravan shield: blocks one hit and deactivates
@@ -1443,6 +1476,39 @@ export default function App() {
             if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
             if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
           } else {
+          // Confusion: enemies attack each other (mushroom spores)
+          if (confusionActiveRef.current) {
+            let nearEnemyDist = Infinity, nearEnemyId = null, nearEnemyX = null, nearEnemyY = null;
+            for (const eid in wd) {
+              if (eid === id) continue;
+              const ew = wd[eid];
+              if (!ew || !ew.alive || ew.friendly) continue;
+              const dx = ew.x - w.x;
+              const dy = ((ew.y || 50) - (w.y || 50)) * 0.5;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < nearEnemyDist) { nearEnemyDist = dist; nearEnemyId = eid; nearEnemyX = ew.x; nearEnemyY = ew.y || 50; }
+            }
+            if (nearEnemyId !== null) {
+              w.dir = nearEnemyX > w.x ? 1 : -1;
+              if (nearEnemyDist > 6) {
+                w.x += w.speed * w.dir;
+                if (w.y != null && nearEnemyY != null) {
+                  const yd = nearEnemyY - w.y;
+                  if (Math.abs(yd) > 2) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * 0.6;
+                }
+              }
+              if (nearEnemyDist < 10) {
+                const cdKey = "conf" + id;
+                if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 2000) {
+                  atkCds[cdKey] = dateNow;
+                  const eDmg = w.damage || 5;
+                  if (enemyAttackEnemyRef.current) enemyAttackEnemyRef.current(idNum, parseInt(nearEnemyId), eDmg);
+                }
+              }
+            }
+            continue; // skip normal AI while confused
+          }
+
           // Enemy AI: find nearest friendly from pre-computed list
           let friendX = null, friendY = null, friendDist = Infinity, friendId = null;
           let targetIsCaravan = false;
@@ -3353,16 +3419,15 @@ export default function App() {
     }
     // Confusion (mushroom spores — enemies attack each other)
     if (eff.type === "confusion" && eff.interval) {
+      const confDuration = eff.duration || 4000;
       const iv = setInterval(() => {
-        const enemies = walkersRef.current.filter(w => w.alive && !w.dying && !w.friendly);
-        for (const e of enemies) {
-          const confDmg = Math.round(e.maxHp * 0.08);
-          setWalkers(prev => prev.map(w => w.id !== e.id || !w.alive ? w : { ...w, hp: Math.max(0, w.hp - confDmg) }));
-        }
+        confusionActiveRef.current = true;
+        combatEngagedRef.current = true; // ensure enemies are active
         showMessage("Halucynogenne Spory — wrogowie się atakują!", "#c080ff");
         if (pixiRef.current) pixiRef.current.spawnPoisonCloud(GAME_W * 0.5, GAME_H * 0.4);
+        setTimeout(() => { confusionActiveRef.current = false; }, confDuration);
       }, eff.interval);
-      return () => clearInterval(iv);
+      return () => { clearInterval(iv); confusionActiveRef.current = false; };
     }
   }, [biomeModifier?.id]);
 
