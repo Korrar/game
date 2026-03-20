@@ -2544,6 +2544,88 @@ export function sfxCaravanHit() {
   });
 }
 
+// ─── ENEMY ATTACK STRIKE SFX ───
+// Aggressive slash/impact sound when enemy strikes the player — visceral feedback
+export function sfxEnemyStrike() {
+  playSfx((c, now, dest) => {
+    // Whoosh — fast blade sweep through air
+    const whooshLen = Math.floor(c.sampleRate * 0.15);
+    const whooshBuf = c.createBuffer(1, whooshLen, c.sampleRate);
+    const whooshD = whooshBuf.getChannelData(0);
+    for (let i = 0; i < whooshLen; i++) {
+      const t = i / whooshLen;
+      const env = Math.sin(t * Math.PI) * (1 - t * 0.5);
+      whooshD[i] = (Math.random() * 2 - 1) * env * 0.4;
+    }
+    const whooshN = c.createBufferSource(); whooshN.buffer = whooshBuf;
+    const whooshBP = c.createBiquadFilter(); whooshBP.type = "bandpass"; whooshBP.frequency.value = 1800; whooshBP.Q.value = 2;
+    const whooshG = c.createGain(); whooshG.gain.setValueAtTime(0.3, now);
+    whooshG.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    whooshN.connect(whooshBP); whooshBP.connect(whooshG); whooshG.connect(dest); whooshN.start(now);
+
+    // Heavy meat impact — deep thud with crunch
+    const impOsc = c.createOscillator(); impOsc.type = "sine";
+    impOsc.frequency.setValueAtTime(180, now + 0.06);
+    impOsc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+    const impG = c.createGain(); impG.gain.setValueAtTime(0.35, now + 0.06);
+    impG.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    impOsc.connect(impG); impG.connect(dest); impOsc.start(now + 0.06); impOsc.stop(now + 0.3);
+
+    // Metallic scrape — blade or claw hitting armor
+    const scrLen = Math.floor(c.sampleRate * 0.04);
+    const scrBuf = c.createBuffer(1, scrLen, c.sampleRate);
+    const scrD = scrBuf.getChannelData(0);
+    for (let i = 0; i < scrLen; i++) {
+      const env = Math.pow(1 - i / scrLen, 1.5);
+      scrD[i] = (Math.random() * 2 - 1) * env;
+    }
+    const scrN = c.createBufferSource(); scrN.buffer = scrBuf;
+    const scrHP = c.createBiquadFilter(); scrHP.type = "highpass"; scrHP.frequency.value = 3000;
+    const scrG = c.createGain(); scrG.gain.setValueAtTime(0.2, now + 0.07);
+    scrG.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    scrN.connect(scrHP); scrHP.connect(scrG); scrG.connect(dest); scrN.start(now + 0.07);
+
+    // Sub-bass punch — player feels the impact
+    const sub = c.createOscillator(); sub.type = "sine";
+    sub.frequency.setValueAtTime(60, now + 0.06);
+    sub.frequency.exponentialRampToValueAtTime(25, now + 0.2);
+    const subG = c.createGain(); subG.gain.setValueAtTime(0.25, now + 0.06);
+    subG.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    sub.connect(subG); subG.connect(dest); sub.start(now + 0.06); sub.stop(now + 0.3);
+  });
+}
+
+// ─── ENEMY PROJECTILE INCOMING SFX ───
+// Warning sound when enemy launches a ranged attack toward the player
+export function sfxEnemyProjectile() {
+  playSfx((c, now, dest) => {
+    // Rising pitch warning — gets higher as it "approaches"
+    const warn = c.createOscillator(); warn.type = "sawtooth";
+    warn.frequency.setValueAtTime(200, now);
+    warn.frequency.exponentialRampToValueAtTime(600, now + 0.3);
+    const warnBP = c.createBiquadFilter(); warnBP.type = "bandpass"; warnBP.frequency.value = 400; warnBP.Q.value = 3;
+    const warnG = c.createGain(); warnG.gain.setValueAtTime(0.08, now);
+    warnG.gain.linearRampToValueAtTime(0.15, now + 0.2);
+    warnG.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    warn.connect(warnBP); warnBP.connect(warnG); warnG.connect(dest);
+    warn.start(now); warn.stop(now + 0.4);
+
+    // Wobbly whoosh
+    const woLen = Math.floor(c.sampleRate * 0.25);
+    const woBuf = c.createBuffer(1, woLen, c.sampleRate);
+    const woD = woBuf.getChannelData(0);
+    for (let i = 0; i < woLen; i++) {
+      const t = i / woLen;
+      woD[i] = (Math.random() * 2 - 1) * t * (1 - t) * 2;
+    }
+    const woN = c.createBufferSource(); woN.buffer = woBuf;
+    const woLP = c.createBiquadFilter(); woLP.type = "lowpass"; woLP.frequency.value = 1200;
+    const woG = c.createGain(); woG.gain.setValueAtTime(0.1, now);
+    woG.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    woN.connect(woLP); woLP.connect(woG); woG.connect(dest); woN.start(now);
+  });
+}
+
 // ─── WEATHER SFX ───
 
 export function sfxWeather(weatherId) {
