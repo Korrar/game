@@ -539,6 +539,27 @@ export class CombatParticles {
     });
   }
 
+  // Enemy attack incoming — sparks flying toward bottom of screen (camera/player)
+  spawnEnemyAttackWarn(x, y) {
+    // Bright red/orange sparks converging downward
+    this._emit(this._c(10), x, y, {
+      vx: () => (Math.random() - 0.5) * 6,
+      vy: () => (Math.random() * 6 + 3),
+      life: 18 + Math.random() * 8,
+      size: 3 + Math.random() * 2,
+      color: 0xff4020,
+      gravity: 0.1,
+    });
+    // White-hot core flash
+    this._emit(this._c(3), x, y, {
+      vx: () => (Math.random() - 0.5) * 2,
+      vy: () => (Math.random() * 2 + 1),
+      life: 8,
+      size: 5,
+      color: 0xffffaa,
+    });
+  }
+
   spawnArrowTrail(x, y, vx, vy) {
     this._emit(this.mobile ? 1 : 3, x, y, {
       vx: () => (Math.random() - 0.5) * 0.5,

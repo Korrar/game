@@ -32,6 +32,7 @@ import {
   sfxNpcDeath, sfxDrinkMana, sfxSummon, sfxRecruit, sfxMeleeHit, sfxSaberSwipe, sfxSaberHit, sfxMeteorFall, sfxMeteorImpact,
   sfxEventAppear, sfxMerchant, sfxAmbush, sfxAltar, sfxEventSuccess, sfxEventFail,
   sfxWaveHorn, sfxWaveComplete, sfxVictoryFanfare, sfxWeather, sfxCaravanHit,
+  sfxEnemyStrike, sfxEnemyProjectile,
 } from "./audio/soundEngine";
 import TopBar from "./components/TopBar";
 import SidePanel from "./components/SidePanel";
@@ -330,6 +331,8 @@ export default function App() {
   // Track meteor wave spawn thresholds: { walkerId, nextThreshold, waveCount }
   const meteorWaveRef = useRef(null);
   const [screenShake, setScreenShake] = useState(false);
+  // Enemy attack visual feedback: slash overlay on caravan hit
+  const [attackSlash, setAttackSlash] = useState(null); // {id, fromX, dmg} — slash overlay on caravan hit
   const [summonPicker, setSummonPicker] = useState(false);
   const [randomEvent, setRandomEvent] = useState(null);
   // Scout preview: next room info (visible with spyglass tool)
@@ -1057,13 +1060,25 @@ export default function App() {
     // Kill streak reset on caravan damage
     setKillStreak(0);
     sfxCaravanHit();
+    sfxEnemyStrike();
     setCaravanHp(prev => Math.max(0, prev - actualDmg));
     changeMorale("caravan_hit");
     // Screen shake on caravan hit
     setScreenShake(true);
     setTimeout(() => setScreenShake(false), 150);
-    // Lunge anim on the enemy
+    // Attack slash overlay — weapon/claw slash across the screen
     const ew = walkDataRef.current[enemyId];
+    // Spawn attack warn particles at enemy position
+    if (ew && pixiRef.current) {
+      const ewPx = (ew.x / 100) * GAME_W;
+      const ewPy = GAME_H * ((ew.y || 50) / 100);
+      pixiRef.current.spawnEnemyAttackWarn(ewPx, ewPy);
+    }
+    const slashFromX = ew ? (ew.x < 50 ? 0 : 1) : Math.random() < 0.5 ? 0 : 1;
+    const slashId = Date.now() + Math.random();
+    setAttackSlash({ id: slashId, fromX: slashFromX, dmg: actualDmg });
+    setTimeout(() => setAttackSlash(prev => prev?.id === slashId ? null : prev), 600);
+    // Lunge anim on the enemy
     if (ew) { ew.lungeFrames = 8; ew.lungeOffset = 12; }
     // Thorn Armor: reflect damage back to attacking enemy
     const thornData = CARAVAN_LEVELS[caravanLevelRef.current].thornArmor;
@@ -1426,6 +1441,7 @@ export default function App() {
               atkCds[abCdKey] = dateNow;
               const dirX = friendX > w.x ? 1 : -1;
               const _idNum = idNum; // capture for closures
+              if (physicsRef.current) physicsRef.current.triggerAttackAnim(idNum);
               switch (ability.type) {
                 case "fireBreath":
                   if (physicsRef.current) {
@@ -1438,6 +1454,7 @@ export default function App() {
                 case "poisonSpit":
                 case "iceShot":
                 case "shadowBolt": {
+                  sfxEnemyProjectile();
                   const projType = ability.type === "poisonSpit" ? "poisonSpit"
                     : ability.type === "iceShot" ? "iceShard_npc" : "shadowBolt_npc";
                   if (physicsRef.current) {
@@ -1685,6 +1702,7 @@ export default function App() {
                 const cdKey = "ec" + id;
                 if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 3000) {
                   atkCds[cdKey] = dateNow;
+                  if (physicsRef.current) physicsRef.current.triggerAttackAnim(idNum);
                   if (attackCaravanRef.current) attackCaravanRef.current(idNum, w.damage || 5);
                 }
               }
@@ -2692,14 +2710,27 @@ export default function App() {
     const newObstacles = [];
     // Spawn obstacles in both exploration and defense rooms (fewer in defense)
     const obsCount = isDefenseRoom ? (6 + Math.floor(Math.random() * 3)) : (14 + Math.floor(Math.random() * 4));
+    // Minimum distance between obstacles to prevent overlap (in % units)
+    const OBS_MIN_DIST = 8;
+    const _obsTooClose = (ox, oy, list) => {
+      for (const o of list) {
+        const dx = ox - o.x, dy = oy - o.y;
+        if (dx * dx + dy * dy < OBS_MIN_DIST * OBS_MIN_DIST) return true;
+      }
+      return false;
+    };
     for (let i = 0; i < obsCount; i++) {
       // Ensure ~50% of obstacles spawn in the initial viewport (0-100%)
       // and ~50% in the panoramic world (100-290%) for better visibility
       const inViewport = i < Math.ceil(obsCount * 0.5);
-      const ox = inViewport
-        ? 5 + Math.random() * 90   // 5-95% (visible without panning)
-        : 100 + Math.random() * 190; // 100-290% (panoramic world)
-      const oy = 10 + Math.random() * 55;
+      let ox, oy, attempts = 0;
+      do {
+        ox = inViewport
+          ? 5 + Math.random() * 90   // 5-95% (visible without panning)
+          : 100 + Math.random() * 190; // 100-290% (panoramic world)
+        oy = 10 + Math.random() * 55;
+        attempts++;
+      } while (_obsTooClose(ox, oy, newObstacles) && attempts < 20);
       // 12% chance for explosive variant
       const isExplosiveObs = Math.random() < 0.12;
       const obsType = isExplosiveObs ? biomeExplosive : biomeObstacles[Math.floor(Math.random() * biomeObstacles.length)];
@@ -3440,8 +3471,19 @@ export default function App() {
         const mut = activeMutationsRef.current.find(m => m.npcName === npcData.name);
         if (mut && mut.mutation) mut.mutation.apply(npcData);
         const wid = ++walkerIdCounter;
-        const spawnX = 10 + Math.random() * 80; // spread across width
-        const spawnY = 25 + Math.random() * 15; // spawn at horizon line (25-40%)
+        // Find spawn position avoiding obstacles and other NPCs
+        let spawnX, spawnY, spAttempts = 0;
+        const NPC_MIN_DIST = 10;
+        do {
+          spawnX = 10 + Math.random() * 80;
+          spawnY = 25 + Math.random() * 15;
+          spAttempts++;
+        } while (spAttempts < 15 && (
+          // Check obstacles
+          obstaclesRef.current.some(o => { const dx = spawnX - o.x, dy = spawnY - o.y; return dx*dx+dy*dy < NPC_MIN_DIST*NPC_MIN_DIST; }) ||
+          // Check other alive NPCs
+          Object.values(walkDataRef.current).some(w => w.alive && !w.friendly && (() => { const dx = spawnX - w.x, dy = spawnY - (w.y||50); return dx*dx+dy*dy < NPC_MIN_DIST*NPC_MIN_DIST; })())
+        ));
         console.log(`[SPAWN] Enemy #${wid} "${npcData.name}" at x=${spawnX.toFixed(1)} y=${spawnY.toFixed(1)} hp=${npcData.hp}`);
         setWalkers(prev => [...prev, {
           id: wid, npcData, alive: true, dying: false, hp: npcData.hp, maxHp: npcData.hp,
@@ -7270,6 +7312,44 @@ export default function App() {
         }} />
       )}
 
+      {/* Enemy attack slash overlay — claw/blade swipe across screen when caravan is hit */}
+      {attackSlash && (
+        <div key={attackSlash.id} style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 18,
+          pointerEvents: "none", overflow: "hidden",
+          animation: "slashFlash 0.5s ease-out forwards",
+        }}>
+          {/* Red damage vignette */}
+          <div style={{
+            position: "absolute", inset: 0,
+            background: "radial-gradient(ellipse at center, transparent 30%, rgba(200,20,20,0.35) 100%)",
+            animation: "slashFlash 0.5s ease-out forwards",
+          }} />
+          {/* Slash marks — 3 diagonal claw lines */}
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{
+              position: "absolute",
+              top: `${15 + i * 18}%`,
+              left: attackSlash.fromX === 0 ? "-10%" : "110%",
+              width: "120%", height: 3 + (i === 1 ? 2 : 0),
+              background: `linear-gradient(${attackSlash.fromX === 0 ? "135deg" : "-135deg"}, transparent 5%, rgba(255,60,30,0.9) 30%, rgba(255,200,100,1) 50%, rgba(255,60,30,0.9) 70%, transparent 95%)`,
+              transform: `rotate(${attackSlash.fromX === 0 ? 25 - i * 5 : -25 + i * 5}deg)`,
+              animation: `slashSwipe${attackSlash.fromX === 0 ? "L" : "R"} 0.3s ease-out forwards`,
+              animationDelay: `${i * 0.04}s`,
+              filter: "blur(1px) drop-shadow(0 0 8px rgba(255,60,20,0.8))",
+              opacity: 0,
+            }} />
+          ))}
+          {/* Damage number at center */}
+          <div style={{
+            position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)",
+            fontSize: 36, fontWeight: "bold", color: "#ff3020",
+            textShadow: "0 0 12px rgba(255,40,20,0.8), 2px 2px 0 #000",
+            animation: "slashDmgFloat 0.6s ease-out forwards",
+          }}>-{attackSlash.dmg}</div>
+        </div>
+      )}
+
       {/* Meteor boulder HP bar — shows above the destructible meteor NPC */}
       {meteorite && meteorite.phase === "active" && (() => {
         const mBoulder = walkers.find(w => w.isMeteorBoulder && w.alive && !w.dying);
@@ -9626,6 +9706,10 @@ export default function App() {
         @keyframes meteorFall{0%{transform:translateY(-72px) rotate(-30deg);opacity:0}10%{opacity:1}100%{transform:translateY(var(--meteor-land-y)) rotate(15deg);opacity:1}}
         @keyframes screenShake{0%{transform:translate(-1px,-0.5px)}25%{transform:translate(1px,0.5px)}50%{transform:translate(-0.5px,1px)}75%{transform:translate(0.5px,-1px)}100%{transform:translate(-0.5px,0.5px)}}
         @keyframes meteorFlash{0%{opacity:1}100%{opacity:0}}
+        @keyframes slashFlash{0%{opacity:1}60%{opacity:0.8}100%{opacity:0}}
+        @keyframes slashSwipeL{0%{opacity:0;transform:translateX(-100%) rotate(25deg)}20%{opacity:1}100%{opacity:0;transform:translateX(20%) rotate(25deg)}}
+        @keyframes slashSwipeR{0%{opacity:0;transform:translateX(100%) rotate(-25deg)}20%{opacity:1}100%{opacity:0;transform:translateX(-20%) rotate(-25deg)}}
+        @keyframes slashDmgFloat{0%{opacity:0;transform:translate(-50%,-50%) scale(2)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.2)}50%{opacity:1;transform:translate(-50%,-60%) scale(1)}100%{opacity:0;transform:translate(-50%,-80%) scale(0.8)}}
         @keyframes cardLogSlide{0%{opacity:0;transform:translateX(40px)}100%{opacity:1;transform:translateX(0)}}
         @keyframes saberShimmerRare{0%{background-position:200% 50%}100%{background-position:-200% 50%}}
         @keyframes saberShimmerEpic{0%{background-position:200% 50%;filter:brightness(1)}50%{filter:brightness(1.15)}100%{background-position:-200% 50%;filter:brightness(1)}}

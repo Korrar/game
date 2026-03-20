@@ -292,10 +292,18 @@ function drawScatter(ctx, W, H, GY, r, items) {
   // 2.5D: collect scatter objects, sort by Y (far first), scale by depth
   const groundH = H - GY;
   const scatterList = [];
+  const SCATTER_MIN_DIST_SQ = 55 * 55; // minimum pixel distance squared between scatter items
   for (let i = 0; i < 18; i++) {
     const iconName = items[Math.floor(r() * items.length)];
-    const x = r() * (W - 50) + 25;
-    const y = GY + 12 + r() * (groundH - 45);
+    let x, y, attempts = 0;
+    do {
+      x = r() * (W - 50) + 25;
+      y = GY + 12 + r() * (groundH - 45);
+      attempts++;
+    } while (attempts < 12 && scatterList.some(s => {
+      const dx = x - s.x, dy = y - s.y;
+      return dx * dx + dy * dy < SCATTER_MIN_DIST_SQ;
+    }));
     scatterList.push({ iconName, x, y, rVal: r() });
   }
   // Sort by Y ascending (far objects drawn first — painter's algorithm)
