@@ -1433,8 +1433,8 @@ export default function App() {
             if (dist < friendDist) { friendDist = dist; friendX = f.x; friendY = f.y || 50; friendId = friendlyList[fi].id; }
           }
 
-          // NPC ability usage (only during defense waves)
-          if (w.ability && friendX !== null && defenseModeRef.current?.phase === "wave_active") {
+          // NPC ability usage (any combat encounter)
+          if (w.ability && friendX !== null) {
             const ability = w.ability;
             const abCdKey = "ab" + id;
             if (friendDist < ability.range && (!atkCds[abCdKey] || dateNow - atkCds[abCdKey] > ability.cooldown)) {
@@ -1568,7 +1568,7 @@ export default function App() {
             }
           }
 
-          if (friendX !== null && friendDist < 25 && defenseModeRef.current?.phase === "wave_active") {
+          if (friendX !== null && friendDist < 25) {
             // Check if blocked by a player barricade on the path
             let barricadeBlock = false;
             const pTrapsCheck = playerTrapsRef.current;
@@ -2251,7 +2251,7 @@ export default function App() {
               // AABB collision: obstacle center in world pixel coords
               const sz = _obsSizes[o.type] || _defaultSize;
               const ocx = (o.x / 100) * GAME_W;
-              const ocy = GAME_H - (o.y / 100) * GAME_H;
+              const ocy = GAME_H - (o.y / 100) * GAME_H - sz.h / 2;
               const hw = sz.w / 2 + 4; // half-width + small padding
               const hh = sz.h / 2 + 4; // half-height + small padding
               const pr = proj.hitRadius || 8;
