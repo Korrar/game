@@ -180,6 +180,8 @@ export default function App() {
   const [hideoutUpgrades, setHideoutUpgrades] = useState({}); // { upgradeId: level }
   const [chestPos, setChestPos] = useState(null);
   const [showChest, setShowChest] = useState(false);
+  const showChestRef = useRef(false);
+  showChestRef.current = showChest;
   const [chestClicks, setChestClicks] = useState(0);
   const [panel, setPanel] = useState(null);
   const [selectedInv, setSelectedInv] = useState(-1);
@@ -347,6 +349,8 @@ export default function App() {
   const activeRelicsRef = useRef([]);
   activeRelicsRef.current = activeRelics;
   const [relicChoices, setRelicChoices] = useState(null);
+  const relicChoicesRef = useRef(null);
+  relicChoicesRef.current = relicChoices;
   const hasRelic = (id) => activeRelicsRef.current.some(r => r.id === id);
 
   // ─── FEATURE: Relic Synergies ───
@@ -417,6 +421,7 @@ export default function App() {
 
   // ─── FEATURE: Skillshot Aiming System ───
   const [skillshotMode, setSkillshotMode] = useState(false); // true when player is aiming
+  const combatEngagedRef = useRef(false); // enemies passive until player first attacks
   const [skillshotSpell, setSkillshotSpell] = useState(null); // spell being aimed
   const [accuracy, setAccuracy] = useState({ hits: 0, misses: 0, headshots: 0 });
   const [accuracyStreak, setAccuracyStreak] = useState(0); // consecutive hits without miss
@@ -524,10 +529,14 @@ export default function App() {
   const storyEventRef = useRef(null);
   storyEventRef.current = storyEvent;
   const [moralDilemma, setMoralDilemma] = useState(null);
+  const moralDilemmaRef = useRef(null);
+  moralDilemmaRef.current = moralDilemma;
 
   // ─── FEATURE: Sailing / Naval ───
   const [shipUpgrades, setShipUpgrades] = useState([]);     // IDs of bought upgrades
   const [seaEvent, setSeaEvent] = useState(null);           // current sea event
+  const seaEventRef = useRef(null);
+  seaEventRef.current = seaEvent;
   const [discoveredIslands, setDiscoveredIslands] = useState([]);
   const [riverSegment, setRiverSegment] = useState(false);   // true when river ship mini-game is active
   const [worldMap, setWorldMap] = useState(false);           // true when world map navigation is active
@@ -551,6 +560,8 @@ export default function App() {
   const activeFactionQuestRef = useRef(null);
   activeFactionQuestRef.current = activeFactionQuest;
   const [factionEvent, setFactionEvent] = useState(null);
+  const factionEventRef = useRef(null);
+  factionEventRef.current = factionEvent;
 
   // ─── FEATURE: Discovery & Collecting ───
   const [journal, setJournal] = useState({ biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
@@ -1152,8 +1163,10 @@ export default function App() {
     let _knightPositions = []; // [{x, y}]
     const loop = () => {
       walkRafRef.current = requestAnimationFrame(loop);
-      // Pause game when upgrade/level-up picker is open
-      if (levelUpChoicesRef.current || upgradeChoicesRef.current) {
+      // Pause game when any modal/overlay is blocking gameplay
+      if (levelUpChoicesRef.current || upgradeChoicesRef.current
+        || relicChoicesRef.current || storyEventRef.current || moralDilemmaRef.current
+        || factionEventRef.current || seaEventRef.current || showChestRef.current) {
         lastTime = performance.now();
         // Still render physics (so visuals stay) but skip all logic
         if (physicsRef.current) physicsRef.current.step();
@@ -1423,6 +1436,13 @@ export default function App() {
           }
           } // end !stationary else
         } else {
+          // Enemies are passive until the player attacks first
+          if (!combatEngagedRef.current) {
+            // Idle patrol only
+            w.x += w.speed * w.dir;
+            if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
+            if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
+          } else {
           // Enemy AI: find nearest friendly from pre-computed list
           let friendX = null, friendY = null, friendDist = Infinity, friendId = null;
           let targetIsCaravan = false;
@@ -1743,6 +1763,7 @@ export default function App() {
             if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
             if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
           }
+        } // end combatEngaged else
         }
 
         // Hard clamp to panoramic world edges (0-300%)
@@ -2450,6 +2471,7 @@ export default function App() {
     setPanOffset(0);
     panOffsetRef.current = 0;
     panRef.current.dragging = false; // ensure dragging state is reset so canvas renders
+    combatEngagedRef.current = false; // enemies passive until player attacks
     if (pixiRef.current) pixiRef.current.setPanOffset(0);
     // Immediately clear all POIs to prevent stale visuals from previous room
     setFruitTree(null);
@@ -3697,6 +3719,27 @@ export default function App() {
     }, 500);
     return () => clearInterval(iv);
   }, [defenseMode?.phase, defenseMode?.currentWave, showMessage]);
+
+  // Global game over check: HP reaches 0 outside of defense mode too
+  useEffect(() => {
+    if (caravanHp <= 0 && screen !== "gameover" && screen !== "intro" && screen !== "hideout") {
+      sfxEventFail();
+      if (activeBossRef.current) setActiveBoss(null);
+      setDefenseMode(null);
+      setGameOverStats({
+        room: roomRef.current,
+        kills: killsRef.current,
+        bossesDefeated: bossesDefeatedRef.current,
+        money: moneyRef.current,
+        totalGoldEarned: totalGoldEarnedRef.current,
+        relics: activeRelicsRef.current.length,
+        doors: doorsRef.current,
+        caravanLevel: caravanLevelRef.current,
+        bestiary: Object.keys(bestiaryRef.current).length,
+      });
+      setScreen("gameover");
+    }
+  }, [caravanHp, screen]);
 
   // Defense rewards
   useEffect(() => {
@@ -5186,6 +5229,9 @@ export default function App() {
       return;
     }
 
+    // Engage combat on first player attack
+    if (!combatEngagedRef.current) combatEngagedRef.current = true;
+
     // Challenge: no_mana — fail if mana is used
     if (roomChallengeRef.current?.id === "no_mana" && !roomChallengeRef.current.completed && !roomChallengeRef.current.failed && manaCost > 0) {
       setRoomChallenge(prev => prev ? { ...prev, failed: true } : prev);
@@ -5434,6 +5480,7 @@ export default function App() {
     const worldPx = _screenToWorld(screenPx, panOffsetRef.current, GAME_W);
     const cursorX = (worldPx / GAME_W) * 100;
     const cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100;
+    if (!combatEngagedRef.current) combatEngagedRef.current = true;
     setWandActive(true);
     wandOrbsRef.current = { active: true, startTime: Date.now(), cursorX, cursorY, hitCooldowns: {}, lastDrainTime: Date.now() };
     sfxLightning();
@@ -5943,6 +5990,9 @@ export default function App() {
       else showMessage("Akcja jeszcze nie gotowa!", "#cc8040");
       return;
     }
+
+    // Engage combat on first player attack
+    if (!combatEngagedRef.current) combatEngagedRef.current = true;
 
     // Spend mana & set cooldown (chaos_blade: +25% mana cost)
     const manaCost = getSpellManaCost(spell);
