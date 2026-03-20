@@ -113,7 +113,7 @@ export const BIOME_NPCS = {
     { icon: "ghost", name: "Cień Achillesa", hp: 60, resist: "ice", loot: { silver: 1 }, rarity: "rare", bodyColor: "#5050a0", armorColor: "#303070", bodyType: "floating", ability: { type: "shadowBolt", damage: 14, cooldown: 4000, element: "shadow", range: 28 } },
     { icon: "fire", name: "Demoniczny Pies Cerbera", hp: 80, resist: "fire", loot: { silver: 2 }, rarity: "epic", bodyColor: "#3a1a1a", armorColor: "#1a0a0a", bodyType: "quadruped", ability: { type: "fireBreath", damage: 16, cooldown: 5000, element: "fire", range: 24 } },
     { icon: "skull", name: "Empuza", hp: 45, resist: null, loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#8a4060", armorColor: "#502040", bodyType: "humanoid", ability: { type: "poisonSpit", damage: 10, cooldown: 3500, element: "shadow", range: 22 } },
-    { icon: "poison", name: "Jadowitа Hydra", hp: 90, resist: null, loot: { silver: 2, copper: 10 }, rarity: "legendary", bodyColor: "#306040", armorColor: "#1a3020", bodyType: "serpent", ability: { type: "poisonSpit", damage: 12, cooldown: 3000, element: "shadow", range: 26 } },
+    { icon: "poison", name: "Jadowita Hydra", hp: 90, resist: null, loot: { silver: 2, copper: 10 }, rarity: "legendary", bodyColor: "#306040", armorColor: "#1a3020", bodyType: "serpent", ability: { type: "poisonSpit", damage: 12, cooldown: 3000, element: "shadow", range: 26 } },
     { icon: "skull", name: "Harpia", hp: 35, resist: null, loot: { copper: 12 }, rarity: "common", bodyColor: "#706050", armorColor: "#504038", bodyType: "floating", ability: { type: "charge", damage: 10, cooldown: 4000, element: null, range: 24 } },
   ],
   meteor: [
@@ -148,6 +148,10 @@ export const SPELLS = [
 export const RESIST_NAMES = {
   fire: "ogień",
   ice: "lód",
+  lightning: "piorun",
+  shadow: "cień",
+  poison: "trucizna",
+  holy: "święty",
 };
 
 // Pick a random NPC for a given biome id

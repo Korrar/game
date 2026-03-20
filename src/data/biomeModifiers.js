@@ -212,6 +212,18 @@ export const BIOME_MODIFIERS = {
       respawnDmgMult: 0.50,
     },
   },
+  meteor: {
+    id: "cosmic_radiation",
+    name: "Kosmiczne Promieniowanie",
+    desc: "Energia meteorytu wzmacnia wszystkie ataki o 15%, ale wrogowie mają +20% HP",
+    icon: "lightning",
+    type: "neutral",
+    effect: {
+      type: "damage_and_hp",
+      damageMult: { fire: 1.15, ice: 1.15, lightning: 1.15, shadow: 1.15 },
+      enemyHpMult: 1.20,
+    },
+  },
 };
 
 /**

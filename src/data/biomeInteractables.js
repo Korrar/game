@@ -338,6 +338,26 @@ export const BIOME_INTERACTABLES = {
       ]},
     },
   ],
+  meteor: [
+    {
+      id: "meteor_shard", name: "Odłamek Meteorytu", icon: "gem",
+      desc: "Wytnij sablem — kosmiczny kryształ wart fortunę",
+      action: "saber", chance: 0.20,
+      reward: { type: "loot", copper: 30, silverChance: 0.40 },
+    },
+    {
+      id: "meteor_crater", name: "Krater Uderzeniowy", icon: "rock",
+      desc: "Strzel w niestabilny grunt — eksplozja kosmicznej energii",
+      action: "shoot", chance: 0.25,
+      reward: { type: "aoe_damage", damage: 20, radius: 18, element: "lightning" },
+    },
+    {
+      id: "meteor_crystal", name: "Pulsujący Kryształ", icon: "lightning",
+      desc: "Kliknij aby zaabsorbować — tymczasowe wzmocnienie piorunów",
+      action: "click", chance: 0.20,
+      reward: { type: "buff", buffType: "damage", value: 1.20, duration: 25000 },
+    },
+  ],
 };
 
 /**
