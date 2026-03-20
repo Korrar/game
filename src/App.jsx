@@ -1418,8 +1418,8 @@ export default function App() {
             if (dist < friendDist) { friendDist = dist; friendX = f.x; friendY = f.y || 50; friendId = friendlyList[fi].id; }
           }
 
-          // NPC ability usage
-          if (w.ability && friendX !== null) {
+          // NPC ability usage (only during defense waves)
+          if (w.ability && friendX !== null && defenseModeRef.current?.phase === "wave_active") {
             const ability = w.ability;
             const abCdKey = "ab" + id;
             if (friendDist < ability.range && (!atkCds[abCdKey] || dateNow - atkCds[abCdKey] > ability.cooldown)) {
@@ -1551,7 +1551,7 @@ export default function App() {
             }
           }
 
-          if (friendX !== null && friendDist < 25) {
+          if (friendX !== null && friendDist < 25 && defenseModeRef.current?.phase === "wave_active") {
             // Check if blocked by a player barricade on the path
             let barricadeBlock = false;
             const pTrapsCheck = playerTrapsRef.current;
@@ -1700,9 +1700,9 @@ export default function App() {
           }
         }
 
-        // Hard clamp to screen edges
-        if (w.x < 2) { w.x = 2; w.dir = 1; }
-        if (w.x > 98) { w.x = 98; w.dir = -1; }
+        // Hard clamp to panoramic world edges (0-300%)
+        if (w.x < 0) { w.x = 0; w.dir = 1; }
+        if (w.x > 300) { w.x = 300; w.dir = -1; }
 
         // Y movement – gentle wandering up and down
         if (w.y != null) {
@@ -1865,15 +1865,15 @@ export default function App() {
           const wrappedX = _wrapPct(w.x, panOffsetRef.current, GAME_W);
           if (wrappedX === null) {
             el.style.display = "none";
-            continue;
+          } else {
+            el.style.display = "";
+            el.style.left = `${wrappedX}%`;
+            el.style.top = `calc(${yPos}% - 75px)`;
+            el.style.zIndex = walkerZ;
+            el.style.transform = `translateX(-50%) translateY(${-bounceY}px) translateX(${lungeX * w.dir}px) scale(${walkerScale})`;
           }
-          el.style.display = "";
-          el.style.left = `${wrappedX}%`;
-          el.style.top = `calc(${yPos}% - 75px)`;
-          el.style.zIndex = walkerZ;
-          el.style.transform = `translateX(-50%) translateY(${-bounceY}px) translateX(${lungeX * w.dir}px) scale(${walkerScale})`;
         }
-        // Update physics body to match walker position
+        // Update physics body to match walker position (always, even when off-screen)
         if (physicsRef.current) {
           const yPctForPhysics = w.y != null ? w.y : null;
           physicsRef.current.updatePatrol(idNum, w.x, w.dir, w.bouncePhase, yPctForPhysics);
@@ -2820,7 +2820,8 @@ export default function App() {
     const newWalkers = [];
     const newWalkData = {};
     if (!isDefenseRoom) {
-      const count = 3 + Math.floor(Math.random() * 3);
+      // Spawn NPCs across full panoramic world (300% width)
+      const count = 8 + Math.floor(Math.random() * 5); // more NPCs for wider world
       for (let i = 0; i < count; i++) {
         let npcData = pickNpc(b.id);
         if (!npcData) continue;
@@ -2828,7 +2829,7 @@ export default function App() {
         const explDiffMult = 1 + ((b.difficulty || 1) - 1) * 0.15;
         npcData = { ...npcData, hp: Math.round(npcData.hp * roomScale * explDiffMult) };
         const wid = ++walkerIdCounter;
-        const spawnX = 20 + Math.random() * 55;
+        const spawnX = 5 + Math.random() * 290; // full panoramic world (0-300%)
         const walkRange = 12 + Math.random() * 10;
         const speed = 0.02 + Math.random() * 0.03;
         newWalkers.push({
@@ -2848,8 +2849,8 @@ export default function App() {
           yDir: Math.random() < 0.5 ? 1 : -1,
           speed,
           ySpeed: 0.005 + Math.random() * 0.015,
-          minX: Math.max(5, spawnX - walkRange),
-          maxX: Math.min(90, spawnX + walkRange),
+          minX: Math.max(0, spawnX - walkRange),
+          maxX: Math.min(300, spawnX + walkRange),
           minY: 25, maxY: 90,
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true,
@@ -5727,7 +5728,7 @@ export default function App() {
     for (const obs of obstaclesRef.current) {
       if (!obs.destructible || obs.hp <= 0 || obs.destroying) continue;
       if (saberHitIdsRef.current.has(`obs_${obs.id}`)) continue;
-      const dx = obs.x - x, dy = (100 - obs.y) - y; // convert bottom% to top%
+      const dx = obs.x - x, dy = (100 - obs.y - 3.5) - y; // convert bottom% to center%, offset up by ~half obstacle height
       if (dx * dx + dy * dy < hitRadius * hitRadius) {
         saberHitIdsRef.current.add(`obs_${obs.id}`);
         const saberEff = saberData.effect;
