@@ -28,6 +28,19 @@ export const FORTIFICATION_TREE = [
     maxCount: 1,
   },
 
+  {
+    id: "spike_pit",
+    tier: 1,
+    icon: "spike",
+    name: "Wilczy Dół",
+    desc: "Pułapka w ziemi — wróg wpada i otrzymuje 15 obrażeń",
+    cost: { copper: 15 },
+    ammoCost: null,
+    stats: { damage: 15, triggerRadius: 4, singleUse: true },
+    type: "ground_trap",
+    maxCount: 3,
+  },
+
   // Tier 2 — Zaawansowane fortyfikacje
   {
     id: "stone_wall",

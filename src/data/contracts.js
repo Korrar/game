@@ -147,9 +147,21 @@ export function rollContracts(roomNum, factionReps) {
     _weight: c.difficulty === "easy" ? 3 : c.difficulty === "medium" ? 2 : c.difficulty === "hard" ? (roomNum > 10 ? 2 : 1) : (roomNum > 20 ? 1.5 : 0.5),
   }));
 
-  const shuffled = weighted.sort(() => Math.random() - 0.5);
   const count = 2 + (Math.random() < 0.3 ? 1 : 0); // 2-3 contracts offered
-  return shuffled.slice(0, count);
+  const selected = [];
+  const remaining = [...weighted];
+  for (let i = 0; i < count && remaining.length > 0; i++) {
+    const totalW = remaining.reduce((s, c) => s + c._weight, 0);
+    let roll = Math.random() * totalW;
+    let picked = remaining.length - 1;
+    for (let j = 0; j < remaining.length; j++) {
+      roll -= remaining[j]._weight;
+      if (roll <= 0) { picked = j; break; }
+    }
+    selected.push(remaining[picked]);
+    remaining.splice(picked, 1);
+  }
+  return selected;
 }
 
 // Calculate total payout for completed contracts

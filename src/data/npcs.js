@@ -98,7 +98,7 @@ export const BIOME_NPCS = {
     { icon: "skull", name: "Jadowita Ryba", hp: 20, resist: "ice", loot: { copper: 6 }, rarity: "common", bodyColor: "#e08040", armorColor: "#b06030", bodyType: "frog", ability: { type: "poisonSpit", damage: 6, cooldown: 3500, element: "shadow", range: 18 } },
     { icon: "skull", name: "Morski Jeż", hp: 24, resist: "ice", loot: { copper: 8 }, rarity: "common", bodyColor: "#302060", armorColor: "#1a1040", bodyType: "spider", ability: { type: "poisonSpit", damage: 5, cooldown: 3000, element: "shadow", range: 16 } },
     { icon: "water", name: "Duch Zatopionego Kapitana", hp: 65, resist: "ice", loot: { silver: 2 }, rarity: "epic", bodyColor: "#3060a0", armorColor: "#204070", bodyType: "floating", ability: { type: "iceShot", damage: 12, cooldown: 4000, element: "ice", range: 28 } },
-    { icon: "skull", name: "Elektryczny Węgorz", hp: 38, resist: "ice", loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#40a0c0", armorColor: "#207090", bodyType: "serpent", ability: { type: "iceShot", damage: 10, cooldown: 4500, element: "lightning", range: 22 } },
+    { icon: "skull", name: "Elektryczny Węgorz", hp: 38, resist: "ice", loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#40a0c0", armorColor: "#207090", bodyType: "serpent", ability: { type: "shadowBolt", damage: 10, cooldown: 4500, element: "lightning", range: 22 } },
   ],
   olympus: [
     { icon: "swords", name: "Spartański Wojownik", hp: 55, resist: null, loot: { copper: 18 }, rarity: "uncommon", bodyColor: "#c0a070", armorColor: "#8a6030", bodyType: "humanoid", ability: { type: "charge", damage: 14, cooldown: 5000, element: null, range: 26 } },
@@ -113,7 +113,7 @@ export const BIOME_NPCS = {
     { icon: "ghost", name: "Cień Achillesa", hp: 60, resist: "ice", loot: { silver: 1 }, rarity: "rare", bodyColor: "#5050a0", armorColor: "#303070", bodyType: "floating", ability: { type: "shadowBolt", damage: 14, cooldown: 4000, element: "shadow", range: 28 } },
     { icon: "fire", name: "Demoniczny Pies Cerbera", hp: 80, resist: "fire", loot: { silver: 2 }, rarity: "epic", bodyColor: "#3a1a1a", armorColor: "#1a0a0a", bodyType: "quadruped", ability: { type: "fireBreath", damage: 16, cooldown: 5000, element: "fire", range: 24 } },
     { icon: "skull", name: "Empuza", hp: 45, resist: null, loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#8a4060", armorColor: "#502040", bodyType: "humanoid", ability: { type: "poisonSpit", damage: 10, cooldown: 3500, element: "shadow", range: 22 } },
-    { icon: "poison", name: "Jadowitа Hydra", hp: 90, resist: null, loot: { silver: 2, copper: 10 }, rarity: "legendary", bodyColor: "#306040", armorColor: "#1a3020", bodyType: "serpent", ability: { type: "poisonSpit", damage: 12, cooldown: 3000, element: "shadow", range: 26 } },
+    { icon: "poison", name: "Jadowita Hydra", hp: 90, resist: null, loot: { silver: 2, copper: 10 }, rarity: "legendary", bodyColor: "#306040", armorColor: "#1a3020", bodyType: "serpent", ability: { type: "poisonSpit", damage: 12, cooldown: 3000, element: "shadow", range: 26 } },
     { icon: "skull", name: "Harpia", hp: 35, resist: null, loot: { copper: 12 }, rarity: "common", bodyColor: "#706050", armorColor: "#504038", bodyType: "floating", ability: { type: "charge", damage: 10, cooldown: 4000, element: null, range: 24 } },
   ],
   meteor: [
@@ -148,6 +148,10 @@ export const SPELLS = [
 export const RESIST_NAMES = {
   fire: "ogień",
   ice: "lód",
+  lightning: "piorun",
+  shadow: "cień",
+  poison: "trucizna",
+  holy: "święty",
 };
 
 // Pick a random NPC for a given biome id

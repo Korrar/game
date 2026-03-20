@@ -47,4 +47,7 @@ export const BIOMES = [
   { id: "underworld", name: "Królestwo Hadesa", icon: "skull", skyTop: "#0a0508", skyBot: "#1a0a18", groundCol: "#1a1520", groundBot: "#100a18", fogCol: "rgba(100,40,120,0.12)", renderFn: "underworld", scatter: ["skull","fire","skull","gem","skull","fire","skull","gem"],
     fx: { embers: true, fog: true, fireflies: true, spores: true, ghostFlames: true }, terrain: "mine",
     mapPos: { x: 0.45, y: 0.92 }, difficulty: 3, mapColor: "#3a2040", mapSize: 38 },
+  { id: "meteor", name: "Krater Meteorytu", icon: "meteor", skyTop: "#0a0510", skyBot: "#1a1030", groundCol: "#2a2040", groundBot: "#1a1030", fogCol: "rgba(80,40,160,0.10)", renderFn: "underworld", scatter: ["gem","lightning","skull","rock","gem","fire","skull","rock"],
+    fx: { embers: true, lightning: true, fog: true, ash: true }, terrain: "mine",
+    mapPos: { x: 0.50, y: 0.08 }, difficulty: 3, mapColor: "#3a2060", mapSize: 42 },
 ];

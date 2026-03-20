@@ -23,6 +23,7 @@ export const RELIC_RARITY_COLOR = {
   common: "#888",
   rare: "#40a8b8",
   epic: "#a050e0",
+  legendary: "#ffd700",
 };
 
 // Relic synergies – bonus effects when player owns both relics in a pair

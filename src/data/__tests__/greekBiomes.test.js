@@ -209,7 +209,7 @@ describe("biome data integrity", () => {
     }
   });
 
-  it("total biome count is 16", () => {
-    expect(BIOMES.length).toBe(16);
+  it("total biome count is 17", () => {
+    expect(BIOMES.length).toBe(17);
   });
 });

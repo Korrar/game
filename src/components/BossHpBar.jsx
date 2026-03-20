@@ -19,6 +19,8 @@ const RESIST_NAMES = {
   fire: { name: "Ogień", icon: "fire" },
   ice: { name: "Lód", icon: "ice" },
   shadow: { name: "Cień", icon: "moon" },
+  poison: { name: "Trucizna", icon: "poison" },
+  lightning: { name: "Piorun", icon: "lightning" },
 };
 
 export default function BossHpBar({ boss, currentHp, maxHp, phase, manaShieldHp, manaShieldMaxHp }) {
