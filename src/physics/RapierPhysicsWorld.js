@@ -884,12 +884,14 @@ export class PhysicsWorld {
   // ─── PLAYER SKILLSHOT SYSTEM ───
 
   // Spawn a player-aimed skillshot projectile toward target pixel coordinates
-  spawnPlayerSkillshot(spellId, targetPx, targetPy, damage, element, onHit, onMiss, onHeadshot) {
+  spawnPlayerSkillshot(spellId, targetPx, targetPy, damage, element, onHit, onMiss, onHeadshot, panOffset) {
     const cfg = SKILLSHOT_TYPES[spellId];
     if (!cfg) return;
 
-    // Player fires from caravan position (bottom-center of screen)
-    const sx = this.W * 0.50;
+    // Player fires from camera center (bottom-center of current view)
+    const screenCenterX = this.W * 0.50;
+    const worldW = this.W * 3; // panorama is 3x viewport
+    const sx = panOffset ? ((screenCenterX + panOffset) % worldW + worldW) % worldW : screenCenterX;
     const sy = this.H * 0.85;
 
     if (cfg.type === "mine") {
