@@ -581,7 +581,12 @@ export default function App() {
 
   const addMoneyFn = useCallback((val) => {
     // Ghost Ship: triple loot
-    const mult = ghostShipActiveRef.current ? GHOST_SHIP_CONFIG.lootMultiplier : 1;
+    let mult = ghostShipActiveRef.current ? GHOST_SHIP_CONFIG.lootMultiplier : 1;
+    // Biome modifier: loot_mult (e.g. summer "Złote Żniwa" +25% copper)
+    const mod = biomeModifierRef.current;
+    if (mod?.effect?.type === "loot_mult" && mod.effect.copperMult) {
+      mult *= mod.effect.copperMult;
+    }
     const adjusted = mult > 1 ? {
       copper: Math.round((val.copper || 0) * mult),
       silver: Math.round((val.silver || 0) * mult),
@@ -1261,8 +1266,10 @@ export default function App() {
                 const rangedAuraBonus = _hasKnightAura(w.x, w.y || 50) ? 1.15 : 1;
 
                 if (w.mercType === "mage") {
-                  // Mage ranged spell
-                  const spellCd = w.spellCd || 3500;
+                  // Mage ranged spell (sea_shanty: -20% cooldown on sea biomes)
+                  const _seaBiomes = ["island", "blue_lagoon", "sunset_beach"];
+                  const _seaMult = (hasRelic("sea_shanty") && _seaBiomes.includes(biome?.id)) ? 0.80 : 1;
+                  const spellCd = Math.round((w.spellCd || 3500) * _seaMult);
                   const spellCost = w.spellCost || 15;
                   if ((w.currentMana || 0) >= spellCost && (!atkCds[id] || dateNow - atkCds[id] > spellCd)) {
                     w.currentMana -= spellCost;
@@ -1288,8 +1295,10 @@ export default function App() {
                     }
                   }
                 } else if (w.mercType === "archer") {
-                  // Archer ranged attack
-                  const projCd = w.projectileCd || 1800;
+                  // Archer ranged attack (sea_shanty: -20% cooldown on sea biomes)
+                  const _seaBiomes2 = ["island", "blue_lagoon", "sunset_beach"];
+                  const _seaMult2 = (hasRelic("sea_shanty") && _seaBiomes2.includes(biome?.id)) ? 0.80 : 1;
+                  const projCd = Math.round((w.projectileCd || 1800) * _seaMult2);
                   if (!atkCds[id] || dateNow - atkCds[id] > projCd) {
                     atkCds[id] = dateNow;
                     if (physicsRef.current) {
@@ -1351,7 +1360,9 @@ export default function App() {
               }
               // Attack when in melee range
               if (nearDist < 10) {
-                const atkCdMs = w.attackCd || 2500;
+                const SEA_BIOMES = ["island", "blue_lagoon", "sunset_beach"];
+                const seaShantyMult = (hasRelic("sea_shanty") && SEA_BIOMES.includes(biome?.id)) ? 0.80 : 1;
+                const atkCdMs = Math.round((w.attackCd || 2500) * seaShantyMult);
                 if (!atkCds[id] || dateNow - atkCds[id] > atkCdMs) {
                   atkCds[id] = dateNow;
                   let knightDmg = w.damage || 5;
@@ -2740,6 +2751,12 @@ export default function App() {
       setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + cookHeal));
       showMessage(`Kucharz serwuje posiłek! +${Math.round(cookHeal)} HP`, "#40e060");
     }
+    // barnacle_shield: +10 HP after each sea biome room
+    const SEA_BIOME_IDS = ["island", "blue_lagoon", "sunset_beach"];
+    if (hasRelic("barnacle_shield") && SEA_BIOME_IDS.includes(b.id)) {
+      setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + 10));
+      showMessage("Pancerz z Małży: +10 HP!", "#40c0c0");
+    }
     // Crew loyalty change per room (small random drift)
     updateCrewLoyalty(Math.random() < 0.7 ? 1 : -1);
 
@@ -2808,7 +2825,8 @@ export default function App() {
         let npcData = pickNpc(b.id);
         if (!npcData) continue;
         const roomScale = 1 + Math.min(newRoom / 25, 1.5);
-        npcData = { ...npcData, hp: Math.round(npcData.hp * roomScale) };
+        const explDiffMult = 1 + ((b.difficulty || 1) - 1) * 0.15;
+        npcData = { ...npcData, hp: Math.round(npcData.hp * roomScale * explDiffMult) };
         const wid = ++walkerIdCounter;
         const spawnX = 20 + Math.random() * 55;
         const walkRange = 12 + Math.random() * 10;
@@ -3351,12 +3369,20 @@ export default function App() {
     const waveBonus = Math.floor(waveDiff * 3);
     const enemyCount = baseCount + waveBonus;
     let hpMult = 1 + roomDiff * 1.2 + waveDiff * 0.8;
+    // Biome difficulty scaling (difficulty 1=base, 2=+15%, 3=+30% HP/DMG)
+    const biomeDiff = biome?.difficulty || 1;
+    hpMult *= 1 + (biomeDiff - 1) * 0.15;
     // greedy_merchant: enemies +30% HP (nerfed from +20%)
     if (hasRelic("greedy_merchant")) hpMult *= 1.30;
     // Risk event: enemy buff rooms
     if (enemyBuffRoomsRef.current > 0) hpMult *= 1.50;
-    const dmgMult = 1 + roomDiff * 0.7 + waveDiff * 0.5;
+    const dmgMult = (1 + roomDiff * 0.7 + waveDiff * 0.5) * (1 + (biomeDiff - 1) * 0.10);
     const biomeId = biome?.id || "summer";
+    // Biome modifier: enemy speed multiplier (jungle slow_and_drag, winter slow_all)
+    const modEff = biomeModifierRef.current?.effect;
+    const enemySpdMult = modEff?.enemySpeedMult || 1;
+    // Biome modifier: enemy targeting slow (bamboo_falls mist_veil)
+    const atkCdMult = modEff?.type === "enemy_targeting_slow" ? (1 / (modEff.targetingMult || 1)) : 1;
 
     // Elite room check
     const isElite = isEliteRoom(roomNum);
@@ -3381,13 +3407,13 @@ export default function App() {
         }]);
         walkDataRef.current[wid] = {
           x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
-          yDir: 1, speed: 0.015, ySpeed: 0.012,
+          yDir: 1, speed: 0.015 * enemySpdMult, ySpeed: 0.012 * enemySpdMult,
           minX: 5, maxX: 98, minY: 25, maxY: 92,
           bouncePhase: 0, alive: true, friendly: false,
           damage: Math.ceil(npcData.hp / 6 * dmgMult * (eliteMod.damageMult || 1)),
           lungeFrames: 0, lungeOffset: 0,
           ability: npcData.ability || null,
-          attackCd: Math.round(3000 * (eliteMod.attackSpeedMult || 1)),
+          attackCd: Math.round(3000 * (eliteMod.attackSpeedMult || 1) * atkCdMult),
           isElite: true,
           eliteMod: eliteMod,
         };
@@ -3405,6 +3431,9 @@ export default function App() {
           : pickNpc(biomeId);
         if (!npcData) return;
         npcData.hp = Math.round(npcData.hp * hpMult);
+        // Biome modifier: illusion_enemies (desert "Fatamorgana" — 20% are illusions)
+        const isIllusion = modEff?.type === "illusion_enemies" && Math.random() < (modEff.illusionChance || 0);
+        if (isIllusion) { npcData.hp = 1; npcData.loot = {}; npcData.isIllusion = true; }
         // Apply active mutations if this enemy type matches
         const mut = activeMutationsRef.current.find(m => m.npcName === npcData.name);
         if (mut && mut.mutation) mut.mutation.apply(npcData);
@@ -3418,15 +3447,15 @@ export default function App() {
         walkDataRef.current[wid] = {
           x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
           yDir: 1, // always start moving downward
-          speed: 0.01 + Math.random() * 0.02,
-          ySpeed: 0.015 + Math.random() * 0.015, // faster downward movement
+          speed: (0.01 + Math.random() * 0.02) * enemySpdMult,
+          ySpeed: (0.015 + Math.random() * 0.015) * enemySpdMult,
           minX: 5, maxX: 98, minY: 25, maxY: 92,
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true, friendly: false,
           damage: Math.ceil(npcData.hp / 8 * dmgMult),
           lungeFrames: 0, lungeOffset: 0,
           ability: npcData.ability || null,
-          attackCd: 3000,
+          attackCd: Math.round(3000 * atkCdMult),
         };
         if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, false, spawnY);
       }, delay);
@@ -3978,8 +4007,18 @@ export default function App() {
         return;
       }
     }
-    const event = rollRandomEvent(nextRoom);
+    let event = rollRandomEvent(nextRoom);
+    // sea_compass: on sea biomes, force a random event if none rolled
+    const _seaBiomeIds = ["island", "blue_lagoon", "sunset_beach"];
+    if (!event && hasRelic("sea_compass") && _seaBiomeIds.includes(biome?.id)) {
+      event = rollRandomEvent(nextRoom) || rollRandomEvent(nextRoom); // two extra rolls
+      if (event) showMessage("Kompas Kapitana wskazuje drogę!", "#60c0ff");
+    }
     if (event) {
+      // ghost_lantern: boost event loot on sea biomes
+      if (hasRelic("ghost_lantern") && _seaBiomeIds.includes(biome?.id) && event.loot) {
+        event.loot = { copper: Math.round((event.loot.copper || 0) * 2), silver: Math.round((event.loot.silver || 0) * 2), gold: (event.loot.gold || 0) };
+      }
       setTimeout(() => {
         setTransitioning(false); // clear overlay BEFORE showing modal
         const sfxMap = { merchant: sfxMerchant, altar: sfxAltar, wounded: sfxEventAppear };
@@ -3995,7 +4034,7 @@ export default function App() {
         setTimeout(() => setTransitioning(false), 150);
       }, 300);
     }
-  }, [room, ownedTools, addMoneyFn, showMessage]);
+  }, [room, ownedTools, addMoneyFn, showMessage, biome]);
 
   // River ship segment completion handler
   const handleRiverComplete = useCallback((result) => {
@@ -4788,7 +4827,9 @@ export default function App() {
       const upgradedStats = getUpgradedSpellStats(spell, spellUps);
       let dmg = Math.round(upgradedStats.damage * (resistant ? RESIST_MULT : 1));
       dmg = applyWeatherDamage(dmg, element, weatherRef.current);
+      dmg = applyModifierDamage(dmg, element, biomeModifierRef.current);
       if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
+      if (hasRelic("mermaid_tear") && element === "ice") dmg = Math.round(dmg * 1.25);
       dmg = Math.round(dmg * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
       dmg = Math.round(dmg * perkSpellDmgMult);
       // Moonblade: bonus spell/skill damage (0-60%)
@@ -4992,6 +5033,31 @@ export default function App() {
         const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
         grantXp(xpAmt);
         processKillStreak();
+        // Biome modifier: kill_heal (blue_lagoon — heal caravan on kills in zone)
+        const killMod = biomeModifierRef.current?.effect;
+        if (killMod?.type === "kill_heal") {
+          const wd = walkDataRef.current[walkerId];
+          const inZone = !killMod.zoneRequired || (killMod.zoneRequired === "bottom" && wd && wd.y > (100 - (killMod.zoneSize || 40)));
+          if (inZone) {
+            setCaravanHp(prev2 => Math.min(caravanMaxHpRef.current, prev2 + killMod.healPerKill));
+            showMessage(`${biomeModifierRef.current.name}: +${killMod.healPerKill} HP!`, "#40e0e0");
+          }
+        }
+        // Biome modifier: zombie_respawn (underworld — 15% respawn as weakened zombie)
+        if (killMod?.type === "zombie_respawn" && Math.random() < (killMod.respawnChance || 0) && !w.isZombie) {
+          const wd = walkDataRef.current[walkerId];
+          setTimeout(() => {
+            const zid = ++walkerIdCounter;
+            const zx = wd?.x || 50;
+            const zy = wd?.y || 50;
+            const zNpc = { ...npcData, name: `Zombie ${npcData.name}`, hp: Math.round(npcData.hp * (killMod.respawnHpMult || 0.4)), loot: {}, isIllusion: false };
+            zNpc.hp = Math.max(1, zNpc.hp);
+            setWalkers(pr => [...pr, { id: zid, npcData: zNpc, alive: true, dying: false, hp: zNpc.hp, maxHp: zNpc.hp, isZombie: true }]);
+            walkDataRef.current[zid] = { x: zx, y: zy, dir: Math.random() < 0.5 ? -1 : 1, yDir: 1, speed: 0.008, ySpeed: 0.008, minX: 5, maxX: 98, minY: 25, maxY: 92, bouncePhase: 0, alive: true, friendly: false, damage: Math.ceil(zNpc.hp / 6 * (killMod.respawnDmgMult || 0.5)), lungeFrames: 0, lungeOffset: 0, ability: null, attackCd: 3500 };
+            if (physicsRef.current) physicsRef.current.spawnNpc(zid, zx, zNpc, false, zy);
+            showMessage("Zombie odrodzony!", "#8040c0");
+          }, killMod.respawnDelay || 8000);
+        }
 
         // Check if last enemy in wave → slow motion effect
         const aliveEnemies = prev.filter(ww => ww.alive && !ww.dying && !ww.friendly && ww.id !== walkerId);
@@ -5436,6 +5502,7 @@ export default function App() {
         dmg = Math.round(dmg * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
         if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
+      if (hasRelic("mermaid_tear") && element === "ice") dmg = Math.round(dmg * 1.25);
         if (isCrit) dmg = Math.round(dmg * 2.5);
         // Execute effect: 2x dmg below threshold
         if (eff?.type === "execute" && w.hp / w.maxHp <= eff.threshold) {
@@ -5622,6 +5689,12 @@ export default function App() {
         // Drop loot
         if (obs.loot && Object.keys(obs.loot).length > 0) {
           addMoneyFn(obs.loot);
+          // Biome modifier: bonus_loot (city "Czarny Rynek" — 30% chance extra loot from obstacles)
+          const bMod = biomeModifierRef.current;
+          if (bMod?.effect?.type === "bonus_loot" && Math.random() < (bMod.effect.bonusLootChance || 0)) {
+            addMoneyFn(bMod.effect.bonusLoot || obs.loot);
+            showMessage(`${bMod.name}: bonus łup!`, "#e0c040");
+          }
           if (pixiRef.current) pixiRef.current.spawnGoldCoins(px, py, 0.4);
         }
         // Chain reactions — fire spreads to wood, lightning chains to metal, etc.
@@ -5846,8 +5919,10 @@ export default function App() {
       const upgradedStats = getUpgradedSpellStats(spell, spellUps);
       let damage = Math.round(upgradedStats.damage * (resistant ? RESIST_MULT : 1));
       damage = applyWeatherDamage(damage, spell.element, weatherRef.current);
+      damage = applyModifierDamage(damage, spell.element, biomeModifierRef.current);
       // chaos_blade: +40% spell damage
       if (hasRelic("chaos_blade")) damage = Math.round(damage * 1.40);
+      if (hasRelic("mermaid_tear") && spell.element === "ice") damage = Math.round(damage * 1.25);
       // Knowledge bonus: extra damage for discovered NPCs + milestone bonus
       damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
       // Perk: spell damage multiplier
@@ -5966,6 +6041,31 @@ export default function App() {
           grantXp(xpAmt);
           // Kill streak
           processKillStreak();
+          // Biome modifier: kill_heal (blue_lagoon — heal caravan on kills in zone)
+          const killMod2 = biomeModifierRef.current?.effect;
+          if (killMod2?.type === "kill_heal") {
+            const kwd = walkDataRef.current[wid];
+            const inZone = !killMod2.zoneRequired || (killMod2.zoneRequired === "bottom" && kwd && kwd.y > (100 - (killMod2.zoneSize || 40)));
+            if (inZone) {
+              setCaravanHp(prev2 => Math.min(caravanMaxHpRef.current, prev2 + killMod2.healPerKill));
+              showMessage(`${biomeModifierRef.current.name}: +${killMod2.healPerKill} HP!`, "#40e0e0");
+            }
+          }
+          // Biome modifier: zombie_respawn (underworld — 15% respawn as weakened zombie)
+          if (killMod2?.type === "zombie_respawn" && Math.random() < (killMod2.respawnChance || 0) && !w.isZombie) {
+            const zwd = walkDataRef.current[wid];
+            setTimeout(() => {
+              const zid = ++walkerIdCounter;
+              const zx = zwd?.x || 50;
+              const zy = zwd?.y || 50;
+              const zNpc = { ...npcData, name: `Zombie ${npcData.name}`, hp: Math.round(npcData.hp * (killMod2.respawnHpMult || 0.4)), loot: {}, isIllusion: false };
+              zNpc.hp = Math.max(1, zNpc.hp);
+              setWalkers(pr => [...pr, { id: zid, npcData: zNpc, alive: true, dying: false, hp: zNpc.hp, maxHp: zNpc.hp, isZombie: true }]);
+              walkDataRef.current[zid] = { x: zx, y: zy, dir: Math.random() < 0.5 ? -1 : 1, yDir: 1, speed: 0.008, ySpeed: 0.008, minX: 5, maxX: 98, minY: 25, maxY: 92, bouncePhase: 0, alive: true, friendly: false, damage: Math.ceil(zNpc.hp / 6 * (killMod2.respawnDmgMult || 0.5)), lungeFrames: 0, lungeOffset: 0, ability: null, attackCd: 3500 };
+              if (physicsRef.current) physicsRef.current.spawnNpc(zid, zx, zNpc, false, zy);
+              showMessage("Zombie odrodzony!", "#8040c0");
+            }, killMod2.respawnDelay || 8000);
+          }
           // necromancer: 10% chance to spawn temp friendly
           if (hasRelic("necromancer") && Math.random() < 0.10) {
             const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
@@ -6074,7 +6174,9 @@ export default function App() {
         const aoeUpgradedStats = getUpgradedSpellStats(spell, aoeSpellUps);
         let damage = Math.round(aoeUpgradedStats.damage * (resistant ? RESIST_MULT : 1));
         damage = applyWeatherDamage(damage, spell.element, weatherRef.current);
+        damage = applyModifierDamage(damage, spell.element, biomeModifierRef.current);
         if (hasRelic("chaos_blade")) damage = Math.round(damage * 1.40);
+      if (hasRelic("mermaid_tear") && spell.element === "ice") damage = Math.round(damage * 1.25);
         damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
         damage = Math.round(damage * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) damage = Math.round(damage * 2);
@@ -6142,6 +6244,31 @@ export default function App() {
           const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
           grantXp(xpAmt);
           processKillStreak();
+          // Biome modifier: kill_heal (blue_lagoon)
+          const killMod3 = biomeModifierRef.current?.effect;
+          if (killMod3?.type === "kill_heal") {
+            const kwd3 = walkDataRef.current[w.id];
+            const inZone3 = !killMod3.zoneRequired || (killMod3.zoneRequired === "bottom" && kwd3 && kwd3.y > (100 - (killMod3.zoneSize || 40)));
+            if (inZone3) {
+              setCaravanHp(prev2 => Math.min(caravanMaxHpRef.current, prev2 + killMod3.healPerKill));
+              showMessage(`${biomeModifierRef.current.name}: +${killMod3.healPerKill} HP!`, "#40e0e0");
+            }
+          }
+          // Biome modifier: zombie_respawn (underworld)
+          if (killMod3?.type === "zombie_respawn" && Math.random() < (killMod3.respawnChance || 0) && !w.isZombie) {
+            const zwd3 = walkDataRef.current[w.id];
+            setTimeout(() => {
+              const zid3 = ++walkerIdCounter;
+              const zx3 = zwd3?.x || 50;
+              const zy3 = zwd3?.y || 50;
+              const zNpc3 = { ...npcData, name: `Zombie ${npcData.name}`, hp: Math.round(npcData.hp * (killMod3.respawnHpMult || 0.4)), loot: {}, isIllusion: false };
+              zNpc3.hp = Math.max(1, zNpc3.hp);
+              setWalkers(pr => [...pr, { id: zid3, npcData: zNpc3, alive: true, dying: false, hp: zNpc3.hp, maxHp: zNpc3.hp, isZombie: true }]);
+              walkDataRef.current[zid3] = { x: zx3, y: zy3, dir: Math.random() < 0.5 ? -1 : 1, yDir: 1, speed: 0.008, ySpeed: 0.008, minX: 5, maxX: 98, minY: 25, maxY: 92, bouncePhase: 0, alive: true, friendly: false, damage: Math.ceil(zNpc3.hp / 6 * (killMod3.respawnDmgMult || 0.5)), lungeFrames: 0, lungeOffset: 0, ability: null, attackCd: 3500 };
+              if (physicsRef.current) physicsRef.current.spawnNpc(zid3, zx3, zNpc3, false, zy3);
+              showMessage("Zombie odrodzony!", "#8040c0");
+            }, killMod3.respawnDelay || 8000);
+          }
           // necromancer: 10% chance to spawn temp friendly
           if (hasRelic("necromancer") && Math.random() < 0.10) {
             const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
@@ -9430,7 +9557,11 @@ export default function App() {
                 const dmg = seaEvent.dodgeable ? Math.round(eff.value * seaEvent.dodgeReduction) : eff.value;
                 setCaravanHp(prev => Math.max(1, prev - dmg));
               }
-              if (eff.type === "loot") addMoneyFn({ copper: 40 + Math.floor(Math.random() * 40) });
+              if (eff.type === "loot") {
+                const lootAmt = 40 + Math.floor(Math.random() * 40);
+                const ghostBonus = hasRelic("ghost_lantern") ? 2 : 1;
+                addMoneyFn({ copper: lootAmt * ghostBonus });
+              }
               if (eff.type === "buff") {
                 if (eff.manaRestore) setMana(prev => Math.min(prev + eff.manaRestore, MAX_MANA));
                 if (eff.initiativeBoost) setInitiative(prev => Math.min(MAX_INITIATIVE, prev + eff.initiativeBoost));
