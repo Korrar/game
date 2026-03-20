@@ -2172,7 +2172,8 @@ export default function App() {
                   setAccuracyStreak(prev => prev + 1);
                   showMessage("HEADSHOT! +50% obrażeń!", "#ff4040");
                   processSkillshotHit(salvaSpell, hitId, damage, element, true);
-                }
+                },
+                panOffsetRef.current
               );
             }
             // Play sound
@@ -5206,7 +5207,8 @@ export default function App() {
           setAccuracyStreak(prev => prev + 1);
           showMessage("HEADSHOT! +50% obrażeń!", "#ff4040");
           processSkillshotHit(spell, hitId, damage, element, true);
-        }
+        },
+        panOffsetRef.current
       );
     }
 

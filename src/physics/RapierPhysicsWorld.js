@@ -12,6 +12,7 @@ import {
   getWalkingOffsets, getQuadrupedOffsets, getFloatingOffsets,
   getScorpionOffsets, getSpiderOffsets, getFrogOffsets, getSerpentOffsets,
 } from "./bodies/animOffsets.js";
+import { screenPxToWorld } from "../utils/panoramaWrap.js";
 import {
   getColors, drawBody, drawWeapon, drawProjectile,
 } from "./bodies/bodyRenderers.js";
@@ -884,12 +885,12 @@ export class PhysicsWorld {
   // ─── PLAYER SKILLSHOT SYSTEM ───
 
   // Spawn a player-aimed skillshot projectile toward target pixel coordinates
-  spawnPlayerSkillshot(spellId, targetPx, targetPy, damage, element, onHit, onMiss, onHeadshot) {
+  spawnPlayerSkillshot(spellId, targetPx, targetPy, damage, element, onHit, onMiss, onHeadshot, panOffset = 0) {
     const cfg = SKILLSHOT_TYPES[spellId];
     if (!cfg) return;
 
-    // Player fires from caravan position (bottom-center of screen)
-    const sx = this.W * 0.50;
+    // Player fires from camera center (bottom-center of current viewport)
+    const sx = screenPxToWorld(this.W * 0.50, panOffset, this.W);
     const sy = this.H * 0.85;
 
     if (cfg.type === "mine") {
