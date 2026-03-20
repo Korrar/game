@@ -18,7 +18,7 @@ export default function WaveOverlay({ defense, onDismiss, onRetreat, caravanHp, 
   const glowColor = phase === "complete" ? "rgba(60,200,80,0.3)" : phase === "failed" ? "rgba(200,40,40,0.3)"
     : isBossRoom ? "rgba(200,20,20,0.4)" : "rgba(200,80,20,0.3)";
 
-  const showCaravanHp = caravanMaxHp > 0 && (phase === "wave_active" || phase === "inter_wave" || phase === "setup");
+  const showCaravanHp = caravanMaxHp > 0;
   const chPct = caravanMaxHp > 0 ? (caravanHp / caravanMaxHp) * 100 : 100;
   const chColor = chPct > 50 ? "#40e060" : chPct > 25 ? "#e0c040" : "#e04040";
 

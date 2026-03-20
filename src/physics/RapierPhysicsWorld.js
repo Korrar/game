@@ -815,16 +815,15 @@ export class PhysicsWorld {
 
   // ─── PROJECTILE SYSTEM ───
 
-  spawnProjectile(sourceId, targetXPct, type, damage, element, onHit, targetId, panOffset = 0) {
+  spawnProjectile(sourceId, targetXPct, type, damage, element, onHit, targetId, targetPos) {
     const entry = this.bodies[sourceId];
     if (!entry) return;
-    // Spawn from the bottom center of the current camera viewport
-    const sx = screenPxToWorld(this.W * 0.50, panOffset, this.W);
-    const sy = this.H * 0.85;
+    const sPos = entry.limbBodies.torso ? entry.limbBodies.torso.translation() : { x: 0, y: 0 };
+    const sx = sPos.x, sy = sPos.y;
     const tx = (targetXPct / 100) * this.W;
     const targetEntry = targetId != null ? this.bodies[targetId] : null;
     const tPos = targetEntry?.limbBodies?.torso?.translation();
-    const ty = tPos ? tPos.y : (this.GY - this._halfH(entry.bodyType));
+    const ty = tPos ? tPos.y : (targetPos ? targetPos.y : (this.GY - this._halfH(entry.bodyType)));
     const dx = tx - sx, dy = ty - sy;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
@@ -839,6 +838,7 @@ export class PhysicsWorld {
         type, damage, sourceId, element, age: 0, maxAge: 150, onHit: onHit || null,
         targetId: targetId != null ? targetId : null,
         homing: 0.03, speed,
+        targetPos: targetPos || null,
       });
     } else {
       const isMageSpell = type === "mageSpell";
@@ -849,6 +849,7 @@ export class PhysicsWorld {
         type, damage, sourceId, element, age: 0, maxAge: 120, onHit: onHit || null,
         homing: isMageSpell ? 0.06 : 0,
         targetId: targetId != null ? targetId : null,
+        targetPos: targetPos || null,
       });
     }
   }
@@ -1124,8 +1125,9 @@ export class PhysicsWorld {
         if (!hitAnybody && proj.onMiss) proj.onMiss();
       }
 
-      // Remove if hit, expired, or off-screen
-      if (hit || proj.age > proj.maxAge || proj.x < -50 || proj.x > this.W + 50 || proj.y > this.H + 30) {
+      // Remove if hit, expired, or off-screen (use panoramic world width for X bounds)
+      const worldW = this.W * 3; // PANORAMA_WORLD_W = 3
+      if (hit || proj.age > proj.maxAge || proj.x < -50 || proj.x > worldW + 50 || proj.y > this.H + 30) {
         if (!hitAnybody && !hit && proj.onMiss) proj.onMiss();
         this.playerSkillshots.splice(i, 1);
       }
