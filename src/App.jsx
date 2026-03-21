@@ -1691,7 +1691,7 @@ export default function App() {
             const pTrapsCheck = playerTrapsRef.current;
             for (let bi = 0; bi < pTrapsCheck.length; bi++) {
               const bt = pTrapsCheck[bi];
-              if (!bt.active || bt.trapType !== "barricade") continue;
+              if (!bt.active || !(bt.trapType === "barricade" || bt.config?.type === "wall")) continue;
               const bdx = bt.x - w.x;
               const bdy = ((bt.y || 50) - (w.y || 50)) * 0.5;
               const bdistSq = bdx * bdx + bdy * bdy;
@@ -1783,7 +1783,7 @@ export default function App() {
             const pTrapsForBlock = playerTrapsRef.current;
             for (let bi = 0; bi < pTrapsForBlock.length; bi++) {
               const bt = pTrapsForBlock[bi];
-              if (!bt.active || bt.trapType !== "barricade") continue;
+              if (!bt.active || !(bt.trapType === "barricade" || bt.config?.type === "wall")) continue;
               const bdx = bt.x - w.x;
               const bdy = ((bt.y || 50) - (w.y || 50)) * 0.5;
               const bdistSq = bdx * bdx + bdy * bdy;
@@ -2186,7 +2186,206 @@ export default function App() {
             break;
           }
 
-          // barricade is handled in enemy AI movement, not here
+          // barricade / wall types are handled in enemy AI movement, not here
+
+          // Spike pit — single-use ground trap damage
+          if (pt.trapType === "spike_pit" && dist < (pt.config.stats?.triggerRadius || pt.config.triggerRadius || 4)) {
+            pt.active = false;
+            pTrapsChanged = true;
+            const dmg = pt.config.stats?.damage || pt.config.damage || 15;
+            spawnDmgPopup(parseInt(eid), `${dmg}`, "#b08040");
+            showMessage("Wilczy dół aktywowany!", "#b08040");
+            setWalkers(prev => prev.map(ww => {
+              if (ww.id !== parseInt(eid) || !ww.alive || ww.friendly) return ww;
+              const newHp = Math.max(0, ww.hp - dmg);
+              if (newHp <= 0) {
+                sfxNpcDeath();
+                if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "melee", Math.sign(dx) || 1);
+                addMoneyFn(ww.npcData.loot || {});
+                setKills(k => k + 1);
+                grantXp(10 + roomRef.current * 2);
+                processKillStreak();
+                setTimeout(() => setWalkers(pr => pr.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+              }
+              // Briefly stun enemy that fell in pit
+              e.speed = 0;
+              setTimeout(() => { if (wd[eid]) wd[eid].speed = wd[eid]._origSpeed || 0.02; }, 1500);
+              return { ...ww, hp: newHp };
+            }));
+            break;
+          }
+
+          // Poison mine — single-use AoE poison DPS
+          if (pt.trapType === "poison_mine" && dist < (pt.config.stats?.triggerRadius || pt.config.triggerRadius || 4)) {
+            pt.active = false;
+            pTrapsChanged = true;
+            sfxMeteorImpact();
+            showMessage("Mina trująca eksplodowała!", "#44ff44");
+            const splashR = pt.config.stats?.splashRadius || 7;
+            const poisonDps = pt.config.stats?.dps || 15;
+            const poisonDur = pt.config.stats?.duration || 4000;
+            // Apply poison DoT to all enemies in splash radius
+            for (let ei2 = 0; ei2 < enemyList.length; ei2++) {
+              const eid2 = enemyList[ei2].id;
+              const e2 = enemyList[ei2].w;
+              const dx2 = e2.x - pt.x;
+              const dy2 = ((e2.y || 50) - pt.y) * 0.5;
+              if (Math.sqrt(dx2 * dx2 + dy2 * dy2) < splashR) {
+                e2._poisonDps = poisonDps;
+                e2._poisonEnd = trapNow + poisonDur;
+                spawnDmgPopup(parseInt(eid2), "TRUCIZNA!", "#44ff44");
+              }
+            }
+            break;
+          }
+
+          // Totem types (ice_totem, fire_totem) — persistent aura DPS + slow
+          if ((pt.trapType === "ice_totem" || pt.trapType === "fire_totem") && dist < (pt.config.stats?.radius || pt.config.radius || 8)) {
+            const cdKey = `totem_${pt.id}_${eid}`;
+            if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > 1000) {
+              atkCds[cdKey] = trapNow;
+              const dmg = pt.config.stats?.dps || pt.config.dps || 5;
+              const elem = pt.config.stats?.element || "fire";
+              spawnDmgPopup(parseInt(eid), `${dmg}`, elem === "ice" ? "#4488ff" : "#ff6020");
+              setWalkers(prev => prev.map(ww => {
+                if (ww.id !== parseInt(eid) || !ww.alive || ww.friendly) return ww;
+                const newHp = Math.max(0, ww.hp - dmg);
+                if (newHp <= 0) {
+                  sfxNpcDeath();
+                  if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                  if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, elem, Math.sign(dx) || 1);
+                  addMoneyFn(ww.npcData.loot || {});
+                  setKills(k => k + 1);
+                  grantXp(10 + roomRef.current * 2);
+                  processKillStreak();
+                  setTimeout(() => setWalkers(pr => pr.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                  return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                }
+                return { ...ww, hp: newHp };
+              }));
+            }
+            // Ice totem also slows
+            if (pt.trapType === "ice_totem") {
+              const slowMult = pt.config.stats?.slowMult || 0.6;
+              if (!e._caltropOrig) e._caltropOrig = e.speed;
+              e.speed = e._caltropOrig * slowMult;
+              e._caltropUntil = trapNow + 500;
+            }
+          }
+
+          // Turret types (lightning_spire, kraken_totem, cannon_emplacement) — auto-attack nearest enemy
+          if ((pt.trapType === "lightning_spire" || pt.trapType === "kraken_totem" || pt.trapType === "cannon_emplacement")
+            && dist < (pt.config.stats?.range || 15)) {
+            const cdKey = `turret_${pt.id}`;
+            const atkCd = pt.config.stats?.attackCd || 2000;
+            if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > atkCd) {
+              atkCds[cdKey] = trapNow;
+              const dmg = pt.config.stats?.autoDamage || 15;
+              const elem = pt.config.stats?.element || "lightning";
+              spawnDmgPopup(parseInt(eid), `${dmg}`, elem === "lightning" ? "#ffee00" : elem === "ice" ? "#4488ff" : "#ff6020");
+              setWalkers(prev => prev.map(ww => {
+                if (ww.id !== parseInt(eid) || !ww.alive || ww.friendly) return ww;
+                const newHp = Math.max(0, ww.hp - dmg);
+                if (newHp <= 0) {
+                  sfxNpcDeath();
+                  if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                  if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, elem, Math.sign(dx) || 1);
+                  addMoneyFn(ww.npcData.loot || {});
+                  setKills(k => k + 1);
+                  grantXp(10 + roomRef.current * 2);
+                  processKillStreak();
+                  setTimeout(() => setWalkers(pr => pr.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                  return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                }
+                return { ...ww, hp: newHp };
+              }));
+              // Kraken totem also slows
+              if (pt.trapType === "kraken_totem" && pt.config.stats?.slowMult) {
+                if (!e._caltropOrig) e._caltropOrig = e.speed;
+                e.speed = e._caltropOrig * pt.config.stats.slowMult;
+                e._caltropUntil = trapNow + 500;
+              }
+              break; // turret fires at one enemy per cooldown
+            }
+          }
+
+          // Water geyser — knockback + damage with cooldown
+          if (pt.trapType === "water_geyser" && dist < (pt.config.stats?.triggerRadius || 5)) {
+            const cdKey = `geyser_${pt.id}`;
+            const geyCd = pt.config.stats?.cooldown || 6000;
+            if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > geyCd) {
+              atkCds[cdKey] = trapNow;
+              const dmg = pt.config.stats?.damage || 20;
+              const kb = pt.config.stats?.knockback || 15;
+              spawnDmgPopup(parseInt(eid), `${dmg}`, "#4488ff");
+              // Knockback: push enemy away from geyser
+              const pushDir = e.x > pt.x ? 1 : -1;
+              e.x += pushDir * kb;
+              if (e.y != null) e.y = Math.max(e.minY || 25, e.y - kb * 0.5);
+              setWalkers(prev => prev.map(ww => {
+                if (ww.id !== parseInt(eid) || !ww.alive || ww.friendly) return ww;
+                const newHp = Math.max(0, ww.hp - dmg);
+                if (newHp <= 0) {
+                  sfxNpcDeath();
+                  if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                  if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "ice", pushDir);
+                  addMoneyFn(ww.npcData.loot || {});
+                  setKills(k => k + 1);
+                  grantXp(10 + roomRef.current * 2);
+                  processKillStreak();
+                  setTimeout(() => setWalkers(pr => pr.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                  return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                }
+                return { ...ww, hp: newHp };
+              }));
+            }
+          }
+
+          // Shadow trap — teleport enemy back to spawn area
+          if (pt.trapType === "shadow_trap" && dist < (pt.config.stats?.triggerRadius || 5)) {
+            const cdKey = `shadow_${pt.id}`;
+            const shCd = pt.config.stats?.cooldown || 8000;
+            if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > shCd) {
+              atkCds[cdKey] = trapNow;
+              e.x = 10 + Math.random() * 80;
+              e.y = 25 + Math.random() * 10;
+              spawnDmgPopup(parseInt(eid), "TELEPORT!", "#8844cc");
+            }
+          }
+        }
+      }
+      // Poison DoT tick for poisoned enemies
+      for (let ei = 0; ei < enemyList.length; ei++) {
+        const e = enemyList[ei].w;
+        const eid = enemyList[ei].id;
+        if (e._poisonDps && e._poisonEnd && trapNow < e._poisonEnd) {
+          const cdKey = `pdot_${eid}`;
+          if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > 1000) {
+            atkCds[cdKey] = trapNow;
+            const dmg = e._poisonDps;
+            spawnDmgPopup(parseInt(eid), `${dmg}`, "#44ff44");
+            setWalkers(prev => prev.map(ww => {
+              if (ww.id !== parseInt(eid) || !ww.alive || ww.friendly) return ww;
+              const newHp = Math.max(0, ww.hp - dmg);
+              if (newHp <= 0) {
+                sfxNpcDeath();
+                if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, "poison", 1);
+                addMoneyFn(ww.npcData.loot || {});
+                setKills(k => k + 1);
+                grantXp(10 + roomRef.current * 2);
+                processKillStreak();
+                setTimeout(() => setWalkers(pr => pr.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+              }
+              return { ...ww, hp: newHp };
+            }));
+          }
+        } else if (e._poisonDps && e._poisonEnd && trapNow >= e._poisonEnd) {
+          delete e._poisonDps;
+          delete e._poisonEnd;
         }
       }
       if (pTrapsChanged) {
@@ -3609,7 +3808,9 @@ export default function App() {
     const isElite = isEliteRoom(roomNum);
     const eliteMod = isElite ? rollEliteModifier() : null;
 
-    setDefenseMode(prev => prev ? { ...prev, enemiesRemaining: enemyCount + (isElite ? 1 : 0), enemiesSpawned: enemyCount + (isElite ? 1 : 0) } : null);
+    // Track planned vs actually spawned enemies separately to prevent premature wave completion
+    const totalPlanned = enemyCount + (isElite ? 1 : 0);
+    setDefenseMode(prev => prev ? { ...prev, enemiesRemaining: totalPlanned, enemiesPlanned: totalPlanned, enemiesSpawned: 0 } : null);
 
     const timers = [];
     // Spawn elite enemy first on elite rooms
@@ -3639,6 +3840,7 @@ export default function App() {
           eliteMod: eliteMod,
         };
         if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, false, spawnY);
+        setDefenseMode(prev => prev ? { ...prev, enemiesSpawned: prev.enemiesSpawned + 1 } : null);
         showMessage(`Elite: ${eliteMod.name}! ${eliteMod.desc}`, eliteMod.color);
       }, 500);
       timers.push(tid);
@@ -3690,6 +3892,7 @@ export default function App() {
           attackCd: Math.round(3000 * atkCdMult),
         };
         if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, false, spawnY);
+        setDefenseMode(prev => prev ? { ...prev, enemiesSpawned: prev.enemiesSpawned + 1 } : null);
       }, delay);
       timers.push(tid);
     }
@@ -3807,8 +4010,9 @@ export default function App() {
           return;
         }
       } else {
-        // All enemies dead (regular defense)
-        if (aliveEnemies.length === 0 && dm.enemiesSpawned > 0) {
+        // All enemies dead (regular defense) — require all planned enemies to have actually spawned
+        const allSpawned = dm.enemiesSpawned >= (dm.enemiesPlanned || dm.enemiesSpawned);
+        if (aliveEnemies.length === 0 && dm.enemiesSpawned > 0 && allSpawned) {
           clearInterval(iv);
           // Challenge completion checks on wave clear
           const ch = roomChallengeRef.current;
@@ -4173,7 +4377,7 @@ export default function App() {
       setShipUpgrades(s.shipUpgrades || []);
       setDiscoveredIslands(s.discoveredIslands || []);
       if (s.shipMapPos) setShipMapPos(s.shipMapPos);
-      setUnlockedFortifications((s.unlockedFortifications || ["wooden_wall", "alarm_bell"]).filter(f => f !== "spike_pit"));
+      setUnlockedFortifications(s.unlockedFortifications || ["wooden_wall", "alarm_bell", "spike_pit"]);
       setFactionRep(s.factionRep || { merchants_guild: 0, treasure_hunters: 0, shadow_council: 0, royal_navy: 0 });
       setJournal(s.journal || { biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
       setOwnedArtifacts(s.ownedArtifacts || []);
