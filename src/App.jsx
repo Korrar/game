@@ -14,7 +14,7 @@ import { totalCopper, copperToMoney, pickTreasure, formatValHTML } from "./utils
 import { rollRandomEvent } from "./data/randomEvents";
 import { rollWeather, applyWeatherDamage } from "./data/weather";
 import { rollModifier, applyModifierDamage } from "./data/biomeModifiers";
-import { rollInteractables } from "./data/biomeInteractables";
+import { rollInteractables, DEFENSE_POIS } from "./data/biomeInteractables";
 import { OBSTACLE_DEFS, OBSTACLE_MATERIALS, WEAKNESS_MULT, RESIST_MULT as OBS_RESIST_MULT } from "./data/obstacles";
 import { renderBiome } from "./renderers/biomeRenderers";
 import { renderVault } from "./renderers/vaultRenderer";
@@ -60,7 +60,8 @@ import { SHIP_UPGRADES, rollSeaEvent, rollIslandDiscovery } from "./data/sailing
 import RiverShipSegment from "./components/RiverShipSegment";
 import WorldMap from "./components/WorldMap";
 import RiverMap from "./components/RiverMap";
-import { FORTIFICATION_TREE, TRAP_COMBOS } from "./data/advancedTraps";
+import { FORTIFICATION_TREE, TRAP_COMBOS, FORTIFICATION_PHASE } from "./data/advancedTraps";
+import FortificationMenu from "./components/FortificationMenu";
 import { FACTIONS, getFactionBonus, getFactionHostility, rollFactionQuest, rollFactionEvent } from "./data/factions";
 import { ARTIFACT_SETS, DISCOVERY_MILESTONES, JOURNAL_CATEGORIES, getDiscoveryMilestone, rollSecretRoom, getCompletedSetBonuses } from "./data/discovery";
 import { SABERS, SABER_RARITY_COLOR } from "./data/sabers";
@@ -346,6 +347,9 @@ export default function App() {
   const [defenseMode, setDefenseMode] = useState(null);
   const defenseModeRef = useRef(null);
   defenseModeRef.current = defenseMode;
+  const [defensePoi, setDefensePoi] = useState(null); // POI marker for defense encounter
+  const [showFortMenu, setShowFortMenu] = useState(false); // fortification placement menu
+  const [fortPlacedCount, setFortPlacedCount] = useState(0); // fortifications placed this defense
   const [activeRelics, setActiveRelics] = useState([]);
   const activeRelicsRef = useRef([]);
   activeRelicsRef.current = activeRelics;
@@ -2546,10 +2550,10 @@ export default function App() {
     setMercCamp(null);
     setWizardPoi(null);
     setBiomePoi(null);
+    setDefensePoi(null);
+    setShowFortMenu(false);
+    setFortPlacedCount(0);
     const isDefenseRoom = newRoom > 0 && newRoom % 5 === 0;
-
-    // Reset caravan HP in defense rooms
-    if (isDefenseRoom) setCaravanHp(CARAVAN_LEVELS[caravanLevelRef.current].hp);
 
     // Power spike warning: boss coming next room
     if (newRoom % 10 === 9) {
@@ -2605,6 +2609,16 @@ export default function App() {
       setInteractables(roomInteractables);
     } else {
       setInteractables([]);
+      // Spawn defense POI — player must click it to trigger defense
+      const poiDef = DEFENSE_POIS[b.id] || DEFENSE_POIS.summer;
+      setDefensePoi({
+        ...poiDef,
+        x: 35 + Math.random() * 30, // 35-65% of viewport
+        y: 35 + Math.random() * 25, // 35-60% from bottom
+        roomNumber: newRoom,
+        biomeId: b.id,
+        activated: false,
+      });
     }
     // Room challenge (40% chance)
     const challenge = rollChallenge(newRoom, isDefenseRoom);
@@ -2629,7 +2643,7 @@ export default function App() {
 
     const currentTools = tools || [];
     if (isDefenseRoom) {
-      // Defense rooms: clear all POIs, no new NPCs/traps
+      // Defense rooms: clear resource POIs but keep defense POI — don't auto-start defense
       setShowChest(false); setChestPos(null); setChestClicks(0); setResourceNode(null); setShowResource(false);
       setFruitTree(null); setMineNugget(null); setWaterfall(null); setBiomePoi(null);
       setMercCamp(null); setWizardPoi(null); setTraps([]);
@@ -3053,97 +3067,11 @@ export default function App() {
       }
     }
 
-    // Defense room – initialize wave mode
-    const bossData = getBossForRoom(newRoom);
+    // Defense room: DON'T auto-start — the defense POI triggers it
+    // Just pre-compute boss data so it's ready when POI is clicked
     if (isDefenseRoom) {
-      const totalWaves = bossData ? 1 : (newRoom <= 15 ? 3 : newRoom <= 30 ? 4 : 5);
-      setDefenseMode({ phase: "setup", currentWave: 1, totalWaves,
-        enemiesRemaining: 0, enemiesSpawned: 0, timer: 3, roomNumber: newRoom, isBossRoom: !!bossData });
-      setMeteorite(null);
-      setGroundLoot([]);
-      meteorWaveRef.current = null;
-      sfxWaveHorn();
-      setMusicCombatIntensity(0.7); // ramp up music intensity for combat
-      // Auto-deploy all trap types randomly for free
-      {
-        const autoTraps = [];
-        for (const trap of DEFENSE_TRAPS) {
-          for (let i = 0; i < trap.maxCount; i++) {
-            if (autoTraps.length >= MAX_PLAYER_TRAPS) break;
-            autoTraps.push({
-              id: Date.now() + Math.random() + i + autoTraps.length,
-              trapType: trap.id,
-              x: 15 + Math.random() * 70,
-              y: 35 + Math.random() * 50,
-              active: true,
-              armed: true,
-              config: trap,
-              ...(trap.hp ? { currentHp: trap.hp } : {}),
-            });
-          }
-          if (autoTraps.length >= MAX_PLAYER_TRAPS) break;
-        }
-        setPlayerTraps(autoTraps);
-        showMessage("Pułapki rozstawione!", "#40c0a0");
-      }
-
-      if (bossData) {
-        const roomScale = 1 + Math.min(newRoom / 25, 1.5);
-        const scaledBoss = {
-          ...bossData,
-          hp: Math.round(bossData.hp * roomScale),
-          damage: Math.round(bossData.damage * roomScale),
-          currentHp: Math.round(bossData.hp * roomScale),
-          maxHp: Math.round(bossData.hp * roomScale),
-          phase: 1,
-          manaShieldHp: 0,
-          manaShieldMaxHp: 0,
-          roomScale,
-        };
-        setActiveBoss(scaledBoss);
-        showMessage(`${bossData.name} nadchodzi!`, "#ff2020");
-      } else {
-        setActiveBoss(null);
-        showMessage("Etap Obronny!", "#ff6020");
-      }
-
-      // Spawn caravan defenses: barricade, dog
-      const cl = CARAVAN_LEVELS[caravanLevelRef.current];
-      if (cl.barricade) {
-        const bId = ++walkerIdCounter;
-        const bHp = cl.barricade.hp;
-        const bNpc = { icon: "wood", name: "Barykada", hp: bHp, resist: null, loot: {}, bodyColor: "#6a4a20", armorColor: "#4a3010", bodyType: "barricade" };
-        setWalkers(prev => [...prev, { id: bId, npcData: bNpc, alive: true, dying: false, hp: bHp, maxHp: bHp, friendly: true, isBarricade: true }]);
-        walkDataRef.current[bId] = {
-          x: 50, y: 75, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
-          minX: 50, maxX: 50, minY: 25, maxY: 90,
-          bouncePhase: 0, alive: true, friendly: true,
-          damage: 0, lungeFrames: 0, lungeOffset: 0,
-          stationary: true, combatStyle: "none", attackCd: 99999,
-        };
-        if (physicsRef.current) physicsRef.current.spawnNpc(bId, 50, bNpc, true);
-      }
-      // Tower removed — replaced by thornArmor (passive reflect) and warDrums (merc aura)
-      if (cl.dog) {
-        // Check if dog already exists among preserved friendlies
-        const existingDog = keptWalkerState.find(w => w.isDog);
-        if (!existingDog) {
-          const dId = ++walkerIdCounter;
-          const dNpc = { icon: "dog", name: "Ogar bojowy", hp: 80, resist: null, loot: {}, bodyColor: "#8a6030", armorColor: "#5a4020", bodyType: "quadruped" };
-          setWalkers(prev => [...prev, { id: dId, npcData: dNpc, alive: true, dying: false, hp: 80, maxHp: 80, friendly: true, isDog: true }]);
-          walkDataRef.current[dId] = {
-            x: 45, y: 85, dir: 1, yDir: Math.random() < 0.5 ? 1 : -1,
-            speed: 0.06, ySpeed: 0.01,
-            minX: 30, maxX: 70, minY: 75, maxY: 92,
-            bouncePhase: 0, alive: true, friendly: true,
-            damage: 10, lungeFrames: 0, lungeOffset: 0,
-            combatStyle: "melee", attackCd: 1800,
-          };
-          if (physicsRef.current) physicsRef.current.spawnNpc(dId, 12, dNpc, true);
-        }
-      }
-
-      return;
+      // Show hint that a defense POI awaits
+      setTimeout(() => showMessage("Zbadaj okolicę... coś tu jest!", "#cc8040"), 1000);
     }
     setDefenseMode(null);
 
@@ -3444,6 +3372,147 @@ export default function App() {
     return () => clearInterval(iv);
   }, [knowledgeUpgrades.manaRegen, MAX_MANA]);
 
+  // ─── DEFENSE POI CLICK → OPEN FORTIFICATION MENU ───
+  const handleDefensePoiClick = useCallback(() => {
+    if (!defensePoi || defensePoi.activated) return;
+    setDefensePoi(prev => prev ? { ...prev, activated: true } : null);
+    setShowFortMenu(true);
+    setFortPlacedCount(0);
+    showMessage("Przygotuj fortyfikacje!", "#cc6020");
+  }, [defensePoi]);
+
+  // ─── FORTIFICATION: Auto-deploy random traps ───
+  const handleAutoPlaceForts = useCallback(() => {
+    const autoTraps = [];
+    for (const trap of DEFENSE_TRAPS) {
+      for (let i = 0; i < trap.maxCount; i++) {
+        if (autoTraps.length >= MAX_PLAYER_TRAPS) break;
+        autoTraps.push({
+          id: Date.now() + Math.random() + i + autoTraps.length,
+          trapType: trap.id,
+          x: 15 + Math.random() * 70,
+          y: 35 + Math.random() * 50,
+          active: true,
+          armed: true,
+          config: trap,
+          ...(trap.hp ? { currentHp: trap.hp } : {}),
+        });
+      }
+      if (autoTraps.length >= MAX_PLAYER_TRAPS) break;
+    }
+    setPlayerTraps(autoTraps);
+    setFortPlacedCount(autoTraps.length);
+    showMessage("Pułapki rozstawione!", "#40c0a0");
+  }, []);
+
+  // ─── FORTIFICATION: Place individual fort ───
+  const handlePlaceFort = useCallback((fortId) => {
+    // For now, random position — manual placement with click-on-map can be added later
+    const fortDef = FORTIFICATION_TREE.find(f => f.id === fortId);
+    if (!fortDef) return;
+    const trap = {
+      id: Date.now() + Math.random(),
+      trapType: fortId,
+      x: 10 + Math.random() * 80,
+      y: 30 + Math.random() * 55,
+      active: true,
+      armed: true,
+      config: fortDef,
+      ...(fortDef.stats?.hp ? { currentHp: fortDef.stats.hp } : {}),
+    };
+    setPlayerTraps(prev => [...prev, trap]);
+    setFortPlacedCount(prev => prev + 1);
+    showMessage(`${fortDef.name} umieszczona!`, "#c08040");
+  }, []);
+
+  // ─── START DEFENSE FROM FORTIFICATION MENU ───
+  const startDefenseFromMenu = useCallback(() => {
+    setShowFortMenu(false);
+    const poi = defensePoi;
+    if (!poi) return;
+    const newRoom = poi.roomNumber;
+    const bossData = getBossForRoom(newRoom);
+    const totalWaves = bossData ? 1 : (newRoom <= 15 ? 3 : newRoom <= 30 ? 4 : 5);
+
+    // Reset caravan HP
+    setCaravanHp(CARAVAN_LEVELS[caravanLevelRef.current].hp);
+
+    setDefenseMode({
+      phase: "setup", currentWave: 1, totalWaves,
+      enemiesRemaining: 0, enemiesSpawned: 0, timer: 5,
+      roomNumber: newRoom, isBossRoom: !!bossData,
+    });
+    setMeteorite(null);
+    setGroundLoot([]);
+    meteorWaveRef.current = null;
+    sfxWaveHorn();
+    setMusicCombatIntensity(0.7);
+
+    // Kill all existing non-friendly walkers (clear the room for defense)
+    setWalkers(prev => prev.filter(w => w.friendly));
+    const wdKeys = Object.keys(walkDataRef.current);
+    for (const k of wdKeys) {
+      if (walkDataRef.current[k] && !walkDataRef.current[k].friendly) {
+        if (physicsRef.current) physicsRef.current.removeNpc(parseInt(k));
+        delete walkDataRef.current[k];
+      }
+    }
+
+    if (bossData) {
+      const roomScale = 1 + Math.min(newRoom / 25, 1.5);
+      const scaledBoss = {
+        ...bossData,
+        hp: Math.round(bossData.hp * roomScale),
+        damage: Math.round(bossData.damage * roomScale),
+        currentHp: Math.round(bossData.hp * roomScale),
+        maxHp: Math.round(bossData.hp * roomScale),
+        phase: 1,
+        manaShieldHp: 0,
+        manaShieldMaxHp: 0,
+        roomScale,
+      };
+      setActiveBoss(scaledBoss);
+      showMessage(`${bossData.name} nadchodzi!`, "#ff2020");
+    } else {
+      setActiveBoss(null);
+      showMessage("Obrona rozpoczęta!", "#ff6020");
+    }
+
+    // Spawn caravan defenses: barricade, dog
+    const cl = CARAVAN_LEVELS[caravanLevelRef.current];
+    if (cl.barricade) {
+      const bId = ++walkerIdCounter;
+      const bHp = cl.barricade.hp;
+      const bNpc = { icon: "wood", name: "Barykada", hp: bHp, resist: null, loot: {}, bodyColor: "#6a4a20", armorColor: "#4a3010", bodyType: "barricade" };
+      setWalkers(prev => [...prev, { id: bId, npcData: bNpc, alive: true, dying: false, hp: bHp, maxHp: bHp, friendly: true, isBarricade: true }]);
+      walkDataRef.current[bId] = {
+        x: 50, y: 75, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
+        minX: 50, maxX: 50, minY: 25, maxY: 90,
+        bouncePhase: 0, alive: true, friendly: true,
+        damage: 0, lungeFrames: 0, lungeOffset: 0,
+        stationary: true, combatStyle: "none", attackCd: 99999,
+      };
+      if (physicsRef.current) physicsRef.current.spawnNpc(bId, 50, bNpc, true);
+    }
+    if (cl.dog) {
+      const existingDog = walkersRef.current.find(w => w.isDog && w.alive);
+      if (!existingDog) {
+        const dId = ++walkerIdCounter;
+        const dNpc = { icon: "dog", name: "Ogar bojowy", hp: 80, resist: null, loot: {}, bodyColor: "#8a6030", armorColor: "#5a4020", bodyType: "quadruped" };
+        setWalkers(prev => [...prev, { id: dId, npcData: dNpc, alive: true, dying: false, hp: 80, maxHp: 80, friendly: true, isDog: true }]);
+        walkDataRef.current[dId] = {
+          x: 45, y: 85, dir: 1, yDir: Math.random() < 0.5 ? 1 : -1,
+          speed: 0.06, ySpeed: 0.01,
+          minX: 30, maxX: 70, minY: 75, maxY: 92,
+          bouncePhase: 0, alive: true, friendly: true,
+          damage: 10, lungeFrames: 0, lungeOffset: 0,
+          combatStyle: "melee", attackCd: 1800,
+        };
+        if (physicsRef.current) physicsRef.current.spawnNpc(dId, 12, dNpc, true);
+      }
+    }
+  }, [defensePoi]);
+
   // ─── DEFENSE WAVE SYSTEM ───
   // Phase timer: countdown during setup and inter_wave
   useEffect(() => {
@@ -3619,6 +3688,44 @@ export default function App() {
       }, delay);
       timers.push(tid);
     }
+
+    // Last wave: spawn a mini-boss as the wave captain
+    const isLastWave = dm.currentWave >= dm.totalWaves;
+    if (isLastWave && !dm.isBossRoom) {
+      const bossDelay = (isElite ? 1500 : 0) + enemyCount * 1000 + 500;
+      const bossTid = setTimeout(() => {
+        const bossNpc = pickNpc(biomeId);
+        if (!bossNpc) return;
+        // Mini-boss: 3x HP, named "Kapitan" (Captain), bigger bodyType
+        bossNpc.hp = Math.round(bossNpc.hp * hpMult * 3);
+        bossNpc.name = `Kapitan ${bossNpc.name}`;
+        bossNpc.rarity = "rare";
+        const wid = ++walkerIdCounter;
+        const spawnX = 40 + Math.random() * 20;
+        const spawnY = 10;
+        setWalkers(prev => [...prev, {
+          id: wid, npcData: bossNpc, alive: true, dying: false,
+          hp: bossNpc.hp, maxHp: bossNpc.hp, isElite: true,
+          eliteMod: { name: "Kapitan", color: "#cc4040", hpMult: 1, damageMult: 1.3, attackSpeedMult: 0.8 },
+        }]);
+        walkDataRef.current[wid] = {
+          x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
+          yDir: 1, speed: 0.02 * enemySpdMult, ySpeed: 0.015 * enemySpdMult,
+          minX: 5, maxX: 98, minY: 25, maxY: 92,
+          bouncePhase: 0, alive: true, friendly: false,
+          damage: Math.ceil(bossNpc.hp / 5 * dmgMult),
+          lungeFrames: 0, lungeOffset: 0,
+          ability: bossNpc.ability || null,
+          attackCd: Math.round(2500 * atkCdMult),
+          isElite: true,
+        };
+        if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, bossNpc, false, spawnY);
+        setDefenseMode(prev => prev ? { ...prev, enemiesRemaining: prev.enemiesRemaining + 1, enemiesSpawned: prev.enemiesSpawned + 1 } : null);
+        showMessage("Kapitan wrogów nadchodzi!", "#cc4040");
+      }, bossDelay);
+      timers.push(bossTid);
+    }
+
     return () => timers.forEach(clearTimeout);
   }, [defenseMode?.phase, defenseMode?.currentWave, biome]);
 
@@ -3863,6 +3970,9 @@ export default function App() {
     setActiveBoss(null);
     setPlayerTraps([]);
     setPlacingTrap(null);
+    setDefensePoi(null);
+    setShowFortMenu(false);
+    setFortPlacedCount(0);
     // Clean up remaining enemies + barricade (not dog — dog persists)
     for (const [id, w] of Object.entries(walkDataRef.current)) {
       if (!w.friendly || w.stationary) {
@@ -5400,7 +5510,7 @@ export default function App() {
   }, [mana, cooldowns, showMessage, processSkillshotHit, spawnDmgPopup]);
 
   // ─── PANORAMIC SCROLLING: Drag to look around when no action selected ───
-  const canPanScroll = !skillshotMode && !placingTrap && (!defenseMode || defenseMode.phase === "complete" || defenseMode.phase === "setup");
+  const canPanScroll = !skillshotMode && !placingTrap && !showFortMenu && (!defenseMode || defenseMode.phase === "complete" || defenseMode.phase === "setup");
 
   // Convenience: wrap percentage position using current pan offset
   const wrapPctToScreen = useCallback(
@@ -7053,6 +7163,21 @@ export default function App() {
         </div>
       )}
 
+      {/* Fortification Menu — shown after clicking defense POI */}
+      {showFortMenu && defensePoi && (
+        <FortificationMenu
+          unlockedFortifications={unlockedFortifications}
+          onPlace={handlePlaceFort}
+          onAutoPlace={handleAutoPlaceForts}
+          onReady={startDefenseFromMenu}
+          placedCount={fortPlacedCount}
+          maxCount={FORTIFICATION_PHASE.maxFortifications}
+          roomNumber={defensePoi.roomNumber}
+          isBossRoom={!!getBossForRoom(defensePoi.roomNumber)}
+          bossName={getBossForRoom(defensePoi.roomNumber)?.name}
+          defensePoi={defensePoi}
+        />
+      )}
       <WaveOverlay defense={defenseMode} onDismiss={dismissDefense} onRetreat={retreatFromDefense}
         caravanHp={caravanHp} caravanMaxHp={CARAVAN_LEVELS[caravanLevel].hp}
         relicChoices={relicChoices} boss={activeBoss}
@@ -8350,6 +8475,50 @@ export default function App() {
           </div>
         );
       })}
+
+      {/* ─── DEFENSE POI (bandit camp / encounter trigger) ─── */}
+      {defensePoi && !defensePoi.activated && !defenseMode && (
+        (() => {
+          const screenX = wrapPctToScreen(defensePoi.x);
+          if (screenX === null) return null;
+          return (
+            <div
+              key="defense-poi"
+              onClick={handleDefensePoiClick}
+              style={{
+                position: "absolute", left: `${screenX}%`, bottom: `${defensePoi.y}%`,
+                transform: "translateX(-50%)", zIndex: 16, cursor: "pointer",
+                userSelect: "none", textAlign: "center",
+                animation: "gemPulse 2s ease-in-out infinite",
+              }}
+            >
+              <div style={{
+                width: 56, height: 56, borderRadius: "50%",
+                background: "radial-gradient(circle, rgba(200,60,20,0.6) 0%, rgba(100,30,10,0.3) 60%, transparent 100%)",
+                border: "2px solid #cc6020",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: "0 0 20px rgba(200,80,20,0.5), 0 0 40px rgba(200,80,20,0.2)",
+              }}>
+                <img src={getIconUrl(defensePoi.icon, 28)} width={28} height={28} alt="" />
+              </div>
+              <div style={{
+                fontSize: 10, color: "#ff8040", fontWeight: "bold", marginTop: 2,
+                textShadow: "1px 1px 0 #000, -1px -1px 0 #000, 0 0 8px rgba(200,80,20,0.5)",
+                whiteSpace: "nowrap",
+              }}>
+                {defensePoi.name}
+              </div>
+              <div style={{
+                fontSize: 8, color: "#cc8060",
+                textShadow: "1px 1px 0 #000",
+                maxWidth: 120,
+              }}>
+                Kliknij aby zbadać
+              </div>
+            </div>
+          );
+        })()
+      )}
 
       {/* ─── WALKING NPCs (DOM hitboxes – visual rendering on physics canvas) ─── */}
       {walkers.map(w => {
