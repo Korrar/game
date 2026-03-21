@@ -8435,19 +8435,6 @@ export default function App() {
         );
       })()}
 
-      {/* ─── DEBUG: game state diagnostics ─── */}
-      {biome && (
-        <div style={{
-          position: "absolute", bottom: 4, left: 4, zIndex: 200,
-          background: "rgba(0,0,0,0.85)", color: "#0f0", fontSize: 11,
-          fontFamily: "monospace", padding: "4px 8px", borderRadius: 3,
-          pointerEvents: "none", border: "1px solid #0f0",
-          lineHeight: 1.4,
-        }}>
-          <div>OBS:{obstacles.length} NPC:{walkers.filter(w => w.alive).length}({walkers.filter(w => w.alive && !w.friendly).length}E) R:{room}</div>
-          <div>DEF:{defenseMode ? `${defenseMode.phase} W${defenseMode.currentWave}/${defenseMode.totalWaves}` : "none"}</div>
-        </div>
-      )}
 
       {/* ─── DESTRUCTIBLE OBSTACLES ─── */}
       {obstacles.map(obs => {
