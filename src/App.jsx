@@ -8417,27 +8417,6 @@ export default function App() {
                 color: "#ff4040", fontWeight: "bold", pointerEvents: "none",
               }}><Icon name="skull" size={14} /></div>
             )}
-            {/* NPC icon + name label — always visible DOM representation */}
-            {w.alive && !w.dying && (
-              <div style={{
-                display: "flex", flexDirection: "column", alignItems: "center",
-                pointerEvents: "none", marginBottom: 2,
-              }}>
-                <div style={{
-                  width: 40, height: 40, borderRadius: "50%",
-                  background: isFriendly ? "rgba(40,120,40,0.7)" : "rgba(140,30,30,0.7)",
-                  border: `2px solid ${isFriendly ? "#5aba5a" : "#cc5050"}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  boxShadow: `0 0 10px ${isFriendly ? "rgba(40,120,40,0.5)" : "rgba(180,40,40,0.5)"}, 0 0 20px ${isFriendly ? "rgba(40,120,40,0.2)" : "rgba(180,40,40,0.2)"}`,
-                }}>
-                  <Icon name={w.npcData?.icon || "skull"} size={20} />
-                </div>
-                <div style={{
-                  fontSize: 9, fontWeight: "bold", color: isFriendly ? "#8c8" : "#e88",
-                  textShadow: "1px 1px 0 #000, 0 0 4px rgba(0,0,0,0.8)", whiteSpace: "nowrap", marginTop: 1,
-                }}>{w.npcData?.name || "Wróg"}</div>
-              </div>
-            )}
             {/* HP Bar — skip for boss (uses BossHpBar at top) */}
             {w.alive && !w.dying && !isBossWalker && (
               <div style={{
