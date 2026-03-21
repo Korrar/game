@@ -1470,8 +1470,8 @@ export default function App() {
           } // end !stationary else
         } else {
           // Enemies are passive until the player attacks first
-          if (!combatEngagedRef.current) {
-            // Idle patrol only
+          if (!combatEngagedRef.current && defenseModeRef.current?.phase !== "wave_active") {
+            // Idle patrol only — enemies passive until player attacks (skip in defense mode)
             w.x += w.speed * w.dir;
             if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
             if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
@@ -3452,7 +3452,7 @@ export default function App() {
       setDefenseMode(prev => {
         if (!prev) return null;
         const t = prev.timer - 1;
-        if (t <= 0) { console.log("[DEFENSE] Phase → wave_active"); return { ...prev, phase: "wave_active", timer: 0 }; }
+        if (t <= 0) { console.log("[DEFENSE] Phase → wave_active"); combatEngagedRef.current = true; return { ...prev, phase: "wave_active", timer: 0 }; }
         return { ...prev, timer: t };
       });
     }, 1000);
