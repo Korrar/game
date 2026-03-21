@@ -40,7 +40,7 @@ import ItemSlot from "./components/ItemSlot";
 import ItemDetail from "./components/ItemDetail";
 import LootPopup from "./components/LootPopup";
 import SpellBar from "./components/SpellBar";
-import Caravan from "./components/Caravan";
+// Caravan bar removed – HP & Travel icons integrated into SpellBar
 import EventModal from "./components/EventModal";
 import WaveOverlay, { PowerSpikeWarning } from "./components/WaveOverlay";
 import WeatherOverlay from "./components/WeatherOverlay";
@@ -1764,7 +1764,12 @@ export default function App() {
               if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 3000) {
                 atkCds[cdKey] = dateNow;
                 const eDmg = w.damage || 5;
-                if (enemyAttackFriendlyRef.current) enemyAttackFriendlyRef.current(idNum, parseInt(friendId), eDmg);
+                if (physicsRef.current) physicsRef.current.triggerAttackAnim(idNum);
+                if (targetIsCaravan) {
+                  if (attackCaravanRef.current) attackCaravanRef.current(idNum, eDmg);
+                } else {
+                  if (enemyAttackFriendlyRef.current) enemyAttackFriendlyRef.current(idNum, parseInt(friendId), eDmg);
+                }
                 w.combatState = Math.random() < 0.6 ? "retreat" : "circle";
                 w.combatTimer = 25 + Math.floor(Math.random() * 35);
                 w.strafeDir = Math.random() < 0.5 ? 1 : -1;
@@ -7540,7 +7545,7 @@ export default function App() {
       <LevelUpPicker choices={levelUpChoices} onSelect={selectPerk} playerLevel={playerLevel} isMobile={isMobile} />
       <WeatherOverlay weather={weather} />
 
-      {/* Caravan moved to bottom bar above SpellBar */}
+      {/* Caravan HP & Travel integrated into SpellBar icons */}
 
       {showChest && (() => {
         const cx = wrapPctToScreen(chestPos?.x ?? 50);
@@ -8852,28 +8857,13 @@ export default function App() {
 
       </div>{/* end game container */}
 
-      {/* Bottom bar: Caravan + Spell Bar – fixed to viewport bottom, OUTSIDE game container */}
+      {/* Bottom bar: Spell Bar with integrated HP & Travel icons – fixed to viewport bottom, OUTSIDE game container */}
       <div style={{
         position: "fixed", bottom: 0, left: isMobile ? 0 : "50%",
         right: isMobile ? 0 : "auto",
         transform: isMobile ? "none" : "translateX(-50%)",
         zIndex: 9000, display: "flex", flexDirection: "column",
       }}>
-        <Caravan
-          initiative={initiative}
-          maxInitiative={MAX_INITIATIVE}
-          cost={CARAVAN_COST}
-          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !activeBoss && !walkers.some(w => !w.friendly && w.alive && !w.dying) && !riverSegment && !worldMap && !riverMapOpen}
-          onClick={travelCaravan}
-          hp={caravanHp}
-          maxHp={CARAVAN_LEVELS[caravanLevel].hp}
-          showHp={room > 0}
-          caravanName={CARAVAN_LEVELS[caravanLevel].name}
-          caravanLevel={caravanLevel}
-          thornArmor={CARAVAN_LEVELS[caravanLevel].thornArmor}
-          warDrums={CARAVAN_LEVELS[caravanLevel].warDrums}
-          isMobile={isMobile}
-        />
         <SpellBar
           mana={mana}
           ammo={ammo}
@@ -8887,6 +8877,14 @@ export default function App() {
           gameH={GAME_H}
           spellUpgrades={spellUpgrades}
           equippedSaber={getEquippedSaberData()}
+          caravanHp={caravanHp}
+          caravanMaxHp={CARAVAN_LEVELS[caravanLevel].hp}
+          showCaravanHp={room > 0}
+          initiative={initiative}
+          maxInitiative={MAX_INITIATIVE}
+          caravanCost={CARAVAN_COST}
+          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !activeBoss && !walkers.some(w => !w.friendly && w.alive && !w.dying) && !riverSegment && !worldMap && !riverMapOpen}
+          onTravel={travelCaravan}
         />
       </div>
 
