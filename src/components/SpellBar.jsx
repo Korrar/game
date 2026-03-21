@@ -70,50 +70,42 @@ function HpIcon({ hp, maxHp, showHp, isMobile }) {
   );
 }
 
-// Compact Travel (RUSZAJ) icon with initiative ring
+// Travel button with compass icon and prominent styling
 function TravelIcon({ initiative, maxInitiative, cost, canTravel, onClick, isMobile }) {
   const m = isMobile;
-  const size = m ? 44 : 52;
   const pct = Math.min(1, initiative / maxInitiative);
   const costPct = cost / maxInitiative;
   const ready = pct >= costPct;
-  const r = (size - 6) / 2;
-  const circ = 2 * Math.PI * r;
-  const offset = circ * (1 - pct);
 
   return (
     <div onClick={onClick} style={{
-      position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      width: size, minHeight: m ? size : undefined,
-      padding: m ? "2px 0" : "4px 0",
+      position: "relative", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center",
+      gap: m ? 4 : 6,
+      height: m ? 40 : 44,
+      padding: m ? "0 10px" : "0 14px",
+      borderRadius: 8,
       cursor: canTravel ? "pointer" : "not-allowed",
-      opacity: canTravel ? 1 : 0.6,
+      opacity: canTravel ? 1 : 0.5,
       flexShrink: 0,
+      background: canTravel
+        ? "linear-gradient(180deg, #d4a030 0%, #8b6914 100%)"
+        : "linear-gradient(180deg, #3a3a3a 0%, #222 100%)",
+      border: canTravel ? "2px solid #ffd700" : "2px solid #555",
+      boxShadow: canTravel
+        ? "0 0 12px rgba(255,215,0,0.5), 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.3)"
+        : "0 2px 4px rgba(0,0,0,0.4)",
+      animation: canTravel ? "doorGlow 2s ease-in-out infinite" : "none",
       WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
     }}>
-      <svg width={size} height={size} style={{ position: "absolute", top: m ? 0 : 2, left: 0 }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={3} />
-        {/* Cost threshold marker */}
-        {costPct < 1 && (
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={3}
-            strokeDasharray={`${circ * costPct} ${circ * (1 - costPct)}`}
-            strokeLinecap="butt" transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-        )}
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none"
-          stroke={ready ? "#d4a030" : "#604820"} strokeWidth={3}
-          strokeDasharray={circ} strokeDashoffset={offset}
-          strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          style={{ transition: "stroke-dashoffset 0.3s, stroke 0.3s", filter: ready ? "drop-shadow(0 0 4px rgba(212,160,48,0.6))" : "none" }} />
-      </svg>
-      <GameIcon name="anchor" size={m ? 16 : 20} />
+      <GameIcon name="compass" size={m ? 16 : 20} />
       <div style={{
-        fontSize: m ? 8 : 9, fontWeight: "bold",
-        color: canTravel ? "#ffd050" : "#666",
-        textShadow: canTravel ? "0 0 6px rgba(212,160,48,0.4)" : "none",
-        animation: canTravel ? "doorGlow 2s ease-in-out infinite" : "none",
-        whiteSpace: "nowrap", lineHeight: 1, marginTop: 1,
+        fontSize: m ? 11 : 13, fontWeight: "bold", letterSpacing: 1,
+        color: canTravel ? "#fff" : "#888",
+        textShadow: canTravel ? "0 1px 2px rgba(0,0,0,0.6)" : "none",
+        whiteSpace: "nowrap", lineHeight: 1,
+        textTransform: "uppercase",
       }}>
-        {canTravel ? "GO" : Math.ceil(cost - initiative)}
+        {canTravel ? "Travel" : Math.ceil(cost - initiative)}
       </div>
     </div>
   );
