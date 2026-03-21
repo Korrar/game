@@ -66,7 +66,7 @@ export const FORTIFICATION_TREE = [
     stats: { dps: 15, duration: 4000, splashRadius: 7, element: "shadow", triggerRadius: 4, singleUse: true },
     type: "ground_trap",
     maxCount: 3,
-    requires: "spike_pit",
+    requires: "wooden_wall",
   },
   {
     id: "ice_totem",
@@ -146,7 +146,7 @@ export const FORTIFICATION_TREE = [
     stats: { rootDuration: 3000, damageAmp: 0.20, triggerRadius: 6, singleUse: true },
     type: "ground_trap",
     maxCount: 3,
-    requires: "spike_pit",
+    requires: "wooden_wall",
   },
   {
     id: "coral_barrier",
@@ -172,7 +172,7 @@ export const FORTIFICATION_TREE = [
     stats: { damage: 20, knockback: 15, triggerRadius: 5, cooldown: 6000, singleUse: false, element: "ice" },
     type: "ground_trap",
     maxCount: 2,
-    requires: "spike_pit",
+    requires: "wooden_wall",
   },
 
   // Tier 3 — Morskie fortyfikacje zaawansowane

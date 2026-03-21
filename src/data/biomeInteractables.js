@@ -360,6 +360,29 @@ export const BIOME_INTERACTABLES = {
   ],
 };
 
+// ─── Defense POI definitions per biome ───
+// These spawn in rooms eligible for defense (every 5th room).
+// Player clicks them to start the defense encounter.
+export const DEFENSE_POIS = {
+  jungle:   { id: "jungle_camp",   name: "Obóz Bandytów",       icon: "skull",   desc: "Obóz pełen łupieżców — przygotuj obronę karawany!" },
+  island:   { id: "island_cove",   name: "Zatoka Piratów",      icon: "anchor",  desc: "Piraci szykują atak z zatoki — chroń statek!" },
+  desert:   { id: "desert_camp",   name: "Kryjówka Rabusiów",   icon: "skull",   desc: "Pustynni bandyci czają się za wydmami!" },
+  winter:   { id: "winter_den",    name: "Jaskinia Bestii",     icon: "spider",  desc: "Mroźne bestie gromadzą się w jaskini!" },
+  city:     { id: "city_ambush",   name: "Punkt Zasadzki",      icon: "swords",  desc: "Złodzieje planują atak na konwój!" },
+  volcano:  { id: "volcano_nest",  name: "Gniazdo Ognia",       icon: "fire",    desc: "Ogniste stworzenia wyruszają z krateru!" },
+  summer:   { id: "summer_camp",   name: "Obóz Zbójców",        icon: "skull",   desc: "Leśni rozbójnicy blokują szlak!" },
+  autumn:   { id: "autumn_hollow", name: "Mroczna Kotlina",     icon: "moon",    desc: "Cienie zbierają się w opuszczonej kotlinie!" },
+  spring:   { id: "spring_grove",  name: "Skalany Gaj",         icon: "poison",  desc: "Zatruty gaj pełen wrogich stworzeń!" },
+  mushroom: { id: "shroom_ring",   name: "Pierścień Grzybów",   icon: "mushroom",desc: "Toksyczne stworzenia wylęgają z kręgu!" },
+  swamp:    { id: "swamp_mound",   name: "Bagienne Legowisko",  icon: "bug",     desc: "Bagienne bestie bronią swojego terytorium!" },
+  sunset_beach:  { id: "beach_wreck",  name: "Wrak Statku",     icon: "anchor",  desc: "Duchy marynarzy strzegą wraku!" },
+  bamboo_falls:  { id: "bamboo_fort",  name: "Bambusowy Fort",   icon: "wood",    desc: "Wrogowie okopali się w bambusowej twierdzy!" },
+  blue_lagoon:   { id: "lagoon_reef",  name: "Rafa Morska",      icon: "water",   desc: "Morskie potwory wychodzą z rafy!" },
+  olympus:       { id: "olympus_gate",  name: "Brama Olimpu",    icon: "lightning",desc: "Strażnicy blokują przejście!" },
+  underworld:    { id: "under_portal", name: "Portal Otchłani",  icon: "skull",   desc: "Z portalu wyłaniają się nieumarli!" },
+  meteor:        { id: "meteor_crater", name: "Krater Uderzenia", icon: "fire",   desc: "Zmutowane stworzenia bronią krateru!" },
+};
+
 /**
  * Roll which interactable objects spawn in a room for the given biome.
  * @param {string} biomeId
