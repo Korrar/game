@@ -14,6 +14,7 @@ if (typeof document !== "undefined" && !document.getElementById(ACTIVE_GLOW_STYL
       50% { box-shadow: 0 0 20px var(--glow-color), 0 0 36px var(--glow-color-dim), inset 0 0 12px var(--glow-color-dim); }
       100% { box-shadow: 0 0 8px var(--glow-color), inset 0 0 6px var(--glow-color-dim); }
     }
+    @keyframes caravanDmgFlash{0%,100%{filter:brightness(1)}50%{filter:brightness(1.4) sepia(0.5) hue-rotate(-30deg)}}
   `;
   document.head.appendChild(style);
 }
@@ -29,6 +30,93 @@ function getVisibleSpells(ammo, learnedIds) {
     if (s.ammoCost && ammo && (ammo[s.ammoCost.type] || 0) > 0) return true;
     return false;
   });
+}
+
+// Compact HP icon with circular progress ring
+function HpIcon({ hp, maxHp, showHp, isMobile }) {
+  if (!showHp) return null;
+  const m = isMobile;
+  const size = m ? 44 : 52;
+  const hpPct = maxHp > 0 ? hp / maxHp : 1;
+  const hpColor = hpPct > 0.5 ? "#40e060" : hpPct > 0.25 ? "#e0c040" : "#e04040";
+  const lowHp = hpPct < 0.3;
+  const r = (size - 6) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - hpPct);
+
+  return (
+    <div style={{
+      position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      width: size, minHeight: m ? size : undefined,
+      padding: m ? "2px 0" : "4px 0",
+      animation: lowHp ? "caravanDmgFlash 0.6s ease-in-out infinite" : "none",
+      flexShrink: 0,
+    }}>
+      <svg width={size} height={size} style={{ position: "absolute", top: m ? 0 : 2, left: 0 }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={3} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={hpColor} strokeWidth={3}
+          strokeDasharray={circ} strokeDashoffset={offset}
+          strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          style={{ transition: "stroke-dashoffset 0.3s, stroke 0.3s", filter: `drop-shadow(0 0 3px ${hpColor}66)` }} />
+      </svg>
+      <GameIcon name="shield" size={m ? 16 : 20} />
+      <div style={{
+        fontSize: m ? 8 : 9, fontWeight: "bold", color: hpColor,
+        textShadow: "1px 1px 0 #000", whiteSpace: "nowrap", lineHeight: 1, marginTop: 1,
+      }}>
+        {hp}/{maxHp}
+      </div>
+    </div>
+  );
+}
+
+// Compact Travel (RUSZAJ) icon with initiative ring
+function TravelIcon({ initiative, maxInitiative, cost, canTravel, onClick, isMobile }) {
+  const m = isMobile;
+  const size = m ? 44 : 52;
+  const pct = Math.min(1, initiative / maxInitiative);
+  const costPct = cost / maxInitiative;
+  const ready = pct >= costPct;
+  const r = (size - 6) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - pct);
+
+  return (
+    <div onClick={onClick} style={{
+      position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      width: size, minHeight: m ? size : undefined,
+      padding: m ? "2px 0" : "4px 0",
+      cursor: canTravel ? "pointer" : "not-allowed",
+      opacity: canTravel ? 1 : 0.6,
+      flexShrink: 0,
+      WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
+    }}>
+      <svg width={size} height={size} style={{ position: "absolute", top: m ? 0 : 2, left: 0 }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={3} />
+        {/* Cost threshold marker */}
+        {costPct < 1 && (
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={3}
+            strokeDasharray={`${circ * costPct} ${circ * (1 - costPct)}`}
+            strokeLinecap="butt" transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+        )}
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={ready ? "#d4a030" : "#604820"} strokeWidth={3}
+          strokeDasharray={circ} strokeDashoffset={offset}
+          strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          style={{ transition: "stroke-dashoffset 0.3s, stroke 0.3s", filter: ready ? "drop-shadow(0 0 4px rgba(212,160,48,0.6))" : "none" }} />
+      </svg>
+      <GameIcon name="anchor" size={m ? 16 : 20} />
+      <div style={{
+        fontSize: m ? 8 : 9, fontWeight: "bold",
+        color: canTravel ? "#ffd050" : "#666",
+        textShadow: canTravel ? "0 0 6px rgba(212,160,48,0.4)" : "none",
+        animation: canTravel ? "doorGlow 2s ease-in-out infinite" : "none",
+        whiteSpace: "nowrap", lineHeight: 1, marginTop: 1,
+      }}>
+        {canTravel ? "GO" : Math.ceil(cost - initiative)}
+      </div>
+    </div>
+  );
 }
 
 function SpellSlot({ spell, isSelected, canCast, onCooldown, cdPct, cdEnd, now, ammo, onSelect, onDragStart, isMobile, hotkey }) {
@@ -92,7 +180,11 @@ function SpellSlot({ spell, isSelected, canCast, onCooldown, cdPct, cdEnd, now, 
   );
 }
 
-export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart, isMobile, gameW, gameH, equippedSaber }) {
+export default function SpellBar({
+  mana, ammo, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart, isMobile, gameW, gameH, equippedSaber,
+  // Caravan props
+  caravanHp, caravanMaxHp, showCaravanHp, initiative, maxInitiative, caravanCost, canTravel, onTravel,
+}) {
   const [, tick] = useState(0);
   const [inneOpen, setInneOpen] = useState(false);
   const m = isMobile;
@@ -175,8 +267,10 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
         boxShadow: "inset 0 1px 0 rgba(212,160,48,0.05)",
         position: "relative",
       }}>
+        {/* HP Icon - left */}
+        <HpIcon hp={caravanHp} maxHp={caravanMaxHp} showHp={showCaravanHp} isMobile={m} />
         {/* Mana */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 5px", borderRight: "1px solid #2a1808" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 5px", borderRight: "1px solid #2a1808", borderLeft: showCaravanHp ? "1px solid #2a1808" : "none" }}>
           <GameIcon name="gunpowder" size={18} />
           <div style={{ fontWeight: "bold", fontSize: 11, color: "#c0a060", textShadow: "0 0 6px rgba(192,160,96,0.3)" }}>{Math.floor(mana)}</div>
         </div>
@@ -196,6 +290,8 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
             <div style={{ fontSize: 8, color: inneOpen ? "#d4a030" : "#8a7040", fontWeight: "bold" }}>Inne</div>
           </div>
         )}
+        {/* Travel Icon - right */}
+        <TravelIcon initiative={initiative} maxInitiative={maxInitiative} cost={caravanCost} canTravel={canTravel} onClick={onTravel} isMobile={m} />
         {/* Inne dropdown (mobile = upward) */}
         {inneOpen && secondarySpells.length > 0 && (
           <div style={{
@@ -225,6 +321,11 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
     }}>
       {/* Top gold line */}
       <div style={{ position: "absolute", top: 0, left: 10, right: 10, height: 1, background: "linear-gradient(90deg, transparent, rgba(212,160,48,0.4), transparent)" }} />
+
+      {/* HP Icon - left */}
+      <HpIcon hp={caravanHp} maxHp={caravanMaxHp} showHp={showCaravanHp} isMobile={m} />
+
+      {showCaravanHp && <div style={{ width: 1, background: "#2a1808", margin: "4px 6px" }} />}
 
       {/* Mana display */}
       <div style={{
@@ -260,6 +361,12 @@ export default function SpellBar({ mana, ammo, selectedSpell, cooldowns, learned
           <div style={{ fontSize: 10, color: inneOpen ? "#d4a030" : "#8a7040", fontWeight: "bold" }}>Inne ({secondarySpells.length})</div>
         </div>
       )}
+
+      {/* Divider before travel */}
+      <div style={{ width: 1, background: "#2a1808", margin: "4px 6px" }} />
+
+      {/* Travel Icon - right */}
+      <TravelIcon initiative={initiative} maxInitiative={maxInitiative} cost={caravanCost} canTravel={canTravel} onClick={onTravel} isMobile={m} />
 
       {/* Inne dropdown (desktop = upward popup) */}
       {inneOpen && secondarySpells.length > 0 && (
