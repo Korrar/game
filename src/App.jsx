@@ -6992,28 +6992,6 @@ export default function App() {
       <canvas ref={animCanvasRef} width={GAME_W} height={GAME_H} style={{ position: "absolute", top: 0, left: 0, width: GAME_W, height: GAME_H, pointerEvents: "none", zIndex: 2 }} />
       {/* PixiJS canvas is dynamically inserted by PixiRenderer into gameContainerRef */}
 
-      {/* Caravan HP bar — always visible during combat */}
-      {room > 0 && (
-        <div style={{
-          position: "absolute", bottom: isMobile ? 110 : 92, left: "50%", transform: "translateX(-50%)",
-          zIndex: 25, display: "flex", alignItems: "center", gap: 6,
-          background: "rgba(14,8,6,0.88)", border: "2px solid #8a6a30",
-          borderRadius: 6, padding: "3px 12px", boxShadow: "0 0 8px rgba(0,0,0,0.6)",
-        }}>
-          <Icon name="convoy" size={14} />
-          <div style={{ width: 80, height: 8, background: "rgba(0,0,0,0.6)", borderRadius: 4, overflow: "hidden" }}>
-            <div style={{
-              width: `${CARAVAN_LEVELS[caravanLevel].hp > 0 ? (caravanHp / CARAVAN_LEVELS[caravanLevel].hp) * 100 : 100}%`,
-              height: "100%", borderRadius: 4, transition: "width 0.3s, background 0.3s",
-              background: caravanHp / CARAVAN_LEVELS[caravanLevel].hp > 0.5 ? "#40e060" : caravanHp / CARAVAN_LEVELS[caravanLevel].hp > 0.25 ? "#e0c040" : "#e04040",
-            }} />
-          </div>
-          <span style={{ color: "#ccc", fontSize: 10, fontWeight: "bold", fontFamily: "monospace", textShadow: "1px 1px 0 #000" }}>
-            {caravanHp}/{CARAVAN_LEVELS[caravanLevel].hp}
-          </span>
-        </div>
-      )}
-
       {/* Panoramic scroll indicator */}
       {canPanScroll && biome && (
         <div style={{ position: "absolute", bottom: isMobile ? 90 : 72, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 8, pointerEvents: "none", opacity: panOffset === 0 ? 0.6 : 0.35, transition: "opacity 0.3s" }}>
@@ -7887,7 +7865,7 @@ export default function App() {
           <div
             onClick={() => togglePanel("shop")}
             style={{
-              position: "absolute", left: "20%", bottom: "10%", zIndex: 14,
+              position: "absolute", left: `${wrapPctToScreen(20) ?? 20}%`, bottom: "10%", zIndex: 14,
               transform: "translateX(-50%)", userSelect: "none", cursor: "pointer",
             }}
           >
@@ -7941,7 +7919,7 @@ export default function App() {
           <div
             onClick={() => togglePanel("hideout")}
             style={{
-              position: "absolute", left: "78%", bottom: "10%", zIndex: 14,
+              position: "absolute", left: `${wrapPctToScreen(78) ?? 78}%`, bottom: "10%", zIndex: 14,
               transform: "translateX(-50%)", userSelect: "none", cursor: "pointer",
             }}
           >
@@ -8733,7 +8711,7 @@ export default function App() {
           onClick={travelCaravan}
           hp={caravanHp}
           maxHp={CARAVAN_LEVELS[caravanLevel].hp}
-          showHp={caravanHp < CARAVAN_LEVELS[caravanLevel].hp || (!!defenseMode && defenseMode.phase !== "complete")}
+          showHp={room > 0}
           caravanName={CARAVAN_LEVELS[caravanLevel].name}
           caravanLevel={caravanLevel}
           thornArmor={CARAVAN_LEVELS[caravanLevel].thornArmor}
