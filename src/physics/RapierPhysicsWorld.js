@@ -11,6 +11,8 @@ import {
 import {
   getWalkingOffsets, getQuadrupedOffsets, getFloatingOffsets,
   getScorpionOffsets, getSpiderOffsets, getFrogOffsets, getSerpentOffsets,
+  getLizardOffsets, getCrabOffsets, getBirdOffsets, getTentacleOffsets,
+  getPrimateOffsets, getFishOffsets,
 } from "./bodies/animOffsets.js";
 import { screenPxToWorld } from "../utils/panoramaWrap.js";
 import {
@@ -150,6 +152,71 @@ function _buildLimbs(RAPIER, world, bt, px, groundY) {
       addBox("crustB", px, cy + 14, 13, 4);
       break;
     }
+    // ─── NEW BODY TYPES ───
+    case "lizard": {
+      addBall("head", px + 16, cy - 2, 8);
+      addBox("torso", px, cy, 13, 4);
+      addBox("fl", px + 8, cy + 8, 2, 5);
+      addBox("fr", px + 4, cy + 8, 2, 5);
+      addBox("bl", px - 4, cy + 8, 2, 5);
+      addBox("br", px - 8, cy + 8, 2, 5);
+      addBox("tail", px - 18, cy + 2, 2, 7);
+      addBox("jaw", px + 22, cy + 2, 5, 1.5);
+      break;
+    }
+    case "crab": {
+      addBall("head", px, cy - 8, 4);
+      addBox("torso", px, cy, 15, 6);
+      addBox("l1", px + 6, cy + 10, 1.5, 5);
+      addBox("l2", px, cy + 10, 1.5, 5);
+      addBox("l3", px - 6, cy + 10, 1.5, 5);
+      addBox("r1", px + 6, cy + 10, 1.5, 5);
+      addBox("r2", px, cy + 10, 1.5, 5);
+      addBox("r3", px - 6, cy + 10, 1.5, 5);
+      addBox("lPincer", px + 18, cy - 6, 3, 5);
+      addBox("rPincer", px - 18, cy - 6, 3, 5);
+      break;
+    }
+    case "bird": {
+      addBall("head", px, cy - 16, 7);
+      addBox("torso", px, cy, 6, 8);
+      addBox("lWing", px - 14, cy - 4, 3, 10);
+      addBox("rWing", px + 14, cy - 4, 3, 10);
+      addBox("tail", px, cy + 12, 3, 5);
+      addBox("lClaw", px - 4, cy + 14, 2, 4);
+      addBox("rClaw", px + 4, cy + 14, 2, 4);
+      break;
+    }
+    case "tentacle": {
+      addBall("head", px, cy - 8, 12);
+      addBox("torso", px, cy + 6, 7, 7);
+      addBox("t1", px - 10, cy + 16, 2, 6);
+      addBox("t2", px - 4, cy + 16, 2, 6);
+      addBox("t3", px + 4, cy + 16, 2, 6);
+      addBox("t4", px + 10, cy + 16, 2, 6);
+      addBox("t5", px - 7, cy + 18, 1.5, 5);
+      addBox("t6", px + 7, cy + 18, 1.5, 5);
+      break;
+    }
+    case "primate": {
+      addBall("head", px, cy - 18, 8);
+      addBox("torso", px, cy, 5, 10);
+      addBox("lArm", px - 10, cy + 2, 2, 10);
+      addBox("rArm", px + 10, cy + 2, 2, 10);
+      addBox("lLeg", px - 4, cy + 18, 2.5, 6);
+      addBox("rLeg", px + 4, cy + 18, 2.5, 6);
+      addBox("tail", px - 12, cy - 4, 1.5, 8);
+      break;
+    }
+    case "fish": {
+      addBall("head", px + 12, cy, 6);
+      addBox("torso", px, cy, 11, 4);
+      addBox("dorsalFin", px, cy - 7, 2, 4);
+      addBox("tailFin", px - 16, cy, 3, 5);
+      addBox("lFin", px + 4, cy + 6, 2, 3);
+      addBox("rFin", px - 4, cy + 6, 2, 3);
+      break;
+    }
   }
 
   return bodies;
@@ -268,6 +335,64 @@ function _buildJoints(RAPIER, world, bt, limbBodies) {
       joint("torso", "crustB", [0, 13], [0, -3]);
       break;
     }
+    // ─── NEW BODY TYPES ───
+    case "lizard": {
+      joint("torso", "head", [13, -2], [0, 8]);
+      joint("torso", "fl", [8, 4], [0, -5]);
+      joint("torso", "fr", [4, 4], [0, -5]);
+      joint("torso", "bl", [-4, 4], [0, -5]);
+      joint("torso", "br", [-8, 4], [0, -5]);
+      joint("torso", "tail", [-13, 2], [0, -7]);
+      joint("head", "jaw", [8, 2], [-5, 0]);
+      break;
+    }
+    case "crab": {
+      joint("torso", "head", [0, -6], [0, 4]);
+      for (let i = 1; i <= 3; i++) {
+        const ox = 6 - (i - 1) * 6;
+        joint("torso", `l${i}`, [ox, 6], [0, -5]);
+        joint("torso", `r${i}`, [ox, 6], [0, -5]);
+      }
+      joint("torso", "lPincer", [14, -4], [0, 5]);
+      joint("torso", "rPincer", [-14, -4], [0, 5]);
+      break;
+    }
+    case "bird": {
+      joint("head", "torso", [0, 7], [0, -8]);
+      joint("torso", "lWing", [-6, -4], [3, 0]);
+      joint("torso", "rWing", [6, -4], [-3, 0]);
+      joint("torso", "tail", [0, 8], [0, -5]);
+      joint("torso", "lClaw", [-3, 8], [0, -4]);
+      joint("torso", "rClaw", [3, 8], [0, -4]);
+      break;
+    }
+    case "tentacle": {
+      joint("head", "torso", [0, 12], [0, -7]);
+      joint("torso", "t1", [-6, 7], [0, -6]);
+      joint("torso", "t2", [-2, 7], [0, -6]);
+      joint("torso", "t3", [2, 7], [0, -6]);
+      joint("torso", "t4", [6, 7], [0, -6]);
+      joint("torso", "t5", [-4, 7], [0, -5]);
+      joint("torso", "t6", [4, 7], [0, -5]);
+      break;
+    }
+    case "primate": {
+      joint("head", "torso", [0, 8], [0, -10]);
+      joint("torso", "lArm", [-5, -6], [0, -10]);
+      joint("torso", "rArm", [5, -6], [0, -10]);
+      joint("torso", "lLeg", [-3, 10], [0, -6]);
+      joint("torso", "rLeg", [3, 10], [0, -6]);
+      joint("torso", "tail", [-5, -4], [0, -8]);
+      break;
+    }
+    case "fish": {
+      joint("torso", "head", [11, 0], [0, 6]);
+      joint("torso", "dorsalFin", [0, -4], [0, 4]);
+      joint("torso", "tailFin", [-11, 0], [3, 0]);
+      joint("torso", "lFin", [2, 4], [0, -3]);
+      joint("torso", "rFin", [-2, 4], [0, -3]);
+      break;
+    }
   }
 
   return joints;
@@ -275,12 +400,56 @@ function _buildJoints(RAPIER, world, bt, limbBodies) {
 
 // ─── DEATH IMPULSE ───
 
-function _applyDeathImpulse(limbBodies, element, dirX) {
+function _applyDeathImpulse(limbBodies, element, dirX, bodyType) {
   const dir = dirX || 1;
   const k = 80; // force scale for Rapier (much higher than Matter)
   const allParts = Object.values(limbBodies);
   const torso = limbBodies.torso;
   const head = limbBodies.head;
+
+  // Body-type-specific ragdoll modifiers applied after element impulse
+  const _btMods = {
+    bird: () => {
+      // Wings spread wide, spiral fall
+      if (limbBodies.lWing) limbBodies.lWing.applyImpulse({ x: -8 * k, y: -5 * k }, true);
+      if (limbBodies.rWing) limbBodies.rWing.applyImpulse({ x: 8 * k, y: -5 * k }, true);
+      for (const p of allParts) p.setAngularDamping(0.05); // spin freely
+    },
+    crab: () => {
+      // Shell lands flat, legs radial scatter
+      if (torso) { torso.setLinearDamping(2.0); torso.applyImpulse({ x: 0, y: 3 * k }, true); }
+      if (limbBodies.lPincer) limbBodies.lPincer.applyImpulse({ x: -6 * k, y: -10 * k }, true);
+      if (limbBodies.rPincer) limbBodies.rPincer.applyImpulse({ x: 6 * k, y: -10 * k }, true);
+    },
+    lizard: () => {
+      // Flip on back, tail snaps off
+      if (torso) torso.applyTorqueImpulse(dir * 300 * k, true);
+      if (limbBodies.tail) limbBodies.tail.applyImpulse({ x: -dir * 8 * k, y: -4 * k }, true);
+      if (limbBodies.jaw) limbBodies.jaw.applyImpulse({ x: dir * 4 * k, y: -2 * k }, true);
+    },
+    tentacle: () => {
+      // Tentacles curl inward then scatter, head drifts up
+      if (head) { head.applyImpulse({ x: 0, y: -10 * k }, true); head.setLinearDamping(3.0); }
+      for (let i = 1; i <= 6; i++) {
+        const t = limbBodies[`t${i}`];
+        if (t) {
+          const angle = (i / 6) * Math.PI * 2;
+          t.applyImpulse({ x: Math.cos(angle) * 4 * k, y: Math.sin(angle) * 4 * k }, true);
+        }
+      }
+    },
+    primate: () => {
+      // Arms spread in T-pose, dramatic
+      if (limbBodies.lArm) limbBodies.lArm.applyImpulse({ x: -6 * k, y: -4 * k }, true);
+      if (limbBodies.rArm) limbBodies.rArm.applyImpulse({ x: 6 * k, y: -4 * k }, true);
+      if (limbBodies.tail) limbBodies.tail.applyImpulse({ x: 0, y: 3 * k }, true);
+    },
+    fish: () => {
+      // Flip on side, fins stiffen
+      if (torso) torso.applyTorqueImpulse(dir * 200 * k, true);
+      for (const p of allParts) p.setLinearDamping(2.0); // water resistance
+    },
+  };
 
   switch (element) {
     case "fire":
@@ -359,6 +528,9 @@ function _applyDeathImpulse(limbBodies, element, dirX) {
       if (head) head.applyImpulse({ x: dir * 4 * k, y: -8 * k }, true);
       break;
   }
+
+  // Apply body-type-specific ragdoll modifiers
+  if (bodyType && _btMods[bodyType]) _btMods[bodyType]();
 }
 
 function _applyKnockback(limbBodies, element, dirX) {
@@ -574,6 +746,12 @@ export class PhysicsWorld {
       case "spider": this._updateSpider(entry, px, dir, bouncePhase, groundY); break;
       case "frog": this._updateFrog(entry, px, dir, bouncePhase, groundY); break;
       case "serpent": this._updateSerpent(entry, px, dir, bouncePhase, groundY); break;
+      case "lizard": this._updateLizard(entry, px, dir, bouncePhase, groundY); break;
+      case "crab": this._updateCrab(entry, px, dir, bouncePhase, groundY); break;
+      case "bird": this._updateBird(entry, px, dir, bouncePhase, groundY); break;
+      case "tentacle": this._updateTentacle(entry, px, dir, bouncePhase, groundY); break;
+      case "primate": this._updatePrimate(entry, px, dir, bouncePhase, groundY); break;
+      case "fish": this._updateFish(entry, px, dir, bouncePhase, groundY); break;
       case "barricade": this._updateBarricade(entry, px, groundY); break;
       case "tower": this._updateTower(entry, px, groundY); break;
       case "meteorBoulder": this._updateMeteorBoulder(entry, px, groundY); break;
@@ -688,6 +866,98 @@ export class PhysicsWorld {
     if (lb.rFin) this._setKin(lb.rFin, px + dir * 2, cy + 8 - Math.sin(o.finPhase) * 2);
   }
 
+  // ─── NEW BODY TYPE UPDATES ───
+
+  _updateLizard(entry, px, dir, phase, groundY) {
+    const cy = (groundY || this.GY) - HALF_HEIGHTS.lizard;
+    const o = getLizardOffsets(phase);
+    const lb = entry.limbBodies;
+    this._setKin(lb.torso, px + o.bodySway * dir, cy);
+    this._setKin(lb.head, px + dir * 16 + o.bodySway * dir, cy - 2);
+    this._setKin(lb.fl, px + dir * 8 + o.flX * dir, cy + 8 - o.flY);
+    this._setKin(lb.fr, px + dir * 4 + o.frX * dir, cy + 8 - o.frY);
+    this._setKin(lb.bl, px - dir * 4 + o.blX * dir, cy + 8 - o.blY);
+    this._setKin(lb.br, px - dir * 8 + o.brX * dir, cy + 8 - o.brY);
+    if (lb.tail) this._setKin(lb.tail, px - dir * 18 + o.tailX, cy + 2 + o.tailY);
+    if (lb.jaw) this._setKin(lb.jaw, px + dir * 22, cy + 2 + o.jawOpen);
+  }
+
+  _updateCrab(entry, px, dir, phase, groundY) {
+    const cy = (groundY || this.GY) - HALF_HEIGHTS.crab;
+    const o = getCrabOffsets(phase);
+    const lb = entry.limbBodies;
+    this._setKin(lb.torso, px, cy - o.bodyBob);
+    this._setKin(lb.head, px, cy - 8 - o.bodyBob);
+    // Legs
+    this._setKin(lb.l1, px + 6 + o.l1X, cy + 10 - o.l1Y);
+    this._setKin(lb.l2, px + o.l2X, cy + 10);
+    this._setKin(lb.l3, px - 6 + o.l3X, cy + 10);
+    this._setKin(lb.r1, px + 6 + o.r1X, cy + 10 - o.r1Y);
+    this._setKin(lb.r2, px + o.r2X, cy + 10);
+    this._setKin(lb.r3, px - 6 + o.r3X, cy + 10);
+    // Pincers open/close
+    this._setKin(lb.lPincer, px + dir * 18, cy - 6 - o.pincerOpen);
+    this._setKin(lb.rPincer, px - dir * 18, cy - 6 + o.pincerOpen);
+  }
+
+  _updateBird(entry, px, dir, phase, groundY) {
+    const cy = (groundY || this.GY) - HALF_HEIGHTS.bird;
+    const o = getBirdOffsets(phase);
+    const lb = entry.limbBodies;
+    this._setKin(lb.torso, px, cy - o.bobY);
+    this._setKin(lb.head, px + dir * 2, cy - 16 - o.bobY);
+    // Wings flap up and down
+    this._setKin(lb.lWing, px - o.wingSpread, cy - 4 + o.wingY - o.bobY);
+    this._setKin(lb.rWing, px + o.wingSpread, cy - 4 + o.wingY - o.bobY);
+    this._setKin(lb.tail, px - dir * 2, cy + 12 + o.tailSway - o.bobY);
+    // Claws tuck in flight
+    this._setKin(lb.lClaw, px - 4, cy + 14 + o.clawTuck - o.bobY);
+    this._setKin(lb.rClaw, px + 4, cy + 14 + o.clawTuck - o.bobY);
+  }
+
+  _updateTentacle(entry, px, dir, phase, groundY) {
+    const cy = (groundY || this.GY) - HALF_HEIGHTS.tentacle;
+    const o = getTentacleOffsets(phase);
+    const lb = entry.limbBodies;
+    this._setKin(lb.torso, px, cy + 6 + o.pulse);
+    this._setKin(lb.head, px, cy - 8 + o.pulse * 0.5);
+    // 6 tentacles wave independently
+    this._setKin(lb.t1, px - 10 + (o.t1X || 0), cy + 16 + (o.t1Y || 0));
+    this._setKin(lb.t2, px - 4 + (o.t2X || 0), cy + 16 + (o.t2Y || 0));
+    this._setKin(lb.t3, px + 4 + (o.t3X || 0), cy + 16 + (o.t3Y || 0));
+    this._setKin(lb.t4, px + 10 + (o.t4X || 0), cy + 16 + (o.t4Y || 0));
+    this._setKin(lb.t5, px - 7 + (o.t5X || 0), cy + 18 + (o.t5Y || 0));
+    this._setKin(lb.t6, px + 7 + (o.t6X || 0), cy + 18 + (o.t6Y || 0));
+  }
+
+  _updatePrimate(entry, px, dir, phase, groundY) {
+    const cy = (groundY || this.GY) - HALF_HEIGHTS.primate;
+    const o = getPrimateOffsets(phase);
+    const lb = entry.limbBodies;
+    this._setKin(lb.torso, px + o.bodyLean * dir, cy);
+    this._setKin(lb.head, px, cy - 18);
+    // Long arms swing wide
+    this._setKin(lb.lArm, px - 10 + o.lArmX * dir, cy + 2 - o.lArmY);
+    this._setKin(lb.rArm, px + 10 + o.rArmX * dir, cy + 2 - o.rArmY);
+    this._setKin(lb.lLeg, px - 4 + o.lLegX * dir, cy + 18);
+    this._setKin(lb.rLeg, px + 4 + o.rLegX * dir, cy + 18);
+    if (lb.tail) {
+      this._setKin(lb.tail, px - dir * 12 + o.tailSway, cy - 4);
+    }
+  }
+
+  _updateFish(entry, px, dir, phase, groundY) {
+    const cy = (groundY || this.GY) - HALF_HEIGHTS.fish;
+    const o = getFishOffsets(phase);
+    const lb = entry.limbBodies;
+    this._setKin(lb.torso, px + o.bodyWave, cy);
+    this._setKin(lb.head, px + dir * 12 + o.bodyWave * 0.5, cy);
+    if (lb.dorsalFin) this._setKin(lb.dorsalFin, px + o.bodyWave, cy - 7);
+    if (lb.tailFin) this._setKin(lb.tailFin, px - dir * 16 + o.tailX, cy + o.tailY);
+    if (lb.lFin) this._setKin(lb.lFin, px + 4, cy + 6 + o.lFinY);
+    if (lb.rFin) this._setKin(lb.rFin, px - 4, cy + 6 + o.rFinY);
+  }
+
   _updateBarricade(entry, px, groundY) {
     const cy = (groundY || this.GY) - HALF_HEIGHTS.barricade;
     const lb = entry.limbBodies;
@@ -755,7 +1025,7 @@ export class PhysicsWorld {
       rb.setAngularDamping(0.3);
     }
 
-    _applyDeathImpulse(entry.limbBodies, element, dirX);
+    _applyDeathImpulse(entry.limbBodies, element, dirX, entry.bodyType);
 
     const pos = entry.limbBodies.torso ? entry.limbBodies.torso.translation() : { x: 0, y: 0 };
 

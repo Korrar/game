@@ -17,6 +17,7 @@ const ICON_SIZES = {
   humanoid: 48, quadruped: 44, floating: 44, scorpion: 40,
   spider: 38, frog: 36, serpent: 44, barricade: 52, tower: 56,
   meteorBoulder: 60,
+  lizard: 44, crab: 40, bird: 44, tentacle: 42, primate: 46, fish: 38,
 };
 
 // ─── LIMB VISUAL DEFINITIONS ───
@@ -139,6 +140,65 @@ const LIMB_DEFS = {
     fragR:  { shape: "rect", hw: 8, hh: 10, color: "body" },
     crustT: { shape: "rect", hw: 12, hh: 6, color: "dark" },
     crustB: { shape: "rect", hw: 14, hh: 5, color: "dark" },
+  },
+  // ─── NEW BODY TYPES ───
+  lizard: {
+    head:  { shape: "circle", r: 8, color: "body" },
+    torso: { shape: "rect", hw: 14, hh: 5, color: "body" },
+    fl:    { shape: "rect", hw: 2.5, hh: 5, color: "dark" },
+    fr:    { shape: "rect", hw: 2.5, hh: 5, color: "dark" },
+    bl:    { shape: "rect", hw: 2.5, hh: 5, color: "dark" },
+    br:    { shape: "rect", hw: 2.5, hh: 5, color: "dark" },
+    tail:  { shape: "rect", hw: 2, hh: 7, color: "armor" },
+    jaw:   { shape: "rect", hw: 5, hh: 2, color: "body" },
+  },
+  crab: {
+    head:    { shape: "circle", r: 4, color: "body" },
+    torso:   { shape: "rect", hw: 16, hh: 7, color: "armor" },
+    l1:      { shape: "rect", hw: 1.5, hh: 5, color: "dark" },
+    l2:      { shape: "rect", hw: 1.5, hh: 5, color: "dark" },
+    l3:      { shape: "rect", hw: 1.5, hh: 5, color: "dark" },
+    r1:      { shape: "rect", hw: 1.5, hh: 5, color: "dark" },
+    r2:      { shape: "rect", hw: 1.5, hh: 5, color: "dark" },
+    r3:      { shape: "rect", hw: 1.5, hh: 5, color: "dark" },
+    lPincer: { shape: "rect", hw: 3, hh: 5, color: "body" },
+    rPincer: { shape: "rect", hw: 3, hh: 5, color: "body" },
+  },
+  bird: {
+    head:   { shape: "circle", r: 7, color: "body" },
+    torso:  { shape: "rect", hw: 7, hh: 9, color: "body" },
+    lWing:  { shape: "rect", hw: 3, hh: 10, color: "armor" },
+    rWing:  { shape: "rect", hw: 3, hh: 10, color: "armor" },
+    tail:   { shape: "rect", hw: 3, hh: 5, color: "dark" },
+    lClaw:  { shape: "rect", hw: 2, hh: 4, color: "dark" },
+    rClaw:  { shape: "rect", hw: 2, hh: 4, color: "dark" },
+  },
+  tentacle: {
+    head:  { shape: "circle", r: 12, color: "body" },
+    torso: { shape: "rect", hw: 8, hh: 8, color: "armor" },
+    t1:    { shape: "rect", hw: 2, hh: 6, color: "body" },
+    t2:    { shape: "rect", hw: 2, hh: 6, color: "body" },
+    t3:    { shape: "rect", hw: 2, hh: 6, color: "dark" },
+    t4:    { shape: "rect", hw: 2, hh: 6, color: "dark" },
+    t5:    { shape: "rect", hw: 1.5, hh: 5, color: "body" },
+    t6:    { shape: "rect", hw: 1.5, hh: 5, color: "body" },
+  },
+  primate: {
+    head:  { shape: "circle", r: 8, color: "skin" },
+    torso: { shape: "rect", hw: 6, hh: 10, color: "body" },
+    lArm:  { shape: "rect", hw: 2.5, hh: 10, color: "body" },
+    rArm:  { shape: "rect", hw: 2.5, hh: 10, color: "body" },
+    lLeg:  { shape: "rect", hw: 2.5, hh: 6, color: "dark" },
+    rLeg:  { shape: "rect", hw: 2.5, hh: 6, color: "dark" },
+    tail:  { shape: "rect", hw: 1.5, hh: 8, color: "armor" },
+  },
+  fish: {
+    head:      { shape: "circle", r: 6, color: "body" },
+    torso:     { shape: "rect", hw: 12, hh: 5, color: "body" },
+    dorsalFin: { shape: "rect", hw: 2, hh: 4, color: "armor" },
+    tailFin:   { shape: "rect", hw: 3, hh: 5, color: "armor" },
+    lFin:      { shape: "rect", hw: 2, hh: 3, color: "dark" },
+    rFin:      { shape: "rect", hw: 2, hh: 3, color: "dark" },
   },
 };
 

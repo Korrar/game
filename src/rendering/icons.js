@@ -1446,6 +1446,347 @@ NPC_BODY_DRAW.meteorBoulder = (ctx, s, bc, ac) => {
   ctx.fillRect(cx - s * 0.15, cy - s * 0.15, s * 0.3, s * 0.3);
 };
 
+// ─── NEW BODY TYPES ───
+
+NPC_BODY_DRAW.lizard = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2 + s * 0.05;
+  // Long body (horizontal ellipse, low profile)
+  ctx.fillStyle = bc;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, s * 0.3, s * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.stroke();
+  // Belly (lighter)
+  ctx.fillStyle = ac;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + s * 0.03, s * 0.22, s * 0.05, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Legs (4, splayed out to the sides — reptile stance)
+  westernStroke(ctx, bc, s * 0.035);
+  sketchLine(ctx, cx + s * 0.15, cy + s * 0.06, cx + s * 0.26, cy + s * 0.22, 0.3);
+  sketchLine(ctx, cx + s * 0.08, cy + s * 0.06, cx + s * 0.18, cy + s * 0.2, 0.3);
+  sketchLine(ctx, cx - s * 0.08, cy + s * 0.06, cx - s * 0.18, cy + s * 0.2, 0.3);
+  sketchLine(ctx, cx - s * 0.15, cy + s * 0.06, cx - s * 0.26, cy + s * 0.22, 0.3);
+  // Thick tail curving back
+  westernStroke(ctx, bc, s * 0.04);
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.3, cy);
+  ctx.quadraticCurveTo(cx - s * 0.42, cy + s * 0.05, cx - s * 0.38, cy + s * 0.15);
+  ctx.stroke();
+  // Head with jaw
+  ctx.fillStyle = bc;
+  sketchCircle(ctx, cx + s * 0.32, cy - s * 0.04, s * 0.09);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.stroke();
+  // Jaw (open mouth)
+  westernStroke(ctx, bc, s * 0.025);
+  sketchLine(ctx, cx + s * 0.36, cy + s * 0.02, cx + s * 0.44, cy + s * 0.04, 0.3);
+  sketchLine(ctx, cx + s * 0.36, cy - s * 0.02, cx + s * 0.44, cy - s * 0.02, 0.3);
+  // Teeth
+  westernStroke(ctx, "#e0e0d0", s * 0.01);
+  for (let i = 0; i < 3; i++) {
+    const tx = cx + s * 0.38 + i * s * 0.02;
+    sketchLine(ctx, tx, cy + s * 0.02, tx, cy + s * 0.0, 0.2);
+  }
+  // Eye
+  ctx.fillStyle = "#cc8020";
+  sketchCircle(ctx, cx + s * 0.34, cy - s * 0.07, s * 0.025);
+  ctx.fill();
+  ctx.fillStyle = "#1a1008";
+  sketchCircle(ctx, cx + s * 0.34, cy - s * 0.07, s * 0.012);
+  ctx.fill();
+  // Scales pattern
+  westernStroke(ctx, ac, s * 0.01);
+  for (let i = -2; i <= 2; i++) {
+    sketchCircle(ctx, cx + i * s * 0.08, cy - s * 0.03, s * 0.025);
+    ctx.stroke();
+  }
+};
+
+NPC_BODY_DRAW.crab = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2 + s * 0.02;
+  // Wide shell (armored carapace)
+  ctx.fillStyle = ac;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, s * 0.25, s * 0.14, 0, 0, Math.PI * 2);
+  ctx.fill();
+  westernStroke(ctx, bc, s * 0.025);
+  ctx.stroke();
+  // Shell texture lines
+  westernStroke(ctx, bc, s * 0.01);
+  sketchLine(ctx, cx - s * 0.15, cy - s * 0.04, cx, cy - s * 0.1, 0.3);
+  sketchLine(ctx, cx + s * 0.15, cy - s * 0.04, cx, cy - s * 0.1, 0.3);
+  // 6 legs (3 per side)
+  westernStroke(ctx, bc, s * 0.025);
+  for (let i = 0; i < 3; i++) {
+    const ox = (i - 1) * s * 0.1;
+    sketchLine(ctx, cx + ox - s * 0.05, cy + s * 0.1, cx + ox - s * 0.16, cy + s * 0.26, 0.3);
+    sketchLine(ctx, cx + ox + s * 0.05, cy + s * 0.1, cx + ox + s * 0.16, cy + s * 0.26, 0.3);
+  }
+  // Pincers (large claws)
+  westernStroke(ctx, bc, s * 0.04);
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.24, cy - s * 0.04);
+  ctx.lineTo(cx + s * 0.36, cy - s * 0.14);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.24, cy - s * 0.04);
+  ctx.lineTo(cx - s * 0.36, cy - s * 0.14);
+  ctx.stroke();
+  // Pincer tips (V shapes)
+  westernStroke(ctx, ac, s * 0.025);
+  sketchLine(ctx, cx + s * 0.36, cy - s * 0.14, cx + s * 0.42, cy - s * 0.08, 0.2);
+  sketchLine(ctx, cx + s * 0.36, cy - s * 0.14, cx + s * 0.42, cy - s * 0.2, 0.2);
+  sketchLine(ctx, cx - s * 0.36, cy - s * 0.14, cx - s * 0.42, cy - s * 0.08, 0.2);
+  sketchLine(ctx, cx - s * 0.36, cy - s * 0.14, cx - s * 0.42, cy - s * 0.2, 0.2);
+  // Eye stalks
+  westernStroke(ctx, bc, s * 0.015);
+  sketchLine(ctx, cx - s * 0.06, cy - s * 0.12, cx - s * 0.08, cy - s * 0.22, 0.2);
+  sketchLine(ctx, cx + s * 0.06, cy - s * 0.12, cx + s * 0.08, cy - s * 0.22, 0.2);
+  ctx.fillStyle = "#1a1a08";
+  sketchCircle(ctx, cx - s * 0.08, cy - s * 0.23, s * 0.02);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.08, cy - s * 0.23, s * 0.02);
+  ctx.fill();
+};
+
+NPC_BODY_DRAW.bird = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2;
+  // Body
+  ctx.fillStyle = bc;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, s * 0.14, s * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.stroke();
+  // Wings (spread out)
+  ctx.fillStyle = ac;
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.12, cy - s * 0.05);
+  ctx.quadraticCurveTo(cx - s * 0.3, cy - s * 0.25, cx - s * 0.4, cy - s * 0.15);
+  ctx.lineTo(cx - s * 0.35, cy + s * 0.02);
+  ctx.lineTo(cx - s * 0.12, cy + s * 0.05);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, bc, s * 0.015);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.12, cy - s * 0.05);
+  ctx.quadraticCurveTo(cx + s * 0.3, cy - s * 0.25, cx + s * 0.4, cy - s * 0.15);
+  ctx.lineTo(cx + s * 0.35, cy + s * 0.02);
+  ctx.lineTo(cx + s * 0.12, cy + s * 0.05);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, bc, s * 0.015);
+  ctx.stroke();
+  // Wing feather lines
+  westernStroke(ctx, bc, s * 0.01);
+  for (let i = 1; i <= 3; i++) {
+    sketchLine(ctx, cx - s * 0.15, cy - s * (0.02 * i), cx - s * (0.28 + i * 0.04), cy - s * (0.1 + i * 0.03), 0.3);
+    sketchLine(ctx, cx + s * 0.15, cy - s * (0.02 * i), cx + s * (0.28 + i * 0.04), cy - s * (0.1 + i * 0.03), 0.3);
+  }
+  // Head
+  ctx.fillStyle = bc;
+  sketchCircle(ctx, cx, cy - s * 0.22, s * 0.08);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.015);
+  ctx.stroke();
+  // Beak
+  ctx.fillStyle = "#d4a030";
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.06, cy - s * 0.24);
+  ctx.lineTo(cx + s * 0.16, cy - s * 0.22);
+  ctx.lineTo(cx + s * 0.06, cy - s * 0.2);
+  ctx.closePath();
+  ctx.fill();
+  // Eye
+  ctx.fillStyle = "#e0c020";
+  sketchCircle(ctx, cx + s * 0.02, cy - s * 0.24, s * 0.02);
+  ctx.fill();
+  ctx.fillStyle = "#1a1008";
+  sketchCircle(ctx, cx + s * 0.02, cy - s * 0.24, s * 0.01);
+  ctx.fill();
+  // Tail feathers
+  westernStroke(ctx, ac, s * 0.03);
+  sketchLine(ctx, cx - s * 0.04, cy + s * 0.16, cx - s * 0.08, cy + s * 0.3, 0.3);
+  sketchLine(ctx, cx, cy + s * 0.16, cx, cy + s * 0.32, 0.3);
+  sketchLine(ctx, cx + s * 0.04, cy + s * 0.16, cx + s * 0.08, cy + s * 0.3, 0.3);
+  // Claws
+  westernStroke(ctx, "#3a2010", s * 0.02);
+  sketchLine(ctx, cx - s * 0.06, cy + s * 0.16, cx - s * 0.1, cy + s * 0.24, 0.3);
+  sketchLine(ctx, cx + s * 0.06, cy + s * 0.16, cx + s * 0.1, cy + s * 0.24, 0.3);
+};
+
+NPC_BODY_DRAW.tentacle = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2 - s * 0.08;
+  // Ethereal glow
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 0.35);
+  g.addColorStop(0, bc + "30");
+  g.addColorStop(1, "transparent");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, s, s);
+  // Head/dome (large bulbous)
+  ctx.fillStyle = bc;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, s * 0.2, s * 0.16, 0, 0, Math.PI * 2);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.stroke();
+  // Eyes (large, expressive)
+  ctx.fillStyle = "#e0e0d0";
+  sketchCircle(ctx, cx - s * 0.08, cy - s * 0.02, s * 0.05);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.08, cy - s * 0.02, s * 0.05);
+  ctx.fill();
+  ctx.fillStyle = "#1a1a30";
+  sketchCircle(ctx, cx - s * 0.08, cy - s * 0.02, s * 0.025);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.08, cy - s * 0.02, s * 0.025);
+  ctx.fill();
+  // Tentacles (6 wavy arms)
+  westernStroke(ctx, ac, s * 0.03);
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 0.8 + Math.PI * 0.1;
+    const sx = cx + Math.cos(angle) * s * 0.12 - s * 0.06;
+    const sy = cy + s * 0.14;
+    const mx = sx + Math.sin(i * 1.5) * s * 0.08;
+    const my = sy + s * 0.12;
+    const ex = mx + Math.sin(i * 2 + 1) * s * 0.06;
+    const ey = my + s * 0.1;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(mx, my, ex, ey);
+    ctx.stroke();
+    // Suction cup dots
+    ctx.fillStyle = ac;
+    sketchCircle(ctx, mx, my, s * 0.012);
+    ctx.fill();
+  }
+};
+
+NPC_BODY_DRAW.primate = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2;
+  // Body (hunched torso)
+  ctx.fillStyle = bc;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + s * 0.02, s * 0.16, s * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.stroke();
+  // Long arms (distinctive feature)
+  westernStroke(ctx, bc, s * 0.045);
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.14, cy - s * 0.06);
+  ctx.quadraticCurveTo(cx - s * 0.28, cy + s * 0.05, cx - s * 0.24, cy + s * 0.25);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.14, cy - s * 0.06);
+  ctx.quadraticCurveTo(cx + s * 0.28, cy + s * 0.05, cx + s * 0.24, cy + s * 0.25);
+  ctx.stroke();
+  // Hands (fists)
+  ctx.fillStyle = ac;
+  sketchCircle(ctx, cx - s * 0.24, cy + s * 0.26, s * 0.04);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.24, cy + s * 0.26, s * 0.04);
+  ctx.fill();
+  // Short legs
+  westernStroke(ctx, ac, s * 0.04);
+  sketchLine(ctx, cx - s * 0.08, cy + s * 0.18, cx - s * 0.1, cy + s * 0.34, 0.3);
+  sketchLine(ctx, cx + s * 0.08, cy + s * 0.18, cx + s * 0.1, cy + s * 0.34, 0.3);
+  // Feet
+  ctx.fillStyle = "#2a1a08";
+  sketchCircle(ctx, cx - s * 0.1, cy + s * 0.36, s * 0.04);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.1, cy + s * 0.36, s * 0.04);
+  ctx.fill();
+  // Head (smaller, on top)
+  ctx.fillStyle = bc;
+  sketchCircle(ctx, cx, cy - s * 0.2, s * 0.1);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.015);
+  ctx.stroke();
+  // Face
+  ctx.fillStyle = ac;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - s * 0.18, s * 0.06, s * 0.05, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Eyes
+  ctx.fillStyle = "#1a1008";
+  sketchCircle(ctx, cx - s * 0.03, cy - s * 0.22, s * 0.015);
+  ctx.fill();
+  sketchCircle(ctx, cx + s * 0.03, cy - s * 0.22, s * 0.015);
+  ctx.fill();
+  // Tail (curled)
+  westernStroke(ctx, bc, s * 0.025);
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.1, cy + s * 0.16);
+  ctx.quadraticCurveTo(cx - s * 0.26, cy + s * 0.1, cx - s * 0.22, cy - s * 0.02);
+  ctx.stroke();
+};
+
+NPC_BODY_DRAW.fish = (ctx, s, bc, ac) => {
+  const cx = s / 2, cy = s / 2;
+  // Streamlined body
+  ctx.fillStyle = bc;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, s * 0.28, s * 0.12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.stroke();
+  // Belly (lighter)
+  ctx.fillStyle = ac;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + s * 0.04, s * 0.2, s * 0.05, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Dorsal fin
+  ctx.fillStyle = ac;
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.05, cy - s * 0.1);
+  ctx.lineTo(cx, cy - s * 0.22);
+  ctx.lineTo(cx + s * 0.08, cy - s * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, bc, s * 0.015);
+  ctx.stroke();
+  // Tail fin (forked)
+  ctx.fillStyle = ac;
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.28, cy);
+  ctx.lineTo(cx - s * 0.4, cy - s * 0.12);
+  ctx.lineTo(cx - s * 0.34, cy);
+  ctx.lineTo(cx - s * 0.4, cy + s * 0.12);
+  ctx.closePath();
+  ctx.fill();
+  westernStroke(ctx, bc, s * 0.015);
+  ctx.stroke();
+  // Side fins
+  westernStroke(ctx, ac, s * 0.02);
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.05, cy + s * 0.08);
+  ctx.quadraticCurveTo(cx + s * 0.12, cy + s * 0.18, cx + s * 0.02, cy + s * 0.2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.05, cy - s * 0.02);
+  ctx.quadraticCurveTo(cx + s * 0.12, cy + s * 0.06, cx + s * 0.02, cy + s * 0.1);
+  ctx.stroke();
+  // Eye
+  ctx.fillStyle = "#e0e0c0";
+  sketchCircle(ctx, cx + s * 0.16, cy - s * 0.02, s * 0.04);
+  ctx.fill();
+  ctx.fillStyle = "#1a1a08";
+  sketchCircle(ctx, cx + s * 0.17, cy - s * 0.02, s * 0.02);
+  ctx.fill();
+  // Scale pattern
+  westernStroke(ctx, ac, s * 0.008);
+  for (let i = -2; i <= 1; i++) {
+    const sx = cx + i * s * 0.1;
+    sketchCircle(ctx, sx, cy - s * 0.02, s * 0.04);
+    ctx.stroke();
+  }
+};
+
 // ─── COMMON UI ICONS (replacing emoji) ───
 
 DRAW.skull = (ctx, s) => {
