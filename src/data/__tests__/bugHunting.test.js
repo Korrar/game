@@ -255,7 +255,7 @@ describe("Bug 9: NPC data integrity", () => {
   });
 
   it("all NPCs should have valid bodyType", () => {
-    const validTypes = ["humanoid", "quadruped", "floating", "serpent", "spider", "scorpion", "frog"];
+    const validTypes = ["humanoid", "quadruped", "floating", "serpent", "spider", "scorpion", "frog", "lizard", "crab", "bird", "tentacle", "primate", "fish"];
     for (const [biomeId, pool] of Object.entries(BIOME_NPCS)) {
       for (const npc of pool) {
         expect(
@@ -296,7 +296,7 @@ describe("Bug 11: Boss data integrity", () => {
   });
 
   it("all bosses should have valid bodyType", () => {
-    const validTypes = ["humanoid", "quadruped", "floating", "serpent", "spider", "scorpion", "frog"];
+    const validTypes = ["humanoid", "quadruped", "floating", "serpent", "spider", "scorpion", "frog", "lizard", "crab", "bird", "tentacle", "primate", "fish"];
     for (const boss of BOSSES) {
       expect(
         validTypes.includes(boss.bodyType),

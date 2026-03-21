@@ -84,7 +84,7 @@ describe("Olympus enemies", () => {
   });
 
   it("all enemies have valid body types", () => {
-    const validTypes = ["humanoid", "quadruped", "floating", "serpent", "spider", "scorpion", "frog"];
+    const validTypes = ["humanoid", "quadruped", "floating", "serpent", "spider", "scorpion", "frog", "lizard", "crab", "bird", "tentacle", "primate", "fish"];
     for (const e of enemies) {
       expect(validTypes).toContain(e.bodyType);
     }
@@ -165,7 +165,7 @@ describe("Underworld enemies", () => {
   });
 
   it("all enemies have valid body types", () => {
-    const validTypes = ["humanoid", "quadruped", "floating", "serpent", "spider", "scorpion", "frog"];
+    const validTypes = ["humanoid", "quadruped", "floating", "serpent", "spider", "scorpion", "frog", "lizard", "crab", "bird", "tentacle", "primate", "fish"];
     for (const e of enemies) {
       expect(validTypes).toContain(e.bodyType);
     }
