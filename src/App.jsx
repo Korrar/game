@@ -7859,13 +7859,17 @@ export default function App() {
       )}
 
       {/* ─── PORT CITY BUILDINGS (shop + hideout) ─── */}
-      {biome?.id === "city" && (
+      {biome?.id === "city" && (() => {
+        const shopScreenX = wrapPctToScreen(20);
+        const hideoutScreenX = wrapPctToScreen(78);
+        return (
         <>
           {/* Merchant building */}
+          {shopScreenX !== null && (
           <div
             onClick={() => togglePanel("shop")}
             style={{
-              position: "absolute", left: `${wrapPctToScreen(20) ?? 20}%`, bottom: "10%", zIndex: 14,
+              position: "absolute", left: `${shopScreenX}%`, bottom: "10%", zIndex: 14,
               transform: "translateX(-50%)", userSelect: "none", cursor: "pointer",
             }}
           >
@@ -7914,12 +7918,14 @@ export default function App() {
               <Icon name="shop" size={10} /> Bazar
             </div>
           </div>
+          )}
 
           {/* Hideout building */}
+          {hideoutScreenX !== null && (
           <div
             onClick={() => togglePanel("hideout")}
             style={{
-              position: "absolute", left: `${wrapPctToScreen(78) ?? 78}%`, bottom: "10%", zIndex: 14,
+              position: "absolute", left: `${hideoutScreenX}%`, bottom: "10%", zIndex: 14,
               transform: "translateX(-50%)", userSelect: "none", cursor: "pointer",
             }}
           >
@@ -7971,8 +7977,10 @@ export default function App() {
               <Icon name="base" size={10} /> Kryjówka
             </div>
           </div>
+          )}
         </>
-      )}
+        );
+      })()}
 
       {/* ─── ARSENAL TENT POI ─── */}
       {wizardPoi && (() => {
