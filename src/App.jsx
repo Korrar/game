@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { wrapPctToScreen as _wrapPct, screenPxToWorld as _screenToWorld } from "./utils/panoramaWrap.js";
 import { worldToScreen as _isoWorldToScreen, screenToWorld as _isoScreenToWorld, ISO_CONFIG } from "./utils/isometricUtils.js";
 import { IsoCamera } from "./rendering/IsoCamera.js";
+// Convert game coords to physics percentage (0-100) for spawnNpc/updatePatrol
+const _toPhysPct = (val, isIso, maxTiles) => isIso ? (val / maxTiles) * 100 : val;
+const _isoCenter = () => ISO_CONFIG.MAP_COLS / 2;
 import { renderIsoBiome, clearTileCache } from "./renderers/isoBiomeRenderer.js";
 import { BIOMES } from "./data/biomes";
 import { RARITY_C, RARITY_L } from "./data/treasures";
@@ -996,8 +999,10 @@ export default function App() {
             const nDmg = Math.round(mt.damage * 0.7);
             const nd = { icon: mt.icon, name: `${mt.name}`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
             setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
-            walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
-            if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
+            const _iso = isoModeRef.current;
+            const _sy = _iso ? (ISO_CONFIG.MAP_ROWS / 2 + Math.random() * 8) : (25 + Math.random() * 65);
+            walkDataRef.current[nid] = { x: sx, y: _sy, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: _iso ? 1 : 5, maxX: _iso ? ISO_CONFIG.MAP_COLS - 1 : 90, minY: _iso ? 1 : 25, maxY: _iso ? ISO_CONFIG.MAP_ROWS - 1 : 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
+            if (physicsRef.current) physicsRef.current.spawnNpc(nid, _toPhysPct(sx, _iso, ISO_CONFIG.MAP_COLS), nd, true, _toPhysPct(_sy, _iso, ISO_CONFIG.MAP_ROWS));
             showMessage(`Nekromancja! ${mt.name} przywołany!`, "#a050e0");
             setTimeout(() => {
               if (walkDataRef.current[nid]) walkDataRef.current[nid].alive = false;
@@ -1565,8 +1570,8 @@ export default function App() {
               switch (ability.type) {
                 case "fireBreath":
                   if (physicsRef.current) {
-                    const tx = (w.x / 100) * GAME_W;
-                    const ty = GAME_H * 0.25 - 30;
+                    const tx = isoModeRef.current ? (w.x / ISO_CONFIG.MAP_COLS) * GAME_W : (w.x / 100) * GAME_W;
+                    const ty = isoModeRef.current ? ((w.y || ISO_CONFIG.MAP_ROWS / 2) / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H * 0.25 - 30;
                     physicsRef.current.fx.spawnFireBreath(tx, ty, dirX);
                   }
                   if (targetIsCaravan) {
@@ -2484,7 +2489,9 @@ export default function App() {
               const dmg = 10;
               spawnDmgPopup(w.id, `⚡${dmg}`, "#4080ff");
               if (pixiRef.current) {
-                pixiRef.current.spawnMeleeSparks((d.x / 100) * GAME_W, (d.y / 100) * GAME_H, Math.sign(d.x - 50) || 1);
+                const _lx = isoModeRef.current ? (d.x / ISO_CONFIG.MAP_COLS) * GAME_W : (d.x / 100) * GAME_W;
+                const _ly = isoModeRef.current ? (d.y / ISO_CONFIG.MAP_ROWS) * GAME_H : (d.y / 100) * GAME_H;
+                pixiRef.current.spawnMeleeSparks(_lx, _ly, Math.sign(d.x - (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50)) || 1);
               }
               setWalkers(prev => prev.map(ww => {
                 if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
@@ -2497,7 +2504,7 @@ export default function App() {
                 if (nh <= 0) {
                   sfxNpcDeath();
                   if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
-                  if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "lightning", Math.sign(d.x - 50) || 1);
+                  if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "lightning", Math.sign(d.x - (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50)) || 1);
                   if (ww.isMeteorBoulder && meteorWaveRef.current) {
                     spawnMeteorGroundLoot(meteorWaveRef.current.x, meteorWaveRef.current.y);
                     meteorWaveRef.current = null;
@@ -2513,7 +2520,7 @@ export default function App() {
                   setTimeout(() => setWalkers(pr => pr.filter(www => www.id !== w.id)), 2500);
                   return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
                 }
-                if (physicsRef.current) physicsRef.current.applyHit(w.id, "lightning", Math.sign(d.x - 50) || 1);
+                if (physicsRef.current) physicsRef.current.applyHit(w.id, "lightning", Math.sign(d.x - (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50)) || 1);
                 return { ...ww, hp: nh };
               }));
               break; // one hit per orb per frame
@@ -3551,7 +3558,8 @@ export default function App() {
         if (!physicsRef.current.bodies[w.id]) {
           const walkData = wd[w.id];
           if (walkData) {
-            physicsRef.current.spawnNpc(w.id, walkData.x, w.npcData, !!w.friendly);
+            const _isI = isoModeRef.current;
+            physicsRef.current.spawnNpc(w.id, _toPhysPct(walkData.x, _isI, ISO_CONFIG.MAP_COLS), w.npcData, !!w.friendly, _toPhysPct(walkData.y || (_isI ? ISO_CONFIG.MAP_ROWS / 2 : 65), _isI, ISO_CONFIG.MAP_ROWS));
           }
         }
       }
@@ -3815,14 +3823,20 @@ export default function App() {
       const bHp = cl.barricade.hp;
       const bNpc = { icon: "wood", name: "Barykada", hp: bHp, resist: null, loot: {}, bodyColor: "#6a4a20", armorColor: "#4a3010", bodyType: "barricade" };
       setWalkers(prev => [...prev, { id: bId, npcData: bNpc, alive: true, dying: false, hp: bHp, maxHp: bHp, friendly: true, isBarricade: true }]);
-      walkDataRef.current[bId] = {
-        x: 50, y: 75, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
-        minX: 50, maxX: 50, minY: 25, maxY: 90,
-        bouncePhase: 0, alive: true, friendly: true,
-        damage: 0, lungeFrames: 0, lungeOffset: 0,
-        stationary: true, combatStyle: "none", attackCd: 99999,
-      };
-      if (physicsRef.current) physicsRef.current.spawnNpc(bId, 50, bNpc, true);
+      {
+        const _isI = isoModeRef.current;
+        const _bx = _isI ? caravanPosRef.current.x + 2 : 50;
+        const _by = _isI ? caravanPosRef.current.y : 75;
+        walkDataRef.current[bId] = {
+          x: _bx, y: _by, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
+          minX: _bx, maxX: _bx, minY: _isI ? 1 : 25, maxY: _isI ? ISO_CONFIG.MAP_ROWS - 1 : 90,
+          bouncePhase: 0, alive: true, friendly: true,
+          damage: 0, lungeFrames: 0, lungeOffset: 0,
+          stationary: true, combatStyle: "none", attackCd: 99999,
+          wx: _isI ? _bx : undefined, wy: _isI ? _by : undefined,
+        };
+        if (physicsRef.current) physicsRef.current.spawnNpc(bId, _toPhysPct(_bx, _isI, ISO_CONFIG.MAP_COLS), bNpc, true, _toPhysPct(_by, _isI, ISO_CONFIG.MAP_ROWS));
+      }
     }
     if (cl.dog) {
       const existingDog = walkersRef.current.find(w => w.isDog && w.alive);
@@ -3830,15 +3844,21 @@ export default function App() {
         const dId = ++walkerIdCounter;
         const dNpc = { icon: "dog", name: "Ogar bojowy", hp: 80, resist: null, loot: {}, bodyColor: "#8a6030", armorColor: "#5a4020", bodyType: "quadruped" };
         setWalkers(prev => [...prev, { id: dId, npcData: dNpc, alive: true, dying: false, hp: 80, maxHp: 80, friendly: true, isDog: true }]);
-        walkDataRef.current[dId] = {
-          x: 45, y: 85, dir: 1, yDir: Math.random() < 0.5 ? 1 : -1,
-          speed: 0.06, ySpeed: 0.01,
-          minX: 30, maxX: 70, minY: 75, maxY: 92,
-          bouncePhase: 0, alive: true, friendly: true,
-          damage: 10, lungeFrames: 0, lungeOffset: 0,
-          combatStyle: "melee", attackCd: 1800,
-        };
-        if (physicsRef.current) physicsRef.current.spawnNpc(dId, 12, dNpc, true);
+        {
+          const _isI = isoModeRef.current;
+          const _dx = _isI ? caravanPosRef.current.x + 1 : 45;
+          const _dy = _isI ? caravanPosRef.current.y + 1 : 85;
+          walkDataRef.current[dId] = {
+            x: _dx, y: _dy, dir: 1, yDir: Math.random() < 0.5 ? 1 : -1,
+            speed: _isI ? 0.03 : 0.06, ySpeed: 0.01,
+            minX: _isI ? 1 : 30, maxX: _isI ? ISO_CONFIG.MAP_COLS - 1 : 70, minY: _isI ? 1 : 75, maxY: _isI ? ISO_CONFIG.MAP_ROWS - 1 : 92,
+            bouncePhase: 0, alive: true, friendly: true,
+            damage: 10, lungeFrames: 0, lungeOffset: 0,
+            combatStyle: "melee", attackCd: 1800,
+            wx: _isI ? _dx : undefined, wy: _isI ? _dy : undefined,
+          };
+          if (physicsRef.current) physicsRef.current.spawnNpc(dId, _toPhysPct(_dx, _isI, ISO_CONFIG.MAP_COLS), dNpc, true, _toPhysPct(_dy, _isI, ISO_CONFIG.MAP_ROWS));
+        }
       }
     }
   }, [defensePoi]);
@@ -5515,7 +5535,8 @@ export default function App() {
       }
       if (element) elementDebuffs.current[walkerId] = { element, timestamp: Date.now() };
       const wd = walkDataRef.current[walkerId];
-      const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
+      const _dirCenter = isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50;
+      const spellDirX = wd ? (wd.x > _dirCenter ? 1 : -1) : 1;
 
       // Apply combo status effects (stun, burn, fear)
       if (comboText && comboText.status && wd) {
@@ -5539,7 +5560,7 @@ export default function App() {
         } else if (comboText.status === "fear") {
           if (!wd._origSpeed) wd._origSpeed = wd.speed;
           wd._fearUntil = statusNow + comboText.statusDuration;
-          wd._fearDir = wd.x > 50 ? 1 : -1; // flee away from center
+          wd._fearDir = wd.x > _dirCenter ? 1 : -1; // flee away from center
           spawnDmgPopup(walkerId, "STRACH!", "#a040a0");
           setTimeout(() => {
             const wdLater = walkDataRef.current[walkerId];
@@ -5672,8 +5693,8 @@ export default function App() {
           const wd = walkDataRef.current[walkerId];
           setTimeout(() => {
             const zid = ++walkerIdCounter;
-            const zx = wd?.x || 50;
-            const zy = wd?.y || 50;
+            const zx = wd?.x || (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50);
+            const zy = wd?.y || (isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50);
             const zNpc = { ...npcData, name: `Zombie ${npcData.name}`, hp: Math.round(npcData.hp * (killMod.respawnHpMult || 0.4)), loot: {}, isIllusion: false };
             zNpc.hp = Math.max(1, zNpc.hp);
             setWalkers(pr => [...pr, { id: zid, npcData: zNpc, alive: true, dying: false, hp: zNpc.hp, maxHp: zNpc.hp, isZombie: true }]);
@@ -6307,7 +6328,7 @@ export default function App() {
           if (newHp <= 0) {
             sfxNpcDeath();
             if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
-            if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, isCrit ? "saber_crit" : "saber", d.x > 50 ? 1 : -1);
+            if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, isCrit ? "saber_crit" : "saber", d.x > (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50) ? 1 : -1);
             // Meteor boulder destruction: ground loot
             if (ww.isMeteorBoulder && meteorWaveRef.current) {
               spawnMeteorGroundLoot(meteorWaveRef.current.x, meteorWaveRef.current.y);
@@ -6661,7 +6682,7 @@ export default function App() {
       }
       if (spell.element) elementDebuffs.current[wid] = { element: spell.element, timestamp: Date.now() };
       const wd = walkDataRef.current[wid];
-      const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
+      const spellDirX = wd ? (wd.x > (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50) ? 1 : -1) : 1;
 
       if (resistant) {
         const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
@@ -6907,7 +6928,7 @@ export default function App() {
         }
         if (spell.element) elementDebuffs.current[w.id] = { element: spell.element, timestamp: Date.now() };
         const wd = walkDataRef.current[w.id];
-        const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
+        const spellDirX = wd ? (wd.x > (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50) ? 1 : -1) : 1;
 
         if (resistant) {
           const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
@@ -6968,8 +6989,8 @@ export default function App() {
             const zwd3 = walkDataRef.current[w.id];
             setTimeout(() => {
               const zid3 = ++walkerIdCounter;
-              const zx3 = zwd3?.x || 50;
-              const zy3 = zwd3?.y || 50;
+              const zx3 = zwd3?.x || (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50);
+              const zy3 = zwd3?.y || (isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50);
               const zNpc3 = { ...npcData, name: `Zombie ${npcData.name}`, hp: Math.round(npcData.hp * (killMod3.respawnHpMult || 0.4)), loot: {}, isIllusion: false };
               zNpc3.hp = Math.max(1, zNpc3.hp);
               setWalkers(pr => [...pr, { id: zid3, npcData: zNpc3, alive: true, dying: false, hp: zNpc3.hp, maxHp: zNpc3.hp, isZombie: true }]);
