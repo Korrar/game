@@ -7,7 +7,7 @@ const OBSTACLE_VARIANTS = {
   island:   ["shipwreck", "driftwood", "tide_pool", "anchor_post", "barrel_stack", "cannon_wreck", "fishing_net", "barnacle_rock"],
   desert:   ["cactus_cluster", "wagon_wreck", "sun_bleached_skull", "tumbleweed", "sandbag_wall", "rope_coil", "rusted_cage", "dead_tree"],
   winter:   ["ice_pillar", "frozen_barrel", "snowdrift", "icicle_rock", "barnacle_rock", "mast_fragment", "crystal_geode", "moss_boulder"],
-  city:     ["market_stall", "broken_wagon", "lamp_post", "sandbag_wall", "barrel_stack", "rusted_cage", "rope_coil", "volatile_crystal"],
+  city:     ["small_house", "market_stall", "small_house", "lamp_post", "broken_wagon", "barrel_stack", "small_house", "sandbag_wall"],
   volcano:  ["lava_pool", "obsidian_pillar", "steam_vent", "ash_mound", "crystal_cluster", "crystal_geode", "barnacle_rock", "rusted_cage"],
   summer:   ["haystack", "windmill", "scarecrow", "wooden_fence", "flower_patch", "beehive", "log_pile", "well"],
   autumn:   ["log_pile", "hunting_stand", "mushroom_ring", "fallen_tree", "dead_tree", "moss_boulder", "haystack", "wooden_fence"],
@@ -31,7 +31,7 @@ const EXPLOSIVE_VARIANTS = {
 const OBS_STYLES_KEYS = [
   "fallen_log", "vine_wall", "ancient_totem", "moss_boulder", "shipwreck", "driftwood",
   "tide_pool", "anchor_post", "cactus_cluster", "wagon_wreck", "sun_bleached_skull",
-  "tumbleweed", "ice_pillar", "frozen_barrel", "snowdrift", "icicle_rock", "market_stall",
+  "tumbleweed", "ice_pillar", "frozen_barrel", "snowdrift", "icicle_rock", "small_house", "market_stall",
   "broken_wagon", "lamp_post", "sandbag_wall", "lava_pool", "obsidian_pillar", "steam_vent",
   "ash_mound", "haystack", "windmill", "scarecrow", "wooden_fence", "log_pile",
   "hunting_stand", "mushroom_ring", "fallen_tree", "flower_patch", "beehive", "stone_bridge",

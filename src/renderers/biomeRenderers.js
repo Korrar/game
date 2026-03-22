@@ -360,11 +360,36 @@ function drawJungle(ctx, W, H, GY, r) {
   }
   ctx.globalAlpha = 1;
   // Hanging moss near horizon (depth detail)
-  for (let i = 0; i < 8; i++) {
-    const mx = r() * W, my = GY + 5 + r() * 20;
-    ctx.strokeStyle = `rgba(60,100,30,${0.1 + r() * 0.1})`;
+  for (let i = 0; i < 12; i++) {
+    const mx = r() * W, my = GY + 5 + r() * 25;
+    ctx.strokeStyle = `rgba(60,100,30,${0.12 + r() * 0.1})`;
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + (r() - 0.5) * 4, my + 10 + r() * 15); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + (r() - 0.5) * 4, my + 10 + r() * 18); ctx.stroke();
+  }
+  // River flowing through the jungle
+  const riverY = H * 0.78;
+  const riverH = 25;
+  const riverG = ctx.createLinearGradient(0, riverY, 0, riverY + riverH);
+  riverG.addColorStop(0, "rgba(20,100,140,0.4)"); riverG.addColorStop(0.5, "rgba(30,120,160,0.5)"); riverG.addColorStop(1, "rgba(20,80,110,0.35)");
+  ctx.fillStyle = riverG;
+  ctx.beginPath(); ctx.moveTo(0, riverY + 5);
+  for (let x = 0; x <= W; x += 15) ctx.lineTo(x, riverY + Math.sin(x * 0.01 + 1.2) * 4);
+  ctx.lineTo(W, riverY + riverH);
+  for (let x = W; x >= 0; x -= 15) ctx.lineTo(x, riverY + riverH + Math.sin(x * 0.012 + 0.8) * 3);
+  ctx.closePath(); ctx.fill();
+  // River surface shimmer
+  ctx.strokeStyle = "rgba(120,200,230,0.15)"; ctx.lineWidth = 1;
+  for (let row = 0; row < 3; row++) {
+    const ry = riverY + 5 + row * 7;
+    ctx.beginPath();
+    for (let x = 0; x < W; x += 5) { const yy = ry + Math.sin(x * 0.02 + row * 1.5) * 2; x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy); }
+    ctx.stroke();
+  }
+  // Rocks in river
+  for (let i = 0; i < 4; i++) {
+    const rx = r() * W, ry = riverY + 4 + r() * (riverH - 8);
+    ctx.fillStyle = `rgba(60,70,55,${0.2 + r() * 0.15})`;
+    ctx.beginPath(); ctx.ellipse(rx, ry, 5 + r() * 6, 3 + r() * 3, 0, 0, Math.PI * 2); ctx.fill();
   }
 }
 
@@ -444,28 +469,86 @@ function drawDesert(ctx, W, H, GY, r) {
     ctx.fillStyle = `rgba(180,140,60,${0.15 + depthT * 0.2})`;
     ctx.fillRect(r() * W, sy, 1 + depthT, 1);
   }
-  // Cacti with depth sorting
+  // Cacti with depth sorting — detailed saguaro-style
   const cacti = [];
-  for (let i = 0; i < 5; i++) cacti.push({ x: W * 0.1 + r() * W * 0.8, y: GY + 8 + r() * 40, h: 20 + r() * 35, rv: [r(), r(), r(), r()] });
+  for (let i = 0; i < 7; i++) cacti.push({ x: W * 0.08 + r() * W * 0.84, y: GY + 8 + r() * 45, h: 22 + r() * 40, rv: [r(), r(), r(), r(), r(), r()] });
   cacti.sort((a, b) => a.y - b.y);
   for (const c of cacti) {
     const depthT = Math.max(0, Math.min(1, (c.y - GY) / (groundH * 0.5)));
     const { minScale, maxScale } = DEPTH_CONFIG;
     const scale = minScale + (maxScale - minScale) * depthT;
-    ctx.globalAlpha = 0.15 + depthT * 0.25;
-    ctx.fillStyle = "#2a5a1a";
-    const cw = 3 * scale;
-    ctx.fillRect(c.x - cw, c.y - c.h * scale, cw * 2, c.h * scale);
-    if (c.rv[0] > 0.3) {
-      const armY = c.y - c.h * 0.6 * scale;
-      ctx.fillRect(c.x + cw, armY, 10 * scale, 4 * scale);
-      ctx.fillRect(c.x + 9 * scale, armY - 10 * scale, 4 * scale, 14 * scale);
+    ctx.globalAlpha = 0.2 + depthT * 0.35;
+    const dark = 22 + c.rv[2] * 8;
+    const cw = (3.5 + c.rv[3]) * scale;
+    // Main body - rounded cactus
+    ctx.fillStyle = `hsl(${110 + c.rv[4] * 20},50%,${dark}%)`;
+    ctx.beginPath();
+    ctx.moveTo(c.x - cw, c.y);
+    ctx.lineTo(c.x - cw, c.y - c.h * scale + cw);
+    ctx.quadraticCurveTo(c.x - cw, c.y - c.h * scale, c.x, c.y - c.h * scale);
+    ctx.quadraticCurveTo(c.x + cw, c.y - c.h * scale, c.x + cw, c.y - c.h * scale + cw);
+    ctx.lineTo(c.x + cw, c.y);
+    ctx.closePath(); ctx.fill();
+    // Vertical ribs
+    ctx.strokeStyle = `hsl(${115 + c.rv[4] * 15},40%,${dark - 5}%)`;
+    ctx.lineWidth = 0.5 * scale;
+    ctx.beginPath(); ctx.moveTo(c.x, c.y - c.h * scale); ctx.lineTo(c.x, c.y); ctx.stroke();
+    // Highlight line
+    ctx.strokeStyle = `rgba(140,200,80,${0.1 + depthT * 0.1})`;
+    ctx.beginPath(); ctx.moveTo(c.x + cw * 0.3, c.y - c.h * scale * 0.9); ctx.lineTo(c.x + cw * 0.3, c.y); ctx.stroke();
+    // Right arm
+    if (c.rv[0] > 0.25) {
+      const armY = c.y - c.h * (0.5 + c.rv[5] * 0.2) * scale;
+      const armLen = (10 + c.rv[5] * 8) * scale;
+      const armH = (10 + c.rv[5] * 12) * scale;
+      ctx.fillStyle = `hsl(${112 + c.rv[4] * 18},48%,${dark + 1}%)`;
+      ctx.beginPath();
+      ctx.moveTo(c.x + cw, armY); ctx.lineTo(c.x + cw + armLen, armY);
+      ctx.quadraticCurveTo(c.x + cw + armLen + 2 * scale, armY, c.x + cw + armLen, armY - armH);
+      ctx.lineTo(c.x + cw + armLen - 3 * scale, armY - armH);
+      ctx.quadraticCurveTo(c.x + cw + armLen - 3 * scale, armY - 2 * scale, c.x + cw, armY - 3 * scale);
+      ctx.closePath(); ctx.fill();
     }
-    if (c.rv[1] > 0.4) {
-      const armY = c.y - c.h * 0.4 * scale;
-      ctx.fillRect(c.x - 13 * scale, armY, 10 * scale, 4 * scale);
-      ctx.fillRect(c.x - 13 * scale, armY - 8 * scale, 4 * scale, 12 * scale);
+    // Left arm
+    if (c.rv[1] > 0.35) {
+      const armY = c.y - c.h * (0.35 + c.rv[3] * 0.2) * scale;
+      const armLen = (8 + c.rv[3] * 7) * scale;
+      const armH = (8 + c.rv[3] * 10) * scale;
+      ctx.fillStyle = `hsl(${112 + c.rv[4] * 18},48%,${dark + 1}%)`;
+      ctx.beginPath();
+      ctx.moveTo(c.x - cw, armY); ctx.lineTo(c.x - cw - armLen, armY);
+      ctx.quadraticCurveTo(c.x - cw - armLen - 2 * scale, armY, c.x - cw - armLen, armY - armH);
+      ctx.lineTo(c.x - cw - armLen + 3 * scale, armY - armH);
+      ctx.quadraticCurveTo(c.x - cw - armLen + 3 * scale, armY - 2 * scale, c.x - cw, armY - 3 * scale);
+      ctx.closePath(); ctx.fill();
     }
+    // Spines
+    ctx.strokeStyle = `rgba(200,200,160,${0.15 + depthT * 0.15})`;
+    ctx.lineWidth = 0.5;
+    for (let sp = 0; sp < 5; sp++) {
+      const spY = c.y - c.h * (0.15 + sp * 0.17) * scale;
+      ctx.beginPath(); ctx.moveTo(c.x - cw, spY); ctx.lineTo(c.x - cw - 3 * scale, spY - 2 * scale); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(c.x + cw, spY); ctx.lineTo(c.x + cw + 3 * scale, spY - 2 * scale); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  // Static tumbleweeds (dried, round bushes)
+  for (let i = 0; i < 3; i++) {
+    const tx = r() * W, ty = GY + 15 + r() * 35;
+    const depthT = (ty - GY) / groundH;
+    const ts = (8 + r() * 10) * (0.6 + depthT * 0.6);
+    ctx.globalAlpha = 0.15 + depthT * 0.2;
+    ctx.strokeStyle = `hsl(35,30%,${35 + r() * 15}%)`;
+    ctx.lineWidth = 0.8;
+    // Tangled branch lines
+    for (let j = 0; j < 8; j++) {
+      const a = j / 8 * Math.PI * 2;
+      ctx.beginPath(); ctx.moveTo(tx, ty);
+      ctx.quadraticCurveTo(tx + Math.cos(a) * ts * 0.6, ty + Math.sin(a) * ts * 0.5 + r() * 3, tx + Math.cos(a + 0.3) * ts, ty + Math.sin(a + 0.3) * ts * 0.7);
+      ctx.stroke();
+    }
+    ctx.fillStyle = `rgba(140,120,70,${0.08 + depthT * 0.08})`;
+    ctx.beginPath(); ctx.ellipse(tx, ty, ts, ts * 0.7, 0, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
   // Bleached bones with depth
@@ -555,51 +638,159 @@ function drawCity(ctx, W, H, GY, r) {
     ctx.fillStyle = `rgba(60,55,45,${0.25 + depthT * 0.2})`;
     ctx.fillRect(r() * W, sy, sz * 1.3, sz);
   }
-  // Buildings — sorted by position, farther ones smaller and lighter
-  const buildings = [];
+  // Houses — detailed buildings with roofs, chimneys, doors, shutters
+  const houses = [];
   const count = 8 + Math.floor(r() * 4);
   for (let i = 0; i < count; i++) {
-    buildings.push({ x: (i / count) * W + (r() - 0.5) * 25, w: 38 + r() * 55, h: 80 + r() * 140, layer: r(), rv: [r(), r(), r(), r()] });
+    houses.push({ x: (i / count) * W + (r() - 0.5) * 25, w: 38 + r() * 55, h: 80 + r() * 140, layer: r(),
+      rv: [r(), r(), r(), r(), r(), r(), r(), r()] });
   }
-  buildings.sort((a, b) => a.layer - b.layer); // draw far buildings first
-  for (const b of buildings) {
+  houses.sort((a, b) => a.layer - b.layer);
+  for (const b of houses) {
     const depthT = b.layer;
-    const { minScale, maxScale } = DEPTH_CONFIG;
     const scale = 0.75 + depthT * 0.35;
     const bw = b.w * scale, bh = b.h * scale, by = GY - bh + 10;
     ctx.globalAlpha = 0.5 + depthT * 0.5;
-    const light = 25 + b.rv[0] * 20 - (1 - depthT) * 8;
-    ctx.fillStyle = `hsl(${30 + b.rv[1] * 15},${15 + depthT * 10}%,${light}%)`; ctx.fillRect(b.x, by, bw, bh);
-    ctx.strokeStyle = `rgba(58,34,16,${0.3 + depthT * 0.5})`; ctx.lineWidth = 2 + depthT; ctx.strokeRect(b.x, by, bw, bh);
-    // Floor lines
-    ctx.beginPath(); ctx.moveTo(b.x, by + bh * 0.33); ctx.lineTo(b.x + bw, by + bh * 0.33); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(b.x, by + bh * 0.66); ctx.lineTo(b.x + bw, by + bh * 0.66); ctx.stroke();
-    // Roof
-    ctx.fillStyle = `hsl(${10 + b.rv[2] * 15},${35 + depthT * 15}%,${22 + b.rv[3] * 10}%)`;
-    ctx.beginPath(); ctx.moveTo(b.x - 6, by); ctx.lineTo(b.x + bw / 2, by - (20 + b.rv[3] * 15) * scale); ctx.lineTo(b.x + bw + 6, by); ctx.closePath(); ctx.fill();
-    // Windows — brighter in foreground
-    const rows = Math.floor(bh / 30), cols = Math.floor(bw / 22);
-    for (let ro = 0; ro < rows; ro++) for (let co = 0; co < cols; co++) {
-      if (r() > 0.3) {
-        const wx = b.x + 6 + co * 22 * scale, wy = by + 10 + ro * 30 * scale;
-        const winAlpha = (0.3 + r() * 0.3) * (0.5 + depthT * 0.5);
-        ctx.fillStyle = r() > 0.5 ? `rgba(255,180,60,${winAlpha})` : `rgba(40,30,20,${0.5 + depthT * 0.3})`;
-        ctx.fillRect(wx, wy, 10 * scale, 14 * scale);
+    // Wall with timber frame look
+    const wallHue = 25 + b.rv[1] * 20;
+    const wallLight = 28 + b.rv[0] * 18 - (1 - depthT) * 8;
+    ctx.fillStyle = `hsl(${wallHue},${18 + depthT * 12}%,${wallLight}%)`;
+    ctx.fillRect(b.x, by, bw, bh);
+    // Timber frame beams
+    ctx.strokeStyle = `rgba(42,24,10,${0.35 + depthT * 0.4})`;
+    ctx.lineWidth = (2 + depthT) * scale;
+    ctx.strokeRect(b.x, by, bw, bh);
+    // Horizontal beam at each floor
+    const floors = Math.max(1, Math.floor(bh / 45));
+    for (let fl = 1; fl < floors; fl++) {
+      const flY = by + fl * (bh / floors);
+      ctx.beginPath(); ctx.moveTo(b.x, flY); ctx.lineTo(b.x + bw, flY); ctx.stroke();
+    }
+    // Cross-beam decoration on upper section
+    if (b.rv[4] > 0.4 && bw > 30) {
+      ctx.beginPath(); ctx.moveTo(b.x, by); ctx.lineTo(b.x + bw, by + bh * 0.33); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(b.x + bw, by); ctx.lineTo(b.x, by + bh * 0.33); ctx.stroke();
+    }
+    // Pitched roof with overhang
+    const roofH = (22 + b.rv[3] * 18) * scale;
+    const overhang = 8 * scale;
+    const roofHue = b.rv[2] > 0.5 ? 8 + b.rv[2] * 12 : 20 + b.rv[2] * 15;
+    ctx.fillStyle = `hsl(${roofHue},${35 + depthT * 15}%,${22 + b.rv[3] * 10}%)`;
+    ctx.beginPath();
+    ctx.moveTo(b.x - overhang, by);
+    ctx.lineTo(b.x + bw / 2, by - roofH);
+    ctx.lineTo(b.x + bw + overhang, by);
+    ctx.closePath(); ctx.fill();
+    // Roof tiles - horizontal lines
+    ctx.strokeStyle = `rgba(30,15,5,${0.2 + depthT * 0.2})`;
+    ctx.lineWidth = 0.5 * scale;
+    for (let tl = 1; tl < 4; tl++) {
+      const tY = by - roofH * (tl / 4);
+      const tW = bw * (tl / 4) + overhang * (tl / 4);
+      ctx.beginPath(); ctx.moveTo(b.x + bw / 2 - tW / 2, tY); ctx.lineTo(b.x + bw / 2 + tW / 2, tY); ctx.stroke();
+    }
+    // Chimney
+    if (b.rv[5] > 0.35) {
+      const chimX = b.x + bw * (0.2 + b.rv[6] * 0.5);
+      const chimW = 8 * scale, chimH = 18 * scale;
+      const chimTop = by - roofH * 0.5;
+      ctx.fillStyle = `hsl(5,30%,${30 + b.rv[7] * 10}%)`;
+      ctx.fillRect(chimX - chimW / 2, chimTop - chimH, chimW, chimH);
+      // Chimney cap
+      ctx.fillRect(chimX - chimW * 0.7, chimTop - chimH, chimW * 1.4, 3 * scale);
+    }
+    // Windows with shutters
+    const wRows = Math.floor(bh / 35), wCols = Math.max(1, Math.floor(bw / 26));
+    for (let ro = 0; ro < wRows; ro++) for (let co = 0; co < wCols; co++) {
+      if (r() > 0.25) {
+        const winW = 10 * scale, winH = 14 * scale;
+        const wx = b.x + 8 * scale + co * 24 * scale;
+        const wy = by + 8 * scale + ro * 33 * scale;
+        const lit = r() > 0.45;
+        const winAlpha = (0.35 + r() * 0.35) * (0.5 + depthT * 0.5);
+        // Window frame
+        ctx.fillStyle = `rgba(35,25,15,${0.5 + depthT * 0.3})`;
+        ctx.fillRect(wx - 1, wy - 1, winW + 2, winH + 2);
+        // Window glass
+        ctx.fillStyle = lit ? `rgba(255,180,60,${winAlpha})` : `rgba(50,60,80,${0.3 + depthT * 0.3})`;
+        ctx.fillRect(wx, wy, winW, winH);
+        // Window cross divider
+        ctx.strokeStyle = `rgba(40,30,15,${0.5 + depthT * 0.3})`;
+        ctx.lineWidth = 0.8 * scale;
+        ctx.beginPath(); ctx.moveTo(wx + winW / 2, wy); ctx.lineTo(wx + winW / 2, wy + winH); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(wx, wy + winH / 2); ctx.lineTo(wx + winW, wy + winH / 2); ctx.stroke();
+        // Shutters (open)
+        if (r() > 0.4) {
+          const shutW = 4 * scale;
+          ctx.fillStyle = `hsl(${wallHue + 10},${20 + depthT * 8}%,${wallLight - 8}%)`;
+          ctx.fillRect(wx - shutW - 1, wy, shutW, winH);
+          ctx.fillRect(wx + winW + 1, wy, shutW, winH);
+        }
+        // Light glow from window
+        if (lit && depthT > 0.3) {
+          const wg = ctx.createRadialGradient(wx + winW / 2, wy + winH / 2, 2, wx + winW / 2, wy + winH, winW * 2);
+          wg.addColorStop(0, `rgba(255,160,40,${0.08 * depthT})`); wg.addColorStop(1, "transparent");
+          ctx.fillStyle = wg; ctx.fillRect(wx - winW, wy - winH, winW * 4, winH * 4);
+        }
       }
+    }
+    // Door on ground floor
+    if (depthT > 0.25) {
+      const doorW = 10 * scale, doorH = 20 * scale;
+      const doorX = b.x + bw * (0.35 + b.rv[4] * 0.3) - doorW / 2;
+      const doorY = by + bh - doorH;
+      ctx.fillStyle = `hsl(20,${30 + depthT * 10}%,${18 + b.rv[7] * 8}%)`;
+      ctx.fillRect(doorX, doorY, doorW, doorH);
+      // Door frame
+      ctx.strokeStyle = `rgba(30,18,8,${0.4 + depthT * 0.3})`;
+      ctx.lineWidth = 1.5 * scale;
+      ctx.strokeRect(doorX, doorY, doorW, doorH);
+      // Arch above door
+      ctx.beginPath(); ctx.arc(doorX + doorW / 2, doorY, doorW / 2, Math.PI, 0); ctx.stroke();
+      // Door knob
+      ctx.fillStyle = `rgba(180,160,60,${0.4 + depthT * 0.3})`;
+      ctx.beginPath(); ctx.arc(doorX + doorW * 0.75, doorY + doorH * 0.55, 1.5 * scale, 0, Math.PI * 2); ctx.fill();
+    }
+    // Flower box under some windows
+    if (b.rv[6] > 0.55 && wCols > 0) {
+      const fbX = b.x + 8 * scale, fbY = by + 8 * scale + 33 * scale - 2;
+      const fbW = 12 * scale;
+      ctx.fillStyle = `rgba(80,50,25,${0.3 + depthT * 0.3})`;
+      ctx.fillRect(fbX, fbY, fbW, 4 * scale);
+      ctx.fillStyle = `rgba(200,60,80,${0.3 + depthT * 0.3})`;
+      for (let f = 0; f < 3; f++) ctx.fillRect(fbX + 2 * scale + f * 3 * scale, fbY - 3 * scale, 2 * scale, 3 * scale);
     }
   }
   ctx.globalAlpha = 1;
-  // Street lamps
+  // Street lamps with glow
   ctx.textAlign = "center";
   for (let i = 0; i < 4; i++) {
     const lx = 80 + i * (W - 160) / 3;
-    ctx.strokeStyle = "#4a3a20"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(lx, GY + 5); ctx.lineTo(lx, GY - 18); ctx.stroke();
-    const g = ctx.createRadialGradient(lx, GY - 20, 2, lx, GY - 10, 28);
-    g.addColorStop(0, "rgba(255,160,40,0.35)"); g.addColorStop(1, "transparent");
-    ctx.fillStyle = g; ctx.fillRect(lx - 28, GY - 38, 56, 48);
-    const fireImg = getIconImage("fire", 13); if (fireImg) ctx.drawImage(fireImg, lx - 6, GY - 24, 13, 13);
+    // Lamp post
+    ctx.strokeStyle = "#3a2a18"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(lx, GY + 5); ctx.lineTo(lx, GY - 22); ctx.stroke();
+    // Lamp arm
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(lx, GY - 20); ctx.quadraticCurveTo(lx + 8, GY - 24, lx + 10, GY - 18); ctx.stroke();
+    // Lantern housing
+    ctx.fillStyle = "#2a1a0a";
+    ctx.fillRect(lx + 6, GY - 22, 8, 10);
+    // Warm glow
+    const g = ctx.createRadialGradient(lx + 10, GY - 17, 2, lx + 10, GY - 10, 32);
+    g.addColorStop(0, "rgba(255,160,40,0.40)"); g.addColorStop(1, "transparent");
+    ctx.fillStyle = g; ctx.fillRect(lx - 22, GY - 42, 64, 54);
+    const fireImg = getIconImage("fire", 11); if (fireImg) ctx.drawImage(fireImg, lx + 5, GY - 20, 11, 11);
   }
   ctx.textAlign = "start";
+  // Cobblestone path detail
+  ctx.strokeStyle = "rgba(50,40,30,0.06)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 4; i++) {
+    const py = H - 10 - i * 15;
+    ctx.beginPath();
+    for (let x = 0; x < W; x += 12) { ctx.moveTo(x, py); ctx.lineTo(x + 6, py); }
+    ctx.stroke();
+  }
   // Puddles in foreground (street detail)
   for (let i = 0; i < 3; i++) {
     const px = r() * W, py = H - 25 - r() * 30;
@@ -651,20 +842,57 @@ function drawVolcano(ctx, W, H, GY, r) {
     }
   }
   ctx.globalAlpha = 1;
-  // Smoke wisps in sky
-  for (let i = 0; i < 4; i++) {
-    const sx = r() * W, sy = GY * 0.4 + r() * GY * 0.4;
+  // Volcano mountain in background
+  const vx = W * (0.35 + r() * 0.3);
+  ctx.fillStyle = "rgba(50,25,15,0.35)";
+  ctx.beginPath();
+  ctx.moveTo(vx - 120, GY + 5);
+  ctx.lineTo(vx - 20, GY * 0.15);
+  ctx.lineTo(vx - 8, GY * 0.18);  // crater left
+  ctx.lineTo(vx + 8, GY * 0.18);  // crater right
+  ctx.lineTo(vx + 20, GY * 0.15);
+  ctx.lineTo(vx + 120, GY + 5);
+  ctx.closePath(); ctx.fill();
+  // Lava glow in crater
+  const craterG = ctx.createRadialGradient(vx, GY * 0.17, 4, vx, GY * 0.17, 30);
+  craterG.addColorStop(0, "rgba(255,100,20,0.35)"); craterG.addColorStop(0.5, "rgba(255,60,10,0.15)"); craterG.addColorStop(1, "transparent");
+  ctx.fillStyle = craterG; ctx.fillRect(vx - 30, GY * 0.05, 60, GY * 0.25);
+  // Lava streams down the mountain
+  ctx.strokeStyle = "rgba(255,80,10,0.2)"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(vx - 5, GY * 0.18);
+  ctx.quadraticCurveTo(vx - 30, GY * 0.5, vx - 50, GY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(vx + 5, GY * 0.18);
+  ctx.quadraticCurveTo(vx + 25, GY * 0.6, vx + 40, GY); ctx.stroke();
+  // Glow around streams
+  ctx.strokeStyle = "rgba(255,60,10,0.06)"; ctx.lineWidth = 12;
+  ctx.beginPath(); ctx.moveTo(vx - 5, GY * 0.18);
+  ctx.quadraticCurveTo(vx - 30, GY * 0.5, vx - 50, GY); ctx.stroke();
+  // Smoke wisps in sky — larger, more dramatic
+  for (let i = 0; i < 6; i++) {
+    const sx = vx + (r() - 0.5) * 60, sy = GY * 0.08 + r() * GY * 0.2;
+    const smokeR = 25 + r() * 35;
+    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, smokeR);
+    g.addColorStop(0, `rgba(80,60,50,${0.06 + r() * 0.05})`); g.addColorStop(1, "transparent");
+    ctx.fillStyle = g; ctx.fillRect(sx - smokeR, sy - smokeR, smokeR * 2, smokeR * 2);
+  }
+  // Additional smoke wisps across sky
+  for (let i = 0; i < 3; i++) {
+    const sx = r() * W, sy = GY * 0.3 + r() * GY * 0.4;
     const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 30 + r() * 25);
-    g.addColorStop(0, `rgba(60,50,40,${0.05 + r() * 0.04})`); g.addColorStop(1, "transparent");
+    g.addColorStop(0, `rgba(60,50,40,${0.04 + r() * 0.04})`); g.addColorStop(1, "transparent");
     ctx.fillStyle = g; ctx.fillRect(sx - 50, sy - 50, 100, 100);
   }
-  // Cracked ground in foreground
-  ctx.strokeStyle = "rgba(180,80,20,0.1)"; ctx.lineWidth = 1;
-  for (let i = 0; i < 5; i++) {
+  // Cracked ground in foreground — glowing cracks
+  ctx.strokeStyle = "rgba(180,80,20,0.12)"; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 7; i++) {
     const cx = r() * W, cy = H - 20 - r() * 30;
     ctx.beginPath(); ctx.moveTo(cx, cy);
     for (let j = 0; j < 3; j++) ctx.lineTo(cx + (r() - 0.5) * 30, cy + (r() - 0.5) * 15);
     ctx.stroke();
+    // Glow inside cracks
+    ctx.strokeStyle = "rgba(255,60,10,0.05)"; ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(180,80,20,0.12)"; ctx.lineWidth = 1.5;
   }
 }
 
@@ -1680,19 +1908,63 @@ function drawOlympus(ctx, W, H, GY, r) {
     ctx.fillStyle = `rgba(200,195,180,${0.06 + depthT * 0.1})`;
     ctx.fillRect(r() * W, sy, (12 + r() * 18) * stoneScale, (4 + r() * 6) * stoneScale);
   }
-  // --- Olive trees sorted by depth ---
+  // --- Olive trees sorted by depth — gnarled Mediterranean style ---
   const olives = [];
-  for (let i = 0; i < 5; i++) olives.push({ x: r() * W, y: GY - 5 + r() * 25, h: 40 + r() * 50, rv: [r(), r(), r(), r()] });
+  for (let i = 0; i < 7; i++) olives.push({ x: r() * W, y: GY - 5 + r() * 30, h: 40 + r() * 55, rv: [r(), r(), r(), r(), r(), r(), r(), r()] });
   olives.sort((a, b) => a.y - b.y);
   for (const t of olives) {
     const depthT = Math.max(0, Math.min(1, (t.y - GY + 10) / (groundH * 0.4)));
     const scale = DEPTH_CONFIG.minScale + (DEPTH_CONFIG.maxScale - DEPTH_CONFIG.minScale) * depthT;
-    ctx.globalAlpha = 0.2 + depthT * 0.35;
-    ctx.fillStyle = `hsl(30,${25 + depthT * 10}%,${30 + t.rv[0] * 10}%)`;
-    ctx.fillRect(t.x - 2 * scale, t.y - t.h * 0.2 * scale, 4 * scale, t.h * 0.3 * scale);
-    for (let l = 0; l < 3; l++) {
-      ctx.fillStyle = `hsl(${80 + t.rv[1] * 30},${25 + depthT * 15}%,${35 + t.rv[2] * 15 - (1 - depthT) * 5}%)`;
-      ctx.beginPath(); ctx.ellipse(t.x + (t.rv[3] - 0.5) * 12 * scale, t.y - t.h * 0.25 * scale - l * 10 * scale, (15 + t.rv[0] * 10) * scale, (10 + t.rv[1] * 6) * scale, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.25 + depthT * 0.45;
+    // Gnarled trunk — curved with thickness variation
+    const trunkW = (3 + t.rv[0] * 3) * scale;
+    const trunkH = t.h * 0.35 * scale;
+    const lean = (t.rv[4] - 0.5) * 12 * scale;
+    ctx.fillStyle = `hsl(${25 + t.rv[5] * 15},${22 + depthT * 10}%,${28 + t.rv[0] * 10}%)`;
+    ctx.beginPath();
+    ctx.moveTo(t.x - trunkW, t.y);
+    ctx.quadraticCurveTo(t.x - trunkW + lean * 0.3, t.y - trunkH * 0.5, t.x - trunkW * 0.7 + lean, t.y - trunkH);
+    ctx.lineTo(t.x + trunkW * 0.7 + lean, t.y - trunkH);
+    ctx.quadraticCurveTo(t.x + trunkW + lean * 0.3, t.y - trunkH * 0.5, t.x + trunkW, t.y);
+    ctx.closePath(); ctx.fill();
+    // Bark texture
+    ctx.strokeStyle = `rgba(60,40,20,${0.15 + depthT * 0.1})`;
+    ctx.lineWidth = 0.5;
+    for (let b = 0; b < 3; b++) {
+      const by = t.y - trunkH * (0.2 + b * 0.25);
+      ctx.beginPath(); ctx.moveTo(t.x - trunkW * 0.6 + lean * (b / 3), by); ctx.lineTo(t.x + trunkW * 0.3 + lean * (b / 3), by + 3); ctx.stroke();
+    }
+    // Spreading branches
+    const topX = t.x + lean, topY = t.y - trunkH;
+    ctx.strokeStyle = `hsl(25,${22 + depthT * 8}%,${30 + t.rv[1] * 8}%)`;
+    ctx.lineWidth = 2 * scale;
+    for (let br = 0; br < 3; br++) {
+      const bAngle = -0.8 + br * 0.8 + (t.rv[5 + br % 3] - 0.5) * 0.4;
+      const bLen = (18 + t.rv[br % 4] * 15) * scale;
+      ctx.beginPath(); ctx.moveTo(topX, topY);
+      ctx.quadraticCurveTo(topX + Math.cos(bAngle) * bLen * 0.6, topY + Math.sin(bAngle) * bLen * 0.4 - 5 * scale,
+        topX + Math.cos(bAngle) * bLen, topY + Math.sin(bAngle) * bLen * 0.3);
+      ctx.stroke();
+    }
+    // Silvery-green canopy layers
+    for (let l = 0; l < 4; l++) {
+      const lx = topX + (t.rv[(l + 3) % 8] - 0.5) * 20 * scale;
+      const ly = topY - l * 8 * scale - 3 * scale;
+      const rw = (14 + t.rv[(l + 1) % 8] * 14) * scale;
+      const rh = (9 + t.rv[(l + 2) % 8] * 8) * scale;
+      const hue = 80 + t.rv[(l + 1) % 8] * 30;
+      const sat = 20 + depthT * 15 + t.rv[(l + 2) % 8] * 12;
+      ctx.fillStyle = `hsl(${hue},${sat}%,${38 + t.rv[(l + 3) % 8] * 15 - (1 - depthT) * 5}%)`;
+      ctx.beginPath(); ctx.ellipse(lx, ly, rw, rh, t.rv[l % 8] * 0.3, 0, Math.PI * 2); ctx.fill();
+    }
+    // Olives (small dark fruits)
+    if (depthT > 0.15) {
+      ctx.fillStyle = `rgba(40,50,20,${0.3 + depthT * 0.3})`;
+      for (let o = 0; o < 5; o++) {
+        const ox = topX + (t.rv[(o + 2) % 8] - 0.5) * 22 * scale;
+        const oy = topY - t.rv[(o + 4) % 8] * 25 * scale;
+        ctx.beginPath(); ctx.arc(ox, oy, 1.5 * scale, 0, Math.PI * 2); ctx.fill();
+      }
     }
   }
   ctx.globalAlpha = 1;
