@@ -2629,7 +2629,6 @@ export const SPELL_ICON_MAP = {
   fireball: "dynamite",
   lightning: "sniper",
   icelance: "harpoon",
-  holybeam: "cannon",
   summon: "recruit",
   meteor: "cannon",
   blizzard: "bulletRain",

@@ -43,7 +43,7 @@ export const MERCENARY_TYPES = [
     bodyColor: "#5a6a3a", armorColor: "#3a4a1a",
     color: "#60a050",
     weapon: "bow", combatStyle: "ranged",
-    projectileDamage: 7, projectileCd: 1600, range: 40,
+    projectileDamage: 7, projectileCd: 1600, range: 30,
     passive: { id: "ammo_drop", dropChance: 0.15, desc: "Zabójstwo — 15% szans na drop amunicji" },
   },
 ];

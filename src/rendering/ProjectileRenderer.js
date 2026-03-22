@@ -237,26 +237,43 @@ export class ProjectileRenderer {
 
     switch (proj.spellId) {
       case "fireball": {
-        // Dynamite — arc trajectory, spinning fuse
+        // Dynamite — arc trajectory with lit fuse, spinning sparks, smoke trail
         const r = size + Math.sin(age * 0.6) * 2;
-        // Trail sparks
-        g.setStrokeStyle({ width: 2, color: 0xff8020, alpha: 0.4 });
-        g.moveTo(proj.x - cos * r * 2, proj.y - sin * r * 2);
-        g.lineTo(proj.x - cos * r, proj.y - sin * r);
-        g.stroke();
-        // Outer glow
-        g.circle(proj.x, proj.y, r * 2.5);
-        g.fill({ color: 0xff4010, alpha: 0.12 });
-        // Body — dark cylinder
-        g.circle(proj.x, proj.y, r);
-        g.fill({ color: 0x4a2a10, alpha: 0.95 });
-        // Fuse spark
-        g.circle(proj.x - cos * r * 0.8, proj.y - sin * r * 0.8, 3);
-        g.fill({ color: 0xffe040, alpha: 0.8 + Math.sin(age * 1.2) * 0.2 });
-        // Sparks around fuse
+        const spin = age * 0.15;
+        // Smoke trail — fading puffs behind
         for (let i = 0; i < 3; i++) {
-          const a = age * 0.15 + i * 2.1;
-          g.circle(proj.x - cos * r + Math.cos(a) * 5, proj.y - sin * r + Math.sin(a) * 5, 1);
+          const d = (i + 1) * 8;
+          g.circle(proj.x - cos * d, proj.y - sin * d, 3 - i * 0.7);
+          g.fill({ color: 0x808080, alpha: 0.12 - i * 0.03 });
+        }
+        // Spark trail — bright orange
+        g.setStrokeStyle({ width: 2, color: 0xff8020, alpha: 0.5 });
+        g.moveTo(proj.x - cos * r * 2.5, proj.y - sin * r * 2.5);
+        g.lineTo(proj.x - cos * r * 1.2, proj.y - sin * r * 1.2);
+        g.stroke();
+        // Outer glow — pulsing danger
+        g.circle(proj.x, proj.y, r * 2.8);
+        g.fill({ color: 0xff4010, alpha: 0.08 + Math.sin(age * 0.5) * 0.04 });
+        // Red stick body
+        g.circle(proj.x, proj.y, r);
+        g.fill({ color: 0x8b2010, alpha: 0.95 });
+        // Paper wrap lines
+        g.setStrokeStyle({ width: 1, color: 0xc06040, alpha: 0.4 });
+        g.moveTo(proj.x - r * 0.6, proj.y - r * 0.3);
+        g.lineTo(proj.x + r * 0.6, proj.y + r * 0.3);
+        g.stroke();
+        // Fuse spark — bright flickering
+        const fuseX = proj.x - cos * r * 0.9;
+        const fuseY = proj.y - sin * r * 0.9;
+        g.circle(fuseX, fuseY, 3.5);
+        g.fill({ color: 0xffe040, alpha: 0.9 + Math.sin(age * 1.5) * 0.1 });
+        g.circle(fuseX, fuseY, 1.5);
+        g.fill({ color: 0xffffff, alpha: 0.7 });
+        // Flying sparks around fuse
+        for (let i = 0; i < 4; i++) {
+          const a = spin + i * 1.57;
+          const sr = 5 + Math.sin(age * 0.3 + i) * 2;
+          g.circle(fuseX + Math.cos(a) * sr, fuseY + Math.sin(a) * sr, 1.2);
           g.fill({ color: 0xffa020, alpha: 0.6 });
         }
         break;
@@ -283,88 +300,157 @@ export class ProjectileRenderer {
         break;
       }
       case "icelance": {
-        // Harpoon — long spear shape
-        const len = 14;
-        // Ice trail
-        g.setStrokeStyle({ width: 2, color: 0x80d0ff, alpha: 0.3 });
-        g.moveTo(proj.x - cos * len * 2, proj.y - sin * len * 2);
-        g.lineTo(proj.x - cos * len, proj.y - sin * len);
+        // Harpoon — long barbed spear with rope trail
+        const len = 16;
+        // Rope trail — wavy line behind
+        g.setStrokeStyle({ width: 1.5, color: 0x8a7040, alpha: 0.35 });
+        const ropeLen = 25;
+        let rx = proj.x - cos * len;
+        let ry = proj.y - sin * len;
+        g.moveTo(rx, ry);
+        for (let i = 1; i <= 4; i++) {
+          const waveOff = Math.sin(age * 0.12 + i * 1.5) * 3;
+          rx -= cos * (ropeLen / 4);
+          ry -= sin * (ropeLen / 4);
+          g.lineTo(rx - sin * waveOff, ry + cos * waveOff);
+        }
         g.stroke();
-        // Shaft
-        g.setStrokeStyle({ width: 3, color: 0x6a5020, cap: "round" });
+        // Wooden shaft
+        g.setStrokeStyle({ width: 3.5, color: 0x7a5a2a, cap: "round" });
         g.moveTo(proj.x - cos * len, proj.y - sin * len);
         g.lineTo(proj.x + cos * 2, proj.y + sin * 2);
         g.stroke();
-        // Metal head
-        g.moveTo(proj.x + cos * len * 0.8, proj.y + sin * len * 0.8);
-        g.lineTo(proj.x + cos * 2 - sin * 3, proj.y + sin * 2 + cos * 3);
-        g.lineTo(proj.x + cos * 2 + sin * 3, proj.y + sin * 2 - cos * 3);
+        // Shaft highlight
+        g.setStrokeStyle({ width: 1, color: 0xa08040, alpha: 0.4 });
+        g.moveTo(proj.x - cos * len * 0.8, proj.y - sin * len * 0.8 - 1);
+        g.lineTo(proj.x, proj.y - 1);
+        g.stroke();
+        // Metal head — barbed triangle
+        const tipX = proj.x + cos * len * 0.9;
+        const tipY = proj.y + sin * len * 0.9;
+        g.moveTo(tipX, tipY);
+        g.lineTo(proj.x + cos * 2 - sin * 4, proj.y + sin * 2 + cos * 4);
+        g.lineTo(proj.x + cos * 2 + sin * 4, proj.y + sin * 2 - cos * 4);
         g.closePath();
-        g.fill({ color: 0xc0d0e0, alpha: 0.9 });
-        // Glow
-        g.circle(proj.x, proj.y, 8);
-        g.fill({ color: 0x40c0ff, alpha: 0.1 });
+        g.fill({ color: 0xc8d8e8, alpha: 0.95 });
+        // Barbs
+        const barbX = proj.x + cos * 4;
+        const barbY = proj.y + sin * 4;
+        g.moveTo(barbX, barbY);
+        g.lineTo(barbX - sin * 5 - cos * 3, barbY + cos * 5 - sin * 3);
+        g.lineTo(barbX - cos * 2, barbY - sin * 2);
+        g.closePath();
+        g.fill({ color: 0xa0b0c0, alpha: 0.7 });
+        // Metallic glint on tip
+        g.circle(tipX, tipY, 2);
+        g.fill({ color: 0xffffff, alpha: 0.5 + Math.sin(age * 0.3) * 0.2 });
+        // Subtle ice glow
+        g.circle(proj.x, proj.y, 10);
+        g.fill({ color: 0x40c0ff, alpha: 0.08 });
         break;
       }
-      case "holybeam": {
-        // Cannonball — large heavy sphere
+      case "meteor": {
+        // Salwa Armatnia — fiery cannonball with blazing trail
         const r = size;
+        // Fire trail — multiple fading circles behind
+        for (let i = 0; i < 4; i++) {
+          const d = (i + 1) * 7;
+          const trailR = (4 - i) * 1.2;
+          g.circle(proj.x - cos * d, proj.y - sin * d, trailR);
+          g.fill({ color: 0xff6020, alpha: 0.2 - i * 0.04 });
+        }
         // Smoke trail
         for (let i = 0; i < 3; i++) {
-          const d = (i + 1) * 8;
-          g.circle(proj.x - cos * d, proj.y - sin * d, 4 - i);
-          g.fill({ color: 0x808080, alpha: 0.15 - i * 0.04 });
+          const d = (i + 1) * 10 + 8;
+          g.circle(proj.x - cos * d, proj.y - sin * d, 3 - i * 0.6);
+          g.fill({ color: 0x606060, alpha: 0.12 - i * 0.03 });
         }
-        // Outer glow
-        g.circle(proj.x, proj.y, r * 2);
-        g.fill({ color: 0xd4a030, alpha: 0.1 });
-        // Iron ball
+        // Outer heat glow
+        g.circle(proj.x, proj.y, r * 2.5);
+        g.fill({ color: 0xff4010, alpha: 0.12 });
+        // Mid glow
+        g.circle(proj.x, proj.y, r * 1.6);
+        g.fill({ color: 0xff8030, alpha: 0.2 });
+        // Iron ball core
         g.circle(proj.x, proj.y, r);
-        g.fill({ color: 0x3a3a3a, alpha: 0.95 });
+        g.fill({ color: 0x2a2a2a, alpha: 0.95 });
         // Metallic highlight
-        g.circle(proj.x - r * 0.25, proj.y - r * 0.25, r * 0.4);
-        g.fill({ color: 0x707070, alpha: 0.4 });
+        g.circle(proj.x - r * 0.2, proj.y - r * 0.3, r * 0.35);
+        g.fill({ color: 0x606060, alpha: 0.4 });
+        // Hot glow on front
+        g.circle(proj.x + cos * r * 0.3, proj.y + sin * r * 0.3, r * 0.5);
+        g.fill({ color: 0xff6020, alpha: 0.3 + Math.sin(age * 0.8) * 0.1 });
         break;
       }
       case "drain": {
-        // Shadow bolt — purple swirling energy
+        // Piracki Haracz — skull-shaped shadow bolt with draining tendrils
         const r = size;
-        g.circle(proj.x, proj.y, r * 2);
-        g.fill({ color: 0xc02060, alpha: 0.12 });
-        g.circle(proj.x, proj.y, r);
-        g.fill({ color: 0xc02060, alpha: 0.7 });
-        g.circle(proj.x, proj.y, r * 0.4);
-        g.fill({ color: 0xff80a0, alpha: 0.5 });
-        // Swirling bits
-        for (let i = 0; i < 3; i++) {
-          const a = age * 0.12 + i * 2.1;
-          g.circle(proj.x + Math.cos(a) * r * 1.3, proj.y + Math.sin(a) * r * 1.3, 1.5);
-          g.fill({ color: 0xc02060, alpha: 0.5 });
+        // Outer shadow aura — pulsing
+        g.circle(proj.x, proj.y, r * 2.5);
+        g.fill({ color: 0x800040, alpha: 0.08 + Math.sin(age * 0.4) * 0.04 });
+        // Swirling tendrils — draining energy
+        for (let i = 0; i < 5; i++) {
+          const a = age * 0.1 + i * 1.26;
+          const tr = r * 1.5 + Math.sin(age * 0.15 + i) * 3;
+          g.circle(proj.x + Math.cos(a) * tr, proj.y + Math.sin(a) * tr, 2);
+          g.fill({ color: 0xc02060, alpha: 0.4 });
+          // Connecting tendril line
+          g.setStrokeStyle({ width: 1, color: 0xc02060, alpha: 0.2 });
+          g.moveTo(proj.x, proj.y);
+          g.lineTo(proj.x + Math.cos(a) * tr, proj.y + Math.sin(a) * tr);
+          g.stroke();
         }
+        // Dark core
+        g.circle(proj.x, proj.y, r * 1.2);
+        g.fill({ color: 0x601030, alpha: 0.7 });
+        // Inner crimson
+        g.circle(proj.x, proj.y, r * 0.7);
+        g.fill({ color: 0xc02060, alpha: 0.85 });
+        // Bright center
+        g.circle(proj.x, proj.y, r * 0.3);
+        g.fill({ color: 0xff80a0, alpha: 0.6 });
+        // Gold coin sparkle (pirate theme)
+        const sparkAngle = age * 0.2;
+        g.circle(proj.x + Math.cos(sparkAngle) * r * 0.4, proj.y + Math.sin(sparkAngle) * r * 0.4, 1.5);
+        g.fill({ color: 0xffd700, alpha: 0.5 + Math.sin(age * 0.6) * 0.3 });
         break;
       }
       case "chainlightning": {
-        // Ricochet bullet — bright bouncing projectile
+        // Rykoszet — spinning chain-link bullet with electric arcs
         const r = size;
-        // Electric glow
-        g.circle(proj.x, proj.y, r * 3);
-        g.fill({ color: 0xe0e040, alpha: 0.1 });
-        // Core
-        g.circle(proj.x, proj.y, r);
-        g.fill({ color: 0xe0e040, alpha: 0.85 });
-        // Center flash
-        g.circle(proj.x, proj.y, r * 0.4);
-        g.fill({ color: 0xffffff, alpha: 0.6 });
-        // Lightning arcs
-        for (let i = 0; i < 2; i++) {
-          const a = age * 0.2 + i * Math.PI;
-          const ex = proj.x + Math.cos(a) * r * 2;
-          const ey = proj.y + Math.sin(a) * r * 2;
-          g.setStrokeStyle({ width: 1, color: 0xffff40, alpha: 0.4 });
+        // Electric outer glow
+        g.circle(proj.x, proj.y, r * 3.5);
+        g.fill({ color: 0xe0e040, alpha: 0.08 + Math.sin(age * 0.6) * 0.04 });
+        // Chain links orbiting — visual chain effect
+        for (let i = 0; i < 3; i++) {
+          const a = age * 0.25 + i * 2.09;
+          const cr = r * 1.5;
+          const cx = proj.x + Math.cos(a) * cr;
+          const cy = proj.y + Math.sin(a) * cr;
+          // Link shape (small oval)
+          g.setStrokeStyle({ width: 1.5, color: 0xc0b080, alpha: 0.6 });
+          g.circle(cx, cy, 2);
+          g.stroke();
+        }
+        // Lightning arcs — jagged lines
+        for (let i = 0; i < 3; i++) {
+          const a = age * 0.18 + i * 2.09;
+          const ex = proj.x + Math.cos(a) * r * 2.5;
+          const ey = proj.y + Math.sin(a) * r * 2.5;
+          g.setStrokeStyle({ width: 1.2, color: 0xffff40, alpha: 0.35 });
+          const midX = (proj.x + ex) / 2 + (Math.random() - 0.5) * 4;
+          const midY = (proj.y + ey) / 2 + (Math.random() - 0.5) * 4;
           g.moveTo(proj.x, proj.y);
+          g.lineTo(midX, midY);
           g.lineTo(ex, ey);
           g.stroke();
         }
+        // Metallic core
+        g.circle(proj.x, proj.y, r);
+        g.fill({ color: 0xd0c060, alpha: 0.9 });
+        // White hot center
+        g.circle(proj.x, proj.y, r * 0.4);
+        g.fill({ color: 0xffffff, alpha: 0.7 });
         break;
       }
       default: {
