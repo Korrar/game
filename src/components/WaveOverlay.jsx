@@ -7,7 +7,7 @@ function WIcon({ name, size = 13 }) {
   return <img src={url} width={size} height={size} style={{ verticalAlign: "middle", display: "inline-block" }} alt={name} />;
 }
 
-export default function WaveOverlay({ defense, onDismiss, onRetreat, caravanHp, caravanMaxHp, relicChoices, boss, killStreak, powerSpikeWarning }) {
+export default function WaveOverlay({ defense, onDismiss, onRetreat, caravanHp, caravanMaxHp, relicChoices, boss, killStreak }) {
   const [dismissed, setDismissed] = useState(false);
   if (!defense) return null;
 

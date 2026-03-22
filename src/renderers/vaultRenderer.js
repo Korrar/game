@@ -327,7 +327,7 @@ function drawWeaponRack(ctx, x, y) {
   ctx.beginPath(); ctx.arc(x + 9, y + 6, 4, 0, Math.PI * 2); ctx.fill();
 }
 
-function drawBanner(ctx, x, y, W) {
+function drawBanner(ctx, x, y) {
   // Pole
   ctx.strokeStyle = "#8a6020";
   ctx.lineWidth = 2;

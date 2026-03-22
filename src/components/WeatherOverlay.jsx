@@ -1,14 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { getIconUrl } from "../rendering/icons";
 
-export default function WeatherOverlay({ weather }) {
-  const [visible, setVisible] = useState(true);
+function useTimedVisibility(trigger, duration = 2500) {
+  const [state, setState] = useState({ visible: false, trigger: null, timerId: null });
 
-  useEffect(() => {
-    setVisible(true);
-    const timer = setTimeout(() => setVisible(false), 2500);
-    return () => clearTimeout(timer);
-  }, [weather]);
+  // Detect trigger change during render (React-recommended pattern for derived state)
+  if (trigger && trigger !== state.trigger) {
+    if (state.timerId) clearTimeout(state.timerId);
+    const timerId = setTimeout(() => {
+      setState(s => ({ ...s, visible: false, timerId: null }));
+    }, duration);
+    // setState during render is OK when guarded by a condition that prevents infinite loops
+    setState({ visible: true, trigger, timerId });
+  }
+
+  return state.visible;
+}
+
+export default function WeatherOverlay({ weather }) {
+  const visible = useTimedVisibility(weather);
 
   if (!visible || !weather) return null;
 

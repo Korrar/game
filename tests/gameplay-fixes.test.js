@@ -62,7 +62,7 @@ describe("FIX: Obstacle hitbox offset", () => {
   it("old hitbox would miss clicks at obstacle visual center", () => {
     const obsY = 30;
     const clickY = 67;
-    const hitRadius = 7;
+    // hitRadius = 7
     const dx = 0;
     const dy = (100 - obsY) - clickY; // 70 - 67 = 3 (further away but still within 7)
     const distSq = dx * dx + dy * dy;
@@ -96,7 +96,7 @@ describe("FIX: NPC panoramic spawning", () => {
   it("NPCs at 200% should be invisible from initial position but visible when panned", () => {
     const npcWorldX = 200;
     // From initial position (no pan) — should be off-screen
-    const screenXNoPan = wrapPctToScreen(npcWorldX, 0, GAME_W);
+    wrapPctToScreen(npcWorldX, 0, GAME_W);
     // wrapPctToScreen returns pct directly when panOffset=0
     // so 200 > 110 would be null... but with no pan it passes through
     // Actually when panOffset=0 it returns pct directly (pass-through)

@@ -1,7 +1,7 @@
 // FortificationMenu — pre-defense placement overlay
 // Shows unlocked fortifications for manual placement or auto-deploy option
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { getIconUrl } from "../rendering/icons";
 import { FORTIFICATION_TREE, FORTIFICATION_PHASE } from "../data/advancedTraps";
 import { DEFENSE_TRAPS, MAX_PLAYER_TRAPS } from "../data/skillshots";
@@ -34,8 +34,7 @@ export default function FortificationMenu({
   onAutoPlace,    // () => void — auto deploy all
   onReady,        // () => void — done placing, start waves
   placedCount,    // number of fortifications placed so far
-  maxCount,       // max allowed
-  roomNumber,
+  // maxCount and roomNumber available for future use
   isBossRoom,
   bossName,
   defensePoi,     // the POI data that triggered this

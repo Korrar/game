@@ -270,15 +270,11 @@ export class CombatEffects {
     const particles = this.particles;
     const len = particles.length;
 
-    // Count alive particles to skip empty loop iterations
-    let aliveCount = 0;
-
     for (let i = 0; i < len; i++) {
       const p = particles[i];
       if (!p.alive) continue;
-      aliveCount++;
       p.age++;
-      if (p.age > p.maxAge) { p.alive = false; aliveCount--; continue; }
+      if (p.age > p.maxAge) { p.alive = false; continue; }
 
       const t = p.age / p.maxAge;
       // Optimized alpha: avoid branch with clamp math

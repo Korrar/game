@@ -29,8 +29,8 @@ import {
   startMusic, toggleMusic, changeBiomeMusic, setMusicCombatIntensity, startRiverAmbience, stopRiverAmbience, sfxDoor, sfxChest, sfxSell,
   sfxStore, sfxRetrieve, sfxUpgrade, sfxGather, sfxBuy,
   sfxFireball, sfxLightning, sfxIceLance, sfxShadowBolt, sfxHolyBeam,
-  sfxNpcDeath, sfxDrinkMana, sfxSummon, sfxRecruit, sfxMeleeHit, sfxSaberSwipe, sfxSaberHit, sfxMeteorFall, sfxMeteorImpact,
-  sfxEventAppear, sfxMerchant, sfxAmbush, sfxAltar, sfxEventSuccess, sfxEventFail,
+  sfxNpcDeath, sfxDrinkMana, sfxRecruit, sfxMeleeHit, sfxSaberSwipe, sfxSaberHit, sfxMeteorFall, sfxMeteorImpact,
+  sfxEventAppear, sfxMerchant, sfxAltar, sfxEventSuccess, sfxEventFail,
   sfxWaveHorn, sfxWaveComplete, sfxVictoryFanfare, sfxWeather, sfxCaravanHit,
   sfxEnemyStrike, sfxEnemyProjectile,
 } from "./audio/soundEngine";
@@ -304,7 +304,7 @@ export default function App() {
   const cooldownsRef = useRef({});
   cooldownsRef.current = cooldowns;
   const [selectedSpell, setSelectedSpell] = useState(null);
-  const [dragHighlight, setDragHighlight] = useState(null);
+  const [_dragHighlight, setDragHighlight] = useState(null);
 
   // Floating damage popups
   const [dmgPopups, setDmgPopups] = useState([]);
@@ -409,14 +409,14 @@ export default function App() {
   const wandActiveRef = useRef(false);
   wandActiveRef.current = wandActive;
   const wandOrbsRef = useRef({ active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {}, lastDrainTime: 0 });
-  const [wandTick, setWandTick] = useState(0);
+  const [_wandTick, setWandTick] = useState(0);
 
   // ─── FEATURE: Salwa Armatnia (hold-to-cast cannon barrage) ───
   const [salvaActive, setSalvaActive] = useState(false);
   const salvaActiveRef = useRef(false);
   salvaActiveRef.current = salvaActive;
   const salvaRef = useRef({ active: false, cursorX: 50, cursorY: 50, lastShotTime: 0 });
-  const [salvaTick, setSalvaTick] = useState(0);
+  const [_salvaTick, setSalvaTick] = useState(0);
 
   // ─── FEATURE: Combo Visual Feedback ───
   const [comboCounter, setComboCounter] = useState(0);
@@ -429,7 +429,7 @@ export default function App() {
   const [skillshotMode, setSkillshotMode] = useState(false); // true when player is aiming
   const combatEngagedRef = useRef(false); // enemies passive until player first attacks
   const confusionActiveRef = useRef(false); // mushroom spores — enemies attack each other
-  const [skillshotSpell, setSkillshotSpell] = useState(null); // spell being aimed
+  const [_skillshotSpell, setSkillshotSpell] = useState(null); // spell being aimed
   const [accuracy, setAccuracy] = useState({ hits: 0, misses: 0, headshots: 0 });
   const [accuracyStreak, setAccuracyStreak] = useState(0); // consecutive hits without miss
   const accuracyStreakRef = useRef(0);
@@ -486,8 +486,6 @@ export default function App() {
   const perkCooldownMult = Math.pow(0.90, getPerkCount("cooldown"));
   const perkLootMult = 1 + getPerkCount("loot_value") * 0.20;
   const perkCaravanArmor = getPerkCount("caravan_armor");
-  const perkMercCritBonus = getPerkCount("merc_crit") * 0.10;
-
   // MAX_MANA computed from base + knowledge upgrades + perks
   const MAX_MANA = BASE_MAX_MANA + (knowledgeUpgrades.manaPool || 0) * 10 + perkMaxMana;
 
@@ -523,7 +521,7 @@ export default function App() {
   const [crew, setCrew] = useState([]);           // [{role, loyalty, skillLevel, id}]
   const crewRef = useRef([]);
   crewRef.current = crew;
-  const [crewRecruitOffer, setCrewRecruitOffer] = useState(null);
+  const [_crewRecruitOffer, setCrewRecruitOffer] = useState(null);
 
   // ─── FEATURE: Story Events ───
   const [activeStory, setActiveStory] = useState(null);     // {id, currentStep}
@@ -554,8 +552,8 @@ export default function App() {
 
   // ─── FEATURE: Advanced Traps & Fortifications ───
   const [unlockedFortifications, setUnlockedFortifications] = useState(["wooden_wall", "alarm_bell"]);
-  const [activeFortifications, setActiveFortifications] = useState([]); // placed this room
-  const [fortificationPhase, setFortificationPhase] = useState(false);
+  const [_activeFortifications, setActiveFortifications] = useState([]); // placed this room
+  const [_fortificationPhase, setFortificationPhase] = useState(false);
 
   // ─── FEATURE: Factions & Reputation ───
   const [factionRep, setFactionRep] = useState({
@@ -575,7 +573,7 @@ export default function App() {
   const [ownedArtifacts, setOwnedArtifacts] = useState([]);
   const [totalDiscoveries, setTotalDiscoveries] = useState(0);
   const [secretRoom, setSecretRoom] = useState(null);
-  const [showJournal, setShowJournal] = useState(false);
+  const [_showJournal, setShowJournal] = useState(false);
 
   // Knowledge bonus: +5% damage per discovered NPC type (max +50%)
   const getKnowledgeBonus = (npcId) => {
@@ -715,7 +713,7 @@ export default function App() {
   }, []);
 
   // ─── Computed faction bonuses ───
-  const getAllFactionBonuses = () => {
+  const _getAllFactionBonuses = () => {
     const bonuses = {};
     for (const faction of FACTIONS) {
       const rep = factionRepRef.current[faction.id] || 0;
@@ -726,7 +724,7 @@ export default function App() {
   };
 
   // ─── Computed discovery bonuses ───
-  const getArtifactSetBonuses = () => getCompletedSetBonuses(ownedArtifacts);
+  const _getArtifactSetBonuses = () => getCompletedSetBonuses(ownedArtifacts);
 
   const [activeBoss, setActiveBoss] = useState(null);
   const activeBossRef = useRef(null);
@@ -757,7 +755,7 @@ export default function App() {
   // Sync ref from state ONLY when not actively dragging — during drag,
   // handlePanMove owns the ref and state may lag behind by a frame
   if (!panRef.current.dragging) panOffsetRef.current = panOffset;
-  const physicsCanvasRef = useRef(null);
+  const _physicsCanvasRef = useRef(null);
   const vaultRef = useRef(null);
   const gameContainerRef = useRef(null);
   const gameDimsRef = useRef(gameDims);
@@ -1570,7 +1568,7 @@ export default function App() {
                     physicsRef.current.spawnProjectile(
                       idNum, targetXPct, projType, ability.damage, ability.element,
                       targetIsCaravan
-                        ? (hitId, dmg, elem) => { if (attackCaravanRef.current) attackCaravanRef.current(_idNum, dmg); }
+                        ? (_hitId, dmg) => { if (attackCaravanRef.current) attackCaravanRef.current(_idNum, dmg); }
                         : (hitId, dmg, elem) => { if (enemyAbilityRef.current) enemyAbilityRef.current(_idNum, hitId, dmg, elem); },
                       targetIsCaravan ? null : parseInt(friendId),
                       _caravanPosPx
@@ -2091,8 +2089,8 @@ export default function App() {
             if (dist < (pt.config.radius || 8)) {
               if (!e._caltropOrig) e._caltropOrig = e.speed;
               e.speed = e._caltropOrig * (pt.config.slowMult || 0.6);
-              e._caltropUntil = trapNow + 500;
-            } else if (e._caltropUntil && trapNow > e._caltropUntil && e._caltropOrig) {
+              e._caltropUntil = dateNow + 500;
+            } else if (e._caltropUntil && dateNow > e._caltropUntil && e._caltropOrig) {
               e.speed = e._caltropOrig;
               delete e._caltropOrig;
               delete e._caltropUntil;
@@ -2102,8 +2100,8 @@ export default function App() {
           if (pt.trapType === "fire_pit" && dist < (pt.config.radius || 6)) {
             // DPS — apply damage every ~1s (every 20 frames at 60fps → check every 3rd = ~18 frames)
             const cdKey = `fire_${pt.id}_${eid}`;
-            if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > 1000) {
-              atkCds[cdKey] = trapNow;
+            if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 1000) {
+              atkCds[cdKey] = dateNow;
               const dmg = pt.config.dps || 5;
               spawnDmgPopup(parseInt(eid), `${dmg}`, "#ff6020");
               setWalkers(prev => prev.map(ww => {
@@ -2174,7 +2172,7 @@ export default function App() {
             const stunDur = pt.config.stunDuration || 3000;
             e._origSpeed = e._origSpeed || e.speed;
             e.speed = 0;
-            e._stunnedUntil = trapNow + stunDur;
+            e._stunnedUntil = dateNow + stunDur;
             spawnDmgPopup(parseInt(eid), "SIEĆ!", "#40c0a0");
             showMessage("Wróg złapany w sieć!", "#40c0a0");
             setTimeout(() => {
@@ -2235,7 +2233,7 @@ export default function App() {
               const dy2 = ((e2.y || 50) - pt.y) * 0.5;
               if (Math.sqrt(dx2 * dx2 + dy2 * dy2) < splashR) {
                 e2._poisonDps = poisonDps;
-                e2._poisonEnd = trapNow + poisonDur;
+                e2._poisonEnd = dateNow + poisonDur;
                 spawnDmgPopup(parseInt(eid2), "TRUCIZNA!", "#44ff44");
               }
             }
@@ -2245,8 +2243,8 @@ export default function App() {
           // Totem types (ice_totem, fire_totem) — persistent aura DPS + slow
           if ((pt.trapType === "ice_totem" || pt.trapType === "fire_totem") && dist < (pt.config.stats?.radius || pt.config.radius || 8)) {
             const cdKey = `totem_${pt.id}_${eid}`;
-            if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > 1000) {
-              atkCds[cdKey] = trapNow;
+            if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 1000) {
+              atkCds[cdKey] = dateNow;
               const dmg = pt.config.stats?.dps || pt.config.dps || 5;
               const elem = pt.config.stats?.element || "fire";
               spawnDmgPopup(parseInt(eid), `${dmg}`, elem === "ice" ? "#4488ff" : "#ff6020");
@@ -2272,7 +2270,7 @@ export default function App() {
               const slowMult = pt.config.stats?.slowMult || 0.6;
               if (!e._caltropOrig) e._caltropOrig = e.speed;
               e.speed = e._caltropOrig * slowMult;
-              e._caltropUntil = trapNow + 500;
+              e._caltropUntil = dateNow + 500;
             }
           }
 
@@ -2281,8 +2279,8 @@ export default function App() {
             && dist < (pt.config.stats?.range || 15)) {
             const cdKey = `turret_${pt.id}`;
             const atkCd = pt.config.stats?.attackCd || 2000;
-            if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > atkCd) {
-              atkCds[cdKey] = trapNow;
+            if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > atkCd) {
+              atkCds[cdKey] = dateNow;
               const dmg = pt.config.stats?.autoDamage || 15;
               const elem = pt.config.stats?.element || "lightning";
               spawnDmgPopup(parseInt(eid), `${dmg}`, elem === "lightning" ? "#ffee00" : elem === "ice" ? "#4488ff" : "#ff6020");
@@ -2306,7 +2304,7 @@ export default function App() {
               if (pt.trapType === "kraken_totem" && pt.config.stats?.slowMult) {
                 if (!e._caltropOrig) e._caltropOrig = e.speed;
                 e.speed = e._caltropOrig * pt.config.stats.slowMult;
-                e._caltropUntil = trapNow + 500;
+                e._caltropUntil = dateNow + 500;
               }
               break; // turret fires at one enemy per cooldown
             }
@@ -2316,8 +2314,8 @@ export default function App() {
           if (pt.trapType === "water_geyser" && dist < (pt.config.stats?.triggerRadius || 5)) {
             const cdKey = `geyser_${pt.id}`;
             const geyCd = pt.config.stats?.cooldown || 6000;
-            if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > geyCd) {
-              atkCds[cdKey] = trapNow;
+            if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > geyCd) {
+              atkCds[cdKey] = dateNow;
               const dmg = pt.config.stats?.damage || 20;
               const kb = pt.config.stats?.knockback || 15;
               spawnDmgPopup(parseInt(eid), `${dmg}`, "#4488ff");
@@ -2348,8 +2346,8 @@ export default function App() {
           if (pt.trapType === "shadow_trap" && dist < (pt.config.stats?.triggerRadius || 5)) {
             const cdKey = `shadow_${pt.id}`;
             const shCd = pt.config.stats?.cooldown || 8000;
-            if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > shCd) {
-              atkCds[cdKey] = trapNow;
+            if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > shCd) {
+              atkCds[cdKey] = dateNow;
               e.x = 10 + Math.random() * 80;
               e.y = 25 + Math.random() * 10;
               spawnDmgPopup(parseInt(eid), "TELEPORT!", "#8844cc");
@@ -2361,10 +2359,10 @@ export default function App() {
       for (let ei = 0; ei < enemyList.length; ei++) {
         const e = enemyList[ei].w;
         const eid = enemyList[ei].id;
-        if (e._poisonDps && e._poisonEnd && trapNow < e._poisonEnd) {
+        if (e._poisonDps && e._poisonEnd && dateNow < e._poisonEnd) {
           const cdKey = `pdot_${eid}`;
-          if (!atkCds[cdKey] || trapNow - atkCds[cdKey] > 1000) {
-            atkCds[cdKey] = trapNow;
+          if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 1000) {
+            atkCds[cdKey] = dateNow;
             const dmg = e._poisonDps;
             spawnDmgPopup(parseInt(eid), `${dmg}`, "#44ff44");
             setWalkers(prev => prev.map(ww => {
@@ -2384,7 +2382,7 @@ export default function App() {
               return { ...ww, hp: newHp };
             }));
           }
-        } else if (e._poisonDps && e._poisonEnd && trapNow >= e._poisonEnd) {
+        } else if (e._poisonDps && e._poisonEnd && dateNow >= e._poisonEnd) {
           delete e._poisonDps;
           delete e._poisonEnd;
         }
@@ -3516,7 +3514,7 @@ export default function App() {
     // Periodic heal (e.g. spring regeneration)
     if (eff.type === "periodic_heal" && eff.interval) {
       const iv = setInterval(() => {
-        setCaravanHp(prev => Math.min(prev + eff.healAmount, caravanMaxHpRef.current));
+        setCaravanHp(prev => Math.min(prev + eff.healAmount, CARAVAN_LEVELS[caravanLevelRef.current].hp));
         showMessage(`${biomeModifier.name}: +${eff.healAmount} HP`, "#80ff80");
       }, eff.interval);
       return () => clearInterval(iv);
@@ -4326,7 +4324,7 @@ export default function App() {
     try {
       localStorage.setItem("wrota_save", JSON.stringify(saveData));
       showMessage("Gra zapisana!", "#40c040");
-    } catch (e) {
+    } catch { /* save error */
       showMessage("Błąd zapisu!", "#e04040");
     }
   };
@@ -4398,7 +4396,7 @@ export default function App() {
       startMusic();
       showMessage("Gra wczytana!", "#40c040");
       return true;
-    } catch (e) {
+    } catch { /* load error */
       showMessage("Błąd wczytywania!", "#e04040");
       return false;
     }
@@ -4429,7 +4427,7 @@ export default function App() {
         morale, activeMutations, killsByType,
         savedAt: Date.now(),
       };
-      try { localStorage.setItem("wrota_save", JSON.stringify(saveData)); } catch {}
+      try { localStorage.setItem("wrota_save", JSON.stringify(saveData)); } catch { /* auto-save silently fails */ }
     }, 60000);
     return () => clearInterval(iv);
   }, [screen, room, money, mana, ammo, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades, activeSynergies, playerXp, playerLevel, levelPerks, spellUpgrades, killStreak, enemyBuffRooms, playerDoubleDmgRooms, crew, activeStory, completedStories, shipUpgrades, discoveredIslands, unlockedFortifications, factionRep, journal, ownedArtifacts, totalDiscoveries, ownedSabers, equippedSaber]);
@@ -4537,7 +4535,6 @@ export default function App() {
 
   // River ship segment completion handler
   const handleRiverComplete = useCallback((result) => {
-    const destBiome = riverSegment?.destBiome || null;
     setRiverSegment(false);
     setRiverPath(null);
     if (result.rewards) {
@@ -5539,7 +5536,7 @@ export default function App() {
           const wd = walkDataRef.current[walkerId];
           const inZone = !killMod.zoneRequired || (killMod.zoneRequired === "bottom" && wd && wd.y > (100 - (killMod.zoneSize || 40)));
           if (inZone) {
-            setCaravanHp(prev2 => Math.min(caravanMaxHpRef.current, prev2 + killMod.healPerKill));
+            setCaravanHp(prev2 => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev2 + killMod.healPerKill));
             showMessage(`${biomeModifierRef.current.name}: +${killMod.healPerKill} HP!`, "#40e0e0");
           }
         }
@@ -6011,7 +6008,7 @@ export default function App() {
         dmg = Math.round(dmg * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
         if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
-      if (hasRelic("mermaid_tear") && element === "ice") dmg = Math.round(dmg * 1.25);
+        if (hasRelic("mermaid_tear") && saberData.element === "ice") dmg = Math.round(dmg * 1.25);
         if (isCrit) dmg = Math.round(dmg * 2.5);
         // Execute effect: 2x dmg below threshold
         if (eff?.type === "execute" && w.hp / w.maxHp <= eff.threshold) {
@@ -6264,7 +6261,7 @@ export default function App() {
         setInteractables(prev => prev.map((it, idx) => idx === i ? { ...it, used: true } : it));
         showMessage(`${item.name}: Aktywowano!`, "#ffd740");
         if (item.reward.type === "loot") addMoneyFn({ copper: item.reward.copper });
-        else if (item.reward.type === "heal") setCaravanHp(prev => Math.min(prev + item.reward.amount, caravanMaxHpRef.current));
+        else if (item.reward.type === "heal") setCaravanHp(prev => Math.min(prev + item.reward.amount, CARAVAN_LEVELS[caravanLevelRef.current].hp));
         else if (item.reward.type === "aoe_damage" && pixiRef.current) {
           const px = (item.x / 100) * GAME_W, py = GAME_H - (item.y / 100) * GAME_H;
           pixiRef.current.spawnGoreExplosion(px, py);
@@ -6463,9 +6460,6 @@ export default function App() {
       const wd = walkDataRef.current[wid];
       const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
 
-      const weatherBoosted = weatherRef.current?.damageMult?.[spell.element] > 1;
-      const weatherNerfed = weatherRef.current?.damageMult?.[spell.element] < 1;
-
       if (resistant) {
         const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
         showMessage(`${npcData.name} odporny na ${resistLabel}! (-70% obrażeń)`, "#6688aa");
@@ -6559,7 +6553,7 @@ export default function App() {
             const kwd = walkDataRef.current[wid];
             const inZone = !killMod2.zoneRequired || (killMod2.zoneRequired === "bottom" && kwd && kwd.y > (100 - (killMod2.zoneSize || 40)));
             if (inZone) {
-              setCaravanHp(prev2 => Math.min(caravanMaxHpRef.current, prev2 + killMod2.healPerKill));
+              setCaravanHp(prev2 => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev2 + killMod2.healPerKill));
               showMessage(`${biomeModifierRef.current.name}: +${killMod2.healPerKill} HP!`, "#40e0e0");
             }
           }
@@ -6762,7 +6756,7 @@ export default function App() {
             const kwd3 = walkDataRef.current[w.id];
             const inZone3 = !killMod3.zoneRequired || (killMod3.zoneRequired === "bottom" && kwd3 && kwd3.y > (100 - (killMod3.zoneSize || 40)));
             if (inZone3) {
-              setCaravanHp(prev2 => Math.min(caravanMaxHpRef.current, prev2 + killMod3.healPerKill));
+              setCaravanHp(prev2 => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev2 + killMod3.healPerKill));
               showMessage(`${biomeModifierRef.current.name}: +${killMod3.healPerKill} HP!`, "#40e0e0");
             }
           }
@@ -7171,8 +7165,6 @@ export default function App() {
   // GAME OVER
   if (screen === "gameover" && gameOverStats) {
     const s = gameOverStats;
-    const totalGold = s.totalGoldEarned;
-    const tc = totalCopper(s.money);
     return (
       <div style={{ ...appStyle, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
         <div style={scanlinesStyle} /><div style={vignetteStyle} />
@@ -8660,10 +8652,10 @@ export default function App() {
             setInteractables(prev => prev.map((it, i) => i === idx ? { ...it, used: true } : it));
             showMessage(`${item.name}: ${item.reward.type === "heal" ? `+${item.reward.amount} HP` : item.reward.type === "loot" ? `+${item.reward.copper} miedzi!` : "Aktywowano!"}`, actionColors[item.action]);
             // Apply reward
-            if (item.reward.type === "heal") setCaravanHp(prev => Math.min(prev + item.reward.amount, caravanMaxHpRef.current));
+            if (item.reward.type === "heal") setCaravanHp(prev => Math.min(prev + item.reward.amount, CARAVAN_LEVELS[caravanLevelRef.current].hp));
             else if (item.reward.type === "loot") addMoneyFn({ copper: item.reward.copper });
             else if (item.reward.type === "heal_and_mana") {
-              setCaravanHp(prev => Math.min(prev + item.reward.heal, caravanMaxHpRef.current));
+              setCaravanHp(prev => Math.min(prev + item.reward.heal, CARAVAN_LEVELS[caravanLevelRef.current].hp));
               setMana(prev => prev + item.reward.mana);
             }
           }}

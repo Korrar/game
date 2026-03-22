@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { MERCENARY_TYPES } from "../data/mercenaries";
 import { totalCopper } from "../utils/helpers";
 import { getIconUrl } from "../rendering/icons";

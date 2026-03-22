@@ -254,7 +254,9 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
 
   // Store dimensions in ref for the loop
   const dimsRef = useRef({ w: mapW, h: mapH, shipSize, dockRadius });
-  dimsRef.current = { w: mapW, h: mapH, shipSize, dockRadius };
+  useEffect(() => {
+    dimsRef.current = { w: mapW, h: mapH, shipSize, dockRadius };
+  }, [mapW, mapH, shipSize, dockRadius]);
 
   // Keyboard handlers
   useEffect(() => {
@@ -565,7 +567,7 @@ export default function WorldMap({ onDock, shipPos, isMobile, roomNumber }) {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [hoverIsland, isMobile]);
+  }, [hoverIsland, isMobile, roomNumber]);
 
   const handleDock = useCallback(() => {
     if (!nearIsland) return;

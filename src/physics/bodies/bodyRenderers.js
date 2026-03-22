@@ -8,7 +8,8 @@ import { getNpcIconImage } from "../../rendering/icons.js";
 const ICON_SIZES = {
   humanoid: 48, quadruped: 44, floating: 44, scorpion: 40,
   spider: 38, frog: 36, serpent: 44, barricade: 52, tower: 56,
-  meteorBoulder: 60,
+  meteorBoulder: 60, lizard: 44, crab: 40, bird: 42,
+  tentacle: 44, primate: 46, fish: 40,
 };
 
 // ─── SHARED DRAW UTILS ───
@@ -66,6 +67,12 @@ const C2D_LIMBS = {
   barricade: { torso:{s:"r",hw:16,hh:23,c:"b"}, head:{s:"r",hw:5,hh:5,c:"a"}, plankL:{s:"r",hw:3,hh:18,c:"b"}, plankR:{s:"r",hw:3,hh:18,c:"b"}, crossbar:{s:"r",hw:18,hh:3,c:"a"} },
   tower: { torso:{s:"r",hw:12,hh:26,c:"b"}, head:{s:"r",hw:7,hh:7,c:"a"}, roofL:{s:"r",hw:3.5,hh:2.5,c:"a"}, roofR:{s:"r",hw:3.5,hh:2.5,c:"a"}, baseL:{s:"r",hw:3.5,hh:5,c:"a"}, baseR:{s:"r",hw:3.5,hh:5,c:"a"} },
   meteorBoulder: { torso:{s:"r",hw:18,hh:16,c:"b"}, head:{s:"c",r:10,c:"a"}, fragL:{s:"r",hw:8,hh:10,c:"b"}, fragR:{s:"r",hw:8,hh:10,c:"b"}, crustT:{s:"r",hw:12,hh:6,c:"a"}, crustB:{s:"r",hw:14,hh:5,c:"a"} },
+  lizard: { head:{s:"c",r:7,c:"b"}, torso:{s:"r",hw:12,hh:6,c:"b"}, fl:{s:"r",hw:2.5,hh:5,c:"a"}, fr:{s:"r",hw:2.5,hh:5,c:"a"}, bl:{s:"r",hw:3,hh:6,c:"a"}, br:{s:"r",hw:3,hh:6,c:"a"}, tail:{s:"r",hw:2,hh:8,c:"b"} },
+  crab: { head:{s:"c",r:5,c:"b"}, torso:{s:"r",hw:10,hh:6,c:"a"}, lPincer:{s:"r",hw:3,hh:5,c:"b"}, rPincer:{s:"r",hw:3,hh:5,c:"b"}, l1:{s:"r",hw:1.5,hh:5,c:"a"}, l2:{s:"r",hw:1.5,hh:5,c:"a"}, l3:{s:"r",hw:1.5,hh:5,c:"a"}, r1:{s:"r",hw:1.5,hh:5,c:"a"}, r2:{s:"r",hw:1.5,hh:5,c:"a"}, r3:{s:"r",hw:1.5,hh:5,c:"a"} },
+  bird: { head:{s:"c",r:7,c:"b"}, torso:{s:"r",hw:7,hh:8,c:"b"}, lWing:{s:"r",hw:3,hh:10,c:"a"}, rWing:{s:"r",hw:3,hh:10,c:"a"}, lLeg:{s:"r",hw:1.5,hh:5,c:"a"}, rLeg:{s:"r",hw:1.5,hh:5,c:"a"}, tail:{s:"r",hw:3,hh:4,c:"a"} },
+  tentacle: { head:{s:"c",r:10,c:"b"}, torso:{s:"r",hw:8,hh:8,c:"a"}, t1:{s:"r",hw:2,hh:8,c:"b"}, t2:{s:"r",hw:2,hh:8,c:"b"}, t3:{s:"r",hw:2,hh:7,c:"a"}, t4:{s:"r",hw:2,hh:7,c:"a"}, t5:{s:"r",hw:1.5,hh:6,c:"b"}, t6:{s:"r",hw:1.5,hh:6,c:"b"}, t7:{s:"r",hw:1.5,hh:6,c:"a"}, t8:{s:"r",hw:1.5,hh:6,c:"a"} },
+  primate: { head:{s:"c",r:9,c:"b"}, torso:{s:"r",hw:7,hh:10,c:"a"}, lUpperArm:{s:"r",hw:3,hh:8,c:"b"}, rUpperArm:{s:"r",hw:3,hh:8,c:"b"}, lLowerArm:{s:"r",hw:2.5,hh:7,c:"b"}, rLowerArm:{s:"r",hw:2.5,hh:7,c:"b"}, lLeg:{s:"r",hw:3,hh:6,c:"a"}, rLeg:{s:"r",hw:3,hh:6,c:"a"} },
+  fish: { head:{s:"c",r:8,c:"b"}, torso:{s:"r",hw:12,hh:6,c:"b"}, tailFin:{s:"r",hw:5,hh:6,c:"a"}, lFin:{s:"r",hw:2,hh:4,c:"a"}, rFin:{s:"r",hw:2,hh:4,c:"a"}, dorsalFin:{s:"r",hw:2,hh:5,c:"b"} },
 };
 
 function drawRagdollLimbs(ctx, limbs, entry, alpha) {

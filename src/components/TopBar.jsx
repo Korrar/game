@@ -1,6 +1,6 @@
 import GameIcon from "./GameIcon";
 
-export default function TopBar({ doors, initiative, treasures, money, mana, maxMana, onInv, onShop, onHideout, onBestiary, knowledge, musicOn, onToggleMusic, onSave, isMobile, gameW, playerLevel, playerXp, xpNeeded, onCrew, onFactions, onJournal, onShip, onFortifications }) {
+export default function TopBar({ doors, initiative, treasures, money, mana, maxMana, onInv, onBestiary, knowledge, isMobile, playerLevel, playerXp, xpNeeded, onCrew, onFactions, onJournal, onShip, onFortifications }) {
   const m = isMobile;
 
   // Mobile portrait: render inside game container as absolute-positioned bar

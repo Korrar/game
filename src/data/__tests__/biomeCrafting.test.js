@@ -20,7 +20,7 @@ describe("BIOME_RESOURCES", () => {
   });
 
   it("each resource has required fields", () => {
-    for (const [biomeId, resources] of Object.entries(BIOME_RESOURCES)) {
+    for (const [_biomeId, resources] of Object.entries(BIOME_RESOURCES)) {
       for (const res of resources) {
         expect(res).toHaveProperty("id");
         expect(res).toHaveProperty("icon");
@@ -43,7 +43,7 @@ describe("BIOME_RESOURCES", () => {
   });
 
   it("each biome has 2-4 unique resources", () => {
-    for (const [biomeId, resources] of Object.entries(BIOME_RESOURCES)) {
+    for (const [_biomeId, resources] of Object.entries(BIOME_RESOURCES)) {
       expect(resources.length).toBeGreaterThanOrEqual(2);
       expect(resources.length).toBeLessThanOrEqual(4);
     }

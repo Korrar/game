@@ -181,7 +181,8 @@ describe("Bug 8: Combo element consistency", () => {
 
   it("every element pair used in NPC abilities should have a combo", () => {
     // All elements that appear in game spells
-    const spellElements = new Set(SPELLS.filter(s => s.element && s.element !== "summon").map(s => s.element));
+    // All elements that appear in game spells (used for reference)
+    new Set(SPELLS.filter(s => s.element && s.element !== "summon").map(s => s.element));
     const comboKeys = Object.keys(COMBOS);
 
     // Check at least fire+ice, fire+lightning, ice+lightning exist
@@ -194,13 +195,11 @@ describe("Bug 8: Combo element consistency", () => {
 // ─── BUG 9: NPC ability type must match element ───
 
 describe("Bug 9: NPC ability type-element consistency", () => {
-  const abilityElementMap = {
-    fireBreath: "fire",
-    iceShot: "ice",
-    // shadowBolt can use shadow or lightning
-    // poisonSpit uses shadow element
-    // charge uses null element
-  };
+  // Reference map for expected ability-element pairings:
+  // fireBreath: "fire", iceShot: "ice"
+  // shadowBolt can use shadow or lightning
+  // poisonSpit uses shadow element
+  // charge uses null element
 
   it("iceShot abilities should always use ice element", () => {
     for (const [biomeId, pool] of Object.entries(BIOME_NPCS)) {

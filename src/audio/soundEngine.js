@@ -468,7 +468,7 @@ function createTextureLayer(cfg, type) {
 // ─── CREATURE SOUNDS — scheduled procedural animal/environment calls ───
 let creatureTimers = [];
 
-function createCreatureLayer(cfg, layerName) {
+function createCreatureLayer(cfg) {
   if (!cfg) return null;
   const c = getCtx();
   let stopped = false;
@@ -1083,18 +1083,18 @@ function _stopAllNodes() {
     if (node._sub) {
       node._sub.forEach(sub => {
         Object.values(sub).forEach(n => {
-          if (n && typeof n.stop === "function") try { n.stop(); } catch (_) {}
-          if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch (_) {}
+          if (n && typeof n.stop === "function") try { n.stop(); } catch { /* ignored */ }
+          if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch { /* ignored */ }
         });
       });
       return;
     }
     if (typeof node.stop === "function" && !node.frequency) {
-      try { node.stop(); } catch (_) {}
+      try { node.stop(); } catch { /* ignored */ }
     }
     Object.values(node).forEach(n => {
-      if (n && typeof n.stop === "function") try { n.stop(); } catch (_) {}
-      if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch (_) {}
+      if (n && typeof n.stop === "function") try { n.stop(); } catch { /* ignored */ }
+      if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch { /* ignored */ }
     });
   });
   musicNodes = [];
@@ -1144,18 +1144,18 @@ function _crossfadeTo(createFn) {
         if (node._sub) {
           node._sub.forEach(sub => {
             Object.values(sub).forEach(n => {
-              if (n && typeof n.stop === "function") try { n.stop(); } catch (_) {}
-              if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch (_) {}
+              if (n && typeof n.stop === "function") try { n.stop(); } catch { /* ignored */ }
+              if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch { /* ignored */ }
             });
           });
           return;
         }
         if (typeof node.stop === "function" && !node.frequency) {
-          try { node.stop(); } catch (_) {}
+          try { node.stop(); } catch { /* ignored */ }
         }
         Object.values(node).forEach(n => {
-          if (n && typeof n.stop === "function") try { n.stop(); } catch (_) {}
-          if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch (_) {}
+          if (n && typeof n.stop === "function") try { n.stop(); } catch { /* ignored */ }
+          if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch { /* ignored */ }
         });
       });
       createFn();
@@ -1736,7 +1736,7 @@ export function sfxShadowBolt() {
 export function sfxHolyBeam() {
   playSfx((c, now, dest) => {
     // Angelic chord
-    [523.3, 659.3, 784, 1047, 1318.5].forEach((freq, i) => {
+    [523.3, 659.3, 784, 1047, 1318.5].forEach((freq) => {
       const osc = c.createOscillator(); osc.type = "sine"; osc.frequency.value = freq;
       const g = c.createGain();
       g.gain.setValueAtTime(0.1, now); g.gain.setValueAtTime(0.1, now + 0.15);
@@ -2214,7 +2214,7 @@ export function sfxMerchant() {
 export function sfxAmbush() {
   playSfx((c, now, dest) => {
     // Battle drum hits - rapid war drums
-    [0, 0.12, 0.24].forEach((delay, i) => {
+    [0, 0.12, 0.24].forEach((delay) => {
       const osc = c.createOscillator(); osc.type = "sine";
       osc.frequency.setValueAtTime(120, now + delay); osc.frequency.exponentialRampToValueAtTime(40, now + delay + 0.12);
       const g = c.createGain(); g.gain.setValueAtTime(0.25, now + delay);
