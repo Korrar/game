@@ -76,21 +76,32 @@ function mixColor(c1, c2, t) {
 // ─── SCATTER ON ISO GRID ───
 
 function drawIsoScatter(ctx, biome, room, cameraX, cameraY) {
-  const { MAP_COLS, MAP_ROWS, GAME_W, GAME_H } = ISO_CONFIG;
+  const { MAP_COLS, MAP_ROWS, GAME_W, GAME_H, TILE_H } = ISO_CONFIG;
   const rng = seedRng(room * 137 + 99);
   const items = biome.scatter || [];
   if (!items.length) return;
 
-  // Generate scatter positions in world space
+  // Generate scatter positions in world space — dense placement to fill the map
   const scatterList = [];
-  const count = Math.min(30, MAP_COLS * MAP_ROWS * 0.02);
+  const count = Math.min(80, Math.floor(MAP_COLS * MAP_ROWS * 0.05));
 
   for (let i = 0; i < count; i++) {
     const wx = 1 + rng() * (MAP_COLS - 2);
     const wy = 1 + rng() * (MAP_ROWS - 2);
     const iconName = items[Math.floor(rng() * items.length)];
     const rVal = rng();
-    scatterList.push({ wx, wy, iconName, rVal });
+    // Vary layer: small ground cover (grass/flowers) vs larger props (trees/rocks)
+    const isLargeProp = rVal > 0.7;
+    scatterList.push({ wx, wy, iconName, rVal, large: isLargeProp });
+  }
+
+  // Add ground cover patches (small colored dots/tufts)
+  const coverCount = Math.min(60, Math.floor(MAP_COLS * MAP_ROWS * 0.04));
+  const groundCol = biome.groundCol || "#4a6a3a";
+  for (let i = 0; i < coverCount; i++) {
+    const wx = rng() * MAP_COLS;
+    const wy = rng() * MAP_ROWS;
+    scatterList.push({ wx, wy, iconName: null, rVal: rng(), groundCover: true, color: groundCol });
   }
 
   // Sort by iso depth (far first)
@@ -98,17 +109,26 @@ function drawIsoScatter(ctx, biome, room, cameraX, cameraY) {
 
   for (const s of scatterList) {
     const screen = worldToScreen(s.wx, s.wy, cameraX, cameraY);
-    // Skip if off-screen
     if (screen.x < -50 || screen.x > GAME_W + 50 || screen.y < -50 || screen.y > GAME_H + 50) continue;
 
-    const baseSz = 20 + s.rVal * 24;
+    if (s.groundCover) {
+      // Small ground details: tufts, dots, grass patches
+      ctx.globalAlpha = 0.25 + s.rVal * 0.2;
+      const sz = 3 + s.rVal * 5;
+      ctx.beginPath();
+      ctx.ellipse(screen.x, screen.y + TILE_H / 2, sz, sz * 0.5, 0, 0, Math.PI * 2);
+      ctx.fillStyle = mixColor(s.color, "#000000", 0.15 + s.rVal * 0.2);
+      ctx.fill();
+      continue;
+    }
+
+    const baseSz = s.large ? (28 + s.rVal * 18) : (16 + s.rVal * 20);
     const sz = Math.round(baseSz);
-    const alpha = 0.5 + s.rVal * 0.4;
+    const alpha = s.large ? (0.7 + s.rVal * 0.25) : (0.4 + s.rVal * 0.35);
     ctx.globalAlpha = alpha;
     const img = getIconImage(s.iconName, sz);
     if (img) {
-      // Position scatter at ground level (TILE_H/2 below tile top)
-      ctx.drawImage(img, screen.x - sz / 2, screen.y + ISO_CONFIG.TILE_H / 2 - sz, sz, sz);
+      ctx.drawImage(img, screen.x - sz / 2, screen.y + TILE_H / 2 - sz, sz, sz);
     }
   }
   ctx.globalAlpha = 1;
@@ -116,7 +136,7 @@ function drawIsoScatter(ctx, biome, room, cameraX, cameraY) {
 
 // ─── MAIN RENDER FUNCTION ───
 
-export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY) {
+export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY, caravanPos) {
   const { TILE_W, TILE_H, MAP_COLS, MAP_ROWS } = ISO_CONFIG;
   const rng = seedRng(room * 137 + 42);
 
@@ -198,6 +218,55 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
         const screen = worldToScreen(col, row, cameraX, cameraY);
         const alpha = 0.3 * (1 - edgeDist / edgeFade);
         ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(screen.x, screen.y);
+        ctx.lineTo(screen.x + TILE_W / 2, screen.y + TILE_H / 2);
+        ctx.lineTo(screen.x, screen.y + TILE_H);
+        ctx.lineTo(screen.x - TILE_W / 2, screen.y + TILE_H / 2);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  // Caravan base area — highlighted tiles around caravan position
+  if (caravanPos) {
+    const cx = Math.round(caravanPos.x);
+    const cy = Math.round(caravanPos.y);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const col = cx + dx, row = cy + dy;
+        if (col < 0 || col >= MAP_COLS || row < 0 || row >= MAP_ROWS) continue;
+        const screen = worldToScreen(col, row, cameraX, cameraY);
+        if (screen.x < -TILE_W || screen.x > W + TILE_W) continue;
+        const dist = Math.abs(dx) + Math.abs(dy);
+        const alpha = dist === 0 ? 0.25 : 0.12;
+        ctx.fillStyle = `rgba(212,160,48,${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(screen.x, screen.y);
+        ctx.lineTo(screen.x + TILE_W / 2, screen.y + TILE_H / 2);
+        ctx.lineTo(screen.x, screen.y + TILE_H);
+        ctx.lineTo(screen.x - TILE_W / 2, screen.y + TILE_H / 2);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  // Dirt path across map for visual interest (deterministic per room)
+  {
+    const pathRng = seedRng(room * 73 + 11);
+    const pathY = Math.floor(MAP_ROWS * 0.3 + pathRng() * MAP_ROWS * 0.4); // varies per room
+    const pathWidth = 2;
+    for (let col = 0; col < MAP_COLS; col++) {
+      const wobble = Math.floor(Math.sin(col * 0.4 + room) * 1.5);
+      for (let dy = -pathWidth; dy <= pathWidth; dy++) {
+        const row = pathY + wobble + dy;
+        if (row < 0 || row >= MAP_ROWS) continue;
+        const screen = worldToScreen(col, row, cameraX, cameraY);
+        if (screen.x < -TILE_W || screen.x > W + TILE_W || screen.y < -TILE_H || screen.y > H + TILE_H) continue;
+        const edgeAlpha = Math.abs(dy) === pathWidth ? 0.06 : 0.12;
+        ctx.fillStyle = `rgba(80,60,30,${edgeAlpha})`;
         ctx.beginPath();
         ctx.moveTo(screen.x, screen.y);
         ctx.lineTo(screen.x + TILE_W / 2, screen.y + TILE_H / 2);

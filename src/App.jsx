@@ -277,6 +277,8 @@ export default function App() {
   const caravanHpRef = useRef(CARAVAN_LEVELS[0].hp);
   caravanHpRef.current = caravanHp;
   const caravanLevelRef = useRef(0);
+  // Caravan world position (iso tile coords)
+  const caravanPosRef = useRef({ x: 3, y: ISO_CONFIG.MAP_ROWS / 2 });
   caravanLevelRef.current = caravanLevel;
 
   // Refs for game-over stats capture (needed inside interval callbacks)
@@ -1124,11 +1126,12 @@ export default function App() {
     const ew = walkDataRef.current[enemyId];
     // Spawn attack warn particles at enemy position
     if (ew && pixiRef.current) {
-      const ewPx = (ew.x / 100) * GAME_W;
-      const ewPy = GAME_H * ((ew.y || 50) / 100);
+      const ewPx = isoModeRef.current ? (ew.x / ISO_CONFIG.MAP_COLS) * GAME_W : (ew.x / 100) * GAME_W;
+      const ewPy = isoModeRef.current ? (ew.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H * ((ew.y || 50) / 100);
       pixiRef.current.spawnEnemyAttackWarn(ewPx, ewPy);
     }
-    const slashFromX = ew ? (ew.x < 50 ? 0 : 1) : Math.random() < 0.5 ? 0 : 1;
+    const slashCenter = isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50;
+    const slashFromX = ew ? (ew.x < slashCenter ? 0 : 1) : Math.random() < 0.5 ? 0 : 1;
     const slashId = Date.now() + Math.random();
     setAttackSlash({ id: slashId, fromX: slashFromX, dmg: actualDmg });
     setTimeout(() => setAttackSlash(prev => prev?.id === slashId ? null : prev), 600);
@@ -1531,9 +1534,15 @@ export default function App() {
           }
           // Fallback: target the caravan if no friendly NPCs found
           if (friendX === null) {
-            const caravanX = 50, caravanY = 92;
+            let caravanX, caravanY;
+            if (isoModeRef.current) {
+              caravanX = caravanPosRef.current.x;
+              caravanY = caravanPosRef.current.y;
+            } else {
+              caravanX = 50; caravanY = 92;
+            }
             const dxC = caravanX - w.x;
-            const dyC = (caravanY - (w.y || 50)) * 0.5;
+            const dyC = (caravanY - (w.y || (isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50))) * (isoModeRef.current ? 1 : 0.5);
             friendDist = Math.sqrt(dxC * dxC + dyC * dyC);
             friendX = caravanX;
             friendY = caravanY;
@@ -1550,7 +1559,9 @@ export default function App() {
               const _idNum = idNum; // capture for closures
               if (physicsRef.current) physicsRef.current.triggerAttackAnim(idNum);
               // Caravan target pixel position for projectile targetPos
-              const _caravanPosPx = targetIsCaravan ? { x: (50 / 100) * GAME_W, y: GAME_H * 0.85 } : null;
+              const _caravanPosPx = targetIsCaravan ? (isoModeRef.current
+                ? { x: (caravanPosRef.current.x / ISO_CONFIG.MAP_COLS) * GAME_W, y: (caravanPosRef.current.y / ISO_CONFIG.MAP_ROWS) * GAME_H }
+                : { x: (50 / 100) * GAME_W, y: GAME_H * 0.85 }) : null;
               switch (ability.type) {
                 case "fireBreath":
                   if (physicsRef.current) {
@@ -2054,35 +2065,44 @@ export default function App() {
           physicsRef.current.updatePatrol(idNum, xForPhysics, w.dir, w.bouncePhase, yForPhysics, w.wx, w.wy);
         }
       }
-      // ─── POI DOM ELEMENTS: sync position with panning (bypass React render lag) ───
+      // ─── POI DOM ELEMENTS: sync position with panning/camera ───
       {
+        const _isoActive = isoModeRef.current;
+        const _isoCam = _isoActive ? isoCameraRef.current : null;
         const po = panOffsetRef.current;
+
+        const _positionPoiEl = (el, poiX, poiY) => {
+          if (!el) return;
+          if (_isoActive && _isoCam) {
+            const screen = _isoWorldToScreen(poiX, poiY ?? ISO_CONFIG.MAP_ROWS / 2, _isoCam.x, _isoCam.y);
+            if (screen.x < -80 || screen.x > GAME_W + 80 || screen.y < -80 || screen.y > GAME_H + 80) {
+              el.style.display = "none";
+            } else {
+              el.style.display = "";
+              el.style.left = `${screen.x}px`;
+              el.style.top = `${screen.y}px`;
+              el.style.transform = "translateX(-50%) translateY(-100%)";
+              el.style.zIndex = String(14 + Math.round((poiX + (poiY ?? 20)) * 1.2));
+            }
+          } else {
+            const sx = _wrapPct(poiX, po, GAME_W);
+            if (sx === null) { el.style.display = "none"; }
+            else { el.style.display = ""; el.style.left = `${sx}%`; }
+          }
+        };
+
         const wfEl = waterfallElRef.current;
-        if (wfEl) {
-          const wfState = waterfallStateRef.current;
-          if (wfState) {
-            const sx = _wrapPct(wfState.x, po, GAME_W);
-            if (sx === null) { wfEl.style.display = "none"; }
-            else { wfEl.style.display = ""; wfEl.style.left = `${sx}%`; }
-          }
-        }
+        const wfState = waterfallStateRef.current;
+        if (wfEl && wfState) _positionPoiEl(wfEl, wfState.x, wfState.y);
+
         const ftEl = fruitTreeElRef.current;
-        if (ftEl) {
-          const ftState = fruitTreeStateRef.current;
-          if (ftState) {
-            const sx = _wrapPct(ftState.x, po, GAME_W);
-            if (sx === null) { ftEl.style.display = "none"; }
-            else { ftEl.style.display = ""; ftEl.style.left = `${sx}%`; }
-          }
-        }
-        // Sync obstacle DOM positions during panning
+        const ftState = fruitTreeStateRef.current;
+        if (ftEl && ftState) _positionPoiEl(ftEl, ftState.x, ftState.y);
+
+        // Sync obstacle DOM positions
         for (const obs of obstaclesRef.current) {
           const oel = obsElsRef.current[obs.id];
-          if (oel) {
-            const sx = _wrapPct(obs.x, po, GAME_W);
-            if (sx === null) { oel.style.display = "none"; }
-            else { oel.style.display = ""; oel.style.left = `${sx}%`; }
-          }
+          _positionPoiEl(oel, obs.x, obs.y);
         }
       }
 
@@ -2093,8 +2113,8 @@ export default function App() {
           const hpR = obs.maxHp > 0 ? obs.hp / obs.maxHp : 1;
           const leak = getLeakParticles(hpR, obs.material);
           if (leak && Math.random() < leak.rate) {
-            const lpx = (obs.x / 100) * GAME_W;
-            const lpy = GAME_H - (obs.y / 100) * GAME_H;
+            const lpx = isoModeRef.current ? (obs.x / ISO_CONFIG.MAP_COLS) * GAME_W : (obs.x / 100) * GAME_W;
+            const lpy = isoModeRef.current ? (obs.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (obs.y / 100) * GAME_H;
             pixiRef.current.spawnObstacleHitSpark(
               lpx + (Math.random() - 0.5) * 10,
               lpy + (Math.random() - 0.5) * 10,
@@ -2786,6 +2806,8 @@ export default function App() {
       cam.centerOnWorld(ISO_CONFIG.MAP_COLS / 2, ISO_CONFIG.MAP_ROWS / 2);
       clearTileCache(); // new biome may need different tiles
       if (pixiRef.current) pixiRef.current.setIsoCamera(cam.x, cam.y);
+      // Place caravan at left side of the map, vertically centered
+      caravanPosRef.current = { x: 3, y: ISO_CONFIG.MAP_ROWS / 2 };
     } else {
       if (pixiRef.current) pixiRef.current.setPanOffset(0);
     }
@@ -2879,7 +2901,8 @@ export default function App() {
 
     const chestRate = b.id === "jungle" ? 1.0 : hasRelic("fortune_magnet") ? 0.15 : 0.08;
     if (!isDefenseRoom && Math.random() < chestRate) {
-      const cx = 10 + Math.random() * 72, cy = 25 + Math.random() * 65;
+      const cx = useIso ? 5 + Math.random() * (ISO_CONFIG.MAP_COLS - 10) : 10 + Math.random() * 72;
+      const cy = useIso ? 5 + Math.random() * (ISO_CONFIG.MAP_ROWS - 10) : 25 + Math.random() * 65;
       setChestPos({ x: cx, y: cy });
       setShowChest(true);
       setChestClicks(0);
@@ -2900,7 +2923,8 @@ export default function App() {
     const hasTool = (terrain === "forest" && currentTools.includes("axe")) ||
                     (terrain === "mine" && currentTools.includes("pickaxe"));
     if (!isDefenseRoom && hasTool && Math.random() < 0.45) {
-      const rx = 10 + Math.random() * 280, ry = 58 + Math.random() * 24;
+      const rx = useIso ? 5 + Math.random() * (ISO_CONFIG.MAP_COLS - 10) : 10 + Math.random() * 280;
+      const ry = useIso ? 5 + Math.random() * (ISO_CONFIG.MAP_ROWS - 10) : 58 + Math.random() * 24;
       const res = pickResource(terrain);
       if (res) { res.biome = b.name; res.room = newRoom; }
       setResourceNode({ terrain, pos: { x: rx, y: ry }, resource: res });
@@ -2944,16 +2968,37 @@ export default function App() {
     };
 
     const bid = b.id;
-    const MAX_POIS = 6; // more POIs for the 360° panoramic world
-    const poiSlots = []; // { x } – tracks used positions to avoid overlap (min 12% apart)
+    const useIso = isoModeRef.current;
+    const MAX_POIS = 6;
+    const poiSlots = []; // { x, y } – tracks used positions to avoid overlap
     const poiCount = () => poiSlots.length;
-    const pickX = (min, max) => {
-      for (let tries = 0; tries < 20; tries++) {
-        const x = min + Math.random() * (max - min);
-        if (poiSlots.every(s => Math.abs(s.x - x) >= 12)) { poiSlots.push({ x }); return x; }
+    // In iso mode: positions are tile coords (3-37), panoramic: percentage (0-300)
+    const ISO_POI_MIN_DIST = 4; // tiles apart in iso
+    const PAN_POI_MIN_DIST = 12; // percent apart in panoramic
+    const pickXY = (minX, maxX, minY, maxY) => {
+      const minDist = useIso ? ISO_POI_MIN_DIST : PAN_POI_MIN_DIST;
+      for (let tries = 0; tries < 30; tries++) {
+        const x = minX + Math.random() * (maxX - minX);
+        const y = minY + Math.random() * (maxY - minY);
+        if (poiSlots.every(s => Math.sqrt((s.x - x) ** 2 + (s.y - y) ** 2) >= minDist)) {
+          poiSlots.push({ x, y });
+          return { x, y };
+        }
       }
-      return null; // couldn't find non-overlapping position
+      return null;
     };
+    // Legacy pickX wrapper for panoramic (y is optional)
+    const pickX = (min, max) => {
+      const result = pickXY(
+        useIso ? 3 : min,
+        useIso ? ISO_CONFIG.MAP_COLS - 3 : max,
+        useIso ? 3 : 25,
+        useIso ? ISO_CONFIG.MAP_ROWS - 3 : 75
+      );
+      return result ? result.x : null;
+    };
+    // Get last picked Y (for iso mode POIs need both x and y)
+    const lastPickedY = () => poiSlots.length > 0 ? poiSlots[poiSlots.length - 1].y : (useIso ? ISO_CONFIG.MAP_ROWS / 2 : 50);
 
     // Build list of candidate POIs, roll each, then cap at MAX_POIS
     let newTree = null, newMine = null, newWater = null, newCamp = null, newWizard = null, newBiomePoi = null;
@@ -2970,7 +3015,7 @@ export default function App() {
             fruits.push({ id: i, icon: tv.fruits[Math.floor(Math.random() * tv.fruits.length)], x: 15 + Math.random() * 70, y: 10 + Math.random() * 40, picked: false });
           }
         }
-        newTree = { x: tx, fruits, biomeId: bid, crown: tv.crown, trunk: tv.trunk, label: tv.label };
+        newTree = { x: tx, y: lastPickedY(), fruits, biomeId: bid, crown: tv.crown, trunk: tv.trunk, label: tv.label };
       }
     }
 
@@ -2983,7 +3028,7 @@ export default function App() {
         for (let i = 0; i < nuggetCount; i++) {
           nuggets.push({ id: i, x: 10 + Math.random() * 70, y: 15 + Math.random() * 50, dug: false });
         }
-        newMine = { x: nx, nuggets, progress: 0, activeId: null, biomeId: bid, rockCol: mv.rockCol, oreIcon: mv.oreIcon, label: mv.label };
+        newMine = { x: nx, y: lastPickedY(), nuggets, progress: 0, activeId: null, biomeId: bid, rockCol: mv.rockCol, oreIcon: mv.oreIcon, label: mv.label };
       }
     }
 
@@ -2991,13 +3036,13 @@ export default function App() {
       const wx = pickX(40, 260);
       if (wx !== null) {
         const wv = WATER_VARIANTS[bid] || WATER_VARIANTS.default;
-        newWater = { x: wx, opened: false, biomeId: bid, rgb: wv.rgb, label: wv.label, frozen: wv.frozen };
+        newWater = { x: wx, y: lastPickedY(), opened: false, biomeId: bid, rgb: wv.rgb, label: wv.label, frozen: wv.frozen };
       }
     }
 
     if (poiCount() < MAX_POIS && Math.random() < 0.20) {
       const cx = pickX(25, 270);
-      if (cx !== null) newCamp = { x: cx, biomeId: bid };
+      if (cx !== null) newCamp = { x: cx, y: lastPickedY(), biomeId: bid };
     }
 
     if (poiCount() < MAX_POIS && Math.random() < 0.20) {
@@ -3012,7 +3057,7 @@ export default function App() {
         ];
         const pick = ammoTypes[Math.floor(Math.random() * ammoTypes.length)];
         const amount = pick.min + Math.floor(Math.random() * (pick.max - pick.min + 1));
-        newWizard = { x: wizX, ammoType: pick.type, ammoAmount: amount };
+        newWizard = { x: wizX, y: lastPickedY(), ammoType: pick.type, ammoAmount: amount };
       }
     }
 
@@ -3038,7 +3083,7 @@ export default function App() {
           blue_lagoon:  { type: "pearl_oyster", label: "Perłowa Muszla",      icon: "gem",    desc: "Rzadka perła — dużo złota" },
         };
         const poiDef = BIOME_POIS[bid] || BIOME_POIS.summer;
-        newBiomePoi = { ...poiDef, x: bpx, biomeId: bid, used: false };
+        newBiomePoi = { ...poiDef, x: bpx, y: lastPickedY(), biomeId: bid, used: false };
       }
     }
 
@@ -3086,7 +3131,7 @@ export default function App() {
     // Spawn obstacles in both exploration and defense rooms (fewer in defense)
     const obsCount = isDefenseRoom ? (6 + Math.floor(Math.random() * 3)) : (14 + Math.floor(Math.random() * 4));
     // Minimum distance between obstacles to prevent overlap (in % units)
-    const OBS_MIN_DIST = 8;
+    const OBS_MIN_DIST = useIso ? 3 : 8; // tiles in iso, percentage in panoramic
     const _obsTooClose = (ox, oy, list) => {
       for (const o of list) {
         const dx = ox - o.x, dy = oy - o.y;
@@ -3095,17 +3140,25 @@ export default function App() {
       return false;
     };
     for (let i = 0; i < obsCount; i++) {
-      // Ensure ~50% of obstacles spawn in the initial viewport (0-100%)
-      // and ~50% in the panoramic world (100-290%) for better visibility
-      const inViewport = i < Math.ceil(obsCount * 0.5);
       let ox, oy, attempts = 0;
-      do {
-        ox = inViewport
-          ? 5 + Math.random() * 90   // 5-95% (visible without panning)
-          : 100 + Math.random() * 190; // 100-290% (panoramic world)
-        oy = 10 + Math.random() * 55;
-        attempts++;
-      } while (_obsTooClose(ox, oy, newObstacles) && attempts < 20);
+      if (useIso) {
+        // Iso mode: spread obstacles across the tile map
+        do {
+          ox = 2 + Math.random() * (ISO_CONFIG.MAP_COLS - 4);
+          oy = 2 + Math.random() * (ISO_CONFIG.MAP_ROWS - 4);
+          attempts++;
+        } while (_obsTooClose(ox, oy, newObstacles) && attempts < 20);
+      } else {
+        // Panoramic: ~50% in viewport, ~50% in world
+        const inViewport = i < Math.ceil(obsCount * 0.5);
+        do {
+          ox = inViewport
+            ? 5 + Math.random() * 90
+            : 100 + Math.random() * 190;
+          oy = 10 + Math.random() * 55;
+          attempts++;
+        } while (_obsTooClose(ox, oy, newObstacles) && attempts < 20);
+      }
       // 12% chance for explosive variant
       const isExplosiveObs = Math.random() < 0.12;
       const obsType = isExplosiveObs ? biomeExplosive : biomeObstacles[Math.floor(Math.random() * biomeObstacles.length)];
@@ -3427,7 +3480,7 @@ export default function App() {
       ctx.clearRect(0, 0, GAME_W, GAME_H);
       if (isoModeRef.current) {
         const cam = isoCameraRef.current;
-        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y);
+        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current);
       } else {
         renderBiome(ctx, biome, room, c.width, c.height, isNight, panOffset);
       }
@@ -5803,6 +5856,17 @@ export default function App() {
     (pct) => _wrapPct(pct, panOffsetRef.current, GAME_W),
     [GAME_W]
   );
+  // Convert iso or panoramic coords to screen pixel position { x, y } or null
+  const poiToScreenPos = useCallback((poiX, poiY) => {
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      const screen = _isoWorldToScreen(poiX, poiY ?? ISO_CONFIG.MAP_ROWS / 2, cam.x, cam.y);
+      if (screen.x < -80 || screen.x > GAME_W + 80) return null;
+      return screen;
+    }
+    const sx = _wrapPct(poiX, panOffsetRef.current, GAME_W);
+    return sx !== null ? { x: (sx / 100) * GAME_W, y: (poiY ?? 50) / 100 * GAME_H } : null;
+  }, [GAME_W]);
 
   const handlePanStart = useCallback((e) => {
     if (!canPanScroll) return;
@@ -5834,7 +5898,7 @@ export default function App() {
         const c = canvasRef.current;
         const ctx = c.getContext("2d");
         ctx.clearRect(0, 0, GAME_W, GAME_H);
-        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y);
+        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current);
       }
     } else {
       const dx = (panRef.current.startX - clientX) / gameScale;
@@ -6094,6 +6158,12 @@ export default function App() {
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     const screenPx = (clientX - gr.left) / gameScale;
     const gy = (clientY - gr.top) / gameScale;
+    if (isoModeRef.current) {
+      // Iso mode: convert screen click to world tile coords for hit testing
+      const cam = isoCameraRef.current;
+      const isoWorld = _isoScreenToWorld(screenPx, gy, cam.x, cam.y);
+      return { x: isoWorld.x, y: isoWorld.y, px: screenPx, py: gy };
+    }
     // Convert screen X to world X for hit detection against world-space objects
     const worldPx = _screenToWorld(screenPx, panOffsetRef.current, GAME_W);
     return { x: (worldPx / GAME_W) * 100, y: (gy / GAME_H) * 100, px: screenPx, py: gy };
@@ -6104,7 +6174,9 @@ export default function App() {
     if (!spell) return;
     const saberData = getEquippedSaberData();
     const eff = saberData.effect;
-    const hitRadius = 6; // % of screen
+    // In iso mode, coords are tile-based (0-40), so hitRadius is in tiles
+    // In panoramic, coords are percentage (0-100), so hitRadius is in percent
+    const hitRadius = isoModeRef.current ? 2.5 : 6;
     const wd = walkDataRef.current;
     for (const w of walkersRef.current) {
       if (!w.alive || w.dying || w.friendly) continue;
@@ -6137,8 +6209,10 @@ export default function App() {
         } else {
           spawnDmgPopup(w.id, `${dmg}`, saberData.color);
         }
-        const px = (d.x / 100) * GAME_W, py = (d.y / 100) * GAME_H;
-        const slashDir = d.x > 50 ? 1 : -1;
+        // Convert NPC coords to pixel space for visual effects
+        const px = isoModeRef.current ? (d.x / ISO_CONFIG.MAP_COLS) * GAME_W : (d.x / 100) * GAME_W;
+        const py = isoModeRef.current ? (d.y / ISO_CONFIG.MAP_ROWS) * GAME_H : (d.y / 100) * GAME_H;
+        const slashDir = isoModeRef.current ? (d.x > ISO_CONFIG.MAP_COLS / 2 ? 1 : -1) : (d.x > 50 ? 1 : -1);
         // Blood effect on every saber hit
         if (pixiRef.current) {
           if (isCrit) {
@@ -6164,8 +6238,12 @@ export default function App() {
         }
         // Saber effect: knockback
         if (eff?.type === "knockback" && d) {
-          const kbDir = d.x > 50 ? 1 : -1;
-          d.x = Math.max(5, Math.min(95, d.x + kbDir * eff.force * 3));
+          const kbCenter = isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50;
+          const kbDir = d.x > kbCenter ? 1 : -1;
+          const kbForce = isoModeRef.current ? eff.force * 1 : eff.force * 3;
+          const kbMin = isoModeRef.current ? 1 : 5;
+          const kbMax = isoModeRef.current ? ISO_CONFIG.MAP_COLS - 1 : 95;
+          d.x = Math.max(kbMin, Math.min(kbMax, d.x + kbDir * kbForce));
           if (physicsRef.current) physicsRef.current.applyHit(w.id, "melee", kbDir);
         }
         // Saber effect: gold bonus
@@ -6347,11 +6425,18 @@ export default function App() {
   // Check obstacle hits during saber swipe
   const saberCheckObstacleHits = useCallback((x, y) => {
     const saberData = getEquippedSaberData();
-    const hitRadius = 7; // slightly larger than NPC hit radius
+    const hitRadius = isoModeRef.current ? 3 : 7; // tiles in iso, percent in panoramic
     for (const obs of obstaclesRef.current) {
       if (!obs.destructible || obs.hp <= 0 || obs.destroying) continue;
       if (saberHitIdsRef.current.has(`obs_${obs.id}`)) continue;
-      const dx = obs.x - x, dy = (100 - obs.y - 3.5) - y; // convert bottom% to center%, offset up by ~half obstacle height
+      let dx, dy;
+      if (isoModeRef.current) {
+        dx = obs.x - x;
+        dy = obs.y - y;
+      } else {
+        dx = obs.x - x;
+        dy = (100 - obs.y - 3.5) - y;
+      }
       if (dx * dx + dy * dy < hitRadius * hitRadius) {
         saberHitIdsRef.current.add(`obs_${obs.id}`);
         const saberEff = saberData.effect;
@@ -6362,8 +6447,8 @@ export default function App() {
         damageObstacle(obs.id, dmg, element);
         sfxMeleeHit();
         // Sparks on saber hit
-        const px = (obs.x / 100) * GAME_W;
-        const py = GAME_H - (obs.y / 100) * GAME_H;
+        const px = isoModeRef.current ? (obs.x / ISO_CONFIG.MAP_COLS) * GAME_W : (obs.x / 100) * GAME_W;
+        const py = isoModeRef.current ? (obs.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (obs.y / 100) * GAME_H;
         if (pixiRef.current) pixiRef.current.spawnMeleeSparks(px, py, x > obs.x ? 1 : -1);
       }
     }
@@ -7868,8 +7953,58 @@ export default function App() {
       {/* Caravan HP & Travel integrated into SpellBar icons */}
 
       {showChest && (() => {
+        if (isoModeRef.current) {
+          const sp = poiToScreenPos(chestPos?.x ?? 20, chestPos?.y ?? 20);
+          if (!sp) return null;
+          return <Chest pos={{ x: (sp.x / GAME_W) * 100, y: (sp.y / GAME_H) * 100 }} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} />;
+        }
         const cx = wrapPctToScreen(chestPos?.x ?? 50);
         return cx !== null ? <Chest pos={{ ...chestPos, x: cx }} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} /> : null;
+      })()}
+
+      {/* Caravan on iso map */}
+      {isoModeRef.current && gamePhase === "combat" && (() => {
+        const cam = isoCameraRef.current;
+        const cp = caravanPosRef.current;
+        const screen = _isoWorldToScreen(cp.x, cp.y, cam.x, cam.y);
+        if (screen.x < -100 || screen.x > GAME_W + 100) return null;
+        const hpPct = caravanHpRef.current / CARAVAN_LEVELS[caravanLevelRef.current].hp * 100;
+        const hpColor = hpPct > 50 ? "#40e060" : hpPct > 25 ? "#e0c040" : "#e04040";
+        return (
+          <div style={{
+            position: "absolute",
+            left: screen.x, top: screen.y,
+            transform: "translate(-50%, -100%)",
+            zIndex: 10 + Math.round((cp.x + cp.y) * 1.2),
+            pointerEvents: "none",
+            textAlign: "center",
+          }}>
+            {/* HP bar above caravan */}
+            <div style={{
+              width: 60, height: 6, background: "rgba(0,0,0,0.7)",
+              border: `1px solid ${hpColor}66`, borderRadius: 3,
+              margin: "0 auto 2px", overflow: "hidden",
+            }}>
+              <div style={{
+                width: `${hpPct}%`, height: "100%",
+                background: `linear-gradient(180deg, ${hpColor}, ${hpColor}aa)`,
+                transition: "width 0.3s",
+              }} />
+            </div>
+            {/* Ship icon */}
+            <div style={{
+              fontSize: 36, lineHeight: 1,
+              filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.8))",
+              animation: hpPct < 30 ? "caravanDmgFlash 0.6s ease-in-out infinite" : "none",
+            }}>
+              <Icon name="ship" size={36} />
+            </div>
+            <div style={{
+              fontSize: 9, color: "#d4a030", fontWeight: "bold",
+              textShadow: "0 1px 3px rgba(0,0,0,0.9)",
+            }}>Karawana</div>
+          </div>
+        );
       })()}
 
       {/* Meteorite event – falling from sky */}
