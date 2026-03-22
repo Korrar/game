@@ -50,6 +50,7 @@ import SpellBar from "./components/SpellBar";
 import EventModal from "./components/EventModal";
 import WaveOverlay, { PowerSpikeWarning } from "./components/WaveOverlay";
 import WeatherOverlay from "./components/WeatherOverlay";
+import IsoMinimap from "./components/IsoMinimap";
 import Chest, { CLICKS_TO_OPEN } from "./components/Chest";
 import RelicPicker from "./components/RelicPicker";
 import SlotMachine from "./components/SlotMachine";
@@ -3634,8 +3635,8 @@ export default function App() {
         return { ...w, hp: newHp };
       }));
       if (animatorRef.current) {
-        const px = (wd.x / 100) * GAME_W;
-        const py = GAME_H * 0.25;
+        const px = isoModeRef.current ? (wd.x / ISO_CONFIG.MAP_COLS) * GAME_W : (wd.x / 100) * GAME_W;
+        const py = isoModeRef.current ? ((wd.y || ISO_CONFIG.MAP_ROWS / 2) / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H * 0.25;
         animatorRef.current.playMeleeSparks?.(px, py);
       }
     }, interval);
@@ -3903,17 +3904,19 @@ export default function App() {
         bodyType: boss.bodyType, ability: bossAbilityObj,
       };
       const wid = ++walkerIdCounter;
-      const spawnX = 50; // boss spawns center-top
-      const spawnY = 5;  // behind horizon
+      const _isI = isoModeRef.current;
+      const spawnX = _isI ? ISO_CONFIG.MAP_COLS - 5 : 50; // boss spawns far side in iso
+      const spawnY = _isI ? ISO_CONFIG.MAP_ROWS / 2 : 5;
       setWalkers(prev => [...prev, {
         id: wid, npcData: bossNpc, alive: true, dying: false,
         hp: boss.maxHp, maxHp: boss.maxHp, isBoss: true, friendly: false,
       }]);
       walkDataRef.current[wid] = {
         x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
-        yDir: 1, // start moving downward
-        speed: boss.speed, ySpeed: 0.008,
-        minX: 5, maxX: 98, minY: 25, maxY: 92,
+        yDir: 1,
+        speed: _isI ? boss.speed * 0.5 : boss.speed, ySpeed: _isI ? 0.005 : 0.008,
+        minX: _isI ? 2 : 5, maxX: _isI ? ISO_CONFIG.MAP_COLS - 2 : 98,
+        minY: _isI ? 2 : 25, maxY: _isI ? ISO_CONFIG.MAP_ROWS - 2 : 92,
         bouncePhase: 0, alive: true, friendly: false,
         damage: boss.damage,
         lungeFrames: 0, lungeOffset: 0,
@@ -3921,9 +3924,16 @@ export default function App() {
         attackCd: boss.attackCd,
         combatStyle: boss.combatStyle,
         isBoss: true,
-        range: boss.combatStyle === "ranged" ? 50 : 35,
+        range: boss.combatStyle === "ranged" ? (_isI ? 20 : 50) : (_isI ? 12 : 35),
+        wx: _isI ? spawnX : undefined, wy: _isI ? spawnY : undefined,
       };
-      if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, bossNpc, false);
+      if (physicsRef.current) physicsRef.current.spawnNpc(wid, _toPhysPct(spawnX, _isI, ISO_CONFIG.MAP_COLS), bossNpc, false, _toPhysPct(spawnY, _isI, ISO_CONFIG.MAP_ROWS));
+      // Boss camera: center camera between caravan and boss in iso mode
+      if (_isI) {
+        const cam = isoCameraRef.current;
+        cam.centerOnWorld(ISO_CONFIG.MAP_COLS / 2, ISO_CONFIG.MAP_ROWS / 2);
+        if (pixiRef.current) pixiRef.current.setIsoCamera(cam.x, cam.y);
+      }
       return;
     }
 
@@ -7997,6 +8007,19 @@ export default function App() {
       <SpellUpgradePicker choices={upgradeChoices} onSelect={selectUpgrade} isMobile={isMobile} />
       <LevelUpPicker choices={levelUpChoices} onSelect={selectPerk} playerLevel={playerLevel} isMobile={isMobile} />
       <WeatherOverlay weather={weather} />
+
+      {/* Iso minimap */}
+      {isoModeRef.current && (
+        <IsoMinimap
+          walkers={walkers}
+          walkData={walkDataRef.current}
+          caravanPos={caravanPosRef.current}
+          cameraX={isoCameraRef.current.x}
+          cameraY={isoCameraRef.current.y}
+          biome={biome}
+          isMobile={isMobile}
+        />
+      )}
 
       {/* Caravan HP & Travel integrated into SpellBar icons */}
 
