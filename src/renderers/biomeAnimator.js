@@ -113,6 +113,25 @@ export class BiomeAnimator {
     if (fx.swampBubbles) this._spawnSwampBubbles();
     if (fx.caveDrops) this._spawnCaveDrops();
 
+    // New biome-specific animated effects
+    if (fx.jumpingFish) this._spawnJumpingFish();
+    if (fx.fallingColumns) this._drawFallingColumns();
+    if (fx.mirage) this._drawMirage();
+    if (fx.crackingIce) this._drawCrackingIce();
+    if (fx.rats) this._spawnRats();
+    if (fx.lavaFlow) this._drawLavaFlow();
+    if (fx.swayingWheat) this._drawSwayingWheat();
+    if (fx.fallingAcorns) this._spawnFallingAcorns();
+    if (fx.bloomingFlowers) this._drawBloomingFlowers();
+    if (fx.glowingCaps) this._drawGlowingCaps();
+    if (fx.risingMist) this._drawRisingMist();
+    if (fx.hermitCrabs) this._spawnHermitCrabs();
+    if (fx.swayingBamboo) this._drawSwayingBamboo();
+    if (fx.floatingLotus) this._drawFloatingLotus();
+    if (fx.wanderingSouls) this._spawnWanderingSouls();
+    if (fx.cosmicRays) this._drawCosmicRays();
+    if (fx.tidePools) this._drawTidePools();
+
     // Weather-specific visuals
     if (this.weather) {
       if (this.weather.id === "storm" && Math.random() < 0.003) {
@@ -184,6 +203,11 @@ export class BiomeAnimator {
         case "butterfly": this._updateButterfly(p); break;
         case "swampBubble": this._updateSwampBubble(p); break;
         case "caveDrop": this._updateCaveDrop(p); break;
+        case "jumpingFish": this._updateJumpingFish(p); break;
+        case "rat": this._updateRat(p); break;
+        case "fallingAcorn": this._updateFallingAcorn(p); break;
+        case "hermitCrab": this._updateHermitCrab(p); break;
+        case "wanderingSoul": this._updateWanderingSoul(p); break;
       }
     }
 
@@ -2843,6 +2867,516 @@ export class BiomeAnimator {
           ctx.beginPath(); ctx.arc(p.x + dx, p.y + dy, 0.8, 0, Math.PI * 2); ctx.fill();
         }
       }
+    }
+  }
+
+  // ─── NEW BIOME-SPECIFIC ANIMATED EFFECTS ───
+
+  // JUNGLE: Jumping fish from river — arc across screen
+  _spawnJumpingFish() {
+    if (this.time % 90 !== 0) return;
+    const { W, GY } = this;
+    const riverY = GY * 0.55;
+    this._spawn("jumpingFish", {
+      x: 40 + Math.random() * (W - 80), y: riverY,
+      startX: 0, startY: riverY,
+      vx: (Math.random() - 0.5) * 3,
+      vy: -(4 + Math.random() * 3),
+      gravity: 0.15,
+      size: 6 + Math.random() * 4,
+      hue: 30 + Math.random() * 20,
+      maxAge: 80,
+    });
+  }
+  _updateJumpingFish(p) {
+    p.x += p.vx;
+    p.vy += p.gravity;
+    p.y += p.vy;
+    const progress = p.age / p.maxAge;
+    const { ctx } = this;
+    const alpha = progress < 0.1 ? progress * 10 : progress > 0.9 ? (1 - progress) * 10 : 1;
+    // Fish body
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(Math.atan2(p.vy, p.vx));
+    ctx.fillStyle = `hsla(${p.hue}, 60%, 55%, ${alpha})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.size, p.size * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Tail
+    ctx.fillStyle = `hsla(${p.hue}, 50%, 45%, ${alpha * 0.8})`;
+    ctx.beginPath();
+    ctx.moveTo(-p.size, 0);
+    ctx.lineTo(-p.size - 4, -3);
+    ctx.lineTo(-p.size - 4, 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    // Splash at start and end
+    if (p.age < 5 || (p.vy > 0 && p.y > p.startY - 5)) {
+      ctx.fillStyle = `rgba(180,220,255,${alpha * 0.4})`;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(p.x + (Math.random() - 0.5) * 12, p.startY + Math.random() * 4, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // OLYMPUS: Falling marble column debris
+  _drawFallingColumns() {
+    const { ctx, W, GY, time } = this;
+    if (time % 200 < 5) {
+      const x = 50 + Math.random() * (W - 100);
+      const fallProgress = (time % 200) / 5;
+      const y = GY * 0.2 + fallProgress * GY * 0.4;
+      // Falling chunk
+      ctx.fillStyle = `rgba(200,195,180,${0.6 - fallProgress * 0.1})`;
+      ctx.fillRect(x - 4, y - 10, 8, 20);
+      // Dust cloud
+      const dustR = fallProgress * 15;
+      ctx.fillStyle = `rgba(200,195,180,${0.3 * (1 - fallProgress)})`;
+      ctx.beginPath(); ctx.arc(x, y + 10, dustR, 0, Math.PI * 2); ctx.fill();
+    }
+    // Static column fragments on ground
+    const seed = (this.biome.id.charCodeAt(0) * 37) % 100;
+    for (let i = 0; i < 3; i++) {
+      const cx = ((seed + i * 137) % 90 + 5) * W / 100;
+      const cy = GY * 0.7 + ((seed + i * 53) % 20);
+      const wobble = Math.sin(time * 0.005 + i) * 0.5;
+      ctx.fillStyle = `rgba(190,185,170,${0.3 + wobble * 0.05})`;
+      ctx.fillRect(cx - 3, cy - 12, 6, 24);
+      ctx.fillRect(cx - 8, cy - 14, 16, 3);
+    }
+  }
+
+  // DESERT: Mirage shimmering effect
+  _drawMirage() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.02;
+    ctx.save();
+    ctx.globalAlpha = 0.06 + Math.sin(t) * 0.03;
+    for (let i = 0; i < 3; i++) {
+      const y = GY * 0.5 + i * 20;
+      const waveX = Math.sin(t + i * 1.5) * 30;
+      ctx.fillStyle = `rgba(200,180,140,0.5)`;
+      ctx.beginPath();
+      ctx.ellipse(W * 0.5 + waveX, y, 120 + i * 30, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // WINTER: Cracking ice effects
+  _drawCrackingIce() {
+    const { ctx, W, GY, time } = this;
+    const seed = 42;
+    ctx.strokeStyle = `rgba(180,220,255,${0.15 + Math.sin(time * 0.01) * 0.05})`;
+    ctx.lineWidth = 0.8;
+    for (let i = 0; i < 5; i++) {
+      const startX = ((seed + i * 97) % 80 + 10) * W / 100;
+      const startY = GY * 0.6 + ((seed + i * 41) % 30);
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      let x = startX, y = startY;
+      for (let j = 0; j < 4; j++) {
+        x += ((seed + i * 13 + j * 7) % 20 - 10);
+        y += ((seed + i * 17 + j * 11) % 10 - 3);
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // CITY: Scurrying rats
+  _spawnRats() {
+    if (this.time % 120 !== 0) return;
+    const { W, GY } = this;
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    this._spawn("rat", {
+      x: dir > 0 ? -10 : W + 10, y: GY * (0.7 + Math.random() * 0.2),
+      speed: (2 + Math.random() * 2) * dir,
+      size: 3 + Math.random() * 2,
+      opacity: 0.5 + Math.random() * 0.3,
+      wobble: Math.random() * Math.PI * 2,
+      maxAge: 200,
+    });
+  }
+  _updateRat(p) {
+    p.x += p.speed;
+    p.wobble += 0.3;
+    const bobY = Math.sin(p.wobble) * 1.5;
+    const { ctx } = this;
+    // Body
+    ctx.fillStyle = `rgba(80,60,40,${p.opacity})`;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + bobY, p.size * 1.5, p.size, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Tail
+    ctx.strokeStyle = `rgba(100,75,50,${p.opacity * 0.7})`;
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(p.x - p.speed * 2, p.y + bobY);
+    ctx.quadraticCurveTo(p.x - p.speed * 4, p.y + bobY - 3, p.x - p.speed * 6, p.y + bobY + 1);
+    ctx.stroke();
+  }
+
+  // VOLCANO: Lava flow streaks
+  _drawLavaFlow() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.015;
+    for (let i = 0; i < 3; i++) {
+      const baseX = W * (0.2 + i * 0.3);
+      const y1 = GY * 0.3 + i * 15;
+      const y2 = GY * 0.8 + i * 10;
+      const waveX = Math.sin(t + i * 2) * 15;
+      const grd = ctx.createLinearGradient(baseX + waveX, y1, baseX + waveX, y2);
+      grd.addColorStop(0, `rgba(255,80,0,${0.05 + Math.sin(t + i) * 0.03})`);
+      grd.addColorStop(0.5, `rgba(255,160,20,${0.08 + Math.sin(t + i) * 0.04})`);
+      grd.addColorStop(1, `rgba(200,40,0,${0.03})`);
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.moveTo(baseX + waveX - 8, y1);
+      ctx.quadraticCurveTo(baseX + waveX + 12, (y1 + y2) / 2, baseX + waveX - 4, y2);
+      ctx.quadraticCurveTo(baseX + waveX - 15, (y1 + y2) / 2, baseX + waveX - 8, y1);
+      ctx.fill();
+    }
+  }
+
+  // SUMMER: Swaying wheat stalks
+  _drawSwayingWheat() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.02;
+    ctx.strokeStyle = "rgba(200,180,60,0.15)";
+    ctx.lineWidth = 1.5;
+    const seed = 73;
+    for (let i = 0; i < 20; i++) {
+      const x = ((seed + i * 67) % 100) * W / 100;
+      const baseY = GY * 0.65 + ((seed + i * 31) % 25);
+      const sway = Math.sin(t + i * 0.5) * 6;
+      ctx.beginPath();
+      ctx.moveTo(x, baseY);
+      ctx.quadraticCurveTo(x + sway * 0.5, baseY - 15, x + sway, baseY - 30);
+      ctx.stroke();
+      // Wheat head
+      ctx.fillStyle = "rgba(220,200,80,0.2)";
+      ctx.beginPath();
+      ctx.ellipse(x + sway, baseY - 32, 2.5, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // AUTUMN: Falling acorns
+  _spawnFallingAcorns() {
+    if (this.time % 80 !== 0) return;
+    const { W, GY } = this;
+    this._spawn("fallingAcorn", {
+      x: 20 + Math.random() * (W - 40), y: -5,
+      speed: 1.5 + Math.random() * 1.5,
+      wobble: Math.random() * Math.PI * 2,
+      size: 3 + Math.random() * 2,
+      opacity: 0.6,
+      groundY: GY * (0.7 + Math.random() * 0.15),
+      bounced: false,
+      maxAge: 200,
+    });
+  }
+  _updateFallingAcorn(p) {
+    if (!p.bounced) {
+      p.y += p.speed;
+      p.x += Math.sin(p.wobble + p.age * 0.1) * 0.5;
+      if (p.y >= p.groundY) {
+        p.bounced = true;
+        p.speed *= -0.3;
+      }
+    } else {
+      p.speed += 0.15;
+      p.y += p.speed;
+      p.opacity *= 0.98;
+    }
+    const { ctx } = this;
+    // Acorn cap
+    ctx.fillStyle = `rgba(100,70,30,${p.opacity})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - p.size * 0.3, p.size * 0.8, Math.PI, 0);
+    ctx.fill();
+    // Acorn body
+    ctx.fillStyle = `rgba(140,100,40,${p.opacity})`;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + p.size * 0.2, p.size * 0.7, p.size, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // SPRING: Blooming flower animation
+  _drawBloomingFlowers() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.01;
+    const seed = 29;
+    for (let i = 0; i < 8; i++) {
+      const x = ((seed + i * 89) % 90 + 5) * W / 100;
+      const y = GY * 0.6 + ((seed + i * 43) % 25);
+      const bloom = (Math.sin(t + i * 0.7) + 1) * 0.5; // 0-1 bloom cycle
+      const petalR = 2 + bloom * 4;
+      const alpha = 0.15 + bloom * 0.15;
+      // Petals
+      const hue = (i * 60 + 330) % 360;
+      for (let j = 0; j < 5; j++) {
+        const angle = (j / 5) * Math.PI * 2 + t * 0.3;
+        const px = x + Math.cos(angle) * petalR;
+        const py = y + Math.sin(angle) * petalR * 0.6;
+        ctx.fillStyle = `hsla(${hue}, 70%, 70%, ${alpha})`;
+        ctx.beginPath();
+        ctx.ellipse(px, py, petalR * 0.6, petalR * 0.35, angle, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Center
+      ctx.fillStyle = `rgba(255,220,60,${alpha * 0.8})`;
+      ctx.beginPath(); ctx.arc(x, y, 1.5 + bloom, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // MUSHROOM: Glowing mushroom caps pulsing
+  _drawGlowingCaps() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.015;
+    const seed = 61;
+    for (let i = 0; i < 6; i++) {
+      const x = ((seed + i * 79) % 85 + 7) * W / 100;
+      const y = GY * 0.6 + ((seed + i * 47) % 20);
+      const pulse = (Math.sin(t + i * 1.2) + 1) * 0.5;
+      const glowR = 8 + pulse * 10;
+      const hue = 280 + i * 15;
+      // Glow halo
+      const grd = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+      grd.addColorStop(0, `hsla(${hue}, 80%, 60%, ${0.1 + pulse * 0.08})`);
+      grd.addColorStop(1, `hsla(${hue}, 80%, 40%, 0)`);
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(x, y, glowR, 0, Math.PI * 2); ctx.fill();
+      // Cap
+      ctx.fillStyle = `hsla(${hue}, 60%, 50%, ${0.3 + pulse * 0.15})`;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 4 + pulse * 2, 3 + pulse, 0, Math.PI, 0);
+      ctx.fill();
+      // Stem
+      ctx.fillStyle = `rgba(200,180,160,${0.2 + pulse * 0.1})`;
+      ctx.fillRect(x - 1, y, 2, 6);
+    }
+  }
+
+  // SWAMP: Rising mist columns
+  _drawRisingMist() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.008;
+    for (let i = 0; i < 4; i++) {
+      const x = W * (0.15 + i * 0.25);
+      const baseY = GY * 0.65;
+      const riseOffset = Math.sin(t + i * 2) * 20;
+      const alpha = 0.04 + Math.sin(t + i) * 0.02;
+      const grd = ctx.createRadialGradient(x, baseY - riseOffset, 5, x, baseY - riseOffset, 40);
+      grd.addColorStop(0, `rgba(100,120,80,${alpha})`);
+      grd.addColorStop(1, `rgba(60,80,40,0)`);
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(x, baseY - riseOffset, 40, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // SUNSET_BEACH: Hermit crabs scurrying
+  _spawnHermitCrabs() {
+    if (this.time % 150 !== 0) return;
+    const { W, GY } = this;
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    this._spawn("hermitCrab", {
+      x: dir > 0 ? -5 : W + 5, y: GY * (0.75 + Math.random() * 0.1),
+      speed: (0.8 + Math.random() * 1.2) * dir,
+      size: 3 + Math.random() * 2,
+      wobble: 0,
+      pauseTimer: 0,
+      maxAge: 300,
+    });
+  }
+  _updateHermitCrab(p) {
+    p.wobble += 0.2;
+    if (p.pauseTimer > 0) {
+      p.pauseTimer--;
+    } else {
+      p.x += p.speed;
+      if (Math.random() < 0.01) p.pauseTimer = 20 + Math.random() * 30;
+    }
+    const { ctx } = this;
+    const bobY = Math.sin(p.wobble) * 0.8;
+    // Shell
+    ctx.fillStyle = `rgba(180,140,90,0.5)`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y + bobY - p.size * 0.3, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    // Legs
+    ctx.strokeStyle = `rgba(160,100,60,0.4)`;
+    ctx.lineWidth = 0.6;
+    for (let i = -1; i <= 1; i += 2) {
+      ctx.beginPath();
+      ctx.moveTo(p.x + i * p.size * 0.8, p.y + bobY);
+      ctx.lineTo(p.x + i * (p.size + 2), p.y + bobY + 2);
+      ctx.stroke();
+    }
+  }
+
+  // BAMBOO_FALLS: Swaying bamboo stalks
+  _drawSwayingBamboo() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.015;
+    const seed = 51;
+    for (let i = 0; i < 12; i++) {
+      const x = ((seed + i * 71) % 95 + 2) * W / 100;
+      const baseY = GY * 0.8;
+      const height = 40 + ((seed + i * 23) % 30);
+      const sway = Math.sin(t + i * 0.8) * 4;
+      // Bamboo stalk
+      ctx.strokeStyle = `rgba(80,140,50,${0.15 + Math.sin(t + i) * 0.03})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x, baseY);
+      ctx.quadraticCurveTo(x + sway * 0.5, baseY - height * 0.5, x + sway, baseY - height);
+      ctx.stroke();
+      // Nodes
+      for (let j = 1; j < 4; j++) {
+        const ny = baseY - height * (j / 4);
+        const nx = x + sway * (j / 4);
+        ctx.fillStyle = `rgba(60,120,40,0.12)`;
+        ctx.fillRect(nx - 2, ny - 1, 4, 2);
+      }
+      // Leaves at top
+      ctx.fillStyle = `rgba(60,140,40,0.1)`;
+      ctx.beginPath();
+      ctx.ellipse(x + sway + 5, baseY - height - 3, 8, 3, 0.3 + Math.sin(t + i) * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // BLUE_LAGOON: Floating lotus flowers
+  _drawFloatingLotus() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.01;
+    const seed = 83;
+    for (let i = 0; i < 5; i++) {
+      const baseX = ((seed + i * 97) % 80 + 10) * W / 100;
+      const x = baseX + Math.sin(t + i * 1.3) * 8;
+      const y = GY * (0.5 + i * 0.06) + Math.cos(t + i) * 3;
+      const bloom = (Math.sin(t * 0.7 + i * 2) + 1) * 0.5;
+      // Lily pad
+      ctx.fillStyle = `rgba(40,120,60,${0.15 + bloom * 0.05})`;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 3, 8, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Lotus petals
+      const petalCount = 6;
+      for (let j = 0; j < petalCount; j++) {
+        const angle = (j / petalCount) * Math.PI * 2;
+        const pr = 3 + bloom * 3;
+        const px = x + Math.cos(angle) * pr;
+        const py = y + Math.sin(angle) * pr * 0.5;
+        ctx.fillStyle = `rgba(255,180,200,${0.12 + bloom * 0.1})`;
+        ctx.beginPath();
+        ctx.ellipse(px, py, 3, 1.8, angle, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Center
+      ctx.fillStyle = `rgba(255,230,100,${0.15 + bloom * 0.1})`;
+      ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // UNDERWORLD: Wandering translucent souls
+  _spawnWanderingSouls() {
+    if (this.time % 100 !== 0) return;
+    const { W, GY } = this;
+    this._spawn("wanderingSoul", {
+      x: Math.random() * W, y: GY * (0.3 + Math.random() * 0.4),
+      vx: (Math.random() - 0.5) * 0.8,
+      vy: -0.3 - Math.random() * 0.3,
+      size: 6 + Math.random() * 4,
+      wobble: Math.random() * Math.PI * 2,
+      hue: 260 + Math.random() * 40,
+      maxAge: 250,
+    });
+  }
+  _updateWanderingSoul(p) {
+    p.wobble += 0.03;
+    p.x += p.vx + Math.sin(p.wobble) * 0.5;
+    p.y += p.vy;
+    const fade = p.age < 30 ? p.age / 30 : p.age > 200 ? (250 - p.age) / 50 : 1;
+    const { ctx } = this;
+    // Soul glow
+    const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2);
+    grd.addColorStop(0, `hsla(${p.hue}, 50%, 60%, ${0.12 * fade})`);
+    grd.addColorStop(1, `hsla(${p.hue}, 40%, 40%, 0)`);
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2); ctx.fill();
+    // Soul figure
+    ctx.fillStyle = `hsla(${p.hue}, 40%, 70%, ${0.2 * fade})`;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, p.size * 0.6, p.size, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Wispy trail
+    ctx.strokeStyle = `hsla(${p.hue}, 30%, 60%, ${0.08 * fade})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y + p.size);
+    ctx.quadraticCurveTo(p.x + Math.sin(p.wobble * 2) * 5, p.y + p.size + 8, p.x, p.y + p.size + 15);
+    ctx.stroke();
+  }
+
+  // METEOR: Cosmic ray streaks
+  _drawCosmicRays() {
+    const { ctx, W, H, time } = this;
+    const t = time * 0.005;
+    ctx.save();
+    for (let i = 0; i < 4; i++) {
+      const angle = t + i * 1.57;
+      const x = W * 0.5 + Math.cos(angle) * W * 0.4;
+      const y = H * 0.3 + Math.sin(angle * 0.7) * H * 0.2;
+      const len = 30 + Math.sin(t * 3 + i) * 15;
+      const dx = Math.cos(angle * 2 + i) * len;
+      const dy = Math.sin(angle * 2 + i) * len;
+      const alpha = 0.06 + Math.sin(t * 2 + i * 1.5) * 0.04;
+      const grd = ctx.createLinearGradient(x, y, x + dx, y + dy);
+      grd.addColorStop(0, `rgba(140,100,255,0)`);
+      grd.addColorStop(0.5, `rgba(140,100,255,${alpha})`);
+      grd.addColorStop(1, `rgba(140,100,255,0)`);
+      ctx.strokeStyle = grd;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx, y + dy); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ISLAND: Tide pools with small creatures
+  _drawTidePools() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.02;
+    const seed = 37;
+    for (let i = 0; i < 4; i++) {
+      const x = ((seed + i * 83) % 80 + 10) * W / 100;
+      const y = GY * 0.75 + ((seed + i * 29) % 15);
+      const r = 10 + ((seed + i * 17) % 8);
+      const shimmer = Math.sin(t + i * 2) * 0.03;
+      // Pool water
+      ctx.fillStyle = `rgba(40,120,160,${0.12 + shimmer})`;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Small starfish or creature
+      const creatureAngle = t * 0.3 + i;
+      const cx = x + Math.cos(creatureAngle) * (r * 0.5);
+      const cy = y + Math.sin(creatureAngle) * (r * 0.25);
+      ctx.fillStyle = `rgba(200,100,60,${0.2 + shimmer})`;
+      ctx.beginPath(); ctx.arc(cx, cy, 1.5, 0, Math.PI * 2); ctx.fill();
+      // Ripple
+      ctx.strokeStyle = `rgba(120,180,200,${0.08 + shimmer})`;
+      ctx.lineWidth = 0.5;
+      const rippleR = 3 + Math.sin(t * 2 + i) * 2;
+      ctx.beginPath();
+      ctx.ellipse(x, y, rippleR, rippleR * 0.4, 0, 0, Math.PI * 2);
+      ctx.stroke();
     }
   }
 }
