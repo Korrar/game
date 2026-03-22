@@ -5888,6 +5888,30 @@ export default function App() {
     const sx = _wrapPct(poiX, panOffsetRef.current, GAME_W);
     return sx !== null ? { x: (sx / 100) * GAME_W, y: (poiY ?? 50) / 100 * GAME_H } : null;
   }, [GAME_W]);
+  // Get CSS left position for a POI (iso: pixel, panoramic: percentage)
+  const poiLeft = useCallback((x, y) => {
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      const screen = _isoWorldToScreen(x, y ?? ISO_CONFIG.MAP_ROWS / 2, cam.x, cam.y);
+      if (screen.x < -100 || screen.x > GAME_W + 100) return null;
+      return `${screen.x}px`;
+    }
+    const sx = _wrapPct(x, panOffsetRef.current, GAME_W);
+    return sx !== null ? `${sx}%` : null;
+  }, [GAME_W]);
+  // Get CSS top position for a POI (iso: pixel, panoramic: percentage)
+  const poiTop = useCallback((x, y) => {
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      const screen = _isoWorldToScreen(x, y ?? ISO_CONFIG.MAP_ROWS / 2, cam.x, cam.y);
+      return `${screen.y}px`;
+    }
+    return `${y ?? 50}%`;
+  }, [GAME_W]);
+  const poiZIndex = useCallback((x, y) => {
+    if (isoModeRef.current) return 14 + Math.round(((x || 0) + (y || 20)) * 1.2);
+    return 14;
+  }, []);
 
   const handlePanStart = useCallback((e) => {
     if (!canPanScroll) return;
@@ -8174,7 +8198,9 @@ export default function App() {
             onTouchStart={startMining}
             onTouchEnd={stopMining}
             style={{
-              position: "absolute", left: `${wrapPctToScreen(resourceNode.pos.x) ?? resourceNode.pos.x}%`, top: `${resourceNode.pos.y}%`, zIndex: 15,
+              position: "absolute", left: poiLeft(resourceNode.pos.x, resourceNode.pos.y) ?? `${resourceNode.pos.x}%`,
+              ...(isoModeRef.current ? { top: poiTop(resourceNode.pos.x, resourceNode.pos.y) } : { top: `${resourceNode.pos.y}%` }),
+              zIndex: 15,
               cursor: "pointer", userSelect: "none",
             }}
           >
@@ -8239,8 +8265,9 @@ export default function App() {
       {/* ─── FRUIT TREE (biome variant) ─── */}
       {fruitTree && (
         <div ref={fruitTreeElRef} style={{
-          position: "absolute", left: `${wrapPctToScreen(fruitTree.x) ?? fruitTree.x}%`, bottom: "12%", zIndex: 14,
-          transform: "translateX(-50%)", userSelect: "none",
+          position: "absolute", left: poiLeft(fruitTree.x, fruitTree.y) ?? `${fruitTree.x}%`,
+          ...(isoModeRef.current ? { top: poiTop(fruitTree.x, fruitTree.y) } : { bottom: "12%" }),
+          zIndex: poiZIndex(fruitTree.x, fruitTree.y), transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", userSelect: "none",
         }}>
           {/* Trunk */}
           <div style={{
@@ -8283,8 +8310,9 @@ export default function App() {
       {/* ─── MINE (biome variant rock formation) ─── */}
       {mineNugget && (
         <div style={{
-          position: "absolute", left: `${wrapPctToScreen(mineNugget.x) ?? mineNugget.x}%`, bottom: "12%", zIndex: 14,
-          transform: "translateX(-50%)", userSelect: "none",
+          position: "absolute", left: poiLeft(mineNugget.x, mineNugget.y) ?? `${mineNugget.x}%`,
+          ...(isoModeRef.current ? { top: poiTop(mineNugget.x, mineNugget.y) } : { bottom: "12%" }),
+          zIndex: poiZIndex(mineNugget.x, mineNugget.y), transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", userSelect: "none",
         }}>
           {/* Rock body */}
           <div style={{
@@ -8321,7 +8349,9 @@ export default function App() {
         const [wr,wg,wb] = waterfall.rgb;
         return (
         <div ref={waterfallElRef} style={{
-          position: "absolute", left: `${wrapPctToScreen(waterfall.x) ?? waterfall.x}%`, bottom: "12%", zIndex: 13,
+          position: "absolute", left: poiLeft(waterfall.x, waterfall.y) ?? `${waterfall.x}%`,
+          ...(isoModeRef.current ? { top: poiTop(waterfall.x, waterfall.y) } : { bottom: "12%" }),
+          zIndex: poiZIndex(waterfall.x, waterfall.y),
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           <div style={{
@@ -8396,7 +8426,9 @@ export default function App() {
       {/* ─── MERCENARY CAMP ─── */}
       {mercCamp && (
         <div style={{
-          position: "absolute", left: `${wrapPctToScreen(mercCamp.x) ?? mercCamp.x}%`, bottom: "12%", zIndex: 14,
+          position: "absolute", left: poiLeft(mercCamp.x, mercCamp.y) ?? `${mercCamp.x}%`,
+          ...(isoModeRef.current ? { top: poiTop(mercCamp.x, mercCamp.y) } : { bottom: "12%" }),
+          zIndex: poiZIndex(mercCamp.x, mercCamp.y),
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           {/* Tent */}
@@ -8469,8 +8501,12 @@ export default function App() {
 
       {/* ─── PORT CITY BUILDINGS (shop + hideout) ─── */}
       {biome?.id === "city" && (() => {
-        const shopScreenX = wrapPctToScreen(20);
-        const hideoutScreenX = wrapPctToScreen(78);
+        const _shopX = isoModeRef.current ? 10 : 20;
+        const _shopY = isoModeRef.current ? 15 : undefined;
+        const _hideX = isoModeRef.current ? 30 : 78;
+        const _hideY = isoModeRef.current ? 25 : undefined;
+        const shopScreenX = poiLeft(_shopX, _shopY);
+        const hideoutScreenX = poiLeft(_hideX, _hideY);
         return (
         <>
           {/* Merchant building */}
@@ -8478,7 +8514,9 @@ export default function App() {
           <div
             onClick={() => togglePanel("shop")}
             style={{
-              position: "absolute", left: `${shopScreenX}%`, bottom: "10%", zIndex: 14,
+              position: "absolute", left: shopScreenX,
+              ...(isoModeRef.current ? { top: poiTop(_shopX, _shopY) } : { bottom: "10%" }),
+              zIndex: poiZIndex(_shopX, _shopY),
               transform: "translateX(-50%)", userSelect: "none", cursor: "pointer",
             }}
           >
@@ -8534,7 +8572,9 @@ export default function App() {
           <div
             onClick={() => togglePanel("hideout")}
             style={{
-              position: "absolute", left: `${hideoutScreenX}%`, bottom: "10%", zIndex: 14,
+              position: "absolute", left: hideoutScreenX,
+              ...(isoModeRef.current ? { top: poiTop(_hideX, _hideY) } : { bottom: "10%" }),
+              zIndex: poiZIndex(_hideX, _hideY),
               transform: "translateX(-50%)", userSelect: "none", cursor: "pointer",
             }}
           >
@@ -8598,8 +8638,10 @@ export default function App() {
         const ammoIcon = ammoIcons[wizardPoi.ammoType] || "dynamite";
         return (
           <div style={{
-            position: "absolute", left: `${wrapPctToScreen(wizardPoi.x) ?? wizardPoi.x}%`, bottom: "12%", zIndex: 14,
-            transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
+            position: "absolute", left: poiLeft(wizardPoi.x, wizardPoi.y) ?? `${wizardPoi.x}%`,
+            ...(isoModeRef.current ? { top: poiTop(wizardPoi.x, wizardPoi.y) } : { bottom: "12%" }),
+            zIndex: poiZIndex(wizardPoi.x, wizardPoi.y),
+            transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", userSelect: "none", textAlign: "center",
           }}>
             {/* Arsenal tent */}
             <div style={{ position: "relative", width: 65, height: 55 }}>
@@ -8668,8 +8710,8 @@ export default function App() {
 
       {/* ─── BIOME-SPECIFIC POI ─── */}
       {biomePoi && !biomePoi.used && (() => {
-        const bpx = wrapPctToScreen(biomePoi.x);
-        if (bpx === null) return null;
+        const _bpLeft = poiLeft(biomePoi.x, biomePoi.y);
+        if (_bpLeft === null) return null;
         const poiColors = {
           healing_spring: "#40e060", shipwreck_cache: "#ffd700", oasis: "#40c0ff",
           ice_crystal: "#80c0ff", black_market: "#c0a060", fire_shrine: "#ff6020",
@@ -8680,8 +8722,10 @@ export default function App() {
         const col = poiColors[biomePoi.type] || "#c0a060";
         return (
           <div style={{
-            position: "absolute", left: `${bpx}%`, bottom: "12%", zIndex: 14,
-            transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
+            position: "absolute", left: _bpLeft,
+            ...(isoModeRef.current ? { top: poiTop(biomePoi.x, biomePoi.y) } : { bottom: "12%" }),
+            zIndex: poiZIndex(biomePoi.x, biomePoi.y),
+            transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", userSelect: "none", textAlign: "center",
           }}>
             <div onClick={activateBiomePoi} style={{
               width: 44, height: 44, borderRadius: "50%",
@@ -8794,16 +8838,17 @@ export default function App() {
         // HP bar color: green → yellow → red
         const hpColor = hpPct > 0.5 ? `rgb(${Math.round(255 * (1 - hpPct) * 2)},200,40)` : `rgb(255,${Math.round(200 * hpPct * 2)},40)`;
 
-        const screenX = wrapPctToScreen(obs.x);
-        if (screenX === null) return null;
+        const _obsLeft = poiLeft(obs.x, obs.y);
+        if (_obsLeft === null) return null;
         const isCactus = obs.type === "cactus_cluster";
+        const _isI = isoModeRef.current;
         return (
           <div key={`obs-${obs.id}`} ref={el => { if (el) obsElsRef.current[obs.id] = el; }} style={{
             position: "absolute",
-            left: `${screenX}%`,
-            bottom: `${obs.y}%`,
-            zIndex: 14 + zIndexAtDepth(depthFromY(100 - obs.y)),
-            transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})`,
+            left: _obsLeft,
+            ...(_isI ? { top: poiTop(obs.x, obs.y), transform: `translateX(-50%) translateY(-100%) translateX(${shakeX}px)` }
+              : { bottom: `${obs.y}%`, transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})` }),
+            zIndex: _isI ? poiZIndex(obs.x, obs.y) : 14 + zIndexAtDepth(depthFromY(100 - obs.y)),
             transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "none",
             opacity: isDestroying ? 0 : 1,
             pointerEvents: isCactus ? "auto" : "none",
@@ -8961,15 +9006,16 @@ export default function App() {
       {/* ─── DEFENSE POI (bandit camp / encounter trigger) ─── */}
       {defensePoi && !defensePoi.activated && !defenseMode && (
         (() => {
-          const screenX = wrapPctToScreen(defensePoi.x);
-          if (screenX === null) return null;
+          const _dpLeft = poiLeft(defensePoi.x, defensePoi.y);
+          if (_dpLeft === null) return null;
           return (
             <div
               key="defense-poi"
               onClick={handleDefensePoiClick}
               style={{
-                position: "absolute", left: `${screenX}%`, bottom: `${defensePoi.y}%`,
-                transform: "translateX(-50%)", zIndex: 16, cursor: "pointer",
+                position: "absolute", left: _dpLeft,
+                ...(isoModeRef.current ? { top: poiTop(defensePoi.x, defensePoi.y) } : { bottom: `${defensePoi.y}%` }),
+                transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", zIndex: 16, cursor: "pointer",
                 userSelect: "none", textAlign: "center",
                 animation: "gemPulse 2s ease-in-out infinite",
               }}
