@@ -2698,10 +2698,11 @@ export default function App() {
                   processSkillshotHit(salvaSpell, hitId, damage, element, true);
                 },
                 panOffsetRef.current,
+                // Salvo: fire from bottom-center of screen (spell bar area)
                 isoModeRef.current ? (() => {
                   const cam = isoCameraRef.current;
-                  const cw = _isoScreenToWorld(GAME_W / 2, GAME_H / 2, cam.x, cam.y);
-                  return { x: (cw.x / ISO_CONFIG.MAP_COLS) * GAME_W, y: (cw.y / ISO_CONFIG.MAP_ROWS) * GAME_H };
+                  const bottomCenter = _isoScreenToWorld(GAME_W / 2, GAME_H + 80, cam.x, cam.y);
+                  return { x: (bottomCenter.x / ISO_CONFIG.MAP_COLS) * GAME_W, y: (bottomCenter.y / ISO_CONFIG.MAP_ROWS) * GAME_H };
                 })() : null
               );
             }
@@ -6063,13 +6064,13 @@ export default function App() {
           processSkillshotHit(spell, hitId, damage, element, true);
         },
         panOffsetRef.current,
-        // Iso mode: fire from screen center (camera center in physics pixel coords)
+        // Iso mode: fire from bottom-center of screen (spell bar area) — projectiles arc onto the map
         isoModeRef.current ? (() => {
           const cam = isoCameraRef.current;
-          const centerWorld = _isoScreenToWorld(GAME_W / 2, GAME_H / 2, cam.x, cam.y);
+          const bottomCenter = _isoScreenToWorld(GAME_W / 2, GAME_H + 80, cam.x, cam.y);
           return {
-            x: (centerWorld.x / ISO_CONFIG.MAP_COLS) * GAME_W,
-            y: (centerWorld.y / ISO_CONFIG.MAP_ROWS) * GAME_H,
+            x: (bottomCenter.x / ISO_CONFIG.MAP_COLS) * GAME_W,
+            y: (bottomCenter.y / ISO_CONFIG.MAP_ROWS) * GAME_H,
           };
         })() : null
       );

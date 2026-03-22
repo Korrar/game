@@ -1171,16 +1171,16 @@ export class PhysicsWorld {
     const cfg = SKILLSHOT_TYPES[spellId];
     if (!cfg) return;
 
-    // Player fires from camera center
+    // Player fires from bottom-center of screen (spell bar area) — projectiles arc onto the map
     let sx, sy;
     if (isoOrigin) {
-      // Isometric mode: origin passed from caller (camera center in world coords)
+      // Isometric mode: origin passed from caller (bottom-center of screen in world coords)
       sx = isoOrigin.x;
       sy = isoOrigin.y;
     } else {
       // Panoramic mode: bottom-center of viewport
       sx = screenPxToWorld(this.W * 0.50, panOffset, this.W);
-      sy = this.H * 0.85;
+      sy = this.H * 0.95;
     }
 
     if (cfg.type === "mine") {

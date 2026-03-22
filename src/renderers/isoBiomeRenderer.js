@@ -168,7 +168,7 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
 
   // Calculate visible tile range — extend beyond map for water (fixed margin, not infinite)
   const margin = 2;
-  const waterMargin = 4; // fixed water border around map (matches camera bounds)
+  const waterMargin = 16; // fixed water border around map (matches camera bounds)
   const corners = [
     { sx: -TILE_W, sy: -TILE_H },
     { sx: W + TILE_W, sy: -TILE_H },
@@ -216,7 +216,7 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
         const distCol = col < 0 ? -col : col >= MAP_COLS ? col - MAP_COLS + 1 : 0;
         const distRow = row < 0 ? -row : row >= MAP_ROWS ? row - MAP_ROWS + 1 : 0;
         const deep = Math.max(distCol, distRow);
-        const depthFactor = Math.min(1, deep / 4);
+        const depthFactor = Math.min(1, deep / 10);
 
         // Simplified wave animation (quantized time for perf)
         const wave = Math.sin(col * 0.7 + row * 0.5 + tQ * 2.2) * 0.08;
