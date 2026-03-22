@@ -4,7 +4,7 @@
 import { ISO_CONFIG, worldToScreen } from "../utils/isometricUtils.js";
 
 // Water margin in tiles around the map — camera can see this far beyond the map edge
-const WATER_MARGIN = 4;
+const WATER_MARGIN = 16;
 
 export class IsoCamera {
   constructor(x, y) {
