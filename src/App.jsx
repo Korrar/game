@@ -7963,7 +7963,7 @@ export default function App() {
       })()}
 
       {/* Caravan on iso map */}
-      {isoModeRef.current && gamePhase === "combat" && (() => {
+      {isoModeRef.current && (() => {
         const cam = isoCameraRef.current;
         const cp = caravanPosRef.current;
         const screen = _isoWorldToScreen(cp.x, cp.y, cam.x, cam.y);
