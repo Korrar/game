@@ -3,6 +3,9 @@
 
 import { ISO_CONFIG, worldToScreen } from "../utils/isometricUtils.js";
 
+// Water margin in tiles around the map — camera can see this far beyond the map edge
+const WATER_MARGIN = 4;
+
 export class IsoCamera {
   constructor(x, y) {
     // Default to center of map in screen space
@@ -19,6 +22,34 @@ export class IsoCamera {
       this.y = y;
     }
     this._bounds = null;
+    // Auto-calculate bounds based on map size so camera stays near the map
+    this._initMapBounds();
+  }
+
+  // Calculate camera bounds so the viewport stays within map + water margin
+  _initMapBounds() {
+    const { MAP_COLS, MAP_ROWS, GAME_W, GAME_H } = ISO_CONFIG;
+    // Screen positions of the four map corners (with water margin)
+    const topCorner = worldToScreen(-WATER_MARGIN, -WATER_MARGIN, 0, 0);
+    const rightCorner = worldToScreen(MAP_COLS + WATER_MARGIN, -WATER_MARGIN, 0, 0);
+    const bottomCorner = worldToScreen(MAP_COLS + WATER_MARGIN, MAP_ROWS + WATER_MARGIN, 0, 0);
+    const leftCorner = worldToScreen(-WATER_MARGIN, MAP_ROWS + WATER_MARGIN, 0, 0);
+
+    // Camera x,y represents the top-left of the viewport in screen space offset
+    // Find the bounding box of the map diamond in screen space
+    const screenMinX = leftCorner.x - GAME_W / 2;
+    const screenMaxX = rightCorner.x - GAME_W / 2;
+    const screenMinY = topCorner.y - GAME_H / 2;
+    const screenMaxY = bottomCorner.y - GAME_H / 2;
+
+    // Clamp so camera can't scroll beyond the map + water margin
+    this._bounds = {
+      minX: screenMinX,
+      minY: screenMinY,
+      maxX: screenMaxX,
+      maxY: screenMaxY,
+    };
+    this._clamp();
   }
 
   // Move camera by delta (used for drag panning)
@@ -43,7 +74,7 @@ export class IsoCamera {
     this._clamp();
   }
 
-  // Set camera movement bounds
+  // Set camera movement bounds (override auto-calculated bounds)
   setBounds(minX, minY, maxX, maxY) {
     this._bounds = { minX, minY, maxX, maxY };
     this._clamp();
