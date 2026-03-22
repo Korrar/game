@@ -9059,7 +9059,7 @@ export default function App() {
         position: "fixed", bottom: 0, left: isMobile ? 0 : "50%",
         right: isMobile ? 0 : "auto",
         transform: isMobile ? "none" : "translateX(-50%)",
-        zIndex: 9000, display: "flex", flexDirection: "column",
+        zIndex: 200, display: "flex", flexDirection: "column",
       }}>
         <SpellBar
           mana={mana}
