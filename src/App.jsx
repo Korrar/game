@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { wrapPctToScreen as _wrapPct, screenPxToWorld as _screenToWorld } from "./utils/panoramaWrap.js";
 import { worldToScreen as _isoWorldToScreen, screenToWorld as _isoScreenToWorld, ISO_CONFIG } from "./utils/isometricUtils.js";
 import { IsoCamera } from "./rendering/IsoCamera.js";
+// Convert game coords to physics percentage (0-100) for spawnNpc/updatePatrol
+const _toPhysPct = (val, isIso, maxTiles) => isIso ? (val / maxTiles) * 100 : val;
+const _isoCenter = () => ISO_CONFIG.MAP_COLS / 2;
 import { renderIsoBiome, clearTileCache } from "./renderers/isoBiomeRenderer.js";
 import { BIOMES } from "./data/biomes";
 import { RARITY_C, RARITY_L } from "./data/treasures";
@@ -47,6 +50,7 @@ import SpellBar from "./components/SpellBar";
 import EventModal from "./components/EventModal";
 import WaveOverlay, { PowerSpikeWarning } from "./components/WaveOverlay";
 import WeatherOverlay from "./components/WeatherOverlay";
+import IsoMinimap from "./components/IsoMinimap";
 import Chest, { CLICKS_TO_OPEN } from "./components/Chest";
 import RelicPicker from "./components/RelicPicker";
 import SlotMachine from "./components/SlotMachine";
@@ -996,8 +1000,10 @@ export default function App() {
             const nDmg = Math.round(mt.damage * 0.7);
             const nd = { icon: mt.icon, name: `${mt.name}`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
             setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
-            walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
-            if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
+            const _iso = isoModeRef.current;
+            const _sy = _iso ? (ISO_CONFIG.MAP_ROWS / 2 + Math.random() * 8) : (25 + Math.random() * 65);
+            walkDataRef.current[nid] = { x: sx, y: _sy, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: _iso ? 1 : 5, maxX: _iso ? ISO_CONFIG.MAP_COLS - 1 : 90, minY: _iso ? 1 : 25, maxY: _iso ? ISO_CONFIG.MAP_ROWS - 1 : 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
+            if (physicsRef.current) physicsRef.current.spawnNpc(nid, _toPhysPct(sx, _iso, ISO_CONFIG.MAP_COLS), nd, true, _toPhysPct(_sy, _iso, ISO_CONFIG.MAP_ROWS));
             showMessage(`Nekromancja! ${mt.name} przywołany!`, "#a050e0");
             setTimeout(() => {
               if (walkDataRef.current[nid]) walkDataRef.current[nid].alive = false;
@@ -1565,8 +1571,8 @@ export default function App() {
               switch (ability.type) {
                 case "fireBreath":
                   if (physicsRef.current) {
-                    const tx = (w.x / 100) * GAME_W;
-                    const ty = GAME_H * 0.25 - 30;
+                    const tx = isoModeRef.current ? (w.x / ISO_CONFIG.MAP_COLS) * GAME_W : (w.x / 100) * GAME_W;
+                    const ty = isoModeRef.current ? ((w.y || ISO_CONFIG.MAP_ROWS / 2) / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H * 0.25 - 30;
                     physicsRef.current.fx.spawnFireBreath(tx, ty, dirX);
                   }
                   if (targetIsCaravan) {
@@ -2484,7 +2490,9 @@ export default function App() {
               const dmg = 10;
               spawnDmgPopup(w.id, `⚡${dmg}`, "#4080ff");
               if (pixiRef.current) {
-                pixiRef.current.spawnMeleeSparks((d.x / 100) * GAME_W, (d.y / 100) * GAME_H, Math.sign(d.x - 50) || 1);
+                const _lx = isoModeRef.current ? (d.x / ISO_CONFIG.MAP_COLS) * GAME_W : (d.x / 100) * GAME_W;
+                const _ly = isoModeRef.current ? (d.y / ISO_CONFIG.MAP_ROWS) * GAME_H : (d.y / 100) * GAME_H;
+                pixiRef.current.spawnMeleeSparks(_lx, _ly, Math.sign(d.x - (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50)) || 1);
               }
               setWalkers(prev => prev.map(ww => {
                 if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
@@ -2497,7 +2505,7 @@ export default function App() {
                 if (nh <= 0) {
                   sfxNpcDeath();
                   if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
-                  if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "lightning", Math.sign(d.x - 50) || 1);
+                  if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, "lightning", Math.sign(d.x - (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50)) || 1);
                   if (ww.isMeteorBoulder && meteorWaveRef.current) {
                     spawnMeteorGroundLoot(meteorWaveRef.current.x, meteorWaveRef.current.y);
                     meteorWaveRef.current = null;
@@ -2513,7 +2521,7 @@ export default function App() {
                   setTimeout(() => setWalkers(pr => pr.filter(www => www.id !== w.id)), 2500);
                   return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
                 }
-                if (physicsRef.current) physicsRef.current.applyHit(w.id, "lightning", Math.sign(d.x - 50) || 1);
+                if (physicsRef.current) physicsRef.current.applyHit(w.id, "lightning", Math.sign(d.x - (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50)) || 1);
                 return { ...ww, hp: nh };
               }));
               break; // one hit per orb per frame
@@ -2626,8 +2634,8 @@ export default function App() {
 
               // AABB collision: obstacle center in world pixel coords
               const sz = _obsSizes[o.type] || _defaultSize;
-              const ocx = (o.x / 100) * GAME_W;
-              const ocy = GAME_H - (o.y / 100) * GAME_H - sz.h / 2;
+              const ocx = isoModeRef.current ? (o.x / ISO_CONFIG.MAP_COLS) * GAME_W : (o.x / 100) * GAME_W;
+              const ocy = isoModeRef.current ? (o.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (o.y / 100) * GAME_H - sz.h / 2;
               const hw = sz.w / 2 + 4; // half-width + small padding
               const hh = sz.h / 2 + 4; // half-height + small padding
               const pr = proj.hitRadius || 8;
@@ -2699,8 +2707,8 @@ export default function App() {
                     if (matDef.weakTo && matDef.weakTo === _el) dmg = Math.round(dmg * WEAKNESS_MULT);
                     if (matDef.resistTo && matDef.resistTo === _el) dmg = Math.round(dmg * OBS_RESIST_MULT);
                     const newHp = Math.max(0, target.hp - dmg);
-                    const px = (target.x / 100) * GAME_W;
-                    const py = GAME_H - (target.y / 100) * GAME_H;
+                    const px = isoModeRef.current ? (target.x / ISO_CONFIG.MAP_COLS) * GAME_W : (target.x / 100) * GAME_W;
+                    const py = isoModeRef.current ? (target.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (target.y / 100) * GAME_H;
                     if (pixiRef.current) {
                       pixiRef.current.spawnObstacleHitSpark(px, py, matDef.color);
                     }
@@ -3551,7 +3559,8 @@ export default function App() {
         if (!physicsRef.current.bodies[w.id]) {
           const walkData = wd[w.id];
           if (walkData) {
-            physicsRef.current.spawnNpc(w.id, walkData.x, w.npcData, !!w.friendly);
+            const _isI = isoModeRef.current;
+            physicsRef.current.spawnNpc(w.id, _toPhysPct(walkData.x, _isI, ISO_CONFIG.MAP_COLS), w.npcData, !!w.friendly, _toPhysPct(walkData.y || (_isI ? ISO_CONFIG.MAP_ROWS / 2 : 65), _isI, ISO_CONFIG.MAP_ROWS));
           }
         }
       }
@@ -3626,8 +3635,8 @@ export default function App() {
         return { ...w, hp: newHp };
       }));
       if (animatorRef.current) {
-        const px = (wd.x / 100) * GAME_W;
-        const py = GAME_H * 0.25;
+        const px = isoModeRef.current ? (wd.x / ISO_CONFIG.MAP_COLS) * GAME_W : (wd.x / 100) * GAME_W;
+        const py = isoModeRef.current ? ((wd.y || ISO_CONFIG.MAP_ROWS / 2) / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H * 0.25;
         animatorRef.current.playMeleeSparks?.(px, py);
       }
     }, interval);
@@ -3815,14 +3824,20 @@ export default function App() {
       const bHp = cl.barricade.hp;
       const bNpc = { icon: "wood", name: "Barykada", hp: bHp, resist: null, loot: {}, bodyColor: "#6a4a20", armorColor: "#4a3010", bodyType: "barricade" };
       setWalkers(prev => [...prev, { id: bId, npcData: bNpc, alive: true, dying: false, hp: bHp, maxHp: bHp, friendly: true, isBarricade: true }]);
-      walkDataRef.current[bId] = {
-        x: 50, y: 75, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
-        minX: 50, maxX: 50, minY: 25, maxY: 90,
-        bouncePhase: 0, alive: true, friendly: true,
-        damage: 0, lungeFrames: 0, lungeOffset: 0,
-        stationary: true, combatStyle: "none", attackCd: 99999,
-      };
-      if (physicsRef.current) physicsRef.current.spawnNpc(bId, 50, bNpc, true);
+      {
+        const _isI = isoModeRef.current;
+        const _bx = _isI ? caravanPosRef.current.x + 2 : 50;
+        const _by = _isI ? caravanPosRef.current.y : 75;
+        walkDataRef.current[bId] = {
+          x: _bx, y: _by, dir: 1, yDir: 0, speed: 0, ySpeed: 0,
+          minX: _bx, maxX: _bx, minY: _isI ? 1 : 25, maxY: _isI ? ISO_CONFIG.MAP_ROWS - 1 : 90,
+          bouncePhase: 0, alive: true, friendly: true,
+          damage: 0, lungeFrames: 0, lungeOffset: 0,
+          stationary: true, combatStyle: "none", attackCd: 99999,
+          wx: _isI ? _bx : undefined, wy: _isI ? _by : undefined,
+        };
+        if (physicsRef.current) physicsRef.current.spawnNpc(bId, _toPhysPct(_bx, _isI, ISO_CONFIG.MAP_COLS), bNpc, true, _toPhysPct(_by, _isI, ISO_CONFIG.MAP_ROWS));
+      }
     }
     if (cl.dog) {
       const existingDog = walkersRef.current.find(w => w.isDog && w.alive);
@@ -3830,15 +3845,21 @@ export default function App() {
         const dId = ++walkerIdCounter;
         const dNpc = { icon: "dog", name: "Ogar bojowy", hp: 80, resist: null, loot: {}, bodyColor: "#8a6030", armorColor: "#5a4020", bodyType: "quadruped" };
         setWalkers(prev => [...prev, { id: dId, npcData: dNpc, alive: true, dying: false, hp: 80, maxHp: 80, friendly: true, isDog: true }]);
-        walkDataRef.current[dId] = {
-          x: 45, y: 85, dir: 1, yDir: Math.random() < 0.5 ? 1 : -1,
-          speed: 0.06, ySpeed: 0.01,
-          minX: 30, maxX: 70, minY: 75, maxY: 92,
-          bouncePhase: 0, alive: true, friendly: true,
-          damage: 10, lungeFrames: 0, lungeOffset: 0,
-          combatStyle: "melee", attackCd: 1800,
-        };
-        if (physicsRef.current) physicsRef.current.spawnNpc(dId, 12, dNpc, true);
+        {
+          const _isI = isoModeRef.current;
+          const _dx = _isI ? caravanPosRef.current.x + 1 : 45;
+          const _dy = _isI ? caravanPosRef.current.y + 1 : 85;
+          walkDataRef.current[dId] = {
+            x: _dx, y: _dy, dir: 1, yDir: Math.random() < 0.5 ? 1 : -1,
+            speed: _isI ? 0.03 : 0.06, ySpeed: 0.01,
+            minX: _isI ? 1 : 30, maxX: _isI ? ISO_CONFIG.MAP_COLS - 1 : 70, minY: _isI ? 1 : 75, maxY: _isI ? ISO_CONFIG.MAP_ROWS - 1 : 92,
+            bouncePhase: 0, alive: true, friendly: true,
+            damage: 10, lungeFrames: 0, lungeOffset: 0,
+            combatStyle: "melee", attackCd: 1800,
+            wx: _isI ? _dx : undefined, wy: _isI ? _dy : undefined,
+          };
+          if (physicsRef.current) physicsRef.current.spawnNpc(dId, _toPhysPct(_dx, _isI, ISO_CONFIG.MAP_COLS), dNpc, true, _toPhysPct(_dy, _isI, ISO_CONFIG.MAP_ROWS));
+        }
       }
     }
   }, [defensePoi]);
@@ -3883,17 +3904,19 @@ export default function App() {
         bodyType: boss.bodyType, ability: bossAbilityObj,
       };
       const wid = ++walkerIdCounter;
-      const spawnX = 50; // boss spawns center-top
-      const spawnY = 5;  // behind horizon
+      const _isI = isoModeRef.current;
+      const spawnX = _isI ? ISO_CONFIG.MAP_COLS - 5 : 50; // boss spawns far side in iso
+      const spawnY = _isI ? ISO_CONFIG.MAP_ROWS / 2 : 5;
       setWalkers(prev => [...prev, {
         id: wid, npcData: bossNpc, alive: true, dying: false,
         hp: boss.maxHp, maxHp: boss.maxHp, isBoss: true, friendly: false,
       }]);
       walkDataRef.current[wid] = {
         x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
-        yDir: 1, // start moving downward
-        speed: boss.speed, ySpeed: 0.008,
-        minX: 5, maxX: 98, minY: 25, maxY: 92,
+        yDir: 1,
+        speed: _isI ? boss.speed * 0.5 : boss.speed, ySpeed: _isI ? 0.005 : 0.008,
+        minX: _isI ? 2 : 5, maxX: _isI ? ISO_CONFIG.MAP_COLS - 2 : 98,
+        minY: _isI ? 2 : 25, maxY: _isI ? ISO_CONFIG.MAP_ROWS - 2 : 92,
         bouncePhase: 0, alive: true, friendly: false,
         damage: boss.damage,
         lungeFrames: 0, lungeOffset: 0,
@@ -3901,9 +3924,16 @@ export default function App() {
         attackCd: boss.attackCd,
         combatStyle: boss.combatStyle,
         isBoss: true,
-        range: boss.combatStyle === "ranged" ? 50 : 35,
+        range: boss.combatStyle === "ranged" ? (_isI ? 20 : 50) : (_isI ? 12 : 35),
+        wx: _isI ? spawnX : undefined, wy: _isI ? spawnY : undefined,
       };
-      if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, bossNpc, false);
+      if (physicsRef.current) physicsRef.current.spawnNpc(wid, _toPhysPct(spawnX, _isI, ISO_CONFIG.MAP_COLS), bossNpc, false, _toPhysPct(spawnY, _isI, ISO_CONFIG.MAP_ROWS));
+      // Boss camera: center camera between caravan and boss in iso mode
+      if (_isI) {
+        const cam = isoCameraRef.current;
+        cam.centerOnWorld(ISO_CONFIG.MAP_COLS / 2, ISO_CONFIG.MAP_ROWS / 2);
+        if (pixiRef.current) pixiRef.current.setIsoCamera(cam.x, cam.y);
+      }
       return;
     }
 
@@ -4904,8 +4934,8 @@ export default function App() {
 
     // Spawn gold coin particles at chest position
     if (pixiRef.current) {
-      const px = (chestPos.x / 100) * GAME_W;
-      const py = (chestPos.y / 100) * GAME_H;
+      const px = isoModeRef.current ? (chestPos.x / ISO_CONFIG.MAP_COLS) * GAME_W : (chestPos.x / 100) * GAME_W;
+      const py = isoModeRef.current ? (chestPos.y / ISO_CONFIG.MAP_ROWS) * GAME_H : (chestPos.y / 100) * GAME_H;
       const intensity = 0.5 + (newClicks / CLICKS_TO_OPEN) * 0.8;
       pixiRef.current.spawnGoldCoins(px, py, intensity);
     }
@@ -5515,7 +5545,8 @@ export default function App() {
       }
       if (element) elementDebuffs.current[walkerId] = { element, timestamp: Date.now() };
       const wd = walkDataRef.current[walkerId];
-      const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
+      const _dirCenter = isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50;
+      const spellDirX = wd ? (wd.x > _dirCenter ? 1 : -1) : 1;
 
       // Apply combo status effects (stun, burn, fear)
       if (comboText && comboText.status && wd) {
@@ -5539,7 +5570,7 @@ export default function App() {
         } else if (comboText.status === "fear") {
           if (!wd._origSpeed) wd._origSpeed = wd.speed;
           wd._fearUntil = statusNow + comboText.statusDuration;
-          wd._fearDir = wd.x > 50 ? 1 : -1; // flee away from center
+          wd._fearDir = wd.x > _dirCenter ? 1 : -1; // flee away from center
           spawnDmgPopup(walkerId, "STRACH!", "#a040a0");
           setTimeout(() => {
             const wdLater = walkDataRef.current[walkerId];
@@ -5672,8 +5703,8 @@ export default function App() {
           const wd = walkDataRef.current[walkerId];
           setTimeout(() => {
             const zid = ++walkerIdCounter;
-            const zx = wd?.x || 50;
-            const zy = wd?.y || 50;
+            const zx = wd?.x || (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50);
+            const zy = wd?.y || (isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50);
             const zNpc = { ...npcData, name: `Zombie ${npcData.name}`, hp: Math.round(npcData.hp * (killMod.respawnHpMult || 0.4)), loot: {}, isIllusion: false };
             zNpc.hp = Math.max(1, zNpc.hp);
             setWalkers(pr => [...pr, { id: zid, npcData: zNpc, alive: true, dying: false, hp: zNpc.hp, maxHp: zNpc.hp, isZombie: true }]);
@@ -5867,6 +5898,30 @@ export default function App() {
     const sx = _wrapPct(poiX, panOffsetRef.current, GAME_W);
     return sx !== null ? { x: (sx / 100) * GAME_W, y: (poiY ?? 50) / 100 * GAME_H } : null;
   }, [GAME_W]);
+  // Get CSS left position for a POI (iso: pixel, panoramic: percentage)
+  const poiLeft = useCallback((x, y) => {
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      const screen = _isoWorldToScreen(x, y ?? ISO_CONFIG.MAP_ROWS / 2, cam.x, cam.y);
+      if (screen.x < -100 || screen.x > GAME_W + 100) return null;
+      return `${screen.x}px`;
+    }
+    const sx = _wrapPct(x, panOffsetRef.current, GAME_W);
+    return sx !== null ? `${sx}%` : null;
+  }, [GAME_W]);
+  // Get CSS top position for a POI (iso: pixel, panoramic: percentage)
+  const poiTop = useCallback((x, y) => {
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      const screen = _isoWorldToScreen(x, y ?? ISO_CONFIG.MAP_ROWS / 2, cam.x, cam.y);
+      return `${screen.y}px`;
+    }
+    return `${y ?? 50}%`;
+  }, [GAME_W]);
+  const poiZIndex = useCallback((x, y) => {
+    if (isoModeRef.current) return 14 + Math.round(((x || 0) + (y || 20)) * 1.2);
+    return 14;
+  }, []);
 
   const handlePanStart = useCallback((e) => {
     if (!canPanScroll) return;
@@ -6266,8 +6321,11 @@ export default function App() {
               spawnDmgPopup(target.id, `⚡${eff.chainDamage}`, "#ffee00", "lightning");
               // Visual lightning bolt between hit enemy and chain target
               if (pixiRef.current) {
-                const srcPx = (d.x / 100) * GAME_W, srcPy = (d.y / 100) * GAME_H;
-                const tgtPx = (td.x / 100) * GAME_W, tgtPy = (td.y / 100) * GAME_H;
+                const _isI = isoModeRef.current;
+                const srcPx = _isI ? (d.x / ISO_CONFIG.MAP_COLS) * GAME_W : (d.x / 100) * GAME_W;
+                const srcPy = _isI ? (d.y / ISO_CONFIG.MAP_ROWS) * GAME_H : (d.y / 100) * GAME_H;
+                const tgtPx = _isI ? (td.x / ISO_CONFIG.MAP_COLS) * GAME_W : (td.x / 100) * GAME_W;
+                const tgtPy = _isI ? (td.y / ISO_CONFIG.MAP_ROWS) * GAME_H : (td.y / 100) * GAME_H;
                 pixiRef.current.spawnChainLightning(srcPx, srcPy, tgtPx, tgtPy);
               }
               setWalkers(prev2 => prev2.map(ww2 => {
@@ -6307,7 +6365,7 @@ export default function App() {
           if (newHp <= 0) {
             sfxNpcDeath();
             if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
-            if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, isCrit ? "saber_crit" : "saber", d.x > 50 ? 1 : -1);
+            if (physicsRef.current) physicsRef.current.triggerRagdoll(w.id, isCrit ? "saber_crit" : "saber", d.x > (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50) ? 1 : -1);
             // Meteor boulder destruction: ground loot
             if (ww.isMeteorBoulder && meteorWaveRef.current) {
               spawnMeteorGroundLoot(meteorWaveRef.current.x, meteorWaveRef.current.y);
@@ -6661,7 +6719,7 @@ export default function App() {
       }
       if (spell.element) elementDebuffs.current[wid] = { element: spell.element, timestamp: Date.now() };
       const wd = walkDataRef.current[wid];
-      const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
+      const spellDirX = wd ? (wd.x > (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50) ? 1 : -1) : 1;
 
       if (resistant) {
         const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
@@ -6907,7 +6965,7 @@ export default function App() {
         }
         if (spell.element) elementDebuffs.current[w.id] = { element: spell.element, timestamp: Date.now() };
         const wd = walkDataRef.current[w.id];
-        const spellDirX = wd ? (wd.x > 50 ? 1 : -1) : 1;
+        const spellDirX = wd ? (wd.x > (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50) ? 1 : -1) : 1;
 
         if (resistant) {
           const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
@@ -6968,8 +7026,8 @@ export default function App() {
             const zwd3 = walkDataRef.current[w.id];
             setTimeout(() => {
               const zid3 = ++walkerIdCounter;
-              const zx3 = zwd3?.x || 50;
-              const zy3 = zwd3?.y || 50;
+              const zx3 = zwd3?.x || (isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50);
+              const zy3 = zwd3?.y || (isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50);
               const zNpc3 = { ...npcData, name: `Zombie ${npcData.name}`, hp: Math.round(npcData.hp * (killMod3.respawnHpMult || 0.4)), loot: {}, isIllusion: false };
               zNpc3.hp = Math.max(1, zNpc3.hp);
               setWalkers(pr => [...pr, { id: zid3, npcData: zNpc3, alive: true, dying: false, hp: zNpc3.hp, maxHp: zNpc3.hp, isZombie: true }]);
@@ -7950,6 +8008,19 @@ export default function App() {
       <LevelUpPicker choices={levelUpChoices} onSelect={selectPerk} playerLevel={playerLevel} isMobile={isMobile} />
       <WeatherOverlay weather={weather} />
 
+      {/* Iso minimap */}
+      {isoModeRef.current && (
+        <IsoMinimap
+          walkers={walkers}
+          walkData={walkDataRef.current}
+          caravanPos={caravanPosRef.current}
+          cameraX={isoCameraRef.current.x}
+          cameraY={isoCameraRef.current.y}
+          biome={biome}
+          isMobile={isMobile}
+        />
+      )}
+
       {/* Caravan HP & Travel integrated into SpellBar icons */}
 
       {showChest && (() => {
@@ -8150,7 +8221,9 @@ export default function App() {
             onTouchStart={startMining}
             onTouchEnd={stopMining}
             style={{
-              position: "absolute", left: `${wrapPctToScreen(resourceNode.pos.x) ?? resourceNode.pos.x}%`, top: `${resourceNode.pos.y}%`, zIndex: 15,
+              position: "absolute", left: poiLeft(resourceNode.pos.x, resourceNode.pos.y) ?? `${resourceNode.pos.x}%`,
+              ...(isoModeRef.current ? { top: poiTop(resourceNode.pos.x, resourceNode.pos.y) } : { top: `${resourceNode.pos.y}%` }),
+              zIndex: 15,
               cursor: "pointer", userSelect: "none",
             }}
           >
@@ -8215,8 +8288,9 @@ export default function App() {
       {/* ─── FRUIT TREE (biome variant) ─── */}
       {fruitTree && (
         <div ref={fruitTreeElRef} style={{
-          position: "absolute", left: `${wrapPctToScreen(fruitTree.x) ?? fruitTree.x}%`, bottom: "12%", zIndex: 14,
-          transform: "translateX(-50%)", userSelect: "none",
+          position: "absolute", left: poiLeft(fruitTree.x, fruitTree.y) ?? `${fruitTree.x}%`,
+          ...(isoModeRef.current ? { top: poiTop(fruitTree.x, fruitTree.y) } : { bottom: "12%" }),
+          zIndex: poiZIndex(fruitTree.x, fruitTree.y), transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", userSelect: "none",
         }}>
           {/* Trunk */}
           <div style={{
@@ -8259,8 +8333,9 @@ export default function App() {
       {/* ─── MINE (biome variant rock formation) ─── */}
       {mineNugget && (
         <div style={{
-          position: "absolute", left: `${wrapPctToScreen(mineNugget.x) ?? mineNugget.x}%`, bottom: "12%", zIndex: 14,
-          transform: "translateX(-50%)", userSelect: "none",
+          position: "absolute", left: poiLeft(mineNugget.x, mineNugget.y) ?? `${mineNugget.x}%`,
+          ...(isoModeRef.current ? { top: poiTop(mineNugget.x, mineNugget.y) } : { bottom: "12%" }),
+          zIndex: poiZIndex(mineNugget.x, mineNugget.y), transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", userSelect: "none",
         }}>
           {/* Rock body */}
           <div style={{
@@ -8297,7 +8372,9 @@ export default function App() {
         const [wr,wg,wb] = waterfall.rgb;
         return (
         <div ref={waterfallElRef} style={{
-          position: "absolute", left: `${wrapPctToScreen(waterfall.x) ?? waterfall.x}%`, bottom: "12%", zIndex: 13,
+          position: "absolute", left: poiLeft(waterfall.x, waterfall.y) ?? `${waterfall.x}%`,
+          ...(isoModeRef.current ? { top: poiTop(waterfall.x, waterfall.y) } : { bottom: "12%" }),
+          zIndex: poiZIndex(waterfall.x, waterfall.y),
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           <div style={{
@@ -8372,7 +8449,9 @@ export default function App() {
       {/* ─── MERCENARY CAMP ─── */}
       {mercCamp && (
         <div style={{
-          position: "absolute", left: `${wrapPctToScreen(mercCamp.x) ?? mercCamp.x}%`, bottom: "12%", zIndex: 14,
+          position: "absolute", left: poiLeft(mercCamp.x, mercCamp.y) ?? `${mercCamp.x}%`,
+          ...(isoModeRef.current ? { top: poiTop(mercCamp.x, mercCamp.y) } : { bottom: "12%" }),
+          zIndex: poiZIndex(mercCamp.x, mercCamp.y),
           transform: "translateX(-50%)", userSelect: "none",
         }}>
           {/* Tent */}
@@ -8445,8 +8524,12 @@ export default function App() {
 
       {/* ─── PORT CITY BUILDINGS (shop + hideout) ─── */}
       {biome?.id === "city" && (() => {
-        const shopScreenX = wrapPctToScreen(20);
-        const hideoutScreenX = wrapPctToScreen(78);
+        const _shopX = isoModeRef.current ? 10 : 20;
+        const _shopY = isoModeRef.current ? 15 : undefined;
+        const _hideX = isoModeRef.current ? 30 : 78;
+        const _hideY = isoModeRef.current ? 25 : undefined;
+        const shopScreenX = poiLeft(_shopX, _shopY);
+        const hideoutScreenX = poiLeft(_hideX, _hideY);
         return (
         <>
           {/* Merchant building */}
@@ -8454,7 +8537,9 @@ export default function App() {
           <div
             onClick={() => togglePanel("shop")}
             style={{
-              position: "absolute", left: `${shopScreenX}%`, bottom: "10%", zIndex: 14,
+              position: "absolute", left: shopScreenX,
+              ...(isoModeRef.current ? { top: poiTop(_shopX, _shopY) } : { bottom: "10%" }),
+              zIndex: poiZIndex(_shopX, _shopY),
               transform: "translateX(-50%)", userSelect: "none", cursor: "pointer",
             }}
           >
@@ -8510,7 +8595,9 @@ export default function App() {
           <div
             onClick={() => togglePanel("hideout")}
             style={{
-              position: "absolute", left: `${hideoutScreenX}%`, bottom: "10%", zIndex: 14,
+              position: "absolute", left: hideoutScreenX,
+              ...(isoModeRef.current ? { top: poiTop(_hideX, _hideY) } : { bottom: "10%" }),
+              zIndex: poiZIndex(_hideX, _hideY),
               transform: "translateX(-50%)", userSelect: "none", cursor: "pointer",
             }}
           >
@@ -8574,8 +8661,10 @@ export default function App() {
         const ammoIcon = ammoIcons[wizardPoi.ammoType] || "dynamite";
         return (
           <div style={{
-            position: "absolute", left: `${wrapPctToScreen(wizardPoi.x) ?? wizardPoi.x}%`, bottom: "12%", zIndex: 14,
-            transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
+            position: "absolute", left: poiLeft(wizardPoi.x, wizardPoi.y) ?? `${wizardPoi.x}%`,
+            ...(isoModeRef.current ? { top: poiTop(wizardPoi.x, wizardPoi.y) } : { bottom: "12%" }),
+            zIndex: poiZIndex(wizardPoi.x, wizardPoi.y),
+            transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", userSelect: "none", textAlign: "center",
           }}>
             {/* Arsenal tent */}
             <div style={{ position: "relative", width: 65, height: 55 }}>
@@ -8644,8 +8733,8 @@ export default function App() {
 
       {/* ─── BIOME-SPECIFIC POI ─── */}
       {biomePoi && !biomePoi.used && (() => {
-        const bpx = wrapPctToScreen(biomePoi.x);
-        if (bpx === null) return null;
+        const _bpLeft = poiLeft(biomePoi.x, biomePoi.y);
+        if (_bpLeft === null) return null;
         const poiColors = {
           healing_spring: "#40e060", shipwreck_cache: "#ffd700", oasis: "#40c0ff",
           ice_crystal: "#80c0ff", black_market: "#c0a060", fire_shrine: "#ff6020",
@@ -8656,8 +8745,10 @@ export default function App() {
         const col = poiColors[biomePoi.type] || "#c0a060";
         return (
           <div style={{
-            position: "absolute", left: `${bpx}%`, bottom: "12%", zIndex: 14,
-            transform: "translateX(-50%)", userSelect: "none", textAlign: "center",
+            position: "absolute", left: _bpLeft,
+            ...(isoModeRef.current ? { top: poiTop(biomePoi.x, biomePoi.y) } : { bottom: "12%" }),
+            zIndex: poiZIndex(biomePoi.x, biomePoi.y),
+            transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", userSelect: "none", textAlign: "center",
           }}>
             <div onClick={activateBiomePoi} style={{
               width: 44, height: 44, borderRadius: "50%",
@@ -8770,16 +8861,17 @@ export default function App() {
         // HP bar color: green → yellow → red
         const hpColor = hpPct > 0.5 ? `rgb(${Math.round(255 * (1 - hpPct) * 2)},200,40)` : `rgb(255,${Math.round(200 * hpPct * 2)},40)`;
 
-        const screenX = wrapPctToScreen(obs.x);
-        if (screenX === null) return null;
+        const _obsLeft = poiLeft(obs.x, obs.y);
+        if (_obsLeft === null) return null;
         const isCactus = obs.type === "cactus_cluster";
+        const _isI = isoModeRef.current;
         return (
           <div key={`obs-${obs.id}`} ref={el => { if (el) obsElsRef.current[obs.id] = el; }} style={{
             position: "absolute",
-            left: `${screenX}%`,
-            bottom: `${obs.y}%`,
-            zIndex: 14 + zIndexAtDepth(depthFromY(100 - obs.y)),
-            transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})`,
+            left: _obsLeft,
+            ...(_isI ? { top: poiTop(obs.x, obs.y), transform: `translateX(-50%) translateY(-100%) translateX(${shakeX}px)` }
+              : { bottom: `${obs.y}%`, transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})` }),
+            zIndex: _isI ? poiZIndex(obs.x, obs.y) : 14 + zIndexAtDepth(depthFromY(100 - obs.y)),
             transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "none",
             opacity: isDestroying ? 0 : 1,
             pointerEvents: isCactus ? "auto" : "none",
@@ -8937,15 +9029,16 @@ export default function App() {
       {/* ─── DEFENSE POI (bandit camp / encounter trigger) ─── */}
       {defensePoi && !defensePoi.activated && !defenseMode && (
         (() => {
-          const screenX = wrapPctToScreen(defensePoi.x);
-          if (screenX === null) return null;
+          const _dpLeft = poiLeft(defensePoi.x, defensePoi.y);
+          if (_dpLeft === null) return null;
           return (
             <div
               key="defense-poi"
               onClick={handleDefensePoiClick}
               style={{
-                position: "absolute", left: `${screenX}%`, bottom: `${defensePoi.y}%`,
-                transform: "translateX(-50%)", zIndex: 16, cursor: "pointer",
+                position: "absolute", left: _dpLeft,
+                ...(isoModeRef.current ? { top: poiTop(defensePoi.x, defensePoi.y) } : { bottom: `${defensePoi.y}%` }),
+                transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", zIndex: 16, cursor: "pointer",
                 userSelect: "none", textAlign: "center",
                 animation: "gemPulse 2s ease-in-out infinite",
               }}

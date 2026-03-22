@@ -283,12 +283,20 @@ export class CharacterSprite {
       limbRots[name] = rb.rotation();
     }
 
-    // Calculate alpha with fog (horizontal distance fog + depth fog)
+    // Calculate alpha with fog (distance-based fog)
     let alpha = entry.fadeAlpha ?? 1;
     if (fogVisibility && !this.friendly && !entry.ragdoll) {
-      const tx = entry._px || 0;
-      const playerX = W * 0.2;
-      const distPct = Math.abs(tx - playerX) / W;
+      let distPct;
+      if (entry._wx !== undefined) {
+        // Iso mode: distance from caravan area (left side of map)
+        const dx = (entry._wx ?? 20) - 3;
+        const dy = (entry._wy ?? 20) - 20;
+        distPct = Math.sqrt(dx * dx + dy * dy) / 40;
+      } else {
+        const tx = entry._px || 0;
+        const playerX = W * 0.2;
+        distPct = Math.abs(tx - playerX) / W;
+      }
       const fogAlpha = distPct < fogVisibility ? 1.0
         : distPct < fogVisibility * 2 ? 1.0 - ((distPct - fogVisibility) / fogVisibility)
         : 0.05;
