@@ -1594,7 +1594,12 @@ export default function App() {
           if (w.ability && friendX !== null) {
             const ability = w.ability;
             const abCdKey = "ab" + id;
-            if (friendDist < ability.range && (!atkCds[abCdKey] || dateNow - atkCds[abCdKey] > ability.cooldown)) {
+            // Scale ability range to ~4-6 tiles (iso: 5-6 tiles, panoramic: ~13-15 units)
+            const _abIsRanged = ["poisonSpit", "iceShot", "shadowBolt", "fireBreath", "drain"].includes(ability.type);
+            const _effectiveAbRange = isoModeRef.current
+              ? (_abIsRanged ? Math.min(ability.range, 6) : Math.min(ability.range, 2))
+              : (_abIsRanged ? Math.min(ability.range * 0.55, 15) : Math.min(ability.range * 0.25, 5));
+            if (friendDist < _effectiveAbRange && (!atkCds[abCdKey] || dateNow - atkCds[abCdKey] > ability.cooldown)) {
               atkCds[abCdKey] = dateNow;
               const dirX = friendX > w.x ? 1 : -1;
               const _idNum = idNum; // capture for closures
@@ -1785,39 +1790,67 @@ export default function App() {
 
             w.dir = friendX > w.x ? 1 : -1; // face target
 
-            // Push back if too close
-            if (friendDist < (isoModeRef.current ? 1.5 : 3)) {
-              w.x -= w.speed * w.dir * 0.5;
-            } else if (w.combatState === "retreat") {
-              w.x -= w.speed * w.dir * 0.6;
-              if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.4;
-              w.combatTimer--;
-              if (w.combatTimer <= 0) {
-                w.combatState = Math.random() < 0.5 ? "circle" : "approach";
-                w.combatTimer = 40 + Math.floor(Math.random() * 50);
-              }
-            } else if (w.combatState === "circle") {
-              if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2;
-              if (friendDist > 10) w.x += w.speed * w.dir * 0.3;
-              else if (friendDist < 5) w.x -= w.speed * w.dir * 0.2;
-              w.combatTimer--;
-              if (w.combatTimer <= 0 || friendDist > 15) {
-                w.combatState = "approach";
-                w.combatTimer = 0;
-                w.strafeDir *= -1;
-              }
-            } else {
-              // Approach: stop at engagement distance
-              if (friendDist > (isoModeRef.current ? 2.5 : 6)) {
+            // Determine if enemy uses ranged attacks (abilities like projectiles/breath)
+            const _isEnemyRanged = w.ability && ["poisonSpit", "iceShot", "shadowBolt", "fireBreath", "drain"].includes(w.ability.type);
+            // ~1 tile for melee, ~5 tiles for ranged
+            const _meleeRange = isoModeRef.current ? 1.5 : 4;
+            const _rangedIdeal = isoModeRef.current ? 5 : 13;
+            const _engageDist = _isEnemyRanged ? _rangedIdeal : _meleeRange;
+
+            if (_isEnemyRanged) {
+              // Ranged enemy AI: maintain 4-6 tile distance, strafe while shooting
+              if (friendDist < (_engageDist * 0.6)) {
+                // Too close — retreat
+                w.x -= w.speed * w.dir * 0.7;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.8;
+              } else if (friendDist > (_engageDist * 1.3)) {
+                // Too far — approach
                 w.x += w.speed * w.dir;
                 if (w.y != null && friendY != null) {
                   const yd = friendY - w.y;
                   if (Math.abs(yd) > 2) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * 0.6;
                 }
+              } else {
+                // At ideal range — strafe
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2;
+                if (Math.random() < 0.008) w.strafeDir *= -1;
+              }
+            } else {
+              // Melee enemy AI: approach to ~1 tile distance
+              // Push back if too close
+              if (friendDist < (isoModeRef.current ? 0.8 : 2)) {
+                w.x -= w.speed * w.dir * 0.5;
+              } else if (w.combatState === "retreat") {
+                w.x -= w.speed * w.dir * 0.6;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.4;
+                w.combatTimer--;
+                if (w.combatTimer <= 0) {
+                  w.combatState = Math.random() < 0.5 ? "circle" : "approach";
+                  w.combatTimer = 40 + Math.floor(Math.random() * 50);
+                }
+              } else if (w.combatState === "circle") {
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2;
+                if (friendDist > _meleeRange * 2) w.x += w.speed * w.dir * 0.3;
+                else if (friendDist < _meleeRange * 0.7) w.x -= w.speed * w.dir * 0.2;
+                w.combatTimer--;
+                if (w.combatTimer <= 0 || friendDist > _meleeRange * 3) {
+                  w.combatState = "approach";
+                  w.combatTimer = 0;
+                  w.strafeDir *= -1;
+                }
+              } else {
+                // Approach: stop at ~1 tile engagement distance
+                if (friendDist > _meleeRange) {
+                  w.x += w.speed * w.dir;
+                  if (w.y != null && friendY != null) {
+                    const yd = friendY - w.y;
+                    if (Math.abs(yd) > 2) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * 0.6;
+                  }
+                }
               }
             }
-            // Attack when in melee range (iso: ~4 tiles, panoramic: ~10%)
-            if (friendDist < (isoModeRef.current ? 4 : 10)) {
+            // Melee attack when in close range (~1 tile)
+            if (friendDist < _meleeRange) {
               const cdKey = "e" + id;
               if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 3000) {
                 atkCds[cdKey] = dateNow;
@@ -1878,9 +1911,9 @@ export default function App() {
               if (Math.abs(dxC) > (isoModeRef.current ? 1 : 2)) w.x += Math.sign(dxC) * w.speed * 0.6;
               if (w.y != null && Math.abs(dyC) > (isoModeRef.current ? 1 : 2)) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * 2.5;
               w.dir = dxC > 0 ? 1 : -1;
-              // Attack when close enough to caravan (iso: 4 tiles, panoramic: 15 units)
+              // Attack when close enough to caravan (~1 tile: iso 1.5², panoramic 4²)
               const distToCaravanSq = dxC * dxC + dyC * dyC;
-              const _atkThreshSq = isoModeRef.current ? 16 : 225; // 4² or 15²
+              const _atkThreshSq = isoModeRef.current ? 2.25 : 16; // 1.5² or 4²
               if (distToCaravanSq < _atkThreshSq) {
                 const cdKey = "ec" + id;
                 if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 3000) {
@@ -3439,18 +3472,19 @@ export default function App() {
     for (const [id, w] of Object.entries(walkDataRef.current)) {
       if (w && w.alive && w.friendly && !w.stationary) {
         if (isoModeRef.current) {
-          w.x = 2 + Math.random() * 5;
+          // Position preserved mercenaries near caravan
+          w.x = caravanPosRef.current.x + 1 + Math.random() * 3;
           w.wx = w.x;
-          w.wy = w.y ?? (ISO_CONFIG.MAP_ROWS / 2 + Math.random() * 5);
+          w.wy = caravanPosRef.current.y - 2 + Math.random() * 4;
           w.y = w.wy;
-          w.minX = 1; w.maxX = Math.min(ISO_CONFIG.MAP_COLS - 1, 15);
-          w.minY = 1; w.maxY = Math.min(ISO_CONFIG.MAP_ROWS - 1, w.y + 5);
+          w.minX = 1; w.maxX = ISO_CONFIG.MAP_COLS - 1;
+          w.minY = 1; w.maxY = ISO_CONFIG.MAP_ROWS - 1;
         } else {
-          w.x = 5 + Math.random() * 8;
-          w.minX = 5; w.maxX = w.maxX <= 28 ? 28 : 90;
-          if (w.y == null) w.y = 65 + Math.random() * 18;
-          if (w.y < 65) w.y = 65;
-          w.minY = 65; w.maxY = 83;
+          // Position preserved mercenaries near caravan (x:50, y:92)
+          w.x = 46 + Math.random() * 8;
+          w.minX = 5; w.maxX = 90;
+          w.y = 85 + Math.random() * 7;
+          w.minY = 25; w.maxY = 92;
         }
         if (w.yDir == null) w.yDir = Math.random() < 0.5 ? 1 : -1;
         if (w.ySpeed == null) w.ySpeed = 0.005 + Math.random() * 0.015;
@@ -4882,7 +4916,11 @@ export default function App() {
   const spawnFreeMerc = useCallback((mercType, hpFraction = 1) => {
     const wid = ++walkerIdCounter;
     const inDefense = !!defenseModeRef.current;
-    const spawnX = inDefense ? 35 + Math.random() * 30 : 5 + Math.random() * 8;
+    const _isIso = isoModeRef.current;
+    // Spawn mercenaries next to the caravan
+    const spawnX = _isIso
+      ? (caravanPosRef.current.x + 1 + Math.random() * 3)
+      : (inDefense ? 45 + Math.random() * 10 : 46 + Math.random() * 8);
     const lvl = KNIGHT_LEVELS[knightLevel];
     const mult = lvl.mult || 1;
     const stoneBonus = (hasRelic("stone_skin") ? 30 : 0) + (hasSynergy("twierdza") ? 30 : 0) + perkMercHpBonus;
@@ -4901,9 +4939,14 @@ export default function App() {
       id: wid, npcData, alive: true, dying: false, hp: finalHp, maxHp, friendly: true,
     }]);
     walkDataRef.current[wid] = {
-      x: spawnX, y: inDefense ? 75 + Math.random() * 15 : 25 + Math.random() * 65, dir: inDefense ? -1 : 1,
+      x: spawnX, y: _isIso
+        ? (caravanPosRef.current.y - 2 + Math.random() * 4)
+        : (inDefense ? 85 + Math.random() * 7 : 85 + Math.random() * 7),
+      dir: inDefense ? -1 : 1,
       yDir: Math.random() < 0.5 ? 1 : -1, speed: mercType.speed, ySpeed: 0.008 + Math.random() * 0.012,
-      minX: 5, maxX: 90, minY: 25, maxY: 92, bouncePhase: 0, alive: true, friendly: true,
+      minX: _isIso ? 1 : 5, maxX: _isIso ? ISO_CONFIG.MAP_COLS - 1 : 90,
+      minY: _isIso ? 1 : 25, maxY: _isIso ? ISO_CONFIG.MAP_ROWS - 1 : 92,
+      bouncePhase: 0, alive: true, friendly: true,
       damage: finalDmg, attackCd: mercType.attackCd || 2500,
       lungeFrames: 0, lungeOffset: 0,
       combatStyle: mercType.combatStyle || "melee",
@@ -5368,7 +5411,11 @@ export default function App() {
     setMoney(copperToMoney(tc - need));
     sfxRecruit();
     const wid = ++walkerIdCounter;
-    const spawnX = spawnXOverride != null ? spawnXOverride : (mercCamp ? (mercCamp.x / 100) * 100 : 50);
+    const _isIso = isoModeRef.current;
+    // Spawn recruited mercenaries next to the caravan
+    const spawnX = spawnXOverride != null ? spawnXOverride
+      : _isIso ? (caravanPosRef.current.x + 1 + Math.random() * 3)
+      : (46 + Math.random() * 8);
     const lvl = KNIGHT_LEVELS[knightLevel];
     const mult = lvl.mult || 1;
     const stoneBonus = (hasRelic("stone_skin") ? 30 : 0) + (hasSynergy("twierdza") ? 30 : 0) + perkMercHpBonus;
@@ -5386,9 +5433,14 @@ export default function App() {
       id: wid, npcData, alive: true, dying: false, hp: finalHp, maxHp: finalHp, friendly: true,
     }]);
     walkDataRef.current[wid] = {
-      x: spawnX, y: 25 + Math.random() * 65, dir: Math.random() < 0.5 ? 1 : -1,
+      x: spawnX, y: _isIso
+        ? (caravanPosRef.current.y - 2 + Math.random() * 4)
+        : (85 + Math.random() * 7),
+      dir: Math.random() < 0.5 ? 1 : -1,
       yDir: Math.random() < 0.5 ? 1 : -1, speed: mercType.speed, ySpeed: 0.008 + Math.random() * 0.012,
-      minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true,
+      minX: _isIso ? 1 : 5, maxX: _isIso ? ISO_CONFIG.MAP_COLS - 1 : 90,
+      minY: _isIso ? 1 : 25, maxY: _isIso ? ISO_CONFIG.MAP_ROWS - 1 : 92,
+      bouncePhase: 0, alive: true, friendly: true,
       damage: finalDmg, attackCd: mercType.attackCd || 2500,
       lungeFrames: 0, lungeOffset: 0,
       combatStyle: mercType.combatStyle || "melee",

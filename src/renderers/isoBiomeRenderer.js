@@ -166,9 +166,9 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
   // Get tile colors for this biome
   const tileInfo = getBiomeTileColors(biome);
 
-  // Calculate visible tile range — extend beyond map for water
+  // Calculate visible tile range — extend beyond map for water (fixed margin, not infinite)
   const margin = 2;
-  const waterMargin = 6; // extra tiles outside map for water rendering
+  const waterMargin = 4; // fixed water border around map (matches camera bounds)
   const corners = [
     { sx: -TILE_W, sy: -TILE_H },
     { sx: W + TILE_W, sy: -TILE_H },
@@ -188,11 +188,11 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
     maxRow = Math.max(maxRow, Math.ceil(wy));
   }
 
-  // Water range: allow negative and beyond-map tiles
-  const waterMinCol = minCol - waterMargin;
-  const waterMaxCol = maxCol + waterMargin;
-  const waterMinRow = minRow - waterMargin;
-  const waterMaxRow = maxRow + waterMargin;
+  // Water range: clamp to fixed margin around map (no infinite generation)
+  const waterMinCol = Math.max(-waterMargin, minCol);
+  const waterMaxCol = Math.min(MAP_COLS - 1 + waterMargin, maxCol);
+  const waterMinRow = Math.max(-waterMargin, minRow);
+  const waterMaxRow = Math.min(MAP_ROWS - 1 + waterMargin, maxRow);
 
   // Land range: clamped to map
   minCol = Math.max(0, minCol - margin);
@@ -200,9 +200,11 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
   minRow = Math.max(0, minRow - margin);
   maxRow = Math.min(MAP_ROWS - 1, maxRow + margin);
 
-  // ─── ANIMATED WATER outside map borders ───
+  // ─── WATER outside map borders (fixed margin, cached tiles) ───
   {
     const t = (typeof performance !== "undefined" ? performance.now() : Date.now()) * 0.001;
+    // Quantize time to reduce per-frame recomputation (update ~10fps for wave animation)
+    const tQ = Math.floor(t * 10) * 0.1;
     for (let row = waterMinRow; row <= waterMaxRow; row++) {
       for (let col = waterMinCol; col <= waterMaxCol; col++) {
         // Skip tiles that are on the land (map)
@@ -210,23 +212,19 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
         const screen = worldToScreen(col, row, cameraX, cameraY);
         if (screen.x < -TILE_W || screen.x > W + TILE_W || screen.y < -TILE_H || screen.y > H + TILE_H) continue;
 
-        // Animated water color with wave shimmer
-        const wave = Math.sin(col * 0.7 + row * 0.5 + t * 2.2) * 0.08;
-        const wave2 = Math.sin(col * 0.3 - row * 0.8 + t * 1.5) * 0.05;
-        const deep = Math.min(
-          col < 0 ? -col : col >= MAP_COLS ? col - MAP_COLS + 1 : 0,
-          row < 0 ? -row : row >= MAP_ROWS ? row - MAP_ROWS + 1 : 0
-        ) || Math.max(
-          col < 0 ? -col : col >= MAP_COLS ? col - MAP_COLS + 1 : 0,
-          row < 0 ? -row : row >= MAP_ROWS ? row - MAP_ROWS + 1 : 0
-        );
-        const depthFactor = Math.min(1, deep / 5);
-        const r = Math.round(20 - depthFactor * 10 + wave * 30);
-        const g = Math.round(70 + depthFactor * 10 + wave * 20 + wave2 * 15);
-        const b = Math.round(120 + depthFactor * 30 + wave * 25);
-        const alpha = 0.85 + depthFactor * 0.1;
+        // Water color based on distance from map edge
+        const distCol = col < 0 ? -col : col >= MAP_COLS ? col - MAP_COLS + 1 : 0;
+        const distRow = row < 0 ? -row : row >= MAP_ROWS ? row - MAP_ROWS + 1 : 0;
+        const deep = Math.max(distCol, distRow);
+        const depthFactor = Math.min(1, deep / 4);
 
-        ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+        // Simplified wave animation (quantized time for perf)
+        const wave = Math.sin(col * 0.7 + row * 0.5 + tQ * 2.2) * 0.08;
+        const r = Math.round(20 - depthFactor * 10 + wave * 25);
+        const g = Math.round(70 + depthFactor * 10 + wave * 15);
+        const b = Math.round(120 + depthFactor * 30 + wave * 20);
+
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
         ctx.beginPath();
         ctx.moveTo(screen.x, screen.y);
         ctx.lineTo(screen.x + TILE_W / 2, screen.y + TILE_H / 2);
@@ -235,9 +233,9 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
         ctx.closePath();
         ctx.fill();
 
-        // Foam/sparkle on wave peaks
-        if (wave + wave2 > 0.08) {
-          ctx.fillStyle = `rgba(180,220,255,${(wave + wave2) * 2})`;
+        // Foam/sparkle on wave peaks (simplified — one wave only)
+        if (wave > 0.05 && deep <= 2) {
+          ctx.fillStyle = `rgba(180,220,255,${wave * 3})`;
           ctx.beginPath();
           ctx.moveTo(screen.x, screen.y + 2);
           ctx.lineTo(screen.x + TILE_W * 0.3, screen.y + TILE_H * 0.35);
