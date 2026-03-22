@@ -136,7 +136,7 @@ function drawIsoScatter(ctx, biome, room, cameraX, cameraY) {
 
 // ─── MAIN RENDER FUNCTION ───
 
-export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY, caravanPos) {
+export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY, caravanPos, fortPlacing) {
   const { TILE_W, TILE_H, MAP_COLS, MAP_ROWS } = ISO_CONFIG;
   const rng = seedRng(room * 137 + 42);
 
@@ -166,9 +166,9 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
   // Get tile colors for this biome
   const tileInfo = getBiomeTileColors(biome);
 
-  // Calculate visible tile range (only render tiles on screen)
-  // Find world coords of screen corners
-  const margin = 2; // extra tiles for safety
+  // Calculate visible tile range — extend beyond map for water
+  const margin = 2;
+  const waterMargin = 6; // extra tiles outside map for water rendering
   const corners = [
     { sx: -TILE_W, sy: -TILE_H },
     { sx: W + TILE_W, sy: -TILE_H },
@@ -177,7 +177,6 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
   ];
 
   let minCol = MAP_COLS, maxCol = 0, minRow = MAP_ROWS, maxRow = 0;
-  // Import screenToWorld inline to avoid circular dep
   for (const c of corners) {
     const adjX = c.sx - W / 2 + cameraX;
     const adjY = c.sy - H / 2 + cameraY;
@@ -189,10 +188,67 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
     maxRow = Math.max(maxRow, Math.ceil(wy));
   }
 
+  // Water range: allow negative and beyond-map tiles
+  const waterMinCol = minCol - waterMargin;
+  const waterMaxCol = maxCol + waterMargin;
+  const waterMinRow = minRow - waterMargin;
+  const waterMaxRow = maxRow + waterMargin;
+
+  // Land range: clamped to map
   minCol = Math.max(0, minCol - margin);
   maxCol = Math.min(MAP_COLS - 1, maxCol + margin);
   minRow = Math.max(0, minRow - margin);
   maxRow = Math.min(MAP_ROWS - 1, maxRow + margin);
+
+  // ─── ANIMATED WATER outside map borders ───
+  {
+    const t = (typeof performance !== "undefined" ? performance.now() : Date.now()) * 0.001;
+    for (let row = waterMinRow; row <= waterMaxRow; row++) {
+      for (let col = waterMinCol; col <= waterMaxCol; col++) {
+        // Skip tiles that are on the land (map)
+        if (col >= 0 && col < MAP_COLS && row >= 0 && row < MAP_ROWS) continue;
+        const screen = worldToScreen(col, row, cameraX, cameraY);
+        if (screen.x < -TILE_W || screen.x > W + TILE_W || screen.y < -TILE_H || screen.y > H + TILE_H) continue;
+
+        // Animated water color with wave shimmer
+        const wave = Math.sin(col * 0.7 + row * 0.5 + t * 2.2) * 0.08;
+        const wave2 = Math.sin(col * 0.3 - row * 0.8 + t * 1.5) * 0.05;
+        const deep = Math.min(
+          col < 0 ? -col : col >= MAP_COLS ? col - MAP_COLS + 1 : 0,
+          row < 0 ? -row : row >= MAP_ROWS ? row - MAP_ROWS + 1 : 0
+        ) || Math.max(
+          col < 0 ? -col : col >= MAP_COLS ? col - MAP_COLS + 1 : 0,
+          row < 0 ? -row : row >= MAP_ROWS ? row - MAP_ROWS + 1 : 0
+        );
+        const depthFactor = Math.min(1, deep / 5);
+        const r = Math.round(20 - depthFactor * 10 + wave * 30);
+        const g = Math.round(70 + depthFactor * 10 + wave * 20 + wave2 * 15);
+        const b = Math.round(120 + depthFactor * 30 + wave * 25);
+        const alpha = 0.85 + depthFactor * 0.1;
+
+        ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(screen.x, screen.y);
+        ctx.lineTo(screen.x + TILE_W / 2, screen.y + TILE_H / 2);
+        ctx.lineTo(screen.x, screen.y + TILE_H);
+        ctx.lineTo(screen.x - TILE_W / 2, screen.y + TILE_H / 2);
+        ctx.closePath();
+        ctx.fill();
+
+        // Foam/sparkle on wave peaks
+        if (wave + wave2 > 0.08) {
+          ctx.fillStyle = `rgba(180,220,255,${(wave + wave2) * 2})`;
+          ctx.beginPath();
+          ctx.moveTo(screen.x, screen.y + 2);
+          ctx.lineTo(screen.x + TILE_W * 0.3, screen.y + TILE_H * 0.35);
+          ctx.lineTo(screen.x, screen.y + TILE_H * 0.5);
+          ctx.lineTo(screen.x - TILE_W * 0.3, screen.y + TILE_H * 0.35);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+  }
 
   // Render tiles in depth order (top-left to bottom-right in iso)
   for (let row = minRow; row <= maxRow; row++) {
@@ -242,6 +298,34 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
         const dist = Math.abs(dx) + Math.abs(dy);
         const alpha = dist === 0 ? 0.25 : 0.12;
         ctx.fillStyle = `rgba(212,160,48,${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(screen.x, screen.y);
+        ctx.lineTo(screen.x + TILE_W / 2, screen.y + TILE_H / 2);
+        ctx.lineTo(screen.x, screen.y + TILE_H);
+        ctx.lineTo(screen.x - TILE_W / 2, screen.y + TILE_H / 2);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  // Fortification placement range highlight
+  if (fortPlacing && caravanPos) {
+    const fortRadius = 6;
+    const ccx = Math.round(caravanPos.x);
+    const ccy = Math.round(caravanPos.y);
+    const t2 = (typeof performance !== "undefined" ? performance.now() : Date.now()) * 0.003;
+    for (let dy = -fortRadius; dy <= fortRadius; dy++) {
+      for (let dx = -fortRadius; dx <= fortRadius; dx++) {
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > fortRadius) continue;
+        const col = ccx + dx, row = ccy + dy;
+        if (col < 0 || col >= MAP_COLS || row < 0 || row >= MAP_ROWS) continue;
+        const screen = worldToScreen(col, row, cameraX, cameraY);
+        if (screen.x < -TILE_W || screen.x > W + TILE_W) continue;
+        const pulse = 0.08 + Math.sin(t2 + dist * 0.5) * 0.04;
+        const edgeAlpha = dist > fortRadius - 1 ? pulse * 2 : pulse;
+        ctx.fillStyle = `rgba(100,200,100,${edgeAlpha})`;
         ctx.beginPath();
         ctx.moveTo(screen.x, screen.y);
         ctx.lineTo(screen.x + TILE_W / 2, screen.y + TILE_H / 2);
