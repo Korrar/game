@@ -145,12 +145,15 @@ export class ProjectileRenderer {
     }
   }
 
-  // Isometric positioning — convert world coords to screen via iso projection
+  // Isometric positioning — convert physics pixel coords to iso screen position
   _applyIso(gfx, obj, cameraX, cameraY) {
-    const wx = obj.wx ?? obj.x / 32;
-    const wy = obj.wy ?? obj.y / 32;
+    // Convert physics pixel coords to world tile coords
+    const wx = obj.wx ?? (obj.x / this._gameW) * 40; // MAP_COLS=40
+    const wy = obj.wy ?? (obj.y / 720) * 40;         // MAP_ROWS=40
     const screen = worldToScreen(wx, wy, cameraX, cameraY);
+    // Offset container: sprite draws at (obj.x, obj.y), shift so it appears at screen pos
     gfx.position.x = screen.x - (obj.x || 0);
+    gfx.position.y = screen.y - (obj.y || 0);
     gfx.visible = screen.x > -100 && screen.x < this._gameW + 100;
   }
 

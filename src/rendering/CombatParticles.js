@@ -643,17 +643,19 @@ export class CombatParticles {
         continue;
       }
 
-      // Convert world coords to screen via iso projection
-      const wx = p.wx ?? p.x / 32;
-      const wy = p.wy ?? p.y / 32;
+      // Convert physics pixel coords to iso world coords for projection
+      // Particles move in physics pixel space; convert to tile coords for iso
+      const gw = this._gameW || 1280;
+      const wx = p.wx ?? (p.x / gw) * 40;  // MAP_COLS=40
+      const wy = p.wy ?? (p.y / 720) * 40; // MAP_ROWS=40
       const screen = worldToScreen(wx, wy, cameraX, cameraY);
       const sx = screen.x;
-      if (sx < -50 || sx > this._gameW + 50) continue;
+      if (sx < -50 || sx > gw + 50) continue;
 
       const lifeRatio = p.life / p.maxLife;
       const alpha = lifeRatio > 0.7 ? 1 : lifeRatio / 0.7;
       const size = p.shrink ? p.size * lifeRatio : p.size;
-      const sy = screen.y + (p.y - (p.wy ?? p.y / 32) * 32); // add pixel offset for height
+      const sy = screen.y;
 
       if (p.type === "diamond") {
         this.gfx.moveTo(sx, sy - size);

@@ -5,11 +5,10 @@ import { Application, Container, Graphics, Text, TextStyle, BlurFilter } from "p
 import { CharacterSprite } from "./CharacterSprite.js";
 import { wrapPxToScreen } from "../utils/panoramaWrap.js";
 import { worldToScreen } from "../utils/isometricUtils.js";
-import { isoDepthFromWorld, isoZIndex } from "./DepthSystem.js";
 import { ProjectileRenderer } from "./ProjectileRenderer.js";
 import { CombatParticles } from "./CombatParticles.js";
 import { DamageNumbers } from "./DamageNumbers.js";
-import { depthFromY, scaleAtDepth, zIndexAtDepth } from "./DepthSystem.js";
+import { depthFromY, scaleAtDepth, zIndexAtDepth, isoDepthFromWorld, isoZIndex } from "./DepthSystem.js";
 import { createDebris, updateDebris, clearDebris, DEBRIS_CONFIG } from "../systems/DebrisSystem.js";
 import { createGroundMark, updateGroundMarks, clearGroundMarks, GROUND_MARKS_CONFIG } from "../systems/GroundMarks.js";
 
@@ -198,19 +197,20 @@ export class PixiRenderer {
 
         const screen = worldToScreen(wx, wy, this._cameraX, this._cameraY);
         char.container.x = 0;
+        char.container.y = 0;
         char.update(entry, this.W, this.H, this.GY, this.fogVisibility, isoDepth, depthScale);
 
-        // Position the container so sprite renders at screen position
+        // Offset container so physics-space sprites appear at iso screen position
         const npcWorldPx = entry._px ?? 0;
+        // Get torso physics Y to compute Y offset
+        const torsoBody = entry.limbBodies?.torso;
+        const npcWorldPy = torsoBody ? torsoBody.translation().y : this.GY;
         char.container.x = screen.x - npcWorldPx;
+        char.container.y = screen.y - npcWorldPy;
         char.container.visible = (
           screen.x > -100 && screen.x < this.W + 100 &&
           screen.y > -100 && screen.y < this.H + 100
         );
-
-        // Store screen position for other systems
-        entry._screenX = screen.x;
-        entry._screenY = screen.y;
       } else {
         // Legacy 2.5D panoramic mode
         const yPct = entry._yPct ?? 65;
@@ -332,10 +332,14 @@ export class PixiRenderer {
     // Render surviving debris (with panoramic wrapping or iso)
     const panOff = this._panOffset || 0;
     for (const d of this._debris) {
-      let sx;
+      let sx, debrisY = d.y;
       if (this._isoMode) {
-        const screen = worldToScreen(d.wx ?? d.x / 32, d.wy ?? d.y / 32, this._cameraX, this._cameraY);
+        // Convert physics pixel coords to iso world tiles
+        const dwx = d.wx ?? (d.x / this.W) * 40;
+        const dwy = d.wy ?? (d.y / this.H) * 40;
+        const screen = worldToScreen(dwx, dwy, this._cameraX, this._cameraY);
         sx = screen.x;
+        debrisY = screen.y;
       } else {
         sx = panOff ? wrapPxToScreen(d.x, panOff, this.W) : d.x;
       }
@@ -346,25 +350,25 @@ export class PixiRenderer {
       if (d.shape === "diamond") {
         const s = d.size;
         const pts = [
-          sx, d.y - s,
-          sx + s * 0.6, d.y,
-          sx, d.y + s,
-          sx - s * 0.6, d.y,
+          sx, debrisY - s,
+          sx + s * 0.6, debrisY,
+          sx, debrisY + s,
+          sx - s * 0.6, debrisY,
         ];
         g.poly(pts);
         g.fill({ color: d.color, alpha: alpha * 0.8 });
       } else if (d.shape === "circle") {
-        g.circle(sx, d.y, d.size);
+        g.circle(sx, debrisY, d.size);
         g.fill({ color: d.color, alpha: alpha * 0.7 });
       } else {
         // rect with rotation
         const cos = Math.cos(d.rotation), sin = Math.sin(d.rotation);
         const hw = d.size, hh = d.size * 0.4;
         const pts = [
-          sx + (-hw * cos - (-hh) * sin), d.y + (-hw * sin + (-hh) * cos),
-          sx + (hw * cos - (-hh) * sin),  d.y + (hw * sin + (-hh) * cos),
-          sx + (hw * cos - hh * sin),     d.y + (hw * sin + hh * cos),
-          sx + (-hw * cos - hh * sin),    d.y + (-hw * sin + hh * cos),
+          sx + (-hw * cos - (-hh) * sin), debrisY + (-hw * sin + (-hh) * cos),
+          sx + (hw * cos - (-hh) * sin),  debrisY + (hw * sin + (-hh) * cos),
+          sx + (hw * cos - hh * sin),     debrisY + (hw * sin + hh * cos),
+          sx + (-hw * cos - hh * sin),    debrisY + (-hw * sin + hh * cos),
         ];
         g.poly(pts);
         g.fill({ color: d.color, alpha: alpha * 0.8 });
@@ -395,10 +399,13 @@ export class PixiRenderer {
 
     const gmPanOff = this._panOffset || 0;
     for (const m of this._groundMarks) {
-      let mx;
+      let mx, markY = m.y;
       if (this._isoMode) {
-        const screen = worldToScreen(m.wx ?? m.x / 32, m.wy ?? m.y / 32, this._cameraX, this._cameraY);
+        const mwx = m.wx ?? (m.x / this.W) * 40;
+        const mwy = m.wy ?? (m.y / this.H) * 40;
+        const screen = worldToScreen(mwx, mwy, this._cameraX, this._cameraY);
         mx = screen.x;
+        markY = screen.y;
       } else {
         mx = gmPanOff ? wrapPxToScreen(m.x, gmPanOff, this.W) : m.x;
       }
@@ -412,10 +419,10 @@ export class PixiRenderer {
       const baseAlpha = m.style.alpha * fadeAlpha;
 
       // Draw mark as irregular ellipse
-      g.ellipse(mx, m.y, m.radius, m.radius * 0.5);
+      g.ellipse(mx, markY, m.radius, m.radius * 0.5);
       g.fill({ color, alpha: baseAlpha * 0.6 });
       // Inner darker core
-      g.ellipse(mx, m.y, m.radius * 0.5, m.radius * 0.25);
+      g.ellipse(mx, markY, m.radius * 0.5, m.radius * 0.25);
       g.fill({ color, alpha: baseAlpha * 0.8 });
     }
   }

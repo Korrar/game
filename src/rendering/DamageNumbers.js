@@ -71,6 +71,7 @@ export class DamageNumbers {
     this.numbers.push({
       text: textObj,
       worldX, // store world X for panoramic wrapping
+      worldY: y, // store world Y for iso conversion
       vy: -2 - (isCrit ? 1 : 0),
       life: isCrit ? 50 : 35,
       maxLife: isCrit ? 50 : 35,
@@ -119,20 +120,12 @@ export class DamageNumbers {
       n.vy *= 0.96;
       n.life--;
 
-      // Use iso projection if world coords are stored
-      if (n.wx !== undefined && n.wy !== undefined) {
-        const screen = worldToScreen(n.wx, n.wy, cameraX, cameraY);
-        n.text.position.x = screen.x;
-        n.text.visible = screen.x > -50 && screen.x < gameW + 50;
-      } else {
-        const screenX = wrapPxToScreen(n.worldX, 0, gameW);
-        if (screenX !== null) {
-          n.text.position.x = screenX;
-          n.text.visible = true;
-        } else {
-          n.text.visible = false;
-        }
-      }
+      // Convert physics pixel coords to iso world coords for projection
+      const wx = n.wx ?? (n.worldX / gameW) * 40;  // MAP_COLS=40
+      const wy = n.wy ?? ((n.worldY ?? 360) / 720) * 40; // MAP_ROWS=40
+      const screen = worldToScreen(wx, wy, cameraX, cameraY);
+      n.text.position.x = screen.x;
+      n.text.visible = screen.x > -50 && screen.x < gameW + 50;
 
       const lifeRatio = n.life / n.maxLife;
       n.text.alpha = lifeRatio > 0.3 ? 1 : lifeRatio / 0.3;

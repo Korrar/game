@@ -107,7 +107,8 @@ function drawIsoScatter(ctx, biome, room, cameraX, cameraY) {
     ctx.globalAlpha = alpha;
     const img = getIconImage(s.iconName, sz);
     if (img) {
-      ctx.drawImage(img, screen.x - sz / 2, screen.y - sz, sz, sz);
+      // Position scatter at ground level (TILE_H/2 below tile top)
+      ctx.drawImage(img, screen.x - sz / 2, screen.y + ISO_CONFIG.TILE_H / 2 - sz, sz, sz);
     }
   }
   ctx.globalAlpha = 1;
@@ -144,7 +145,6 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
 
   // Get tile colors for this biome
   const tileInfo = getBiomeTileColors(biome);
-  const tileRng = seedRng(room * 31 + 7);
 
   // Calculate visible tile range (only render tiles on screen)
   // Find world coords of screen corners
@@ -182,8 +182,8 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
       const tx = screen.x - TILE_W / 2;
       const ty = screen.y;
 
-      // Pick tile color variant deterministically
-      const variant = Math.abs((col * 7 + row * 13 + Math.floor(tileRng() * 1000)) % tileInfo.colors.length);
+      // Pick tile color variant deterministically (no RNG — must be stable across frames)
+      const variant = Math.abs((col * 7 + row * 13) % tileInfo.colors.length);
       const tileImg = getCachedTile(biome.id, variant, tileInfo.colors, tileInfo.outline);
       ctx.drawImage(tileImg, tx, ty, TILE_W, TILE_H);
     }

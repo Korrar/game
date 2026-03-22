@@ -1847,15 +1847,18 @@ export default function App() {
         } // end combatEngaged else
         }
 
-        // Hard clamp to panoramic world edges (0-300%)
+        // Hard clamp to world edges
+        const worldMaxX = isoModeRef.current ? ISO_CONFIG.MAP_COLS - 1 : 300;
         if (w.x < 0) { w.x = 0; w.dir = 1; }
-        if (w.x > 300) { w.x = 300; w.dir = -1; }
+        if (w.x > worldMaxX) { w.x = worldMaxX; w.dir = -1; }
 
         // Y movement – gentle wandering up and down
         if (w.y != null) {
           w.y += w.ySpeed * w.yDir;
-          if (w.y > (w.maxY || 90)) { w.y = w.maxY || 90; w.yDir = -1; }
-          if (w.y < (w.minY || 25)) { w.y = w.minY || 25; w.yDir = 1; }
+          const defMaxY = isoModeRef.current ? ISO_CONFIG.MAP_ROWS - 1 : 90;
+          const defMinY = isoModeRef.current ? 1 : 25;
+          if (w.y > (w.maxY || defMaxY)) { w.y = w.maxY || defMaxY; w.yDir = -1; }
+          if (w.y < (w.minY || defMinY)) { w.y = w.minY || defMinY; w.yDir = 1; }
           // Random Y direction change
           if (Math.random() < 0.003) w.yDir *= -1;
         }
@@ -1984,7 +1987,9 @@ export default function App() {
         if (!w.friendly && w._fearUntil && dateNow < w._fearUntil) {
           const fearSpeed = (w._origSpeed || w.speed || 0.02) * 2;
           w.x += fearSpeed * (w._fearDir || 1);
-          w.x = Math.max(w.minX || 2, Math.min(w.maxX || 98, w.x));
+          const fearMinX = isoModeRef.current ? (w.minX || 1) : (w.minX || 2);
+          const fearMaxX = isoModeRef.current ? (w.maxX || ISO_CONFIG.MAP_COLS - 1) : (w.maxX || 98);
+          w.x = Math.max(fearMinX, Math.min(fearMaxX, w.x));
         } else if (w._fearUntil) {
           if (w._origSpeed) { w.speed = w._origSpeed; delete w._origSpeed; }
           delete w._fearUntil; delete w._fearDir;
@@ -2043,7 +2048,10 @@ export default function App() {
         // Update physics body to match walker position (always, even when off-screen)
         if (physicsRef.current) {
           const yPctForPhysics = w.y != null ? w.y : null;
-          physicsRef.current.updatePatrol(idNum, w.x, w.dir, w.bouncePhase, yPctForPhysics, w.wx, w.wy);
+          // Physics expects percentage coords; iso uses tile coords — convert
+          const xForPhysics = isoModeRef.current ? (w.x / ISO_CONFIG.MAP_COLS) * 100 : w.x;
+          const yForPhysics = isoModeRef.current && w.y != null ? (w.y / ISO_CONFIG.MAP_ROWS) * 100 : yPctForPhysics;
+          physicsRef.current.updatePatrol(idNum, xForPhysics, w.dir, w.bouncePhase, yForPhysics, w.wx, w.wy);
         }
       }
       // ─── POI DOM ELEMENTS: sync position with panning (bypass React render lag) ───
@@ -3314,12 +3322,19 @@ export default function App() {
     if (physicsRef.current) {
       physicsRef.current.clear();
       for (const w of newWalkers) {
-        physicsRef.current.spawnNpc(w.id, newWalkData[w.id].x, w.npcData, false);
+        const wd = newWalkData[w.id];
+        // Physics expects percentage (0-100), iso stores tile coords (0-MAP_COLS)
+        const xPct = isoModeRef.current ? (wd.x / ISO_CONFIG.MAP_COLS) * 100 : wd.x;
+        const yPct = isoModeRef.current ? (wd.y / ISO_CONFIG.MAP_ROWS) * 100 : wd.y;
+        physicsRef.current.spawnNpc(w.id, xPct, w.npcData, false, yPct);
       }
       // Re-spawn preserved friendly mercenaries
       for (const w of keptWalkerState) {
         if (preservedData[w.id]) {
-          physicsRef.current.spawnNpc(w.id, preservedData[w.id].x, w.npcData, true);
+          const pd = preservedData[w.id];
+          const xPct = isoModeRef.current ? (pd.x / ISO_CONFIG.MAP_COLS) * 100 : pd.x;
+          const yPct = isoModeRef.current ? (pd.y / ISO_CONFIG.MAP_ROWS) * 100 : pd.y;
+          physicsRef.current.spawnNpc(w.id, xPct, w.npcData, true, yPct);
         }
       }
     }
@@ -5868,12 +5883,11 @@ export default function App() {
     const clickY = (e.clientY - gr.top) / gameScale;
 
     if (isoModeRef.current) {
-      // Isometric: convert screen click to world coords
+      // Isometric: convert screen click to world tile coords, then to physics percentage
       const cam = isoCameraRef.current;
       const isoWorld = _isoScreenToWorld(screenX, clickY, cam.x, cam.y);
-      // Convert back to pixel coords for physics (wx*TILE_W, wy*TILE_H)
-      const targetPx = isoWorld.x * ISO_CONFIG.TILE_W;
-      const targetPy = isoWorld.y * ISO_CONFIG.TILE_H;
+      const targetPx = (isoWorld.x / ISO_CONFIG.MAP_COLS) * 100 * (GAME_W / 100);
+      const targetPy = (isoWorld.y / ISO_CONFIG.MAP_ROWS) * 100 * (GAME_H / 100);
       castSkillshot(spell, targetPx, targetPy);
     } else {
       // Legacy panoramic mode
@@ -5905,7 +5919,10 @@ export default function App() {
       if (isoModeRef.current) {
         const cam = isoCameraRef.current;
         const isoWorld = _isoScreenToWorld(screenX, screenY, cam.x, cam.y);
-        return { x: isoWorld.x * ISO_CONFIG.TILE_W, y: isoWorld.y * ISO_CONFIG.TILE_H };
+        return {
+          x: (isoWorld.x / ISO_CONFIG.MAP_COLS) * 100 * (GAME_W / 100),
+          y: (isoWorld.y / ISO_CONFIG.MAP_ROWS) * 100 * (GAME_H / 100),
+        };
       }
       return { x: _screenToWorld(screenX, panOffsetRef.current, GAME_W), y: screenY };
     };
