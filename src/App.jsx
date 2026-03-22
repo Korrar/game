@@ -2633,8 +2633,8 @@ export default function App() {
 
               // AABB collision: obstacle center in world pixel coords
               const sz = _obsSizes[o.type] || _defaultSize;
-              const ocx = (o.x / 100) * GAME_W;
-              const ocy = GAME_H - (o.y / 100) * GAME_H - sz.h / 2;
+              const ocx = isoModeRef.current ? (o.x / ISO_CONFIG.MAP_COLS) * GAME_W : (o.x / 100) * GAME_W;
+              const ocy = isoModeRef.current ? (o.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (o.y / 100) * GAME_H - sz.h / 2;
               const hw = sz.w / 2 + 4; // half-width + small padding
               const hh = sz.h / 2 + 4; // half-height + small padding
               const pr = proj.hitRadius || 8;
@@ -2706,8 +2706,8 @@ export default function App() {
                     if (matDef.weakTo && matDef.weakTo === _el) dmg = Math.round(dmg * WEAKNESS_MULT);
                     if (matDef.resistTo && matDef.resistTo === _el) dmg = Math.round(dmg * OBS_RESIST_MULT);
                     const newHp = Math.max(0, target.hp - dmg);
-                    const px = (target.x / 100) * GAME_W;
-                    const py = GAME_H - (target.y / 100) * GAME_H;
+                    const px = isoModeRef.current ? (target.x / ISO_CONFIG.MAP_COLS) * GAME_W : (target.x / 100) * GAME_W;
+                    const py = isoModeRef.current ? (target.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (target.y / 100) * GAME_H;
                     if (pixiRef.current) {
                       pixiRef.current.spawnObstacleHitSpark(px, py, matDef.color);
                     }
@@ -4924,8 +4924,8 @@ export default function App() {
 
     // Spawn gold coin particles at chest position
     if (pixiRef.current) {
-      const px = (chestPos.x / 100) * GAME_W;
-      const py = (chestPos.y / 100) * GAME_H;
+      const px = isoModeRef.current ? (chestPos.x / ISO_CONFIG.MAP_COLS) * GAME_W : (chestPos.x / 100) * GAME_W;
+      const py = isoModeRef.current ? (chestPos.y / ISO_CONFIG.MAP_ROWS) * GAME_H : (chestPos.y / 100) * GAME_H;
       const intensity = 0.5 + (newClicks / CLICKS_TO_OPEN) * 0.8;
       pixiRef.current.spawnGoldCoins(px, py, intensity);
     }
@@ -6287,8 +6287,11 @@ export default function App() {
               spawnDmgPopup(target.id, `⚡${eff.chainDamage}`, "#ffee00", "lightning");
               // Visual lightning bolt between hit enemy and chain target
               if (pixiRef.current) {
-                const srcPx = (d.x / 100) * GAME_W, srcPy = (d.y / 100) * GAME_H;
-                const tgtPx = (td.x / 100) * GAME_W, tgtPy = (td.y / 100) * GAME_H;
+                const _isI = isoModeRef.current;
+                const srcPx = _isI ? (d.x / ISO_CONFIG.MAP_COLS) * GAME_W : (d.x / 100) * GAME_W;
+                const srcPy = _isI ? (d.y / ISO_CONFIG.MAP_ROWS) * GAME_H : (d.y / 100) * GAME_H;
+                const tgtPx = _isI ? (td.x / ISO_CONFIG.MAP_COLS) * GAME_W : (td.x / 100) * GAME_W;
+                const tgtPy = _isI ? (td.y / ISO_CONFIG.MAP_ROWS) * GAME_H : (td.y / 100) * GAME_H;
                 pixiRef.current.spawnChainLightning(srcPx, srcPy, tgtPx, tgtPy);
               }
               setWalkers(prev2 => prev2.map(ww2 => {
