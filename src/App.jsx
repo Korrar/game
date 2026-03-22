@@ -1520,8 +1520,7 @@ export default function App() {
           } // end !stationary else
         } else {
           // Enemies are passive until the player attacks first
-          // Enemies are passive until the player attacks first (in iso mode they always attack caravan)
-          if (!combatEngagedRef.current && !isoModeRef.current && defenseModeRef.current?.phase !== "wave_active") {
+          if (!combatEngagedRef.current && defenseModeRef.current?.phase !== "wave_active") {
             // Idle patrol only — enemies passive until player attacks (skip in defense mode)
             w.x += w.speed * w.dir;
             if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
@@ -1835,7 +1834,7 @@ export default function App() {
               }
             }
             } // end !barricadeBlock
-          } else if (combatEngagedRef.current || isoModeRef.current || defenseModeRef.current?.phase === "wave_active") {
+          } else if (combatEngagedRef.current || defenseModeRef.current?.phase === "wave_active") {
             // No friendly target – march toward caravan; check for player barricades first
             w.combatState = null;
             let blockedByBarricade = false;
@@ -3583,7 +3582,7 @@ export default function App() {
       ctx.clearRect(0, 0, GAME_W, GAME_H);
       if (isoModeRef.current) {
         const cam = isoCameraRef.current;
-        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current);
+        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current, !!placingFortRef.current);
       } else {
         renderBiome(ctx, biome, room, c.width, c.height, isNight, panOffset);
       }
@@ -3839,25 +3838,68 @@ export default function App() {
     showMessage("Pułapki rozstawione!", "#40c0a0");
   }, []);
 
-  // ─── FORTIFICATION: Place individual fort ───
+  // ─── FORTIFICATION: Select fort for placement (click-on-map) ───
+  const [placingFort, setPlacingFort] = useState(null); // fortification def being placed
+  const placingFortRef = useRef(null);
+  placingFortRef.current = placingFort;
   const handlePlaceFort = useCallback((fortId) => {
-    // For now, random position — manual placement with click-on-map can be added later
     const fortDef = FORTIFICATION_TREE.find(f => f.id === fortId);
     if (!fortDef) return;
+    // Check placement limit
+    const existing = playerTrapsRef.current.filter(t => t.trapType === fortId);
+    if (existing.length >= fortDef.maxCount) {
+      showMessage(`Max ${fortDef.maxCount} ${fortDef.name}!`, "#c08040");
+      return;
+    }
+    if (playerTrapsRef.current.length >= MAX_PLAYER_TRAPS) {
+      showMessage(`Max ${MAX_PLAYER_TRAPS} fortyfikacji!`, "#c08040");
+      return;
+    }
+    setPlacingFort(fortDef);
+    showMessage(`Kliknij na mapę blisko karawany aby postawić ${fortDef.name}`, "#c0a060");
+  }, [showMessage]);
+
+  // Handle click on map to place fortification
+  const handleFortPlaceClick = useCallback((e) => {
+    if (!placingFort || !gameContainerRef.current) return;
+    const gr = gameContainerRef.current.getBoundingClientRect();
+    const clickX = (e.clientX - gr.left) / gameScale;
+    const clickY = (e.clientY - gr.top) / gameScale;
+    let fx, fy;
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      const iw = _isoScreenToWorld(clickX, clickY, cam.x, cam.y);
+      fx = iw.x; fy = iw.y;
+    } else {
+      fx = (clickX / GAME_W) * 100; fy = (clickY / GAME_H) * 100;
+    }
+    // Validate: must be within ~6 tiles of caravan in iso, or within 25% in panoramic
+    const cp = caravanPosRef.current;
+    const maxDist = isoModeRef.current ? 6 : 25;
+    const dx = fx - (isoModeRef.current ? cp.x : 50);
+    const dy = fy - (isoModeRef.current ? cp.y : 92);
+    if (Math.sqrt(dx * dx + dy * dy) > maxDist) {
+      showMessage("Za daleko od karawany! Postaw bliżej.", "#c04040");
+      return;
+    }
+    // Must be on valid map tile
+    if (isoModeRef.current && (fx < 0 || fx >= ISO_CONFIG.MAP_COLS || fy < 0 || fy >= ISO_CONFIG.MAP_ROWS)) {
+      showMessage("Nie można stawiać na wodzie!", "#4080cc");
+      return;
+    }
     const trap = {
       id: Date.now() + Math.random(),
-      trapType: fortId,
-      x: 10 + Math.random() * 80,
-      y: 30 + Math.random() * 55,
-      active: true,
-      armed: true,
-      config: fortDef,
-      ...(fortDef.stats?.hp ? { currentHp: fortDef.stats.hp } : {}),
+      trapType: placingFort.id,
+      x: fx, y: fy,
+      active: true, armed: true,
+      config: placingFort,
+      ...(placingFort.stats?.hp ? { currentHp: placingFort.stats.hp } : {}),
     };
     setPlayerTraps(prev => [...prev, trap]);
     setFortPlacedCount(prev => prev + 1);
-    showMessage(`${fortDef.name} umieszczona!`, "#c08040");
-  }, []);
+    showMessage(`${placingFort.name} postawiona!`, "#c08040");
+    setPlacingFort(null);
+  }, [placingFort, gameScale, showMessage]);
 
   // ─── START DEFENSE FROM FORTIFICATION MENU ───
   const startDefenseFromMenu = useCallback(() => {
@@ -6062,7 +6104,7 @@ export default function App() {
         const c = canvasRef.current;
         const ctx = c.getContext("2d");
         ctx.clearRect(0, 0, GAME_W, GAME_H);
-        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current);
+        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current, !!placingFortRef.current);
       }
     } else {
       const dx = (panRef.current.startX - clientX) / gameScale;
@@ -7670,7 +7712,7 @@ export default function App() {
 
       {/* Scaled game container – fills entire screen on mobile */}
       <div ref={gameContainerRef}
-        onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode && !isSalvaMode) ? handleSkillshotClick : undefined}
+        onClick={placingFort ? handleFortPlaceClick : placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode && !isSalvaMode) ? handleSkillshotClick : undefined}
         onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
         onMouseMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; if (isoModeRef.current) { const sx = (cx - gr.left) / gameScale; const sy = (cy - gr.top) / gameScale; const cam = isoCameraRef.current; const iw = _isoScreenToWorld(sx, sy, cam.x, cam.y); wandOrbsRef.current.cursorX = iw.x; wandOrbsRef.current.cursorY = iw.y; } else { wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } } }}
         onMouseUp={(e) => { if (panRef.current.dragging) { handlePanEnd(); return; } if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
@@ -8174,6 +8216,27 @@ export default function App() {
         const cx = wrapPctToScreen(chestPos?.x ?? 50);
         return cx !== null ? <Chest pos={{ ...chestPos, x: cx }} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} /> : null;
       })()}
+
+      {/* Fortification placement indicator */}
+      {placingFort && isoModeRef.current && (
+        <div style={{
+          position: "absolute", left: 0, top: 0, right: 0, bottom: 0,
+          pointerEvents: "none", zIndex: 8,
+        }}>
+          <div style={{
+            position: "absolute", left: "50%", top: "10px", transform: "translateX(-50%)",
+            background: "rgba(0,0,0,0.75)", color: "#ffd700", padding: "6px 16px",
+            borderRadius: 8, fontSize: 13, fontWeight: "bold", zIndex: 20,
+            border: "1px solid rgba(192,128,48,0.5)",
+            textShadow: "0 1px 3px #000",
+          }}>
+            🏗️ Stawianie: {placingFort.name} — kliknij blisko karawany
+            <span onClick={() => setPlacingFort(null)} style={{
+              marginLeft: 12, cursor: "pointer", color: "#c04040", pointerEvents: "auto",
+            }}>✕ Anuluj</span>
+          </div>
+        </div>
+      )}
 
       {/* Caravan on iso map */}
       {isoModeRef.current && (() => {
