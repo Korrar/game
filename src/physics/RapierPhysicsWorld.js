@@ -727,7 +727,7 @@ export class PhysicsWorld {
 
   // ─── PATROL UPDATE ───
 
-  updatePatrol(walkerId, xPct, dir, bouncePhase, yPct) {
+  updatePatrol(walkerId, xPct, dir, bouncePhase, yPct, wx, wy) {
     const entry = this.bodies[walkerId];
     if (!entry || entry.ragdoll) return;
     entry._dir = dir;
@@ -735,6 +735,9 @@ export class PhysicsWorld {
     const px = (xPct / 100) * this.W;
     entry._px = px;
     entry._yPct = yPct ?? 65; // 2.5D: store Y percentage for depth sorting
+    // Isometric world coords (if provided)
+    if (wx !== undefined) entry._wx = wx;
+    if (wy !== undefined) entry._wy = wy;
     const groundY = yPct != null ? (yPct / 100) * this.H : this.GY;
     const bt = entry.bodyType;
 

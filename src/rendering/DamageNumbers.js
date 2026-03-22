@@ -1,6 +1,7 @@
 // DamageNumbers — floating damage numbers with glow effects
 import { Container, Text, TextStyle } from "pixi.js";
 import { wrapPxToScreen } from "../utils/panoramaWrap.js";
+import { worldToScreen } from "../utils/isometricUtils.js";
 
 const ELEMENT_COLORS = {
   fire: "#ff6030",
@@ -97,6 +98,45 @@ export class DamageNumbers {
       n.text.alpha = lifeRatio > 0.3 ? 1 : lifeRatio / 0.3;
 
       // Scale up for crits
+      if (n.isCrit && lifeRatio > 0.8) {
+        const scale = 1 + (1 - (lifeRatio - 0.8) / 0.2) * 0.3;
+        n.text.scale.set(scale);
+      }
+
+      if (n.life <= 0) {
+        this.layer.removeChild(n.text);
+        n.text.destroy();
+        this.numbers.splice(i, 1);
+      }
+    }
+  }
+
+  // Isometric mode update
+  updateIso(cameraX, cameraY, gameW = 1280) {
+    for (let i = this.numbers.length - 1; i >= 0; i--) {
+      const n = this.numbers[i];
+      n.text.position.y += n.vy;
+      n.vy *= 0.96;
+      n.life--;
+
+      // Use iso projection if world coords are stored
+      if (n.wx !== undefined && n.wy !== undefined) {
+        const screen = worldToScreen(n.wx, n.wy, cameraX, cameraY);
+        n.text.position.x = screen.x;
+        n.text.visible = screen.x > -50 && screen.x < gameW + 50;
+      } else {
+        const screenX = wrapPxToScreen(n.worldX, 0, gameW);
+        if (screenX !== null) {
+          n.text.position.x = screenX;
+          n.text.visible = true;
+        } else {
+          n.text.visible = false;
+        }
+      }
+
+      const lifeRatio = n.life / n.maxLife;
+      n.text.alpha = lifeRatio > 0.3 ? 1 : lifeRatio / 0.3;
+
       if (n.isCrit && lifeRatio > 0.8) {
         const scale = 1 + (1 - (lifeRatio - 0.8) / 0.2) * 0.3;
         n.text.scale.set(scale);

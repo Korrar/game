@@ -3,6 +3,7 @@
 
 import { Graphics } from "pixi.js";
 import { wrapPxToScreen } from "../utils/panoramaWrap.js";
+import { worldToScreen } from "../utils/isometricUtils.js";
 
 const _isMobile = ("ontouchstart" in window || navigator.maxTouchPoints > 0) && window.innerWidth < 900;
 const MAX_PARTICLES = _isMobile ? 100 : 250;
@@ -617,6 +618,56 @@ export class CombatParticles {
         }
         // Core
         this.gfx.circle(sx, p.y, size);
+        this.gfx.fill({ color: p.color, alpha: alpha * 0.7 });
+      }
+    }
+    this.particles.length = len;
+  }
+
+  // Isometric mode update — particles positioned via iso projection
+  updateIso(cameraX, cameraY, gameW) {
+    this._gameW = gameW || 1280;
+    this.gfx.clear();
+
+    let len = this.particles.length;
+    for (let i = len - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += p.gravity;
+      p.life--;
+
+      if (p.life <= 0) {
+        this.particles[i] = this.particles[len - 1];
+        len--;
+        continue;
+      }
+
+      // Convert world coords to screen via iso projection
+      const wx = p.wx ?? p.x / 32;
+      const wy = p.wy ?? p.y / 32;
+      const screen = worldToScreen(wx, wy, cameraX, cameraY);
+      const sx = screen.x;
+      if (sx < -50 || sx > this._gameW + 50) continue;
+
+      const lifeRatio = p.life / p.maxLife;
+      const alpha = lifeRatio > 0.7 ? 1 : lifeRatio / 0.7;
+      const size = p.shrink ? p.size * lifeRatio : p.size;
+      const sy = screen.y + (p.y - (p.wy ?? p.y / 32) * 32); // add pixel offset for height
+
+      if (p.type === "diamond") {
+        this.gfx.moveTo(sx, sy - size);
+        this.gfx.lineTo(sx + size * 0.6, sy);
+        this.gfx.lineTo(sx, sy + size);
+        this.gfx.lineTo(sx - size * 0.6, sy);
+        this.gfx.closePath();
+        this.gfx.fill({ color: p.color, alpha: alpha * 0.8 });
+      } else {
+        if (!this.mobile) {
+          this.gfx.circle(sx, sy, size * 2);
+          this.gfx.fill({ color: p.color, alpha: alpha * 0.1 });
+        }
+        this.gfx.circle(sx, sy, size);
         this.gfx.fill({ color: p.color, alpha: alpha * 0.7 });
       }
     }

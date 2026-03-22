@@ -152,3 +152,27 @@ export function particleSizeAtDepth(depth) {
 export function sortByDepth(items) {
   return [...items].sort((a, b) => a.yPct - b.yPct);
 }
+
+// ─── ISOMETRIC DEPTH FUNCTIONS ───
+// These functions use isometric world coordinates (wx, wy) instead of Y percentage
+
+import { ISO_CONFIG } from "../utils/isometricUtils.js";
+
+// Normalized depth from isometric world position (0 = far, 1 = near)
+// In iso view, depth = wx + wy (objects further down-right are closer to camera)
+export function isoDepthFromWorld(wx, wy) {
+  const maxDepth = ISO_CONFIG.MAP_COLS + ISO_CONFIG.MAP_ROWS;
+  return Math.max(0, Math.min(1, (wx + wy) / maxDepth));
+}
+
+// Z-index for isometric sorting
+export function isoZIndex(wx, wy) {
+  const depth = isoDepthFromWorld(wx, wy);
+  const { zMin, zMax } = DEPTH_CONFIG;
+  return Math.round(zMin + (zMax - zMin) * depth);
+}
+
+// Sort objects by isometric depth (far first = drawn first)
+export function isoSortByDepth(items) {
+  return [...items].sort((a, b) => (a.wx + a.wy) - (b.wx + b.wy));
+}

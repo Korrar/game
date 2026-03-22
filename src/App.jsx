@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { wrapPctToScreen as _wrapPct, screenPxToWorld as _screenToWorld } from "./utils/panoramaWrap.js";
+import { worldToScreen as _isoWorldToScreen, screenToWorld as _isoScreenToWorld, ISO_CONFIG } from "./utils/isometricUtils.js";
+import { IsoCamera } from "./rendering/IsoCamera.js";
+import { renderIsoBiome, clearTileCache } from "./renderers/isoBiomeRenderer.js";
 import { BIOMES } from "./data/biomes";
 import { RARITY_C, RARITY_L } from "./data/treasures";
 import { rollCardDrop, ALL_NPCS, BIOME_NAMES } from "./data/bestiary";
@@ -748,13 +751,17 @@ export default function App() {
 
   const canvasRef = useRef(null);
   const animCanvasRef = useRef(null);
-  // Panoramic scrolling
+  // Panoramic scrolling (legacy)
   const [panOffset, setPanOffset] = useState(0);
-  const panRef = useRef({ dragging: false, startX: 0, startOffset: 0 });
+  const panRef = useRef({ dragging: false, startX: 0, startY: 0, startOffset: 0, startOffsetY: 0 });
   const panOffsetRef = useRef(0);
   // Sync ref from state ONLY when not actively dragging — during drag,
   // handlePanMove owns the ref and state may lag behind by a frame
   if (!panRef.current.dragging) panOffsetRef.current = panOffset;
+
+  // Isometric camera
+  const isoCameraRef = useRef(new IsoCamera());
+  const isoModeRef = useRef(true); // enable isometric view
   const _physicsCanvasRef = useRef(null);
   const vaultRef = useRef(null);
   const gameContainerRef = useRef(null);
@@ -1992,31 +1999,51 @@ export default function App() {
         }
 
         if (!w.stationary) w.bouncePhase += 0.12;
+        // Sync iso world coords from movement
+        if (isoModeRef.current) {
+          w.wx = w.x;
+          w.wy = w.y;
+        }
         const el = npcElsRef.current[id];
         if (el) {
           const bounceY = w.stationary ? 0 : Math.abs(Math.sin(w.bouncePhase)) * 4;
           const lungeX = w.lungeOffset || 0;
-          const yPos = w.y != null ? w.y : 25;
-          // 2.5D: depth-based scaling and z-ordering for DOM walker elements
-          const walkerDepth = depthFromY(yPos);
-          const walkerScale = scaleAtDepth(walkerDepth);
-          const walkerZ = 14 + zIndexAtDepth(walkerDepth); // base 14 to stay above PixiJS canvas (z-12)
-          // Panoramic wrapping: position walker HTML overlay at wrapped screen X
-          const wrappedX = _wrapPct(w.x, panOffsetRef.current, GAME_W);
-          if (wrappedX === null) {
-            el.style.display = "none";
+          if (isoModeRef.current) {
+            // Isometric: position DOM overlay via screen projection
+            const cam = isoCameraRef.current;
+            const screen = _isoWorldToScreen(w.wx, w.wy, cam.x, cam.y);
+            if (screen.x < -80 || screen.x > GAME_W + 80 || screen.y < -80 || screen.y > GAME_H + 80) {
+              el.style.display = "none";
+            } else {
+              el.style.display = "";
+              el.style.left = `${screen.x}px`;
+              el.style.top = `${screen.y - 75}px`;
+              el.style.zIndex = 14 + Math.round((w.wx + w.wy) * 1.2);
+              el.style.transform = `translateX(-50%) translateY(${-bounceY}px) translateX(${lungeX * w.dir}px)`;
+            }
           } else {
-            el.style.display = "";
-            el.style.left = `${wrappedX}%`;
-            el.style.top = `calc(${yPos}% - 75px)`;
-            el.style.zIndex = walkerZ;
-            el.style.transform = `translateX(-50%) translateY(${-bounceY}px) translateX(${lungeX * w.dir}px) scale(${walkerScale})`;
+            const yPos = w.y != null ? w.y : 25;
+            // 2.5D: depth-based scaling and z-ordering for DOM walker elements
+            const walkerDepth = depthFromY(yPos);
+            const walkerScale = scaleAtDepth(walkerDepth);
+            const walkerZ = 14 + zIndexAtDepth(walkerDepth); // base 14 to stay above PixiJS canvas (z-12)
+            // Panoramic wrapping: position walker HTML overlay at wrapped screen X
+            const wrappedX = _wrapPct(w.x, panOffsetRef.current, GAME_W);
+            if (wrappedX === null) {
+              el.style.display = "none";
+            } else {
+              el.style.display = "";
+              el.style.left = `${wrappedX}%`;
+              el.style.top = `calc(${yPos}% - 75px)`;
+              el.style.zIndex = walkerZ;
+              el.style.transform = `translateX(-50%) translateY(${-bounceY}px) translateX(${lungeX * w.dir}px) scale(${walkerScale})`;
+            }
           }
         }
         // Update physics body to match walker position (always, even when off-screen)
         if (physicsRef.current) {
           const yPctForPhysics = w.y != null ? w.y : null;
-          physicsRef.current.updatePatrol(idNum, w.x, w.dir, w.bouncePhase, yPctForPhysics);
+          physicsRef.current.updatePatrol(idNum, w.x, w.dir, w.bouncePhase, yPctForPhysics, w.wx, w.wy);
         }
       }
       // ─── POI DOM ELEMENTS: sync position with panning (bypass React render lag) ───
@@ -2745,7 +2772,15 @@ export default function App() {
     panOffsetRef.current = 0;
     panRef.current.dragging = false; // ensure dragging state is reset so canvas renders
     combatEngagedRef.current = false; // enemies passive until player attacks
-    if (pixiRef.current) pixiRef.current.setPanOffset(0);
+    if (isoModeRef.current) {
+      // Center iso camera on map center for new room
+      const cam = isoCameraRef.current;
+      cam.centerOnWorld(ISO_CONFIG.MAP_COLS / 2, ISO_CONFIG.MAP_ROWS / 2);
+      clearTileCache(); // new biome may need different tiles
+      if (pixiRef.current) pixiRef.current.setIsoCamera(cam.x, cam.y);
+    } else {
+      if (pixiRef.current) pixiRef.current.setPanOffset(0);
+    }
     // Immediately clear all POIs to prevent stale visuals from previous room
     setFruitTree(null);
     setMineNugget(null);
@@ -3184,8 +3219,9 @@ export default function App() {
     const newWalkers = [];
     const newWalkData = {};
     if (!isDefenseRoom) {
-      // Spawn NPCs across full panoramic world (300% width)
-      const count = 8 + Math.floor(Math.random() * 5); // more NPCs for wider world
+      // Spawn NPCs across the map
+      const count = 8 + Math.floor(Math.random() * 5);
+      const useIso = isoModeRef.current;
       for (let i = 0; i < count; i++) {
         let npcData = pickNpc(b.id);
         if (!npcData) continue;
@@ -3193,9 +3229,15 @@ export default function App() {
         const explDiffMult = 1 + ((b.difficulty || 1) - 1) * 0.15;
         npcData = { ...npcData, hp: Math.round(npcData.hp * roomScale * explDiffMult) };
         const wid = ++walkerIdCounter;
-        const spawnX = 5 + Math.random() * 290; // full panoramic world (0-300%)
-        const walkRange = 12 + Math.random() * 10;
-        const speed = 0.02 + Math.random() * 0.03;
+        // Spawn position depends on view mode
+        const spawnX = useIso
+          ? 3 + Math.random() * (ISO_CONFIG.MAP_COLS - 6)  // iso world tile coords
+          : 5 + Math.random() * 290;                        // panoramic percentage
+        const spawnY = useIso
+          ? 3 + Math.random() * (ISO_CONFIG.MAP_ROWS - 6)
+          : 25 + Math.random() * 65;
+        const walkRange = useIso ? 3 + Math.random() * 5 : 12 + Math.random() * 10;
+        const speed = useIso ? 0.01 + Math.random() * 0.02 : 0.02 + Math.random() * 0.03;
         newWalkers.push({
           id: wid,
           npcData,
@@ -3204,18 +3246,21 @@ export default function App() {
           hp: npcData.hp,
           maxHp: npcData.hp,
         });
-        const spawnY = 25 + Math.random() * 65; // 65-83% (on ground)
-        const dmgScale = 1 + Math.min(newRoom / 20, 2.0); // damage scales 1x→3x over 40 rooms
+        const dmgScale = 1 + Math.min(newRoom / 20, 2.0);
         newWalkData[wid] = {
           x: spawnX,
           y: spawnY,
+          // Iso world coords stored separately for renderer
+          wx: useIso ? spawnX : undefined,
+          wy: useIso ? spawnY : undefined,
           dir: Math.random() < 0.5 ? 1 : -1,
           yDir: Math.random() < 0.5 ? 1 : -1,
           speed,
-          ySpeed: 0.005 + Math.random() * 0.015,
-          minX: Math.max(0, spawnX - walkRange),
-          maxX: Math.min(300, spawnX + walkRange),
-          minY: 25, maxY: 90,
+          ySpeed: useIso ? 0.005 + Math.random() * 0.01 : 0.005 + Math.random() * 0.015,
+          minX: useIso ? Math.max(1, spawnX - walkRange) : Math.max(0, spawnX - walkRange),
+          maxX: useIso ? Math.min(ISO_CONFIG.MAP_COLS - 1, spawnX + walkRange) : Math.min(300, spawnX + walkRange),
+          minY: useIso ? Math.max(1, spawnY - walkRange) : 25,
+          maxY: useIso ? Math.min(ISO_CONFIG.MAP_ROWS - 1, spawnY + walkRange) : 90,
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true,
           friendly: false,
@@ -3230,13 +3275,22 @@ export default function App() {
     const preservedData = {};
     for (const [id, w] of Object.entries(walkDataRef.current)) {
       if (w && w.alive && w.friendly && !w.stationary) {
-        w.x = 5 + Math.random() * 8; // respawn near caravan
-        w.minX = 5; w.maxX = w.maxX <= 28 ? 28 : 90; // dog keeps limited range
-        if (w.y == null) w.y = 65 + Math.random() * 18;
-        if (w.y < 65) w.y = 65; // clamp to ground
+        if (isoModeRef.current) {
+          w.x = 2 + Math.random() * 5;
+          w.wx = w.x;
+          w.wy = w.y ?? (ISO_CONFIG.MAP_ROWS / 2 + Math.random() * 5);
+          w.y = w.wy;
+          w.minX = 1; w.maxX = Math.min(ISO_CONFIG.MAP_COLS - 1, 15);
+          w.minY = 1; w.maxY = Math.min(ISO_CONFIG.MAP_ROWS - 1, w.y + 5);
+        } else {
+          w.x = 5 + Math.random() * 8;
+          w.minX = 5; w.maxX = w.maxX <= 28 ? 28 : 90;
+          if (w.y == null) w.y = 65 + Math.random() * 18;
+          if (w.y < 65) w.y = 65;
+          w.minY = 65; w.maxY = 83;
+        }
         if (w.yDir == null) w.yDir = Math.random() < 0.5 ? 1 : -1;
         if (w.ySpeed == null) w.ySpeed = 0.005 + Math.random() * 0.015;
-        w.minY = 65; w.maxY = 83;
         preservedData[id] = w;
       }
     }
@@ -3356,7 +3410,12 @@ export default function App() {
     try {
       // Clear before draw (canvas isn't auto-cleared when dimensions unchanged)
       ctx.clearRect(0, 0, GAME_W, GAME_H);
-      renderBiome(ctx, biome, room, c.width, c.height, isNight, panOffset);
+      if (isoModeRef.current) {
+        const cam = isoCameraRef.current;
+        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y);
+      } else {
+        renderBiome(ctx, biome, room, c.width, c.height, isNight, panOffset);
+      }
     } catch (e) {
       console.error("renderBiome crashed:", e, { biomeId: biome?.id, room, panOffset });
       ctx.fillStyle = "#200000";
@@ -5733,29 +5792,51 @@ export default function App() {
   const handlePanStart = useCallback((e) => {
     if (!canPanScroll) return;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    panRef.current = { dragging: true, startX: clientX, startOffset: panOffsetRef.current };
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    panRef.current = {
+      dragging: true,
+      startX: clientX, startY: clientY,
+      startOffset: panOffsetRef.current,
+      startCamX: isoCameraRef.current.x,
+      startCamY: isoCameraRef.current.y,
+    };
   }, [canPanScroll]);
 
   const handlePanMove = useCallback((e) => {
     if (!panRef.current.dragging) return;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const dx = (panRef.current.startX - clientX) / gameScale;
-    const newOffset = panRef.current.startOffset + dx;
-    panOffsetRef.current = newOffset;
-    // Update PixiJS stage offset for NPCs/projectiles
-    if (pixiRef.current) pixiRef.current.setPanOffset(newOffset);
-    // Directly re-render canvas for smooth dragging
-    if (canvasRef.current && biome) {
-      const c = canvasRef.current;
-      const ctx = c.getContext("2d");
-      renderBiome(ctx, biome, room, c.width, c.height, isNight, newOffset);
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    if (isoModeRef.current) {
+      // Isometric: drag moves camera in 2D
+      const dx = (panRef.current.startX - clientX) / gameScale;
+      const dy = (panRef.current.startY - clientY) / gameScale;
+      const cam = isoCameraRef.current;
+      cam.setPosition(panRef.current.startCamX + dx, panRef.current.startCamY + dy);
+      if (pixiRef.current) pixiRef.current.setIsoCamera(cam.x, cam.y);
+      // Re-render canvas
+      if (canvasRef.current && biome) {
+        const c = canvasRef.current;
+        const ctx = c.getContext("2d");
+        ctx.clearRect(0, 0, GAME_W, GAME_H);
+        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y);
+      }
+    } else {
+      const dx = (panRef.current.startX - clientX) / gameScale;
+      const newOffset = panRef.current.startOffset + dx;
+      panOffsetRef.current = newOffset;
+      if (pixiRef.current) pixiRef.current.setPanOffset(newOffset);
+      if (canvasRef.current && biome) {
+        const c = canvasRef.current;
+        const ctx = c.getContext("2d");
+        renderBiome(ctx, biome, room, c.width, c.height, isNight, newOffset);
+      }
     }
-    // Sync React state (throttled via rAF) so CSS elements also update during drag
+    // Sync React state (throttled via rAF)
     if (!panRef.current._rafPending) {
       panRef.current._rafPending = true;
       requestAnimationFrame(() => {
         panRef.current._rafPending = false;
-        // Only sync if still actively dragging — don't interfere with room transitions
         if (panRef.current.dragging) {
           setPanOffset(panOffsetRef.current);
         }
@@ -5765,9 +5846,13 @@ export default function App() {
 
   const handlePanEnd = useCallback(() => {
     panRef.current.dragging = false;
-    // Sync React state with final offset
     setPanOffset(panOffsetRef.current);
-    if (pixiRef.current) pixiRef.current.setPanOffset(panOffsetRef.current);
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      if (pixiRef.current) pixiRef.current.setIsoCamera(cam.x, cam.y);
+    } else {
+      if (pixiRef.current) pixiRef.current.setPanOffset(panOffsetRef.current);
+    }
   }, []);
 
   // ─── SKILLSHOT: Canvas click handler for aiming ───
@@ -5782,9 +5867,19 @@ export default function App() {
     const screenX = (e.clientX - gr.left) / gameScale;
     const clickY = (e.clientY - gr.top) / gameScale;
 
-    // Convert screen X to world X (account for panoramic panning)
-    const worldX = _screenToWorld(screenX, panOffsetRef.current, GAME_W);
-    castSkillshot(spell, worldX, clickY);
+    if (isoModeRef.current) {
+      // Isometric: convert screen click to world coords
+      const cam = isoCameraRef.current;
+      const isoWorld = _isoScreenToWorld(screenX, clickY, cam.x, cam.y);
+      // Convert back to pixel coords for physics (wx*TILE_W, wy*TILE_H)
+      const targetPx = isoWorld.x * ISO_CONFIG.TILE_W;
+      const targetPy = isoWorld.y * ISO_CONFIG.TILE_H;
+      castSkillshot(spell, targetPx, targetPy);
+    } else {
+      // Legacy panoramic mode
+      const worldX = _screenToWorld(screenX, panOffsetRef.current, GAME_W);
+      castSkillshot(spell, worldX, clickY);
+    }
   }, [selectedSpell, gameScale, castSkillshot]);
 
   // ─── RAPID FIRE: Hold-to-fire for Strzał ───
@@ -5806,7 +5901,13 @@ export default function App() {
       const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
       const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
       const screenX = (cx - gr.left) / gameScale;
-      return { x: _screenToWorld(screenX, panOffsetRef.current, GAME_W), y: (cy - gr.top) / gameScale };
+      const screenY = (cy - gr.top) / gameScale;
+      if (isoModeRef.current) {
+        const cam = isoCameraRef.current;
+        const isoWorld = _isoScreenToWorld(screenX, screenY, cam.x, cam.y);
+        return { x: isoWorld.x * ISO_CONFIG.TILE_W, y: isoWorld.y * ISO_CONFIG.TILE_H };
+      }
+      return { x: _screenToWorld(screenX, panOffsetRef.current, GAME_W), y: screenY };
     };
     const pos = getPos(e);
     rapidFireRef.current.lastPos = pos;
