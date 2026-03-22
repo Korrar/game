@@ -22,6 +22,7 @@ export const OBSTACLE_DEFS = {
   haystack:      { material: "organic", hp: 20,  loot: { copper: 1 },  destructible: true  },
   scarecrow:     { material: "wood",    hp: 15,  loot: { copper: 1 },  destructible: true  },
   market_stall:  { material: "wood",    hp: 45,  loot: { copper: 6 },  destructible: true  },
+  small_house:   { material: "stone",   hp: 80,  loot: { copper: 8, silver: 1 },  destructible: true  },
   broken_wagon:  { material: "wood",    hp: 55,  loot: { copper: 5 },  destructible: true  },
   wagon_wreck:   { material: "wood",    hp: 50,  loot: { copper: 4 },  destructible: true  },
   hunting_stand: { material: "wood",    hp: 40,  loot: { copper: 4 },  destructible: true  },

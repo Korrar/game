@@ -2540,7 +2540,7 @@ export default function App() {
             shipwreck:{w:55,h:30},driftwood:{w:44,h:10},tide_pool:{w:32,h:16},anchor_post:{w:12,h:38},
             cactus_cluster:{w:20,h:36},wagon_wreck:{w:48,h:28},sun_bleached_skull:{w:22,h:18},tumbleweed:{w:24,h:22},
             ice_pillar:{w:14,h:42},frozen_barrel:{w:24,h:28},snowdrift:{w:40,h:16},icicle_rock:{w:30,h:32},
-            market_stall:{w:40,h:32},broken_wagon:{w:50,h:24},lamp_post:{w:8,h:48},sandbag_wall:{w:44,h:20},
+            market_stall:{w:40,h:32},small_house:{w:44,h:48},broken_wagon:{w:50,h:24},lamp_post:{w:8,h:48},sandbag_wall:{w:44,h:20},
             lava_pool:{w:34,h:14},obsidian_pillar:{w:14,h:40},steam_vent:{w:18,h:12},ash_mound:{w:32,h:16},
             haystack:{w:30,h:28},windmill:{w:20,h:50},scarecrow:{w:18,h:44},wooden_fence:{w:46,h:22},
             log_pile:{w:38,h:20},hunting_stand:{w:22,h:46},mushroom_ring:{w:36,h:14},fallen_tree:{w:55,h:16},
@@ -3026,7 +3026,7 @@ export default function App() {
       island:   ["shipwreck", "driftwood", "tide_pool", "anchor_post", "barrel_stack", "cannon_wreck", "fishing_net", "barnacle_rock"],
       desert:   ["cactus_cluster", "wagon_wreck", "sun_bleached_skull", "tumbleweed", "sandbag_wall", "rope_coil", "rusted_cage", "dead_tree"],
       winter:   ["ice_pillar", "frozen_barrel", "snowdrift", "icicle_rock", "barnacle_rock", "mast_fragment", "crystal_geode", "moss_boulder"],
-      city:     ["market_stall", "broken_wagon", "lamp_post", "sandbag_wall", "barrel_stack", "rusted_cage", "rope_coil", "volatile_crystal"],
+      city:     ["small_house", "market_stall", "small_house", "lamp_post", "broken_wagon", "barrel_stack", "small_house", "sandbag_wall"],
       volcano:  ["lava_pool", "obsidian_pillar", "steam_vent", "ash_mound", "crystal_cluster", "crystal_geode", "barnacle_rock", "rusted_cage"],
       summer:   ["haystack", "windmill", "scarecrow", "wooden_fence", "flower_patch", "beehive", "log_pile", "well"],
       autumn:   ["log_pile", "hunting_stand", "mushroom_ring", "fallen_tree", "dead_tree", "moss_boulder", "haystack", "wooden_fence"],
@@ -8453,7 +8453,7 @@ export default function App() {
           driftwood: { w: 44, h: 10, bg: "linear-gradient(90deg,#7a6a50,#8a7a60,#6a5a40)", radius: "3px", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
           tide_pool: { w: 32, h: 16, bg: "radial-gradient(ellipse,rgba(80,180,220,0.6),rgba(40,120,180,0.3))", radius: "50%", shadow: "0 0 8px rgba(60,160,220,0.3)" },
           anchor_post: { w: 12, h: 38, bg: "linear-gradient(180deg,#5a5a5a,#4a4a4a,#3a3a3a)", radius: "2px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
-          cactus_cluster: { w: 20, h: 36, bg: "linear-gradient(180deg,#3a7a20,#2a6a18,#1a5a10)", radius: "8px 8px 2px 2px", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
+          cactus_cluster: { w: 20, h: 36, bg: "linear-gradient(180deg,#3a8a22,#2a7a18,#1a6a10,#1a5a10)", radius: "10px 10px 3px 3px", shadow: "0 2px 6px rgba(0,0,0,0.4), inset 2px 0 4px rgba(255,255,255,0.1)" },
           wagon_wreck: { w: 48, h: 28, bg: "linear-gradient(180deg,#6a4a20,#5a3a18,#3a2808)", radius: "4px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
           sun_bleached_skull: { w: 22, h: 18, bg: "radial-gradient(ellipse,#d8c8a0,#c0b080,#a09060)", radius: "40%", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
           tumbleweed: { w: 24, h: 22, bg: "radial-gradient(circle,#8a7a50,#6a6040,#5a5030)", radius: "50%", shadow: "0 1px 3px rgba(0,0,0,0.3)" },
@@ -8461,9 +8461,10 @@ export default function App() {
           frozen_barrel: { w: 24, h: 28, bg: "linear-gradient(180deg,#8090a0,#607080,#405060)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
           snowdrift: { w: 40, h: 16, bg: "radial-gradient(ellipse,#e8f0ff,#d0e0f0,#b0c8e0)", radius: "40%", shadow: "0 2px 4px rgba(0,0,0,0.2)" },
           icicle_rock: { w: 30, h: 32, bg: "linear-gradient(180deg,#90b0d0,#7090b0,#506a8a)", radius: "20%", shadow: "inset -2px 0 6px rgba(0,0,0,0.2), 0 3px 8px rgba(0,0,0,0.4)" },
-          market_stall: { w: 40, h: 32, bg: "linear-gradient(180deg,#8a4020,#6a3018,#4a2010)", radius: "4px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
-          broken_wagon: { w: 50, h: 24, bg: "linear-gradient(180deg,#5a4030,#4a3020,#3a2018)", radius: "4px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
-          lamp_post: { w: 8, h: 48, bg: "linear-gradient(180deg,#4a4a4a,#3a3a3a,#2a2a2a)", radius: "2px", shadow: "0 2px 4px rgba(0,0,0,0.5)" },
+          small_house: { w: 44, h: 48, bg: "linear-gradient(180deg,#7a3a18 0%,#7a3a18 20%,#8a7a60 20%,#7a6a50 50%,#6a5a40 100%)", radius: "6px 6px 3px 3px", shadow: "0 3px 10px rgba(0,0,0,0.5), inset 0 20px 0 -14px rgba(100,50,20,0.4)" },
+          market_stall: { w: 42, h: 36, bg: "linear-gradient(180deg,#8a4020 0%,#6a3018 30%,#7a5a3a 30%,#6a4a2a 100%)", radius: "2px 2px 4px 4px", shadow: "0 3px 8px rgba(0,0,0,0.5), inset 0 -8px 0 rgba(0,0,0,0.15)" },
+          broken_wagon: { w: 50, h: 28, bg: "linear-gradient(180deg,#5a4030 0%,#4a3020 60%,#3a2818 100%)", radius: "4px 4px 2px 2px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
+          lamp_post: { w: 8, h: 48, bg: "linear-gradient(180deg,#4a4a4a,#3a3a3a,#2a2a2a)", radius: "2px", shadow: "0 2px 4px rgba(0,0,0,0.5), 0 -8px 16px rgba(255,160,40,0.15)" },
           sandbag_wall: { w: 44, h: 20, bg: "linear-gradient(180deg,#8a7a60,#7a6a50,#6a5a40)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
           lava_pool: { w: 34, h: 14, bg: "radial-gradient(ellipse,rgba(255,100,20,0.7),rgba(200,60,10,0.4),rgba(120,30,0,0.2))", radius: "50%", shadow: "0 0 12px rgba(255,80,20,0.5)" },
           obsidian_pillar: { w: 14, h: 40, bg: "linear-gradient(180deg,#2a2030,#1a1020,#0a0810)", radius: "3px", shadow: "0 0 6px rgba(60,20,80,0.3), 0 3px 8px rgba(0,0,0,0.5)" },
@@ -8526,6 +8527,7 @@ export default function App() {
 
         const screenX = wrapPctToScreen(obs.x);
         if (screenX === null) return null;
+        const isCactus = obs.type === "cactus_cluster";
         return (
           <div key={`obs-${obs.id}`} ref={el => { if (el) obsElsRef.current[obs.id] = el; }} style={{
             position: "absolute",
@@ -8535,8 +8537,17 @@ export default function App() {
             transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})`,
             transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "none",
             opacity: isDestroying ? 0 : 1,
-            pointerEvents: "none",
-          }}>
+            pointerEvents: isCactus ? "auto" : "none",
+            cursor: isCactus ? "pointer" : "default",
+          }}
+          onClick={isCactus ? (e) => {
+            e.stopPropagation();
+            const cactusDmg = 5;
+            setCaravanHp(prev => Math.max(0, prev - cactusDmg));
+            showMessage("Kolce kaktusa! -5 HP", "#c04040");
+            // Trigger hit animation on the cactus
+            setObstacles(prev => prev.map(o => o.id === obs.id ? { ...o, hitAnim: Date.now() } : o));
+          } : undefined}>
             {/* Main obstacle body */}
             <div style={{
               width: Math.max(s.w, 18),

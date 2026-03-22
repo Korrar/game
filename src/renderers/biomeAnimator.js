@@ -99,6 +99,11 @@ export class BiomeAnimator {
     if (fx.ripples) this._drawRipples();
     if (fx.ghostFlames) this._spawnGhostFlames();
     if (fx.clouds) this._drawClouds();
+    if (fx.river) this._drawRiver();
+    if (fx.fish) this._spawnFish();
+    if (fx.autumnLeaves) this._spawnAutumnLeaves();
+    if (fx.volcanoEruption) this._drawVolcanoEruption();
+    if (fx.tumbleweeds) this._spawnTumbleweeds();
 
     // Weather-specific visuals
     if (this.weather) {
@@ -163,6 +168,11 @@ export class BiomeAnimator {
         case "comet": this._updateComet(p); break;
         case "lantern": this._updateLantern(p, wind); break;
         case "ghostFlame": this._updateGhostFlame(p); break;
+        case "fish": this._updateFish(p); break;
+        case "autumnLeaf": this._updateAutumnLeaf(p); break;
+        case "lavaChunk": this._updateLavaChunk(p); break;
+        case "volcanoSmoke": this._updateVolcanoSmoke(p); break;
+        case "tumbleweed": this._updateTumbleweed(p); break;
       }
     }
 
@@ -2232,6 +2242,301 @@ export class BiomeAnimator {
       ctx.beginPath();
       ctx.ellipse(cx + cw * 0.4, cy - ch * 0.3, cw * 0.6, ch * 0.7, 0, 0, Math.PI * 2);
       ctx.fill();
+    }
+  }
+
+  // ─── FLOWING RIVER (drawn directly, animated water) ───
+  _drawRiver() {
+    const { ctx, W, H, GY } = this;
+    const t = this.time * 0.025;
+    const riverY = H * 0.78;
+    const riverH = 25;
+    // Animated water surface
+    ctx.strokeStyle = "rgba(100,190,220,0.18)";
+    ctx.lineWidth = 1.2;
+    for (let row = 0; row < 4; row++) {
+      const ry = riverY + 3 + row * 6;
+      ctx.beginPath();
+      for (let x = 0; x < W; x += 3) {
+        const yy = ry + Math.sin(x * 0.018 + t + row * 1.4) * 2.5
+                      + Math.sin(x * 0.009 - t * 0.6 + row * 0.8) * 1.5;
+        x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
+      }
+      ctx.stroke();
+    }
+    // Floating debris / foam
+    for (let i = 0; i < 5; i++) {
+      const fx = ((t * 20 + i * W * 0.22) % (W + 40)) - 20;
+      const fy = riverY + 5 + i * 4 + Math.sin(t * 0.8 + i * 2.3) * 2;
+      ctx.fillStyle = `rgba(180,220,240,${0.08 + Math.sin(t + i) * 0.03})`;
+      ctx.beginPath(); ctx.ellipse(fx, fy, 4 + i, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    // Water sparkles
+    if (this.time % 4 === 0) {
+      ctx.fillStyle = "rgba(200,240,255,0.2)";
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(Math.random() * W, riverY + 3 + Math.random() * (riverH - 6), 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // ─── JUMPING FISH ───
+  _spawnFish() {
+    if (this.time % 180 !== 0 || Math.random() > 0.5) return;
+    const { W, H } = this;
+    const riverY = H * 0.78;
+    this._spawn("fish", {
+      x: 50 + Math.random() * (W - 100),
+      y: riverY + 10,
+      waterY: riverY + 10,
+      jumpHeight: 20 + Math.random() * 25,
+      phase: 0,
+      size: 4 + Math.random() * 4,
+      color: Math.random() > 0.5 ? "rgba(180,140,60," : "rgba(120,160,180,",
+      direction: Math.random() > 0.5 ? 1 : -1,
+      maxAge: 90,
+    });
+  }
+
+  _updateFish(p) {
+    p.phase += 0.045;
+    if (p.phase > Math.PI) { p.alive = false; return; }
+    const jumpY = Math.sin(p.phase) * p.jumpHeight;
+    p.y = p.waterY - jumpY;
+    p.x += p.direction * 0.5;
+    const { ctx } = this;
+    const alpha = Math.sin(p.phase) * 0.7;
+    const angle = Math.atan2(-Math.cos(p.phase) * p.jumpHeight * 0.05, p.direction);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(angle);
+    ctx.scale(p.direction, 1);
+    // Fish body
+    ctx.fillStyle = p.color + alpha + ")";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.size * 1.3, p.size * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Tail
+    ctx.beginPath();
+    ctx.moveTo(-p.size * 1.1, 0);
+    ctx.lineTo(-p.size * 2, -p.size * 0.5);
+    ctx.lineTo(-p.size * 2, p.size * 0.5);
+    ctx.closePath(); ctx.fill();
+    // Eye
+    ctx.fillStyle = `rgba(20,20,20,${alpha})`;
+    ctx.beginPath(); ctx.arc(p.size * 0.6, -p.size * 0.15, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    // Splash at entry/exit
+    if (p.phase < 0.25 || p.phase > Math.PI - 0.25) {
+      ctx.fillStyle = `rgba(160,210,230,${0.2 * alpha})`;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(p.x + (Math.random() - 0.5) * p.size * 3, p.waterY + Math.random() * 3, 1 + Math.random(), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // ─── AUTUMN FALLING LEAVES (colorful, larger, more dramatic) ───
+  _spawnAutumnLeaves() {
+    if (this.time % 8 !== 0) return;
+    const hues = [5, 15, 25, 35, 45, 355]; // reds, oranges, yellows
+    this._spawn("autumnLeaf", {
+      x: Math.random() * this.W * 1.2 - this.W * 0.1,
+      y: -5 - Math.random() * 20,
+      size: 4 + Math.random() * 6,
+      speedY: 0.5 + Math.random() * 0.8,
+      rot: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.08,
+      phase: Math.random() * Math.PI * 2,
+      swayAmp: 1.5 + Math.random() * 2,
+      hue: hues[Math.floor(Math.random() * hues.length)],
+      sat: 50 + Math.random() * 30,
+      light: 30 + Math.random() * 25,
+      opacity: 0.5 + Math.random() * 0.4,
+      maxAge: 600,
+    });
+  }
+
+  _updateAutumnLeaf(p, wind) {
+    p.x += Math.sin(p.age * 0.012 + p.phase) * p.swayAmp + (wind || 0) * 1.2;
+    p.y += p.speedY;
+    p.rot += p.rotSpeed;
+    if (p.y > this.H + 10 || p.x > this.W + 30 || p.x < -30) { p.alive = false; return; }
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    // Leaf shape (pointed oval with stem)
+    ctx.fillStyle = `hsla(${p.hue},${p.sat}%,${p.light}%,${p.opacity})`;
+    ctx.beginPath();
+    ctx.moveTo(0, -p.size * 0.5);
+    ctx.quadraticCurveTo(p.size * 0.6, -p.size * 0.15, p.size * 0.3, p.size * 0.5);
+    ctx.lineTo(0, p.size * 0.35);
+    ctx.lineTo(-p.size * 0.3, p.size * 0.5);
+    ctx.quadraticCurveTo(-p.size * 0.6, -p.size * 0.15, 0, -p.size * 0.5);
+    ctx.fill();
+    // Leaf vein
+    ctx.strokeStyle = `hsla(${p.hue},${p.sat - 10}%,${p.light - 10}%,${p.opacity * 0.5})`;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(0, -p.size * 0.4); ctx.lineTo(0, p.size * 0.35); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ─── VOLCANO ERUPTION (lava chunks + smoke plumes) ───
+  _drawVolcanoEruption() {
+    const { ctx, W, H, GY } = this;
+    const t = this.time;
+    // Periodic eruption bursts
+    if (t % 120 === 0) {
+      const eruptX = W * 0.5;
+      const eruptY = GY * 0.18;
+      // Spawn lava chunks
+      for (let i = 0; i < 6; i++) {
+        this._spawn("lavaChunk", {
+          x: eruptX + (Math.random() - 0.5) * 20,
+          y: eruptY,
+          vx: (Math.random() - 0.5) * 4,
+          vy: -(3 + Math.random() * 5),
+          size: 3 + Math.random() * 5,
+          glow: Math.random(),
+          maxAge: 100 + Math.random() * 80,
+        });
+      }
+      // Spawn smoke puffs
+      for (let i = 0; i < 4; i++) {
+        this._spawn("volcanoSmoke", {
+          x: eruptX + (Math.random() - 0.5) * 30,
+          y: eruptY - 5,
+          vx: (Math.random() - 0.5) * 0.8,
+          vy: -(0.5 + Math.random() * 1.2),
+          size: 15 + Math.random() * 25,
+          maxAge: 150 + Math.random() * 100,
+        });
+      }
+    }
+    // Continuous small embers from crater
+    if (t % 8 === 0) {
+      this._spawn("lavaChunk", {
+        x: W * 0.5 + (Math.random() - 0.5) * 15,
+        y: GY * 0.18,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: -(1 + Math.random() * 2),
+        size: 1.5 + Math.random() * 2.5,
+        glow: Math.random(),
+        maxAge: 60 + Math.random() * 40,
+      });
+    }
+    // Crater glow pulsing
+    const pulse = 0.15 + Math.sin(t * 0.03) * 0.06;
+    const glow = ctx.createRadialGradient(W * 0.5, GY * 0.17, 3, W * 0.5, GY * 0.17, 35);
+    glow.addColorStop(0, `rgba(255,100,20,${pulse})`);
+    glow.addColorStop(0.6, `rgba(255,50,10,${pulse * 0.4})`);
+    glow.addColorStop(1, "transparent");
+    ctx.fillStyle = glow;
+    ctx.fillRect(W * 0.5 - 35, GY * 0.05, 70, GY * 0.25);
+  }
+
+  _updateLavaChunk(p) {
+    p.x += p.vx;
+    p.vy += 0.08; // gravity
+    p.y += p.vy;
+    if (p.y > this.H || p.x < -10 || p.x > this.W + 10) { p.alive = false; return; }
+    const { ctx } = this;
+    const life = 1 - p.age / p.maxAge;
+    // Glowing lava chunk
+    const r = 200 + Math.floor(55 * p.glow);
+    const g = 60 + Math.floor(60 * p.glow * life);
+    ctx.fillStyle = `rgba(${r},${g},10,${0.6 * life + 0.2})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * life + 1, 0, Math.PI * 2); ctx.fill();
+    // Glow
+    ctx.fillStyle = `rgba(255,80,10,${0.1 * life})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 2.5 * life, 0, Math.PI * 2); ctx.fill();
+    // Trail
+    if (p.age > 3) {
+      ctx.strokeStyle = `rgba(255,100,20,${0.15 * life})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 3, p.y - p.vy * 3); ctx.stroke();
+    }
+  }
+
+  _updateVolcanoSmoke(p) {
+    p.x += p.vx + Math.sin(p.age * 0.02) * 0.3;
+    p.y += p.vy;
+    p.vy *= 0.995; // slow deceleration
+    p.size += 0.15; // expand
+    if (p.y < -50) { p.alive = false; return; }
+    const { ctx } = this;
+    const life = 1 - p.age / p.maxAge;
+    const alpha = 0.08 * life;
+    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+    grad.addColorStop(0, `rgba(80,65,55,${alpha})`);
+    grad.addColorStop(0.6, `rgba(60,50,45,${alpha * 0.5})`);
+    grad.addColorStop(1, "transparent");
+    ctx.fillStyle = grad;
+    ctx.fillRect(p.x - p.size, p.y - p.size, p.size * 2, p.size * 2);
+  }
+
+  // ─── ROLLING TUMBLEWEEDS ───
+  _spawnTumbleweeds() {
+    if (this.time % 200 !== 0 || Math.random() > 0.5) return;
+    const { W, H, GY } = this;
+    const fromLeft = Math.random() > 0.5;
+    const groundY = GY + 20 + Math.random() * 30;
+    this._spawn("tumbleweed", {
+      x: fromLeft ? -20 : W + 20,
+      y: groundY,
+      groundY: groundY,
+      speed: (fromLeft ? 1 : -1) * (1.5 + Math.random() * 2),
+      size: 8 + Math.random() * 8,
+      rot: 0,
+      rotSpeed: (fromLeft ? 1 : -1) * (0.04 + Math.random() * 0.04),
+      bouncePhase: Math.random() * Math.PI * 2,
+      opacity: 0.3 + Math.random() * 0.3,
+      maxAge: 400,
+    });
+  }
+
+  _updateTumbleweed(p) {
+    p.x += p.speed;
+    p.rot += p.rotSpeed;
+    // Bouncing motion
+    p.bouncePhase += 0.06;
+    p.y = p.groundY - Math.abs(Math.sin(p.bouncePhase)) * 12;
+    if (p.x < -40 || p.x > this.W + 40) { p.alive = false; return; }
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.globalAlpha = p.opacity;
+    // Dried tangled branches
+    ctx.strokeStyle = "hsl(35,30%,38%)";
+    ctx.lineWidth = 0.8;
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const r1 = p.size * (0.4 + Math.sin(a * 3.7 + i) * 0.2);
+      const r2 = p.size * (0.7 + Math.cos(a * 2.3 + i) * 0.3);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1 * 0.7);
+      ctx.quadraticCurveTo(
+        Math.cos(a + 0.5) * p.size * 0.5,
+        Math.sin(a + 0.5) * p.size * 0.35,
+        Math.cos(a + 1) * r2,
+        Math.sin(a + 1) * r2 * 0.7
+      );
+      ctx.stroke();
+    }
+    // Core fill
+    ctx.fillStyle = `rgba(140,120,70,${p.opacity * 0.3})`;
+    ctx.beginPath(); ctx.ellipse(0, 0, p.size * 0.6, p.size * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // Dust trail
+    if (Math.abs(Math.sin(p.bouncePhase)) < 0.15) {
+      ctx.fillStyle = `rgba(180,160,100,${0.06})`;
+      ctx.beginPath(); ctx.ellipse(p.x - p.speed * 3, p.groundY + 2, 6, 2, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
 }
