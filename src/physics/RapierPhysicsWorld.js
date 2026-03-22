@@ -1166,13 +1166,22 @@ export class PhysicsWorld {
   // ─── PLAYER SKILLSHOT SYSTEM ───
 
   // Spawn a player-aimed skillshot projectile toward target pixel coordinates
-  spawnPlayerSkillshot(spellId, targetPx, targetPy, damage, element, onHit, onMiss, onHeadshot, panOffset = 0) {
+  // isoOrigin: { x, y } in physics pixel coords for iso mode (replaces default panoramic origin)
+  spawnPlayerSkillshot(spellId, targetPx, targetPy, damage, element, onHit, onMiss, onHeadshot, panOffset = 0, isoOrigin = null) {
     const cfg = SKILLSHOT_TYPES[spellId];
     if (!cfg) return;
 
-    // Player fires from camera center (bottom-center of current viewport)
-    const sx = screenPxToWorld(this.W * 0.50, panOffset, this.W);
-    const sy = this.H * 0.85;
+    // Player fires from camera center
+    let sx, sy;
+    if (isoOrigin) {
+      // Isometric mode: origin passed from caller (camera center in world coords)
+      sx = isoOrigin.x;
+      sy = isoOrigin.y;
+    } else {
+      // Panoramic mode: bottom-center of viewport
+      sx = screenPxToWorld(this.W * 0.50, panOffset, this.W);
+      sy = this.H * 0.85;
+    }
 
     if (cfg.type === "mine") {
       // Place mine at target location
@@ -1205,11 +1214,13 @@ export class PhysicsWorld {
     }
 
     // Linear or arc projectile
-    // Account for panoramic world wrap — choose shortest path to target
-    const worldW = this.W * PANORAMA_WORLD_W;
+    // Account for panoramic world wrap — choose shortest path to target (skip in iso mode)
     let dx = targetPx - sx;
-    if (worldW > 0 && Math.abs(dx) > worldW / 2) {
-      dx -= Math.sign(dx) * worldW;
+    if (!isoOrigin) {
+      const worldW = this.W * PANORAMA_WORLD_W;
+      if (worldW > 0 && Math.abs(dx) > worldW / 2) {
+        dx -= Math.sign(dx) * worldW;
+      }
     }
     const dy = targetPy - sy;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;

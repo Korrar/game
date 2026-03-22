@@ -252,15 +252,11 @@ export default function App() {
   wizardPoiRef.current = wizardPoi;
   const biomePoiRef = useRef(biomePoi);
   biomePoiRef.current = biomePoi;
-  const defensePoiRef = useRef(defensePoi);
-  defensePoiRef.current = defensePoi;
   const nuggetRef = useRef({ active: false, intervalId: null });
   // Destructible obstacles per room
   const [obstacles, setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
   const obstaclesRef = useRef(obstacles);
   obstaclesRef.current = obstacles;
-  const meteoriteRef = useRef(meteorite);
-  meteoriteRef.current = meteorite;
 
   // Traps system
   const [traps, setTraps] = useState([]);               // [{id, type, x, hp?, maxHp?, active, triggered?, cooldown?}]
@@ -371,6 +367,8 @@ export default function App() {
 
   // Meteorite event: phases: pending → falling → landed → active (destructible NPC)
   const [meteorite, setMeteorite] = useState(null);
+  const meteoriteRef = useRef(meteorite);
+  meteoriteRef.current = meteorite;
   // Ground loot dropped by destroyed meteor — clickable items
   const [groundLoot, setGroundLoot] = useState([]);
   // Track meteor wave spawn thresholds: { walkerId, nextThreshold, waveCount }
@@ -389,6 +387,8 @@ export default function App() {
   const defenseModeRef = useRef(null);
   defenseModeRef.current = defenseMode;
   const [defensePoi, setDefensePoi] = useState(null); // POI marker for defense encounter
+  const defensePoiRef = useRef(defensePoi);
+  defensePoiRef.current = defensePoi;
   const [showFortMenu, setShowFortMenu] = useState(false); // fortification placement menu
   const [fortPlacedCount, setFortPlacedCount] = useState(0); // fortifications placed this defense
   const [activeRelics, setActiveRelics] = useState([]);
@@ -1534,9 +1534,10 @@ export default function App() {
               const ew = wd[eid];
               if (!ew || !ew.alive || ew.friendly) continue;
               const dx = ew.x - w.x;
-              const dy = ((ew.y || 50) - (w.y || 50)) * 0.5;
+              const _defY = isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50;
+              const dy = ((ew.y || _defY) - (w.y || _defY)) * (isoModeRef.current ? 1 : 0.5);
               const dist = Math.sqrt(dx * dx + dy * dy);
-              if (dist < nearEnemyDist) { nearEnemyDist = dist; nearEnemyId = eid; nearEnemyX = ew.x; nearEnemyY = ew.y || 50; }
+              if (dist < nearEnemyDist) { nearEnemyDist = dist; nearEnemyId = eid; nearEnemyX = ew.x; nearEnemyY = ew.y || _defY; }
             }
             if (nearEnemyId !== null) {
               w.dir = nearEnemyX > w.x ? 1 : -1;
@@ -1580,7 +1581,8 @@ export default function App() {
           for (let fi = 0; fi < friendlyList.length; fi++) {
             const f = friendlyList[fi].w;
             const dx = f.x - w.x;
-            const dy = ((f.y || 50) - (w.y || 50)) * 0.5;
+            const _yScale = isoModeRef.current ? 1 : 0.5;
+            const dy = ((f.y || (isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50)) - (w.y || (isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50))) * _yScale;
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist < friendDist * 0.6) { // friendly must be significantly closer to distract
               friendDist = dist; friendX = f.x; friendY = f.y || 50;
@@ -2547,8 +2549,9 @@ export default function App() {
             setMana(m => Math.min(maxMana, m + 1));
           }
         }
-        const orbRadius = 8; // % of screen
-        const hitRadius = 5; // % of screen for damage
+        const _isoWand = isoModeRef.current;
+        const orbRadius = _isoWand ? 3.2 : 8; // tiles or % of screen
+        const hitRadius = _isoWand ? 2 : 5; // tiles or % of screen for damage
         const dmgCd = 800; // ms between hits per enemy
         for (let orb = 0; orb < 3; orb++) {
           const angle = (elapsed / 600) + (orb * Math.PI * 2 / 3);
@@ -2627,10 +2630,11 @@ export default function App() {
             setMana(m => Math.max(0, m - SALVA_MANA_COST));
             setAmmo(prev => ({ ...prev, cannonball: (prev.cannonball || 0) - 1 }));
             // Slight random offset on target
-            const offX = (Math.random() - 0.5) * 40;
-            const offY = (Math.random() - 0.5) * 30;
-            const tgtPx = (sv.cursorX / 100) * GAME_W + offX;
-            const tgtPy = (sv.cursorY / 100) * GAME_H + offY;
+            const _isoSalva = isoModeRef.current;
+            const offX = (Math.random() - 0.5) * (_isoSalva ? 16 : 40);
+            const offY = (Math.random() - 0.5) * (_isoSalva ? 12 : 30);
+            const tgtPx = _isoSalva ? (sv.cursorX / ISO_CONFIG.MAP_COLS) * GAME_W + offX : (sv.cursorX / 100) * GAME_W + offX;
+            const tgtPy = _isoSalva ? (sv.cursorY / ISO_CONFIG.MAP_ROWS) * GAME_H + offY : (sv.cursorY / 100) * GAME_H + offY;
             // Spawn real arc projectile via physics
             if (physicsRef.current) {
               const salvaSpell = SPELLS.find(s => s.id === "meteor");
@@ -2653,7 +2657,12 @@ export default function App() {
                   showMessage("HEADSHOT! +50% obrażeń!", "#ff4040");
                   processSkillshotHit(salvaSpell, hitId, damage, element, true);
                 },
-                panOffsetRef.current
+                panOffsetRef.current,
+                isoModeRef.current ? (() => {
+                  const cam = isoCameraRef.current;
+                  const cw = _isoScreenToWorld(GAME_W / 2, GAME_H / 2, cam.x, cam.y);
+                  return { x: (cw.x / ISO_CONFIG.MAP_COLS) * GAME_W, y: (cw.y / ISO_CONFIG.MAP_ROWS) * GAME_H };
+                })() : null
               );
             }
             // Play sound
@@ -4056,15 +4065,17 @@ export default function App() {
         npcData.name = `${eliteMod.name} ${npcData.name}`;
         if (eliteMod.resist) npcData.resist = eliteMod.resist;
         const wid = ++walkerIdCounter;
-        const spawnX = 50;
-        const spawnY = 28;
+        const _isI = isoModeRef.current;
+        const spawnX = _isI ? ISO_CONFIG.MAP_COLS / 2 : 50;
+        const spawnY = _isI ? 8 : 28;
         setWalkers(prev => [...prev, {
           id: wid, npcData, alive: true, dying: false, hp: npcData.hp, maxHp: npcData.hp, isElite: true, eliteMod: eliteMod,
         }]);
         walkDataRef.current[wid] = {
           x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
-          yDir: 1, speed: 0.015 * enemySpdMult, ySpeed: 0.012 * enemySpdMult,
-          minX: 5, maxX: 98, minY: 25, maxY: 92,
+          yDir: 1, speed: (_isI ? 0.03 : 0.015) * enemySpdMult, ySpeed: (_isI ? 0.02 : 0.012) * enemySpdMult,
+          minX: _isI ? 2 : 5, maxX: _isI ? ISO_CONFIG.MAP_COLS - 2 : 98,
+          minY: _isI ? 5 : 25, maxY: _isI ? ISO_CONFIG.MAP_ROWS - 3 : 92,
           bouncePhase: 0, alive: true, friendly: false,
           damage: Math.ceil(npcData.hp / 6 * dmgMult * (eliteMod.damageMult || 1)),
           lungeFrames: 0, lungeOffset: 0,
@@ -4073,7 +4084,7 @@ export default function App() {
           isElite: true,
           eliteMod: eliteMod,
         };
-        if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, false, spawnY);
+        if (physicsRef.current) physicsRef.current.spawnNpc(wid, _toPhysPct(spawnX, _isI, ISO_CONFIG.MAP_COLS), npcData, false, _toPhysPct(spawnY, _isI, ISO_CONFIG.MAP_ROWS));
         setDefenseMode(prev => prev ? { ...prev, enemiesSpawned: prev.enemiesSpawned + 1 } : null);
         showMessage(`Elite: ${eliteMod.name}! ${eliteMod.desc}`, eliteMod.color);
       }, 500);
@@ -4095,29 +4106,30 @@ export default function App() {
         const mut = activeMutationsRef.current.find(m => m.npcName === npcData.name);
         if (mut && mut.mutation) mut.mutation.apply(npcData);
         const wid = ++walkerIdCounter;
+        const _isI2 = isoModeRef.current;
         // Find spawn position avoiding obstacles and other NPCs
         let spawnX, spawnY, spAttempts = 0;
-        const NPC_MIN_DIST = 10;
+        const NPC_MIN_DIST = _isI2 ? 4 : 10;
         do {
-          spawnX = 10 + Math.random() * 80;
-          spawnY = 25 + Math.random() * 15;
+          spawnX = _isI2 ? 4 + Math.random() * (ISO_CONFIG.MAP_COLS - 8) : 10 + Math.random() * 80;
+          spawnY = _isI2 ? 5 + Math.random() * 8 : 25 + Math.random() * 15;
           spAttempts++;
         } while (spAttempts < 15 && (
           // Check obstacles
           obstaclesRef.current.some(o => { const dx = spawnX - o.x, dy = spawnY - o.y; return dx*dx+dy*dy < NPC_MIN_DIST*NPC_MIN_DIST; }) ||
           // Check other alive NPCs
-          Object.values(walkDataRef.current).some(w => w.alive && !w.friendly && (() => { const dx = spawnX - w.x, dy = spawnY - (w.y||50); return dx*dx+dy*dy < NPC_MIN_DIST*NPC_MIN_DIST; })())
+          Object.values(walkDataRef.current).some(w => w.alive && !w.friendly && (() => { const dx = spawnX - w.x, dy = spawnY - (w.y||(_isI2 ? ISO_CONFIG.MAP_ROWS/2 : 50)); return dx*dx+dy*dy < NPC_MIN_DIST*NPC_MIN_DIST; })())
         ));
-        console.log(`[SPAWN] Enemy #${wid} "${npcData.name}" at x=${spawnX.toFixed(1)} y=${spawnY.toFixed(1)} hp=${npcData.hp}`);
         setWalkers(prev => [...prev, {
           id: wid, npcData, alive: true, dying: false, hp: npcData.hp, maxHp: npcData.hp,
         }]);
         walkDataRef.current[wid] = {
           x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
           yDir: 1, // always start moving downward
-          speed: (0.01 + Math.random() * 0.02) * enemySpdMult,
-          ySpeed: (0.015 + Math.random() * 0.015) * enemySpdMult,
-          minX: 5, maxX: 98, minY: 25, maxY: 92,
+          speed: (_isI2 ? 0.02 + Math.random() * 0.04 : 0.01 + Math.random() * 0.02) * enemySpdMult,
+          ySpeed: (_isI2 ? 0.03 + Math.random() * 0.03 : 0.015 + Math.random() * 0.015) * enemySpdMult,
+          minX: _isI2 ? 2 : 5, maxX: _isI2 ? ISO_CONFIG.MAP_COLS - 2 : 98,
+          minY: _isI2 ? 3 : 25, maxY: _isI2 ? ISO_CONFIG.MAP_ROWS - 3 : 92,
           bouncePhase: Math.random() * Math.PI * 2,
           alive: true, friendly: false,
           damage: Math.ceil(npcData.hp / 8 * dmgMult),
@@ -4125,7 +4137,7 @@ export default function App() {
           ability: npcData.ability || null,
           attackCd: Math.round(3000 * atkCdMult),
         };
-        if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, npcData, false, spawnY);
+        if (physicsRef.current) physicsRef.current.spawnNpc(wid, _toPhysPct(spawnX, _isI2, ISO_CONFIG.MAP_COLS), npcData, false, _toPhysPct(spawnY, _isI2, ISO_CONFIG.MAP_ROWS));
         setDefenseMode(prev => prev ? { ...prev, enemiesSpawned: prev.enemiesSpawned + 1 } : null);
       }, delay);
       timers.push(tid);
@@ -4143,8 +4155,9 @@ export default function App() {
         bossNpc.name = `Kapitan ${bossNpc.name}`;
         bossNpc.rarity = "rare";
         const wid = ++walkerIdCounter;
-        const spawnX = 40 + Math.random() * 20;
-        const spawnY = 10;
+        const _isI3 = isoModeRef.current;
+        const spawnX = _isI3 ? 16 + Math.random() * 8 : 40 + Math.random() * 20;
+        const spawnY = _isI3 ? 4 : 10;
         setWalkers(prev => [...prev, {
           id: wid, npcData: bossNpc, alive: true, dying: false,
           hp: bossNpc.hp, maxHp: bossNpc.hp, isElite: true,
@@ -4152,8 +4165,9 @@ export default function App() {
         }]);
         walkDataRef.current[wid] = {
           x: spawnX, y: spawnY, dir: Math.random() < 0.5 ? -1 : 1,
-          yDir: 1, speed: 0.02 * enemySpdMult, ySpeed: 0.015 * enemySpdMult,
-          minX: 5, maxX: 98, minY: 25, maxY: 92,
+          yDir: 1, speed: (_isI3 ? 0.04 : 0.02) * enemySpdMult, ySpeed: (_isI3 ? 0.03 : 0.015) * enemySpdMult,
+          minX: _isI3 ? 2 : 5, maxX: _isI3 ? ISO_CONFIG.MAP_COLS - 2 : 98,
+          minY: _isI3 ? 3 : 25, maxY: _isI3 ? ISO_CONFIG.MAP_ROWS - 3 : 92,
           bouncePhase: 0, alive: true, friendly: false,
           damage: Math.ceil(bossNpc.hp / 5 * dmgMult),
           lungeFrames: 0, lungeOffset: 0,
@@ -4161,7 +4175,7 @@ export default function App() {
           attackCd: Math.round(2500 * atkCdMult),
           isElite: true,
         };
-        if (physicsRef.current) physicsRef.current.spawnNpc(wid, spawnX, bossNpc, false, spawnY);
+        if (physicsRef.current) physicsRef.current.spawnNpc(wid, _toPhysPct(spawnX, _isI3, ISO_CONFIG.MAP_COLS), bossNpc, false, _toPhysPct(spawnY, _isI3, ISO_CONFIG.MAP_ROWS));
         setDefenseMode(prev => prev ? { ...prev, enemiesRemaining: prev.enemiesRemaining + 1, enemiesSpawned: prev.enemiesSpawned + 1 } : null);
         showMessage("Kapitan wrogów nadchodzi!", "#cc4040");
       }, bossDelay);
@@ -5946,7 +5960,16 @@ export default function App() {
           showMessage("HEADSHOT! +50% obrażeń!", "#ff4040");
           processSkillshotHit(spell, hitId, damage, element, true);
         },
-        panOffsetRef.current
+        panOffsetRef.current,
+        // Iso mode: fire from screen center (camera center in physics pixel coords)
+        isoModeRef.current ? (() => {
+          const cam = isoCameraRef.current;
+          const centerWorld = _isoScreenToWorld(GAME_W / 2, GAME_H / 2, cam.x, cam.y);
+          return {
+            x: (centerWorld.x / ISO_CONFIG.MAP_COLS) * GAME_W,
+            y: (centerWorld.y / ISO_CONFIG.MAP_ROWS) * GAME_H,
+          };
+        })() : null
       );
     }
 
@@ -6179,9 +6202,17 @@ export default function App() {
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
     const screenPx = (cx - gr.left) / gameScale;
-    const worldPx = _screenToWorld(screenPx, panOffsetRef.current, GAME_W);
-    const cursorX = (worldPx / GAME_W) * 100;
-    const cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100;
+    const screenPy = (cy - gr.top) / gameScale;
+    let cursorX, cursorY;
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      const isoW = _isoScreenToWorld(screenPx, screenPy, cam.x, cam.y);
+      cursorX = isoW.x; cursorY = isoW.y; // tile coords (0-40)
+    } else {
+      const worldPx2 = _screenToWorld(screenPx, panOffsetRef.current, GAME_W);
+      cursorX = (worldPx2 / GAME_W) * 100;
+      cursorY = (screenPy / GAME_H) * 100;
+    }
     if (!combatEngagedRef.current) combatEngagedRef.current = true;
     setWandActive(true);
     wandOrbsRef.current = { active: true, startTime: Date.now(), cursorX, cursorY, hitCooldowns: {}, lastDrainTime: Date.now() };
@@ -6235,9 +6266,17 @@ export default function App() {
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
     const screenPx = (cx - gr.left) / gameScale;
-    const worldPx = _screenToWorld(screenPx, panOffsetRef.current, GAME_W);
-    const cursorX = (worldPx / GAME_W) * 100;
-    const cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100;
+    const screenPy = (cy - gr.top) / gameScale;
+    let cursorX, cursorY;
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      const iw = _isoScreenToWorld(screenPx, screenPy, cam.x, cam.y);
+      cursorX = iw.x; cursorY = iw.y;
+    } else {
+      const worldPx2 = _screenToWorld(screenPx, panOffsetRef.current, GAME_W);
+      cursorX = (worldPx2 / GAME_W) * 100;
+      cursorY = (screenPy / GAME_H) * 100;
+    }
     // Check initial resources
     if ((ammoRef.current.cannonball || 0) < 1) { showMessage("Brak kul armatnich!", "#c04040"); return; }
     if (manaRef.current < 5) { showMessage("Za mało prochu!", "#c0a060"); return; }
@@ -6252,9 +6291,16 @@ export default function App() {
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
     const sxPx = (cx - gr.left) / gameScale;
-    const wxPx = _screenToWorld(sxPx, panOffsetRef.current, GAME_W);
-    salvaRef.current.cursorX = (wxPx / GAME_W) * 100;
-    salvaRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100;
+    const syPx = (cy - gr.top) / gameScale;
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      const iw = _isoScreenToWorld(sxPx, syPx, cam.x, cam.y);
+      salvaRef.current.cursorX = iw.x; salvaRef.current.cursorY = iw.y;
+    } else {
+      const wxPx = _screenToWorld(sxPx, panOffsetRef.current, GAME_W);
+      salvaRef.current.cursorX = (wxPx / GAME_W) * 100;
+      salvaRef.current.cursorY = (syPx / GAME_H) * 100;
+    }
   }, [gameScale]);
 
   const stopSalva = useCallback(() => {
@@ -6663,9 +6709,16 @@ export default function App() {
       showMessage(`Max ${MAX_PLAYER_TRAPS} pułapek!`, "#c08040");
       return;
     }
-    // Convert click position to percentage
-    const xPct = (clickX / GAME_W) * 100;
-    const yPct = (clickY / GAME_H) * 100;
+    // Convert click position to game coords
+    let xPct, yPct;
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      const iw = _isoScreenToWorld(clickX, clickY, cam.x, cam.y);
+      xPct = iw.x; yPct = iw.y; // tile coords for iso
+    } else {
+      xPct = (clickX / GAME_W) * 100;
+      yPct = (clickY / GAME_H) * 100;
+    }
     const newTrap = {
       id: Date.now() + Math.random(),
       trapType: trapCfg.id,
@@ -7611,11 +7664,11 @@ export default function App() {
       <div ref={gameContainerRef}
         onClick={placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode && !isSalvaMode) ? handleSkillshotClick : undefined}
         onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
-        onMouseMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
+        onMouseMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; if (isoModeRef.current) { const sx = (cx - gr.left) / gameScale; const sy = (cy - gr.top) / gameScale; const cam = isoCameraRef.current; const iw = _isoScreenToWorld(sx, sy, cam.x, cam.y); wandOrbsRef.current.cursorX = iw.x; wandOrbsRef.current.cursorY = iw.y; } else { wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } } }}
         onMouseUp={(e) => { if (panRef.current.dragging) { handlePanEnd(); return; } if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
         onMouseLeave={(e) => { handlePanEnd(); if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
         onTouchStart={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
-        onTouchMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active && e.touches[0]) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current && e.touches[0]) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.touches[0].clientX; const cy = e.touches[0].clientY; wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } }}
+        onTouchMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active && e.touches[0]) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current && e.touches[0]) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.touches[0].clientX; const cy = e.touches[0].clientY; if (isoModeRef.current) { const sx = (cx - gr.left) / gameScale; const sy = (cy - gr.top) / gameScale; const cam = isoCameraRef.current; const iw = _isoScreenToWorld(sx, sy, cam.x, cam.y); wandOrbsRef.current.cursorX = iw.x; wandOrbsRef.current.cursorY = iw.y; } else { wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } } }}
         onTouchEnd={(e) => { if (panRef.current.dragging) { handlePanEnd(); return; } if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
         style={{
         width: GAME_W, height: GAME_H,
