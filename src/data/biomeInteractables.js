@@ -23,6 +23,12 @@ export const BIOME_INTERACTABLES = {
       action: "shoot", chance: 0.25,
       reward: { type: "aoe_damage", damage: 12, radius: 20, element: "poison" },
     },
+    {
+      id: "jungle_dam", name: "Kamienna Zapora", icon: "rock",
+      desc: "Kliknij aby usunąć zaporę — fala wody zmywa wrogów i odsłania strumyk",
+      action: "click", chance: 0.20,
+      reward: { type: "dam_break", damage: 15, radius: 22, element: null },
+    },
   ],
   island: [
     {
@@ -86,6 +92,12 @@ export const BIOME_INTERACTABLES = {
       desc: "Przecięcie sablem daje jedzenie — regeneruje HP",
       action: "saber", chance: 0.25,
       reward: { type: "heal", amount: 2 },
+    },
+    {
+      id: "winter_hot_spring", name: "Zamarznięte Źródło", icon: "water",
+      desc: "Przecięcie lodu sablem odsłania gorące źródło — leczy i spowalnia wrogów",
+      action: "saber", chance: 0.18,
+      reward: { type: "hot_spring", heal: 4, slowMult: 0.4, duration: 12000, radius: 18 },
     },
   ],
   city: [
@@ -195,6 +207,12 @@ export const BIOME_INTERACTABLES = {
       action: "click", chance: 0.15,
       reward: { type: "loot", copper: 22, silverChance: 0.20 },
     },
+    {
+      id: "spring_sapling", name: "Sadzonka Dębu", icon: "herb",
+      desc: "Kliknij aby zasadzić — drzewo wyrasta i daje ochronę karawanie",
+      action: "click", chance: 0.22,
+      reward: { type: "grow_tree", heal: 3, buffType: "resist", duration: 25000 },
+    },
   ],
   mushroom: [
     {
@@ -234,6 +252,12 @@ export const BIOME_INTERACTABLES = {
       desc: "Wytnij sablem — przeklina wrogów (tracą 10% HP)",
       action: "saber", chance: 0.20,
       reward: { type: "curse_enemies", hpLossPct: 0.10 },
+    },
+    {
+      id: "swamp_campfire", name: "Suche Drewno", icon: "wood",
+      desc: "Kliknij aby rozpalić ognisko — rozgania mgłę i straszy wrogów",
+      action: "click", chance: 0.22,
+      reward: { type: "campfire", fearDuration: 5000, fearRadius: 20 },
     },
   ],
   sunset_beach: [

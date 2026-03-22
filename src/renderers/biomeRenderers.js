@@ -144,36 +144,44 @@ const PANORAMA_POIS = {
     { icon: "shield", label: "Arsenał", y: 0.38, glow: "#8080a0" },
     { icon: "scroll", label: "Biblioteka", y: 0.42, glow: "#c0a060" },
     { icon: "gold", label: "Bank", y: 0.35, glow: "#d4a030" },
+    { icon: "anchor", label: "Port", y: 0.52, glow: "#4080a0" },
+    { icon: "water", label: "Fontanna", y: 0.48, glow: "#60a0c0" },
   ],
   volcano: [
     { icon: "fire", label: "Krater", y: 0.30, glow: "#ff4020" },
     { icon: "gem", label: "Obsydianowa Żyła", y: 0.48, glow: "#6040a0" },
     { icon: "skull", label: "Ołtarz Ognia", y: 0.42, glow: "#ff6020" },
+    { icon: "rock", label: "Obsydianowy Most", y: 0.38, glow: "#3a2030" },
   ],
   summer: [
     { icon: "herb", label: "Ogród Ziołowy", y: 0.45, glow: "#60c040" },
     { icon: "water", label: "Staw", y: 0.50, glow: "#4080c0" },
     { icon: "banjo", label: "Młyn", y: 0.35, glow: "#a08040" },
+    { icon: "bull", label: "Pastwisko", y: 0.55, glow: "#8a6030" },
   ],
   autumn: [
     { icon: "rock", label: "Kamienny Krąg", y: 0.40, glow: "#a06030" },
     { icon: "treasure", label: "Stara Piwnica", y: 0.52, glow: "#c08030" },
     { icon: "herb", label: "Grzybobranie", y: 0.48, glow: "#80a040" },
+    { icon: "wood", label: "Opuszczona Chata", y: 0.35, glow: "#6a4020" },
   ],
   spring: [
     { icon: "water", label: "Źródełko", y: 0.42, glow: "#60a0d0" },
     { icon: "feather", label: "Gniazdo Feniksa", y: 0.30, glow: "#ff8060" },
     { icon: "herb", label: "Polana Kwiatów", y: 0.50, glow: "#e060a0" },
+    { icon: "flower", label: "Stary Dąb", y: 0.38, glow: "#40a030" },
   ],
   mushroom: [
     { icon: "gem", label: "Kryształowa Grota", y: 0.38, glow: "#a040e0" },
     { icon: "eye", label: "Luminescencja", y: 0.48, glow: "#60e0a0" },
     { icon: "vortex", label: "Portal Grzybni", y: 0.42, glow: "#c040ff" },
+    { icon: "water", label: "Podziemne Jezioro", y: 0.55, glow: "#3060a0" },
   ],
   swamp: [
     { icon: "skull", label: "Bagienne Świece", y: 0.45, glow: "#60a040" },
     { icon: "vortex", label: "Trzęsawisko", y: 0.52, glow: "#408040" },
     { icon: "scroll", label: "Zapomniana Kaplica", y: 0.38, glow: "#a0a060" },
+    { icon: "shield", label: "Wieża Strażnicza", y: 0.32, glow: "#808060" },
   ],
   olympus: [
     { icon: "lightning", label: "Tron Zeusa", y: 0.30, glow: "#80b0ff" },
@@ -934,6 +942,18 @@ function drawSummer(ctx, W, H, GY, r) {
     ctx.beginPath(); ctx.ellipse(bx - 3, by, 3, 2, -0.3, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(bx + 3, by, 3, 2, 0.3, 0, Math.PI * 2); ctx.fill();
   }
+  // Small pond with lily pads
+  const pondX = W * (0.2 + r() * 0.3), pondY = H * 0.75;
+  const pondG = ctx.createRadialGradient(pondX, pondY, 5, pondX, pondY, 35);
+  pondG.addColorStop(0, "rgba(40,120,160,0.2)"); pondG.addColorStop(0.7, "rgba(30,100,140,0.12)"); pondG.addColorStop(1, "transparent");
+  ctx.fillStyle = pondG;
+  ctx.beginPath(); ctx.ellipse(pondX, pondY, 35, 12, 0, 0, Math.PI * 2); ctx.fill();
+  // Lily pads on pond
+  for (let i = 0; i < 3; i++) {
+    const lx = pondX + (r() - 0.5) * 40, ly = pondY + (r() - 0.5) * 6;
+    ctx.fillStyle = `rgba(60,140,50,${0.15 + r() * 0.1})`;
+    ctx.beginPath(); ctx.ellipse(lx, ly, 5 + r() * 3, 3, r() * 0.3, 0, Math.PI * 2); ctx.fill();
+  }
   // Sun glow
   const sg = ctx.createRadialGradient(W * 0.85, GY * 0.15, 10, W * 0.85, GY * 0.15, 120);
   sg.addColorStop(0, "rgba(255,240,140,0.25)"); sg.addColorStop(1, "transparent");
@@ -1092,6 +1112,39 @@ function drawMushroom(ctx, W, H, GY, r) {
     ctx.beginPath(); ctx.moveTo(cx - 2, cy); ctx.lineTo(cx, cy - ch); ctx.lineTo(cx + 2, cy); ctx.closePath(); ctx.fill();
   }
   ctx.globalAlpha = 1;
+  // Spider webs in corners with dew drops
+  for (let i = 0; i < 2; i++) {
+    const webX = i === 0 ? W * 0.08 + r() * 30 : W * 0.85 + r() * 30;
+    const webY = GY + 3 + r() * 10;
+    const webR = 18 + r() * 12;
+    ctx.strokeStyle = "rgba(200,200,210,0.06)";
+    ctx.lineWidth = 0.4;
+    // Radial web threads
+    for (let s = 0; s < 6; s++) {
+      const a = s / 6 * Math.PI + r() * 0.2;
+      ctx.beginPath(); ctx.moveTo(webX, webY);
+      ctx.lineTo(webX + Math.cos(a) * webR, webY + Math.sin(a) * webR * 0.6);
+      ctx.stroke();
+    }
+    // Spiral rings
+    for (let ring = 1; ring <= 3; ring++) {
+      const rr = webR * ring / 3;
+      ctx.beginPath();
+      for (let a = 0; a <= Math.PI; a += 0.3) {
+        const x = webX + Math.cos(a) * rr;
+        const y = webY + Math.sin(a) * rr * 0.6;
+        a === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    // Dew drops
+    ctx.fillStyle = "rgba(180,200,240,0.08)";
+    for (let d = 0; d < 3; d++) {
+      const da = r() * Math.PI;
+      const dr = webR * (0.3 + r() * 0.5);
+      ctx.beginPath(); ctx.arc(webX + Math.cos(da) * dr, webY + Math.sin(da) * dr * 0.6, 1, 0, Math.PI * 2); ctx.fill();
+    }
+  }
 }
 
 function drawSwamp(ctx, W, H, GY, r) {
@@ -1135,11 +1188,32 @@ function drawSwamp(ctx, W, H, GY, r) {
     g.addColorStop(0, `rgba(60,80,40,${0.08 + (1 - depthT) * 0.06})`); g.addColorStop(1, "transparent");
     ctx.fillStyle = g; ctx.fillRect(fx - size, fy - size * 0.4, size * 2, size * 0.8);
   }
+  // Exposed tree roots wading into water
+  for (let i = 0; i < 4; i++) {
+    const rx = r() * W, ry = GY + 5 + r() * 20;
+    const depthT = (ry - GY) / (groundH * 0.3);
+    const scale = 0.6 + depthT * 0.5;
+    ctx.strokeStyle = `rgba(50,35,18,${0.15 + depthT * 0.12})`;
+    ctx.lineWidth = 2 * scale;
+    // Root arching out of ground
+    for (let j = 0; j < 3; j++) {
+      const angle = -0.4 + j * 0.4 + r() * 0.3;
+      const len = (15 + r() * 15) * scale;
+      ctx.beginPath(); ctx.moveTo(rx, ry);
+      ctx.quadraticCurveTo(rx + Math.cos(angle) * len * 0.5, ry - 6 * scale, rx + Math.cos(angle) * len, ry + 3);
+      ctx.stroke();
+    }
+  }
   // Lily pads (foreground detail)
   for (let i = 0; i < 5; i++) {
     const lx = r() * W, ly = H - 20 - r() * 40;
     ctx.fillStyle = `rgba(40,100,30,${0.1 + r() * 0.08})`;
     ctx.beginPath(); ctx.ellipse(lx, ly, 6 + r() * 5, 3 + r() * 2, r() * 0.5, 0, Math.PI * 2); ctx.fill();
+    // Lily flower on some
+    if (r() > 0.6) {
+      ctx.fillStyle = `rgba(200,180,200,${0.12 + r() * 0.08})`;
+      ctx.beginPath(); ctx.arc(lx + 2, ly - 2, 2, 0, Math.PI * 2); ctx.fill();
+    }
   }
 }
 
