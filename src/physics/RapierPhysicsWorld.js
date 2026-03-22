@@ -1097,27 +1097,33 @@ export class PhysicsWorld {
     const dx = tx - sx, dy = ty - sy;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
+    // Adaptive maxAge: compute from distance + generous buffer so projectiles don't vanish early
     if (type === "arrow") {
       const speed = 7;
       const vx = (dx / dist) * speed;
       const tFlight = Math.abs(dx / vx) || 20;
       const gravity = 0.12;
       const vy = (dy / tFlight) - 0.5 * gravity * tFlight;
+      // maxAge = estimated flight time + 60 frame buffer (never less than 200)
+      const adaptiveMaxAge = Math.max(200, Math.round(tFlight) + 60);
       this.projectiles.push({
         x: sx, y: sy, vx, vy, gravity,
-        type, damage, sourceId, element, age: 0, maxAge: 150, onHit: onHit || null,
+        type, damage, sourceId, element, age: 0, maxAge: adaptiveMaxAge, onHit: onHit || null,
         targetId: targetId != null ? targetId : null,
-        homing: 0.03, speed,
+        homing: 0.05, speed,
         targetPos: targetPos || null,
       });
     } else {
       const isMageSpell = type === "mageSpell";
       const speed = isMageSpell ? 5 : 4;
+      // Adaptive maxAge based on distance to target
+      const tFlight = dist / speed;
+      const adaptiveMaxAge = Math.max(180, Math.round(tFlight) + 60);
       this.projectiles.push({
         x: sx, y: sy, vx: (dx / dist) * speed, vy: (dy / dist) * speed,
         gravity: 0, speed,
-        type, damage, sourceId, element, age: 0, maxAge: 120, onHit: onHit || null,
-        homing: isMageSpell ? 0.06 : 0,
+        type, damage, sourceId, element, age: 0, maxAge: adaptiveMaxAge, onHit: onHit || null,
+        homing: isMageSpell ? 0.08 : 0,
         targetId: targetId != null ? targetId : null,
         targetPos: targetPos || null,
       });

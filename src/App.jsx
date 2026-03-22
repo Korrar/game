@@ -110,7 +110,6 @@ const vignetteStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
 
 const SPELL_SFX = {
   fireball: sfxFireball, lightning: sfxLightning, icelance: sfxIceLance,
-  holybeam: sfxHolyBeam,
   meteor: sfxFireball, blizzard: sfxIceLance, drain: sfxShadowBolt,
   chainlightning: sfxLightning, earthquake: sfxHolyBeam,
 };
@@ -302,6 +301,8 @@ export default function App() {
   const ammoRef = useRef({});
   ammoRef.current = ammo;
   const [cooldowns, setCooldowns] = useState({});
+  const cooldownsRef = useRef({});
+  cooldownsRef.current = cooldowns;
   const [selectedSpell, setSelectedSpell] = useState(null);
   const [dragHighlight, setDragHighlight] = useState(null);
 
@@ -739,7 +740,7 @@ export default function App() {
   const GAME_H = gameDims.h;
 
   // Map spell to death visual effect type
-  const EXPLOSIVE_SPELLS = new Set(["fireball", "holybeam", "earthquake"]);
+  const EXPLOSIVE_SPELLS = new Set(["fireball", "meteor", "earthquake"]);
   const getDeathElement = (spell) => {
     if (!spell) return "melee";
     if (EXPLOSIVE_SPELLS.has(spell.id)) return "explosion";
@@ -5242,7 +5243,8 @@ export default function App() {
   const canCastSpell = (spell) => {
     if (!spell) return false;
     if (manaRef.current < getSpellManaCost(spell)) return false;
-    const cdEnd = cooldowns[spell.id] || 0;
+    // Use ref for immediate cooldown check to prevent double-fire between React renders
+    const cdEnd = cooldownsRef.current[spell.id] || 0;
     if (Date.now() < cdEnd) return false;
     if (spell.ammoCost && (ammoRef.current[spell.ammoCost.type] || 0) < spell.ammoCost.amount) return false;
     return true;
@@ -5627,10 +5629,14 @@ export default function App() {
     const _skStats = getUpgradedSpellStats(spell, _skUps);
     if (spell.ammoCost) {
       const ammoCost = Math.max(1, spell.ammoCost.amount - _skStats.ammoCostReduction);
+      // Immediately update ammo ref to prevent double-spend
+      ammoRef.current = { ...ammoRef.current, [spell.ammoCost.type]: (ammoRef.current[spell.ammoCost.type] || 0) - ammoCost };
       setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
     }
     {
       const finalCd = Math.round(_skStats.cooldown * perkCooldownMult);
+      // Immediately update cooldown ref to prevent double-fire between React renders
+      cooldownsRef.current = { ...cooldownsRef.current, [spell.id]: Date.now() + finalCd };
       setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
     }
 

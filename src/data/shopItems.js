@@ -46,14 +46,13 @@ export const RESOURCES = {
   ],
 };
 
-// Ammo items available at the market
+// Ammo items available at the market — one predefined quantity per type
 export const AMMO_ITEMS = [
-  { id: "dynamite_pack",    icon: "dynamite",  name: "Paczka Dynamitu",     desc: "+3 dynamitu",      ammoType: "dynamite",    amount: 3,  cost: { copper: 15 } },
-  { id: "dynamite_crate",   icon: "dynamite",  name: "Skrzynia Dynamitu",   desc: "+8 dynamitu",      ammoType: "dynamite",    amount: 8,  cost: { silver: 1 } },
-  { id: "harpoon_bundle",   icon: "harpoon",   name: "Wiązka Harpunów",     desc: "+3 harpuny",       ammoType: "harpoon",     amount: 3,  cost: { copper: 15 } },
-  { id: "harpoon_crate",    icon: "harpoon",   name: "Skrzynia Harpunów",   desc: "+8 harpunów",      ammoType: "harpoon",     amount: 8,  cost: { silver: 1 } },
-  { id: "cannonball_pouch", icon: "cannon",    name: "Worek Kul Armatnich", desc: "+2 kule armatnie", ammoType: "cannonball",  amount: 2,  cost: { copper: 25 } },
-  { id: "cannonball_crate", icon: "cannon",    name: "Skrzynia Kul",        desc: "+5 kul armatnich", ammoType: "cannonball",  amount: 5,  cost: { silver: 2 } },
+  { id: "dynamite_pack",    icon: "dynamite",    name: "Paczka Dynamitu",     desc: "+5 dynamitu",        ammoType: "dynamite",    amount: 5,  cost: { copper: 20 } },
+  { id: "harpoon_bundle",   icon: "harpoon",     name: "Wiązka Harpunów",     desc: "+5 harpunów",        ammoType: "harpoon",     amount: 5,  cost: { copper: 20 } },
+  { id: "cannonball_pouch", icon: "cannon",      name: "Worek Kul Armatnich", desc: "+3 kule armatnie",   ammoType: "cannonball",  amount: 3,  cost: { copper: 30 } },
+  { id: "rum_barrel",       icon: "pirateRaid",  name: "Beczka Rumu",         desc: "+3 rumu",            ammoType: "rum",         amount: 3,  cost: { copper: 25 } },
+  { id: "chain_coil",       icon: "ricochet",    name: "Zwój Łańcuchów",      desc: "+4 łańcuchy",        ammoType: "chain",       amount: 4,  cost: { copper: 25 } },
 ];
 
 // Ammo (proch) potions available at the market

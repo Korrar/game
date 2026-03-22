@@ -27,7 +27,8 @@ function getVisibleSpells(ammo, learnedIds) {
   return SPELLS.filter(s => {
     if (s.learned) return true;
     if (learnedIds && learnedIds.includes(s.id)) return true;
-    if (s.ammoCost && ammo && (ammo[s.ammoCost.type] || 0) > 0) return true;
+    // Only show ammo skills when player has enough ammo for at least one use
+    if (s.ammoCost && ammo && (ammo[s.ammoCost.type] || 0) >= s.ammoCost.amount) return true;
     return false;
   });
 }

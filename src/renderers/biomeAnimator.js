@@ -211,7 +211,7 @@ export class BiomeAnimator {
         case "lightning": this._drawLightningEffect(ctx, eff, t); break;
         case "icelance": this._drawIceLance(ctx, eff, t); break;
         case "drain": this._drawShadowBolt(ctx, eff, t); break;
-        case "holybeam": this._drawHolyBeam(ctx, eff, t); break;
+        case "meteor": this._drawHolyBeam(ctx, eff, t); break;
         case "summon": this._drawSummonEffect(ctx, eff, t); break;
         case "melee": this._drawMeleeClash(ctx, eff, t); break;
         case "meteorImpact": this._drawMeteorImpact(ctx, eff, t); break;

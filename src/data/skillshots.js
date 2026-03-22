@@ -36,17 +36,6 @@ export const SKILLSHOT_TYPES = {
     pierce: true,
     maxPierce: 1,
   },
-  // Strzał z Armaty — wolny lob ze statku, duży splash damage
-  holybeam: {
-    type: "arc",
-    speed: 5,
-    gravity: 0.08,
-    size: 16,
-    hitRadius: 26,
-    splashRadius: 60,
-    splashDamageMult: 0.6,
-    trail: "fire",
-  },
   // Salwa Armatnia — arc cannonballs from caravan to cursor (hold-to-cast)
   meteor: {
     type: "arc",
