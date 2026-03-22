@@ -240,11 +240,27 @@ export default function App() {
   waterfallStateRef.current = waterfall;
   const fruitTreeStateRef = useRef(fruitTree);
   fruitTreeStateRef.current = fruitTree;
+  const chestPosRef = useRef(chestPos);
+  chestPosRef.current = chestPos;
+  const resourceNodeRef = useRef(resourceNode);
+  resourceNodeRef.current = resourceNode;
+  const mineNuggetRef = useRef(mineNugget);
+  mineNuggetRef.current = mineNugget;
+  const mercCampRef = useRef(mercCamp);
+  mercCampRef.current = mercCamp;
+  const wizardPoiRef = useRef(wizardPoi);
+  wizardPoiRef.current = wizardPoi;
+  const biomePoiRef = useRef(biomePoi);
+  biomePoiRef.current = biomePoi;
+  const defensePoiRef = useRef(defensePoi);
+  defensePoiRef.current = defensePoi;
   const nuggetRef = useRef({ active: false, intervalId: null });
   // Destructible obstacles per room
   const [obstacles, setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
   const obstaclesRef = useRef(obstacles);
   obstaclesRef.current = obstacles;
+  const meteoriteRef = useRef(meteorite);
+  meteoriteRef.current = meteorite;
 
   // Traps system
   const [traps, setTraps] = useState([]);               // [{id, type, x, hp?, maxHp?, active, triggered?, cooldown?}]
@@ -268,6 +284,21 @@ export default function App() {
   const waterfallElRef = useRef(null);
   const fruitTreeElRef = useRef(null);
   const obsElsRef = useRef({});
+  const chestElRef = useRef(null);
+  const mercCampElRef = useRef(null);
+  const wizardElRef = useRef(null);
+  const biomePoiElRef = useRef(null);
+  const defensePoiElRef = useRef(null);
+  const resourceElRef = useRef(null);
+  const caravanElRef = useRef(null);
+  const shopElRef = useRef(null);
+  const hideoutElRef = useRef(null);
+  const mineNuggetElRef = useRef(null);
+  const meteoriteElRef = useRef(null);
+  const meteorBoulderElRef = useRef(null);
+  const groundLootElsRef = useRef({});
+  const trapElsRef = useRef({});
+  const interactableElsRef = useRef({});
   const walkRafRef = useRef(null);
   const summonAttackRef = useRef(null);
   const enemyAttackFriendlyRef = useRef(null);
@@ -1528,18 +1559,10 @@ export default function App() {
             continue; // skip normal AI while confused
           }
 
-          // Enemy AI: find nearest friendly from pre-computed list
+          // Enemy AI: always target the caravan as primary objective
           let friendX = null, friendY = null, friendDist = Infinity, friendId = null;
-          let targetIsCaravan = false;
-          for (let fi = 0; fi < friendlyList.length; fi++) {
-            const f = friendlyList[fi].w;
-            const dx = f.x - w.x;
-            const dy = ((f.y || 50) - (w.y || 50)) * 0.5;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < friendDist) { friendDist = dist; friendX = f.x; friendY = f.y || 50; friendId = friendlyList[fi].id; }
-          }
-          // Fallback: target the caravan if no friendly NPCs found
-          if (friendX === null) {
+          let targetIsCaravan = true;
+          {
             let caravanX, caravanY;
             if (isoModeRef.current) {
               caravanX = caravanPosRef.current.x;
@@ -1552,10 +1575,20 @@ export default function App() {
             friendDist = Math.sqrt(dxC * dxC + dyC * dyC);
             friendX = caravanX;
             friendY = caravanY;
-            targetIsCaravan = true;
+          }
+          // Friendly NPCs can intercept if they are closer to the enemy than the caravan
+          for (let fi = 0; fi < friendlyList.length; fi++) {
+            const f = friendlyList[fi].w;
+            const dx = f.x - w.x;
+            const dy = ((f.y || 50) - (w.y || 50)) * 0.5;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < friendDist * 0.6) { // friendly must be significantly closer to distract
+              friendDist = dist; friendX = f.x; friendY = f.y || 50;
+              friendId = friendlyList[fi].id; targetIsCaravan = false;
+            }
           }
 
-          // NPC ability usage (any combat encounter) — targets friendly NPCs or caravan
+          // NPC ability usage (any combat encounter) — targets caravan or intercepting friendlies
           if (w.ability && friendX !== null) {
             const ability = w.ability;
             const abCdKey = "ab" + id;
@@ -1834,8 +1867,9 @@ export default function App() {
               }
             }
             if (!blockedByBarricade) {
-              // March toward caravan (center-bottom)
-              const caravanX = 50, caravanY = 92;
+              // March toward caravan
+              const caravanX = isoModeRef.current ? caravanPosRef.current.x : 50;
+              const caravanY = isoModeRef.current ? caravanPosRef.current.y : 92;
               const dxC = caravanX - w.x;
               const dyC = caravanY - (w.y || 50);
               if (Math.abs(dxC) > 2) w.x += Math.sign(dxC) * w.speed * 0.6;
@@ -2109,6 +2143,50 @@ export default function App() {
         for (const obs of obstaclesRef.current) {
           const oel = obsElsRef.current[obs.id];
           _positionPoiEl(oel, obs.x, obs.y);
+        }
+
+        // Sync all other POI positions (iso mode only — panoramic handled by React)
+        if (_isoActive) {
+          const _chestP = chestPosRef.current;
+          if (chestElRef.current && _chestP) _positionPoiEl(chestElRef.current, _chestP.x, _chestP.y);
+          const _rn = resourceNodeRef.current;
+          if (resourceElRef.current && _rn) _positionPoiEl(resourceElRef.current, _rn.pos.x, _rn.pos.y);
+          const _mn = mineNuggetRef.current;
+          if (mineNuggetElRef.current && _mn) _positionPoiEl(mineNuggetElRef.current, _mn.x, _mn.y);
+          const _mc = mercCampRef.current;
+          if (mercCampElRef.current && _mc) _positionPoiEl(mercCampElRef.current, _mc.x, _mc.y);
+          const _wp = wizardPoiRef.current;
+          if (wizardElRef.current && _wp) _positionPoiEl(wizardElRef.current, _wp.x, _wp.y);
+          const _bp = biomePoiRef.current;
+          if (biomePoiElRef.current && _bp && !_bp.used) _positionPoiEl(biomePoiElRef.current, _bp.x, _bp.y);
+          const _dp = defensePoiRef.current;
+          if (defensePoiElRef.current && _dp && !_dp.activated) _positionPoiEl(defensePoiElRef.current, _dp.x, _dp.y);
+          if (shopElRef.current) _positionPoiEl(shopElRef.current, 10, 15);
+          if (hideoutElRef.current) _positionPoiEl(hideoutElRef.current, 30, 25);
+          // Caravan
+          const _cp = caravanPosRef.current;
+          if (caravanElRef.current && _cp) _positionPoiEl(caravanElRef.current, _cp.x, _cp.y);
+          // Meteorite
+          const _met = meteoriteRef.current;
+          if (_met) {
+            if (meteoriteElRef.current) _positionPoiEl(meteoriteElRef.current, _met.x, _met.y);
+            if (meteorBoulderElRef.current) _positionPoiEl(meteorBoulderElRef.current, _met.x, _met.y);
+          }
+          // Ground loot
+          for (const glId of Object.keys(groundLootElsRef.current)) {
+            const glEl = groundLootElsRef.current[glId];
+            if (glEl && glEl.dataset.wx) _positionPoiEl(glEl, parseFloat(glEl.dataset.wx), parseFloat(glEl.dataset.wy));
+          }
+          // Player traps
+          for (const tId of Object.keys(trapElsRef.current)) {
+            const tEl = trapElsRef.current[tId];
+            if (tEl && tEl.dataset.wx) _positionPoiEl(tEl, parseFloat(tEl.dataset.wx), parseFloat(tEl.dataset.wy));
+          }
+          // Biome interactables
+          for (const iId of Object.keys(interactableElsRef.current)) {
+            const iEl = interactableElsRef.current[iId];
+            if (iEl && iEl.dataset.wx) _positionPoiEl(iEl, parseFloat(iEl.dataset.wx), parseFloat(iEl.dataset.wy));
+          }
         }
       }
 
@@ -7858,7 +7936,7 @@ export default function App() {
 
       {/* Player-placed defense trap visuals */}
       {playerTraps.map(pt => pt.active && (
-        <div key={pt.id} style={{
+        <div key={pt.id} ref={el => { if (el) trapElsRef.current[pt.id] = el; }} data-wx={pt.x} data-wy={pt.y} style={{
           position: "absolute", left: `${wrapPctToScreen(pt.x) ?? pt.x}%`, top: `${pt.y}%`,
           transform: "translate(-50%, -50%)", zIndex: 14,
           pointerEvents: "none",
@@ -8025,9 +8103,12 @@ export default function App() {
 
       {showChest && (() => {
         if (isoModeRef.current) {
-          const sp = poiToScreenPos(chestPos?.x ?? 20, chestPos?.y ?? 20);
-          if (!sp) return null;
-          return <Chest pos={{ x: (sp.x / GAME_W) * 100, y: (sp.y / GAME_H) * 100 }} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} />;
+          // In iso mode, chest is wrapped in a div positioned by RAF loop
+          return (
+            <div ref={chestElRef} style={{ position: "absolute", left: 0, top: 0, zIndex: 15, transform: "translateX(-50%) translateY(-100%)" }}>
+              <Chest pos={{ x: 50, y: 50 }} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} style={{ position: "relative", left: 0, top: 0 }} />
+            </div>
+          );
         }
         const cx = wrapPctToScreen(chestPos?.x ?? 50);
         return cx !== null ? <Chest pos={{ ...chestPos, x: cx }} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} /> : null;
@@ -8042,7 +8123,7 @@ export default function App() {
         const hpPct = caravanHpRef.current / CARAVAN_LEVELS[caravanLevelRef.current].hp * 100;
         const hpColor = hpPct > 50 ? "#40e060" : hpPct > 25 ? "#e0c040" : "#e04040";
         return (
-          <div style={{
+          <div ref={caravanElRef} style={{
             position: "absolute",
             left: screen.x, top: screen.y,
             transform: "translate(-50%, -100%)",
@@ -8080,7 +8161,7 @@ export default function App() {
 
       {/* Meteorite event – falling from sky */}
       {meteorite && meteorite.phase === "falling" && (
-        <div style={{
+        <div ref={meteoriteElRef} style={{
           position: "absolute", left: `${wrapPctToScreen(meteorite.x) ?? meteorite.x}%`, top: 0, zIndex: 18,
           fontSize: 48, userSelect: "none", pointerEvents: "none",
           animation: `meteorFall 1s ease-in forwards`,
@@ -8155,7 +8236,7 @@ export default function App() {
         const hpPct = mBoulder.hp / mBoulder.maxHp;
         const hpColor = hpPct > 0.5 ? "#ff6020" : hpPct > 0.25 ? "#ff4020" : "#cc2020";
         return (
-          <div style={{
+          <div ref={meteorBoulderElRef} style={{
             position: "absolute", left: `${wrapPctToScreen(meteorite.x) ?? meteorite.x}%`, top: `${meteorite.y - 3}%`,
             transform: "translateX(-50%)", zIndex: 16, pointerEvents: "none",
             textAlign: "center",
@@ -8182,7 +8263,7 @@ export default function App() {
 
       {/* Ground loot — clickable coins and items dropped by meteor */}
       {groundLoot.filter(i => !i.collected).map(item => (
-        <div key={item.id} onClick={() => collectGroundLoot(item.id)} style={{
+        <div key={item.id} ref={el => { if (el) groundLootElsRef.current[item.id] = el; }} data-wx={item.x} data-wy={item.y} onClick={() => collectGroundLoot(item.id)} style={{
           position: "absolute", left: `${wrapPctToScreen(item.x) ?? item.x}%`, top: `${item.y}%`, zIndex: 15,
           cursor: "pointer", userSelect: "none",
           animation: "meteorPulse 2s ease-in-out infinite",
@@ -8214,7 +8295,7 @@ export default function App() {
         const res = resourceNode.resource;
         const mineTimeSec = MINE_TIMES[res?.rarity] || 2;
         return (
-          <div
+          <div ref={resourceElRef}
             onMouseDown={startMining}
             onMouseUp={stopMining}
             onMouseLeave={stopMining}
@@ -8332,7 +8413,7 @@ export default function App() {
 
       {/* ─── MINE (biome variant rock formation) ─── */}
       {mineNugget && (
-        <div style={{
+        <div ref={mineNuggetElRef} style={{
           position: "absolute", left: poiLeft(mineNugget.x, mineNugget.y) ?? `${mineNugget.x}%`,
           ...(isoModeRef.current ? { top: poiTop(mineNugget.x, mineNugget.y) } : { bottom: "12%" }),
           zIndex: poiZIndex(mineNugget.x, mineNugget.y), transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", userSelect: "none",
@@ -8448,7 +8529,7 @@ export default function App() {
 
       {/* ─── MERCENARY CAMP ─── */}
       {mercCamp && (
-        <div style={{
+        <div ref={mercCampElRef} style={{
           position: "absolute", left: poiLeft(mercCamp.x, mercCamp.y) ?? `${mercCamp.x}%`,
           ...(isoModeRef.current ? { top: poiTop(mercCamp.x, mercCamp.y) } : { bottom: "12%" }),
           zIndex: poiZIndex(mercCamp.x, mercCamp.y),
@@ -8534,7 +8615,7 @@ export default function App() {
         <>
           {/* Merchant building */}
           {shopScreenX !== null && (
-          <div
+          <div ref={shopElRef}
             onClick={() => togglePanel("shop")}
             style={{
               position: "absolute", left: shopScreenX,
@@ -8592,7 +8673,7 @@ export default function App() {
 
           {/* Hideout building */}
           {hideoutScreenX !== null && (
-          <div
+          <div ref={hideoutElRef}
             onClick={() => togglePanel("hideout")}
             style={{
               position: "absolute", left: hideoutScreenX,
@@ -8660,7 +8741,7 @@ export default function App() {
         const ammoNames = { dynamite: "Dynamit", harpoon: "Harpuny", cannonball: "Kule armatnie", rum: "Rum", chain: "Łańcuchy" };
         const ammoIcon = ammoIcons[wizardPoi.ammoType] || "dynamite";
         return (
-          <div style={{
+          <div ref={wizardElRef} style={{
             position: "absolute", left: poiLeft(wizardPoi.x, wizardPoi.y) ?? `${wizardPoi.x}%`,
             ...(isoModeRef.current ? { top: poiTop(wizardPoi.x, wizardPoi.y) } : { bottom: "12%" }),
             zIndex: poiZIndex(wizardPoi.x, wizardPoi.y),
@@ -8744,7 +8825,7 @@ export default function App() {
         };
         const col = poiColors[biomePoi.type] || "#c0a060";
         return (
-          <div style={{
+          <div ref={biomePoiElRef} style={{
             position: "absolute", left: _bpLeft,
             ...(isoModeRef.current ? { top: poiTop(biomePoi.x, biomePoi.y) } : { bottom: "12%" }),
             zIndex: poiZIndex(biomePoi.x, biomePoi.y),
@@ -8987,7 +9068,7 @@ export default function App() {
         const actionColors = { shoot: "#ff6040", click: "#40c0ff", saber: "#ffd740", proximity: "#80ff80" };
         const actionLabels = { shoot: "Strzel", click: "Kliknij", saber: "Tnij", proximity: "Podejdź" };
         return (
-          <div key={`inter_${item.id}_${idx}`} style={{
+          <div key={`inter_${item.id}_${idx}`} ref={el => { if (el) interactableElsRef.current[item.id || idx] = el; }} data-wx={item.x} data-wy={item.y} style={{
             position: "absolute", left: `${screenX}%`, bottom: `${item.y}%`,
             transform: "translateX(-50%)", zIndex: 14, cursor: item.action === "click" || item.action === "proximity" ? "pointer" : "default",
             userSelect: "none", textAlign: "center",
@@ -9032,7 +9113,7 @@ export default function App() {
           const _dpLeft = poiLeft(defensePoi.x, defensePoi.y);
           if (_dpLeft === null) return null;
           return (
-            <div
+            <div ref={defensePoiElRef}
               key="defense-poi"
               onClick={handleDefensePoiClick}
               style={{
