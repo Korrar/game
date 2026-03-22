@@ -99,6 +99,14 @@ export class PixiRenderer {
     this.combatParticles = new CombatParticles(this.particleLayer);
     this.damageNumbers = new DamageNumbers(this.uiLayer);
 
+    // Caravan sprite container
+    this._caravanGfx = new Graphics();
+    this._caravanGfx.visible = false;
+    this.npcLayer.addChild(this._caravanGfx);
+    this._caravanPos = null; // { wx, wy } world tile coords
+    this._caravanHpPct = 1;
+    this._caravanLevel = 0;
+
     this.ready = true;
     return canvas;
   }
@@ -138,6 +146,129 @@ export class PixiRenderer {
   // Panoramic offset for 360° scrolling (legacy)
   setPanOffset(offset) {
     this._panOffset = offset || 0;
+  }
+
+  // ─── CARAVAN MODEL ───
+  setCaravan(wx, wy, hpPct, level) {
+    this._caravanPos = { wx, wy };
+    this._caravanHpPct = Math.max(0, Math.min(1, hpPct));
+    this._caravanLevel = level || 0;
+  }
+
+  _drawCaravan() {
+    const gfx = this._caravanGfx;
+    if (!gfx || !this._caravanPos) { if (gfx) gfx.visible = false; return; }
+    const { wx, wy } = this._caravanPos;
+    const screen = worldToScreen(wx, wy, this._cameraX, this._cameraY);
+    if (screen.x < -100 || screen.x > this.W + 100) { gfx.visible = false; return; }
+
+    gfx.visible = true;
+    gfx.clear();
+    const cx = screen.x, cy = screen.y;
+    const lvl = this._caravanLevel;
+    const hp = this._caravanHpPct;
+
+    // Hull colors based on level
+    const hullColors = [0x6B4226, 0x7A4F30, 0x5C3A1E, 0x4A4A55, 0x3A3A4A, 0xC8A84A];
+    const deckColors = [0x8B6B47, 0x9A7B55, 0x7B5B37, 0x6A6A75, 0x5A5A6A, 0xE8C86A];
+    const hullCol = hullColors[Math.min(lvl, 5)];
+    const deckCol = deckColors[Math.min(lvl, 5)];
+
+    // Ship hull (isometric diamond boat shape)
+    gfx.fill({ color: hullCol });
+    gfx.moveTo(cx, cy - 30);       // bow (front)
+    gfx.lineTo(cx + 22, cy - 8);   // starboard
+    gfx.lineTo(cx + 18, cy + 12);  // stern-right
+    gfx.lineTo(cx - 18, cy + 12);  // stern-left
+    gfx.lineTo(cx - 22, cy - 8);   // port
+    gfx.closePath();
+    gfx.fill();
+
+    // Deck
+    gfx.fill({ color: deckCol });
+    gfx.moveTo(cx, cy - 24);
+    gfx.lineTo(cx + 16, cy - 6);
+    gfx.lineTo(cx + 12, cy + 8);
+    gfx.lineTo(cx - 12, cy + 8);
+    gfx.lineTo(cx - 16, cy - 6);
+    gfx.closePath();
+    gfx.fill();
+
+    // Mast
+    gfx.setStrokeStyle({ width: 3, color: 0x4A3520 });
+    gfx.moveTo(cx, cy - 8);
+    gfx.lineTo(cx, cy - 48);
+    gfx.stroke();
+
+    // Sail (triangular, with jolly roger vibe)
+    const sailCol = hp > 0.5 ? 0xF5E6C8 : hp > 0.25 ? 0xD4C0A0 : 0xB09878;
+    gfx.fill({ color: sailCol, alpha: 0.9 });
+    gfx.moveTo(cx + 1, cy - 45);
+    gfx.lineTo(cx + 18, cy - 20);
+    gfx.lineTo(cx + 1, cy - 15);
+    gfx.closePath();
+    gfx.fill();
+
+    // Skull on sail (level 2+)
+    if (lvl >= 2) {
+      gfx.fill({ color: 0x222222, alpha: 0.7 });
+      gfx.circle(cx + 8, cy - 30, 3);
+      gfx.fill();
+    }
+
+    // Second mast (level 3+)
+    if (lvl >= 3) {
+      gfx.setStrokeStyle({ width: 2, color: 0x4A3520 });
+      gfx.moveTo(cx - 6, cy - 4);
+      gfx.lineTo(cx - 6, cy - 36);
+      gfx.stroke();
+      gfx.fill({ color: sailCol, alpha: 0.85 });
+      gfx.moveTo(cx - 5, cy - 33);
+      gfx.lineTo(cx - 18, cy - 15);
+      gfx.lineTo(cx - 5, cy - 10);
+      gfx.closePath();
+      gfx.fill();
+    }
+
+    // Armor plating (level 4+)
+    if (lvl >= 4) {
+      gfx.setStrokeStyle({ width: 1.5, color: 0x888899 });
+      gfx.moveTo(cx + 20, cy - 4); gfx.lineTo(cx + 16, cy + 10); gfx.stroke();
+      gfx.moveTo(cx - 20, cy - 4); gfx.lineTo(cx - 16, cy + 10); gfx.stroke();
+    }
+
+    // Gold trim (level 5)
+    if (lvl >= 5) {
+      gfx.setStrokeStyle({ width: 1, color: 0xFFD700 });
+      gfx.moveTo(cx, cy - 30);
+      gfx.lineTo(cx + 22, cy - 8); gfx.lineTo(cx + 18, cy + 12);
+      gfx.lineTo(cx - 18, cy + 12); gfx.lineTo(cx - 22, cy - 8);
+      gfx.closePath();
+      gfx.stroke();
+    }
+
+    // HP bar above ship
+    const barW = 40, barH = 4;
+    const barX = cx - barW / 2, barY = cy - 55;
+    gfx.fill({ color: 0x000000, alpha: 0.6 });
+    gfx.roundRect(barX, barY, barW, barH, 2);
+    gfx.fill();
+    const hpColor = hp > 0.5 ? 0x40C040 : hp > 0.25 ? 0xC0C040 : 0xC04040;
+    gfx.fill({ color: hpColor });
+    gfx.roundRect(barX, barY, barW * hp, barH, 2);
+    gfx.fill();
+
+    // Damage fire particles (low HP)
+    if (hp < 0.4 && Math.random() < 0.3) {
+      const fx = cx + (Math.random() - 0.5) * 20;
+      const fy = cy - 10 + (Math.random() - 0.5) * 15;
+      gfx.fill({ color: 0xFF6020, alpha: 0.6 });
+      gfx.circle(fx, fy, 2 + Math.random() * 2);
+      gfx.fill();
+    }
+
+    // Z-ordering: keep caravan below enemies at same depth
+    gfx.zIndex = Math.round((wx + wy) * 1.2);
   }
 
   // Isometric camera position
@@ -257,6 +388,9 @@ export class PixiRenderer {
       this.combatParticles.update(this._panOffset || 0, this.W);
       this.damageNumbers.update(this._panOffset || 0, this.W);
     }
+
+    // Draw caravan model
+    this._drawCaravan();
 
     // Update debris
     this._updateDebris();
