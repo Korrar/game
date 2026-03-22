@@ -1520,7 +1520,8 @@ export default function App() {
           } // end !stationary else
         } else {
           // Enemies are passive until the player attacks first
-          if (!combatEngagedRef.current && defenseModeRef.current?.phase !== "wave_active") {
+          // Enemies are passive until the player attacks first (in iso mode they always attack caravan)
+          if (!combatEngagedRef.current && !isoModeRef.current && defenseModeRef.current?.phase !== "wave_active") {
             // Idle patrol only — enemies passive until player attacks (skip in defense mode)
             w.x += w.speed * w.dir;
             if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
@@ -1786,7 +1787,7 @@ export default function App() {
             w.dir = friendX > w.x ? 1 : -1; // face target
 
             // Push back if too close
-            if (friendDist < 3) {
+            if (friendDist < (isoModeRef.current ? 1.5 : 3)) {
               w.x -= w.speed * w.dir * 0.5;
             } else if (w.combatState === "retreat") {
               w.x -= w.speed * w.dir * 0.6;
@@ -1808,7 +1809,7 @@ export default function App() {
               }
             } else {
               // Approach: stop at engagement distance
-              if (friendDist > 6) {
+              if (friendDist > (isoModeRef.current ? 2.5 : 6)) {
                 w.x += w.speed * w.dir;
                 if (w.y != null && friendY != null) {
                   const yd = friendY - w.y;
@@ -1816,8 +1817,8 @@ export default function App() {
                 }
               }
             }
-            // Attack when in melee range
-            if (friendDist < 10) {
+            // Attack when in melee range (iso: ~4 tiles, panoramic: ~10%)
+            if (friendDist < (isoModeRef.current ? 4 : 10)) {
               const cdKey = "e" + id;
               if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 3000) {
                 atkCds[cdKey] = dateNow;
@@ -1834,7 +1835,7 @@ export default function App() {
               }
             }
             } // end !barricadeBlock
-          } else if (combatEngagedRef.current || defenseModeRef.current?.phase === "wave_active") {
+          } else if (combatEngagedRef.current || isoModeRef.current || defenseModeRef.current?.phase === "wave_active") {
             // No friendly target – march toward caravan; check for player barricades first
             w.combatState = null;
             let blockedByBarricade = false;
@@ -1873,13 +1874,15 @@ export default function App() {
               const caravanX = isoModeRef.current ? caravanPosRef.current.x : 50;
               const caravanY = isoModeRef.current ? caravanPosRef.current.y : 92;
               const dxC = caravanX - w.x;
-              const dyC = caravanY - (w.y || 50);
-              if (Math.abs(dxC) > 2) w.x += Math.sign(dxC) * w.speed * 0.6;
-              if (w.y != null && Math.abs(dyC) > 2) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * 2.5;
+              const _defYm = isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50;
+              const dyC = caravanY - (w.y || _defYm);
+              if (Math.abs(dxC) > (isoModeRef.current ? 1 : 2)) w.x += Math.sign(dxC) * w.speed * 0.6;
+              if (w.y != null && Math.abs(dyC) > (isoModeRef.current ? 1 : 2)) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * 2.5;
               w.dir = dxC > 0 ? 1 : -1;
-              // Attack when close enough to caravan (use squared distance: 15*15=225)
+              // Attack when close enough to caravan (iso: 4 tiles, panoramic: 15 units)
               const distToCaravanSq = dxC * dxC + dyC * dyC;
-              if (distToCaravanSq < 225) {
+              const _atkThreshSq = isoModeRef.current ? 16 : 225; // 4² or 15²
+              if (distToCaravanSq < _atkThreshSq) {
                 const cdKey = "ec" + id;
                 if (!atkCds[cdKey] || dateNow - atkCds[cdKey] > 3000) {
                   atkCds[cdKey] = dateNow;
@@ -2168,6 +2171,11 @@ export default function App() {
           // Caravan
           const _cp = caravanPosRef.current;
           if (caravanElRef.current && _cp) _positionPoiEl(caravanElRef.current, _cp.x, _cp.y);
+          // Update PixiJS caravan model
+          if (pixiRef.current && _cp) {
+            const _maxHp = CARAVAN_LEVELS[caravanLevelRef.current].hp;
+            pixiRef.current.setCaravan(_cp.x, _cp.y, caravanHpRef.current / _maxHp, caravanLevelRef.current);
+          }
           // Meteorite
           const _met = meteoriteRef.current;
           if (_met) {
