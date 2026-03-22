@@ -102,9 +102,6 @@ export function renderBiome(ctx, biome, room, W, H, isNight, panOffset = 0) {
   }
   ctx.restore();
 
-  // Panoramic POIs — discoverable landmarks distributed around the 360° view
-  drawPanoramaPOIs(ctx, W, H, GY, biome, room, normOff, panWorldW);
-
   // Fog
   ctx.fillStyle = biome.fogCol; ctx.fillRect(0, 0, W, H);
 
@@ -112,179 +109,6 @@ export function renderBiome(ctx, biome, room, W, H, isNight, panOffset = 0) {
   if (isNight) {
     ctx.fillStyle = "rgba(5,5,20,0.15)";
     ctx.fillRect(0, 0, W, H);
-  }
-}
-
-// Panoramic POI definitions — landmarks visible when scrolling around
-const PANORAMA_POIS = {
-  jungle: [
-    { icon: "rock", label: "Ruiny Świątyni", y: 0.35, glow: "#40a040" },
-    { icon: "skull", label: "Totemy Tubylców", y: 0.45, glow: "#a06020" },
-    { icon: "treasure", label: "Ukryty Skarb", y: 0.55, glow: "#d4a030" },
-    { icon: "water", label: "Wodospad", y: 0.30, glow: "#4080c0" },
-  ],
-  island: [
-    { icon: "anchor", label: "Wrak Galeonu", y: 0.50, glow: "#3080a0" },
-    { icon: "treasure", label: "Piracka Skrytka", y: 0.40, glow: "#d4a030" },
-    { icon: "compass", label: "Latarnia Morska", y: 0.28, glow: "#ffe060" },
-  ],
-  desert: [
-    { icon: "rock", label: "Piramida", y: 0.30, glow: "#c0a040" },
-    { icon: "skull", label: "Cmentarzysko", y: 0.50, glow: "#a06030" },
-    { icon: "gem", label: "Oaza", y: 0.42, glow: "#40c080" },
-    { icon: "scroll", label: "Hieroglify", y: 0.38, glow: "#d0b060" },
-  ],
-  winter: [
-    { icon: "rock", label: "Lodowa Jaskinia", y: 0.35, glow: "#80c0ff" },
-    { icon: "fire", label: "Obozowisko", y: 0.50, glow: "#ff8040" },
-    { icon: "gem", label: "Kryształ Lodu", y: 0.40, glow: "#a0d0ff" },
-  ],
-  city: [
-    { icon: "shop", label: "Tawerna", y: 0.45, glow: "#ffa040" },
-    { icon: "shield", label: "Arsenał", y: 0.38, glow: "#8080a0" },
-    { icon: "scroll", label: "Biblioteka", y: 0.42, glow: "#c0a060" },
-    { icon: "gold", label: "Bank", y: 0.35, glow: "#d4a030" },
-  ],
-  volcano: [
-    { icon: "fire", label: "Krater", y: 0.30, glow: "#ff4020" },
-    { icon: "gem", label: "Obsydianowa Żyła", y: 0.48, glow: "#6040a0" },
-    { icon: "skull", label: "Ołtarz Ognia", y: 0.42, glow: "#ff6020" },
-  ],
-  summer: [
-    { icon: "herb", label: "Ogród Ziołowy", y: 0.45, glow: "#60c040" },
-    { icon: "water", label: "Staw", y: 0.50, glow: "#4080c0" },
-    { icon: "banjo", label: "Młyn", y: 0.35, glow: "#a08040" },
-  ],
-  autumn: [
-    { icon: "rock", label: "Kamienny Krąg", y: 0.40, glow: "#a06030" },
-    { icon: "treasure", label: "Stara Piwnica", y: 0.52, glow: "#c08030" },
-    { icon: "herb", label: "Grzybobranie", y: 0.48, glow: "#80a040" },
-  ],
-  spring: [
-    { icon: "water", label: "Źródełko", y: 0.42, glow: "#60a0d0" },
-    { icon: "feather", label: "Gniazdo Feniksa", y: 0.30, glow: "#ff8060" },
-    { icon: "herb", label: "Polana Kwiatów", y: 0.50, glow: "#e060a0" },
-  ],
-  mushroom: [
-    { icon: "gem", label: "Kryształowa Grota", y: 0.38, glow: "#a040e0" },
-    { icon: "eye", label: "Luminescencja", y: 0.48, glow: "#60e0a0" },
-    { icon: "vortex", label: "Portal Grzybni", y: 0.42, glow: "#c040ff" },
-  ],
-  swamp: [
-    { icon: "skull", label: "Bagienne Świece", y: 0.45, glow: "#60a040" },
-    { icon: "vortex", label: "Trzęsawisko", y: 0.52, glow: "#408040" },
-    { icon: "scroll", label: "Zapomniana Kaplica", y: 0.38, glow: "#a0a060" },
-  ],
-  olympus: [
-    { icon: "lightning", label: "Tron Zeusa", y: 0.30, glow: "#80b0ff" },
-    { icon: "shield", label: "Zbrojownia Ateny", y: 0.42, glow: "#c0c0d0" },
-    { icon: "star", label: "Ogród Hesperyd", y: 0.48, glow: "#ffe060" },
-    { icon: "harpoon", label: "Fontanna Posejdona", y: 0.38, glow: "#4080ff" },
-  ],
-  underworld: [
-    { icon: "skull", label: "Tron Hadesa", y: 0.35, glow: "#8040c0" },
-    { icon: "fire", label: "Pola Asfodelowe", y: 0.48, glow: "#60a060" },
-    { icon: "vortex", label: "Tartar", y: 0.42, glow: "#c04040" },
-    { icon: "eye", label: "Sąd Minosza", y: 0.38, glow: "#d0a0ff" },
-  ],
-  sunset_beach: [
-    { icon: "anchor", label: "Koralowy Rif", y: 0.50, glow: "#ff8060" },
-    { icon: "treasure", label: "Zatopiona Skrzynia", y: 0.55, glow: "#d4a030" },
-    { icon: "compass", label: "Wieża Obserwacyjna", y: 0.30, glow: "#ffc060" },
-  ],
-  bamboo_falls: [
-    { icon: "scroll", label: "Świątynia Zen", y: 0.35, glow: "#80c060" },
-    { icon: "gem", label: "Jadeitowa Grota", y: 0.45, glow: "#40c080" },
-    { icon: "water", label: "Ukryty Wodospad", y: 0.38, glow: "#60a0d0" },
-  ],
-  blue_lagoon: [
-    { icon: "gem", label: "Perłowa Muszla", y: 0.48, glow: "#80d0ff" },
-    { icon: "anchor", label: "Podwodne Ruiny", y: 0.55, glow: "#4080c0" },
-    { icon: "star", label: "Fosforyzujące Algi", y: 0.42, glow: "#40ffa0" },
-  ],
-};
-
-function drawPanoramaPOIs(ctx, viewW, H, GY, biome, room, normOff, panWorldW) {
-  const pois = PANORAMA_POIS[biome.renderFn];
-  if (!pois || pois.length === 0) return;
-
-  const rng = seedRng(room * 251 + 77); // separate seed for POI placement
-  const groundH = H - GY;
-
-  for (let i = 0; i < pois.length; i++) {
-    const poi = pois[i];
-    // Distribute POIs evenly across the panoramic world with some randomness
-    const baseX = (i / pois.length) * panWorldW + rng() * (panWorldW / pois.length * 0.6);
-    const poiWorldX = baseX % panWorldW;
-
-    // Wrap to viewport
-    for (let shift = -1; shift <= 1; shift++) {
-      let screenX = poiWorldX - normOff + shift * panWorldW;
-      if (screenX < -80 || screenX > viewW + 80) continue;
-
-      const poiY = GY + poi.y * groundH;
-      const depthT = poi.y;
-      const scale = 0.7 + depthT * 0.8;
-      const iconSize = Math.round(28 * scale);
-
-      // Outer glow (large, soft)
-      const gc = poi.glow;
-      const gr = parseInt(gc.slice(1, 3), 16), gg = parseInt(gc.slice(3, 5), 16), gb = parseInt(gc.slice(5, 7), 16);
-      const outerR = 40 * scale;
-      const outerGlow = ctx.createRadialGradient(screenX, poiY, 3, screenX, poiY, outerR);
-      outerGlow.addColorStop(0, `rgba(${gr},${gg},${gb},0.5)`);
-      outerGlow.addColorStop(0.5, `rgba(${gr},${gg},${gb},0.15)`);
-      outerGlow.addColorStop(1, "transparent");
-      ctx.fillStyle = outerGlow;
-      ctx.fillRect(screenX - outerR, poiY - outerR, outerR * 2, outerR * 2);
-
-      // Inner bright glow
-      const innerR = 16 * scale;
-      const innerGlow = ctx.createRadialGradient(screenX, poiY, 1, screenX, poiY, innerR);
-      innerGlow.addColorStop(0, `rgba(${gr},${gg},${gb},0.6)`);
-      innerGlow.addColorStop(1, "transparent");
-      ctx.fillStyle = innerGlow;
-      ctx.fillRect(screenX - innerR, poiY - innerR, innerR * 2, innerR * 2);
-
-      // Background plate for icon
-      ctx.globalAlpha = 0.35 + depthT * 0.3;
-      ctx.fillStyle = `rgba(0,0,0,0.4)`;
-      ctx.beginPath();
-      ctx.arc(screenX, poiY, iconSize * 0.7, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Ring around icon
-      ctx.strokeStyle = `rgba(${gr},${gg},${gb},${0.5 + depthT * 0.3})`;
-      ctx.lineWidth = 1.5 * scale;
-      ctx.beginPath();
-      ctx.arc(screenX, poiY, iconSize * 0.75, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Icon (bigger)
-      ctx.globalAlpha = 0.7 + depthT * 0.3;
-      const img = getIconImage(poi.icon, iconSize);
-      if (img) {
-        ctx.drawImage(img, screenX - iconSize / 2, poiY - iconSize / 2, iconSize, iconSize);
-      }
-
-      // Label with background
-      const fontSize = Math.round(11 * scale);
-      ctx.font = `bold ${fontSize}px monospace`;
-      ctx.textAlign = "center";
-      const labelY = poiY + iconSize / 2 + 12 * scale;
-      const textW = ctx.measureText(poi.label).width;
-      // Label background
-      ctx.globalAlpha = 0.35 + depthT * 0.2;
-      ctx.fillStyle = "rgba(0,0,0,0.5)";
-      ctx.fillRect(screenX - textW / 2 - 4, labelY - fontSize + 1, textW + 8, fontSize + 4);
-      // Label text
-      ctx.globalAlpha = 0.7 + depthT * 0.3;
-      ctx.fillStyle = poi.glow;
-      ctx.fillText(poi.label, screenX, labelY);
-      ctx.textAlign = "start";
-      ctx.globalAlpha = 1;
-      break; // only draw one copy
-    }
   }
 }
 
@@ -934,6 +758,18 @@ function drawSummer(ctx, W, H, GY, r) {
     ctx.beginPath(); ctx.ellipse(bx - 3, by, 3, 2, -0.3, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(bx + 3, by, 3, 2, 0.3, 0, Math.PI * 2); ctx.fill();
   }
+  // Small pond with lily pads
+  const pondX = W * (0.2 + r() * 0.3), pondY = H * 0.75;
+  const pondG = ctx.createRadialGradient(pondX, pondY, 5, pondX, pondY, 35);
+  pondG.addColorStop(0, "rgba(40,120,160,0.2)"); pondG.addColorStop(0.7, "rgba(30,100,140,0.12)"); pondG.addColorStop(1, "transparent");
+  ctx.fillStyle = pondG;
+  ctx.beginPath(); ctx.ellipse(pondX, pondY, 35, 12, 0, 0, Math.PI * 2); ctx.fill();
+  // Lily pads on pond
+  for (let i = 0; i < 3; i++) {
+    const lx = pondX + (r() - 0.5) * 40, ly = pondY + (r() - 0.5) * 6;
+    ctx.fillStyle = `rgba(60,140,50,${0.15 + r() * 0.1})`;
+    ctx.beginPath(); ctx.ellipse(lx, ly, 5 + r() * 3, 3, r() * 0.3, 0, Math.PI * 2); ctx.fill();
+  }
   // Sun glow
   const sg = ctx.createRadialGradient(W * 0.85, GY * 0.15, 10, W * 0.85, GY * 0.15, 120);
   sg.addColorStop(0, "rgba(255,240,140,0.25)"); sg.addColorStop(1, "transparent");
@@ -1092,6 +928,39 @@ function drawMushroom(ctx, W, H, GY, r) {
     ctx.beginPath(); ctx.moveTo(cx - 2, cy); ctx.lineTo(cx, cy - ch); ctx.lineTo(cx + 2, cy); ctx.closePath(); ctx.fill();
   }
   ctx.globalAlpha = 1;
+  // Spider webs in corners with dew drops
+  for (let i = 0; i < 2; i++) {
+    const webX = i === 0 ? W * 0.08 + r() * 30 : W * 0.85 + r() * 30;
+    const webY = GY + 3 + r() * 10;
+    const webR = 18 + r() * 12;
+    ctx.strokeStyle = "rgba(200,200,210,0.06)";
+    ctx.lineWidth = 0.4;
+    // Radial web threads
+    for (let s = 0; s < 6; s++) {
+      const a = s / 6 * Math.PI + r() * 0.2;
+      ctx.beginPath(); ctx.moveTo(webX, webY);
+      ctx.lineTo(webX + Math.cos(a) * webR, webY + Math.sin(a) * webR * 0.6);
+      ctx.stroke();
+    }
+    // Spiral rings
+    for (let ring = 1; ring <= 3; ring++) {
+      const rr = webR * ring / 3;
+      ctx.beginPath();
+      for (let a = 0; a <= Math.PI; a += 0.3) {
+        const x = webX + Math.cos(a) * rr;
+        const y = webY + Math.sin(a) * rr * 0.6;
+        a === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    // Dew drops
+    ctx.fillStyle = "rgba(180,200,240,0.08)";
+    for (let d = 0; d < 3; d++) {
+      const da = r() * Math.PI;
+      const dr = webR * (0.3 + r() * 0.5);
+      ctx.beginPath(); ctx.arc(webX + Math.cos(da) * dr, webY + Math.sin(da) * dr * 0.6, 1, 0, Math.PI * 2); ctx.fill();
+    }
+  }
 }
 
 function drawSwamp(ctx, W, H, GY, r) {
@@ -1135,11 +1004,32 @@ function drawSwamp(ctx, W, H, GY, r) {
     g.addColorStop(0, `rgba(60,80,40,${0.08 + (1 - depthT) * 0.06})`); g.addColorStop(1, "transparent");
     ctx.fillStyle = g; ctx.fillRect(fx - size, fy - size * 0.4, size * 2, size * 0.8);
   }
+  // Exposed tree roots wading into water
+  for (let i = 0; i < 4; i++) {
+    const rx = r() * W, ry = GY + 5 + r() * 20;
+    const depthT = (ry - GY) / (groundH * 0.3);
+    const scale = 0.6 + depthT * 0.5;
+    ctx.strokeStyle = `rgba(50,35,18,${0.15 + depthT * 0.12})`;
+    ctx.lineWidth = 2 * scale;
+    // Root arching out of ground
+    for (let j = 0; j < 3; j++) {
+      const angle = -0.4 + j * 0.4 + r() * 0.3;
+      const len = (15 + r() * 15) * scale;
+      ctx.beginPath(); ctx.moveTo(rx, ry);
+      ctx.quadraticCurveTo(rx + Math.cos(angle) * len * 0.5, ry - 6 * scale, rx + Math.cos(angle) * len, ry + 3);
+      ctx.stroke();
+    }
+  }
   // Lily pads (foreground detail)
   for (let i = 0; i < 5; i++) {
     const lx = r() * W, ly = H - 20 - r() * 40;
     ctx.fillStyle = `rgba(40,100,30,${0.1 + r() * 0.08})`;
     ctx.beginPath(); ctx.ellipse(lx, ly, 6 + r() * 5, 3 + r() * 2, r() * 0.5, 0, Math.PI * 2); ctx.fill();
+    // Lily flower on some
+    if (r() > 0.6) {
+      ctx.fillStyle = `rgba(200,180,200,${0.12 + r() * 0.08})`;
+      ctx.beginPath(); ctx.arc(lx + 2, ly - 2, 2, 0, Math.PI * 2); ctx.fill();
+    }
   }
 }
 
