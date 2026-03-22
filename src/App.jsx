@@ -259,6 +259,8 @@ export default function App() {
   const [obstacles, setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
   const obstaclesRef = useRef(obstacles);
   obstaclesRef.current = obstacles;
+  const meteoriteRef = useRef(meteorite);
+  meteoriteRef.current = meteorite;
 
   // Traps system
   const [traps, setTraps] = useState([]);               // [{id, type, x, hp?, maxHp?, active, triggered?, cooldown?}]
@@ -292,6 +294,11 @@ export default function App() {
   const shopElRef = useRef(null);
   const hideoutElRef = useRef(null);
   const mineNuggetElRef = useRef(null);
+  const meteoriteElRef = useRef(null);
+  const meteorBoulderElRef = useRef(null);
+  const groundLootElsRef = useRef({});
+  const trapElsRef = useRef({});
+  const interactableElsRef = useRef({});
   const walkRafRef = useRef(null);
   const summonAttackRef = useRef(null);
   const enemyAttackFriendlyRef = useRef(null);
@@ -1552,18 +1559,10 @@ export default function App() {
             continue; // skip normal AI while confused
           }
 
-          // Enemy AI: find nearest friendly from pre-computed list
+          // Enemy AI: always target the caravan as primary objective
           let friendX = null, friendY = null, friendDist = Infinity, friendId = null;
-          let targetIsCaravan = false;
-          for (let fi = 0; fi < friendlyList.length; fi++) {
-            const f = friendlyList[fi].w;
-            const dx = f.x - w.x;
-            const dy = ((f.y || 50) - (w.y || 50)) * 0.5;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < friendDist) { friendDist = dist; friendX = f.x; friendY = f.y || 50; friendId = friendlyList[fi].id; }
-          }
-          // Fallback: target the caravan if no friendly NPCs found
-          if (friendX === null) {
+          let targetIsCaravan = true;
+          {
             let caravanX, caravanY;
             if (isoModeRef.current) {
               caravanX = caravanPosRef.current.x;
@@ -1576,10 +1575,20 @@ export default function App() {
             friendDist = Math.sqrt(dxC * dxC + dyC * dyC);
             friendX = caravanX;
             friendY = caravanY;
-            targetIsCaravan = true;
+          }
+          // Friendly NPCs can intercept if they are closer to the enemy than the caravan
+          for (let fi = 0; fi < friendlyList.length; fi++) {
+            const f = friendlyList[fi].w;
+            const dx = f.x - w.x;
+            const dy = ((f.y || 50) - (w.y || 50)) * 0.5;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < friendDist * 0.6) { // friendly must be significantly closer to distract
+              friendDist = dist; friendX = f.x; friendY = f.y || 50;
+              friendId = friendlyList[fi].id; targetIsCaravan = false;
+            }
           }
 
-          // NPC ability usage (any combat encounter) — targets friendly NPCs or caravan
+          // NPC ability usage (any combat encounter) — targets caravan or intercepting friendlies
           if (w.ability && friendX !== null) {
             const ability = w.ability;
             const abCdKey = "ab" + id;
@@ -1858,8 +1867,9 @@ export default function App() {
               }
             }
             if (!blockedByBarricade) {
-              // March toward caravan (center-bottom)
-              const caravanX = 50, caravanY = 92;
+              // March toward caravan
+              const caravanX = isoModeRef.current ? caravanPosRef.current.x : 50;
+              const caravanY = isoModeRef.current ? caravanPosRef.current.y : 92;
               const dxC = caravanX - w.x;
               const dyC = caravanY - (w.y || 50);
               if (Math.abs(dxC) > 2) w.x += Math.sign(dxC) * w.speed * 0.6;
@@ -2156,6 +2166,27 @@ export default function App() {
           // Caravan
           const _cp = caravanPosRef.current;
           if (caravanElRef.current && _cp) _positionPoiEl(caravanElRef.current, _cp.x, _cp.y);
+          // Meteorite
+          const _met = meteoriteRef.current;
+          if (_met) {
+            if (meteoriteElRef.current) _positionPoiEl(meteoriteElRef.current, _met.x, _met.y);
+            if (meteorBoulderElRef.current) _positionPoiEl(meteorBoulderElRef.current, _met.x, _met.y);
+          }
+          // Ground loot
+          for (const glId of Object.keys(groundLootElsRef.current)) {
+            const glEl = groundLootElsRef.current[glId];
+            if (glEl && glEl.dataset.wx) _positionPoiEl(glEl, parseFloat(glEl.dataset.wx), parseFloat(glEl.dataset.wy));
+          }
+          // Player traps
+          for (const tId of Object.keys(trapElsRef.current)) {
+            const tEl = trapElsRef.current[tId];
+            if (tEl && tEl.dataset.wx) _positionPoiEl(tEl, parseFloat(tEl.dataset.wx), parseFloat(tEl.dataset.wy));
+          }
+          // Biome interactables
+          for (const iId of Object.keys(interactableElsRef.current)) {
+            const iEl = interactableElsRef.current[iId];
+            if (iEl && iEl.dataset.wx) _positionPoiEl(iEl, parseFloat(iEl.dataset.wx), parseFloat(iEl.dataset.wy));
+          }
         }
       }
 
@@ -7905,7 +7936,7 @@ export default function App() {
 
       {/* Player-placed defense trap visuals */}
       {playerTraps.map(pt => pt.active && (
-        <div key={pt.id} style={{
+        <div key={pt.id} ref={el => { if (el) trapElsRef.current[pt.id] = el; }} data-wx={pt.x} data-wy={pt.y} style={{
           position: "absolute", left: `${wrapPctToScreen(pt.x) ?? pt.x}%`, top: `${pt.y}%`,
           transform: "translate(-50%, -50%)", zIndex: 14,
           pointerEvents: "none",
@@ -8130,7 +8161,7 @@ export default function App() {
 
       {/* Meteorite event – falling from sky */}
       {meteorite && meteorite.phase === "falling" && (
-        <div style={{
+        <div ref={meteoriteElRef} style={{
           position: "absolute", left: `${wrapPctToScreen(meteorite.x) ?? meteorite.x}%`, top: 0, zIndex: 18,
           fontSize: 48, userSelect: "none", pointerEvents: "none",
           animation: `meteorFall 1s ease-in forwards`,
@@ -8205,7 +8236,7 @@ export default function App() {
         const hpPct = mBoulder.hp / mBoulder.maxHp;
         const hpColor = hpPct > 0.5 ? "#ff6020" : hpPct > 0.25 ? "#ff4020" : "#cc2020";
         return (
-          <div style={{
+          <div ref={meteorBoulderElRef} style={{
             position: "absolute", left: `${wrapPctToScreen(meteorite.x) ?? meteorite.x}%`, top: `${meteorite.y - 3}%`,
             transform: "translateX(-50%)", zIndex: 16, pointerEvents: "none",
             textAlign: "center",
@@ -8232,7 +8263,7 @@ export default function App() {
 
       {/* Ground loot — clickable coins and items dropped by meteor */}
       {groundLoot.filter(i => !i.collected).map(item => (
-        <div key={item.id} onClick={() => collectGroundLoot(item.id)} style={{
+        <div key={item.id} ref={el => { if (el) groundLootElsRef.current[item.id] = el; }} data-wx={item.x} data-wy={item.y} onClick={() => collectGroundLoot(item.id)} style={{
           position: "absolute", left: `${wrapPctToScreen(item.x) ?? item.x}%`, top: `${item.y}%`, zIndex: 15,
           cursor: "pointer", userSelect: "none",
           animation: "meteorPulse 2s ease-in-out infinite",
@@ -9037,7 +9068,7 @@ export default function App() {
         const actionColors = { shoot: "#ff6040", click: "#40c0ff", saber: "#ffd740", proximity: "#80ff80" };
         const actionLabels = { shoot: "Strzel", click: "Kliknij", saber: "Tnij", proximity: "Podejdź" };
         return (
-          <div key={`inter_${item.id}_${idx}`} style={{
+          <div key={`inter_${item.id}_${idx}`} ref={el => { if (el) interactableElsRef.current[item.id || idx] = el; }} data-wx={item.x} data-wy={item.y} style={{
             position: "absolute", left: `${screenX}%`, bottom: `${item.y}%`,
             transform: "translateX(-50%)", zIndex: 14, cursor: item.action === "click" || item.action === "proximity" ? "pointer" : "default",
             userSelect: "none", textAlign: "center",
