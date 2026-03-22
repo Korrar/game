@@ -29,6 +29,12 @@ export const BIOME_INTERACTABLES = {
       action: "click", chance: 0.20,
       reward: { type: "dam_break", damage: 15, radius: 22, element: null },
     },
+    {
+      id: "jungle_fish", name: "Skacząca Ryba", icon: "fish",
+      desc: "Strzel w rybę wyskakującą z rzeki — świeże jedzenie leczy karawanę",
+      action: "shoot", chance: 0.30,
+      reward: { type: "heal", amount: 3 },
+    },
   ],
   island: [
     {
@@ -99,6 +105,12 @@ export const BIOME_INTERACTABLES = {
       action: "saber", chance: 0.18,
       reward: { type: "hot_spring", heal: 4, slowMult: 0.4, duration: 12000, radius: 18 },
     },
+    {
+      id: "winter_frozen_chest", name: "Zamrożona Skrzynia", icon: "lock",
+      desc: "Strzel aby rozbić lód — ukryty skarb zamrożony w tafli",
+      action: "shoot", chance: 0.20,
+      reward: { type: "loot", copper: 20, silverChance: 0.25 },
+    },
   ],
   city: [
     {
@@ -118,6 +130,14 @@ export const BIOME_INTERACTABLES = {
       desc: "Kliknij aby przyjąć zlecenie — bonus za zabicie elity w pokoju",
       action: "click", chance: 0.20,
       reward: { type: "bounty", bonusCopper: 30 },
+    },
+    {
+      id: "city_market_stall", name: "Stragan Handlarza", icon: "coin",
+      desc: "Kliknij aby przejrzeć towary — losowe zaopatrzenie",
+      action: "click", chance: 0.25,
+      reward: { type: "random_loot", options: [
+        { copper: 10 }, { ammo: "dynamite", amount: 2 }, { ammo: "harpoon", amount: 1 }, { copper: 15 },
+      ]},
     },
   ],
   volcano: [
@@ -160,6 +180,12 @@ export const BIOME_INTERACTABLES = {
       desc: "Strzel — straszy wrogów, odpychając ich na 4s",
       action: "shoot", chance: 0.20,
       reward: { type: "fear_aoe", duration: 4000, radius: 22 },
+    },
+    {
+      id: "summer_eagle", name: "Złoty Orzeł", icon: "bird",
+      desc: "Strzel w lecącego orła — przynosi błogosławieństwo (+20% obrażeń)",
+      action: "shoot", chance: 0.15,
+      reward: { type: "buff", buffType: "damage", value: 1.20, duration: 25000 },
     },
   ],
   autumn: [
@@ -232,6 +258,12 @@ export const BIOME_INTERACTABLES = {
       desc: "Strzel aby uwolnić — pająk atakuje wrogów przez 10s",
       action: "shoot", chance: 0.20,
       reward: { type: "summon_ally", allyType: "spider", duration: 10000, damage: 6 },
+    },
+    {
+      id: "mushroom_pool", name: "Luminescencyjna Sadzawka", icon: "glow",
+      desc: "Podejdź blisko — świecąca woda leczy i wzmacnia odporność",
+      action: "proximity", chance: 0.20,
+      reward: { type: "heal_and_buff", heal: 3, buffType: "resist", duration: 15000 },
     },
   ],
   swamp: [
@@ -339,6 +371,12 @@ export const BIOME_INTERACTABLES = {
       action: "click", chance: 0.20,
       reward: { type: "heal_and_buff", heal: 4, buffType: "resist", duration: 20000 },
     },
+    {
+      id: "olympus_pillar", name: "Chwiejny Filar", icon: "column",
+      desc: "Strzel w pękający filar — kolumna wali się na wrogów",
+      action: "shoot", chance: 0.25,
+      reward: { type: "aoe_damage", damage: 22, radius: 16, element: null },
+    },
   ],
   underworld: [
     {
@@ -380,6 +418,12 @@ export const BIOME_INTERACTABLES = {
       desc: "Kliknij aby zaabsorbować — tymczasowe wzmocnienie piorunów",
       action: "click", chance: 0.20,
       reward: { type: "buff", buffType: "damage", value: 1.20, duration: 25000 },
+    },
+    {
+      id: "meteor_core", name: "Niestabilny Rdzeń", icon: "gem",
+      desc: "Kliknij szybko zanim eksploduje — kosmiczny skarb ogromnej wartości",
+      action: "click", chance: 0.15,
+      reward: { type: "timed_loot", copper: 40, silverChance: 0.50, timeout: 8000 },
     },
   ],
 };
