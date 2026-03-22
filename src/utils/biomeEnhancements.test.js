@@ -83,18 +83,10 @@ describe('new interactive environment elements', () => {
   });
 });
 
-describe('panoramic POI completeness', () => {
-  // Import POIs from biomeRenderers (we check the data structure exists)
-  it('every biome has at least 2 POIs', () => {
-    // We verify this by checking the biomes have sufficient render data
-    // POIs are defined in biomeRenderers.js PANORAMA_POIS
-    const biomesWithFewPOIs = ['summer', 'autumn', 'spring', 'mushroom', 'swamp'];
-    // After enhancement these should have 3+ POIs each
-    // This test documents the requirement - actual POI count is verified at render time
-    for (const id of biomesWithFewPOIs) {
-      const b = biome(id);
-      expect(b).toBeDefined();
-      expect(b.renderFn).toBeTruthy();
+describe('biome render functions', () => {
+  it('every biome has a renderFn defined', () => {
+    for (const b of BIOMES) {
+      expect(b.renderFn, `biome "${b.id}" missing renderFn`).toBeTruthy();
     }
   });
 });
