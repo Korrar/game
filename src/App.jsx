@@ -240,6 +240,20 @@ export default function App() {
   waterfallStateRef.current = waterfall;
   const fruitTreeStateRef = useRef(fruitTree);
   fruitTreeStateRef.current = fruitTree;
+  const chestPosRef = useRef(chestPos);
+  chestPosRef.current = chestPos;
+  const resourceNodeRef = useRef(resourceNode);
+  resourceNodeRef.current = resourceNode;
+  const mineNuggetRef = useRef(mineNugget);
+  mineNuggetRef.current = mineNugget;
+  const mercCampRef = useRef(mercCamp);
+  mercCampRef.current = mercCamp;
+  const wizardPoiRef = useRef(wizardPoi);
+  wizardPoiRef.current = wizardPoi;
+  const biomePoiRef = useRef(biomePoi);
+  biomePoiRef.current = biomePoi;
+  const defensePoiRef = useRef(defensePoi);
+  defensePoiRef.current = defensePoi;
   const nuggetRef = useRef({ active: false, intervalId: null });
   // Destructible obstacles per room
   const [obstacles, setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
@@ -268,6 +282,16 @@ export default function App() {
   const waterfallElRef = useRef(null);
   const fruitTreeElRef = useRef(null);
   const obsElsRef = useRef({});
+  const chestElRef = useRef(null);
+  const mercCampElRef = useRef(null);
+  const wizardElRef = useRef(null);
+  const biomePoiElRef = useRef(null);
+  const defensePoiElRef = useRef(null);
+  const resourceElRef = useRef(null);
+  const caravanElRef = useRef(null);
+  const shopElRef = useRef(null);
+  const hideoutElRef = useRef(null);
+  const mineNuggetElRef = useRef(null);
   const walkRafRef = useRef(null);
   const summonAttackRef = useRef(null);
   const enemyAttackFriendlyRef = useRef(null);
@@ -2109,6 +2133,29 @@ export default function App() {
         for (const obs of obstaclesRef.current) {
           const oel = obsElsRef.current[obs.id];
           _positionPoiEl(oel, obs.x, obs.y);
+        }
+
+        // Sync all other POI positions (iso mode only — panoramic handled by React)
+        if (_isoActive) {
+          const _chestP = chestPosRef.current;
+          if (chestElRef.current && _chestP) _positionPoiEl(chestElRef.current, _chestP.x, _chestP.y);
+          const _rn = resourceNodeRef.current;
+          if (resourceElRef.current && _rn) _positionPoiEl(resourceElRef.current, _rn.pos.x, _rn.pos.y);
+          const _mn = mineNuggetRef.current;
+          if (mineNuggetElRef.current && _mn) _positionPoiEl(mineNuggetElRef.current, _mn.x, _mn.y);
+          const _mc = mercCampRef.current;
+          if (mercCampElRef.current && _mc) _positionPoiEl(mercCampElRef.current, _mc.x, _mc.y);
+          const _wp = wizardPoiRef.current;
+          if (wizardElRef.current && _wp) _positionPoiEl(wizardElRef.current, _wp.x, _wp.y);
+          const _bp = biomePoiRef.current;
+          if (biomePoiElRef.current && _bp && !_bp.used) _positionPoiEl(biomePoiElRef.current, _bp.x, _bp.y);
+          const _dp = defensePoiRef.current;
+          if (defensePoiElRef.current && _dp && !_dp.activated) _positionPoiEl(defensePoiElRef.current, _dp.x, _dp.y);
+          if (shopElRef.current) _positionPoiEl(shopElRef.current, 10, 15);
+          if (hideoutElRef.current) _positionPoiEl(hideoutElRef.current, 30, 25);
+          // Caravan
+          const _cp = caravanPosRef.current;
+          if (caravanElRef.current && _cp) _positionPoiEl(caravanElRef.current, _cp.x, _cp.y);
         }
       }
 
@@ -8025,9 +8072,12 @@ export default function App() {
 
       {showChest && (() => {
         if (isoModeRef.current) {
-          const sp = poiToScreenPos(chestPos?.x ?? 20, chestPos?.y ?? 20);
-          if (!sp) return null;
-          return <Chest pos={{ x: (sp.x / GAME_W) * 100, y: (sp.y / GAME_H) * 100 }} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} />;
+          // In iso mode, chest is wrapped in a div positioned by RAF loop
+          return (
+            <div ref={chestElRef} style={{ position: "absolute", left: 0, top: 0, zIndex: 15, transform: "translateX(-50%) translateY(-100%)" }}>
+              <Chest pos={{ x: 50, y: 50 }} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} style={{ position: "relative", left: 0, top: 0 }} />
+            </div>
+          );
         }
         const cx = wrapPctToScreen(chestPos?.x ?? 50);
         return cx !== null ? <Chest pos={{ ...chestPos, x: cx }} onClick={openChest} clicks={chestClicks} maxClicks={CLICKS_TO_OPEN} /> : null;
@@ -8042,7 +8092,7 @@ export default function App() {
         const hpPct = caravanHpRef.current / CARAVAN_LEVELS[caravanLevelRef.current].hp * 100;
         const hpColor = hpPct > 50 ? "#40e060" : hpPct > 25 ? "#e0c040" : "#e04040";
         return (
-          <div style={{
+          <div ref={caravanElRef} style={{
             position: "absolute",
             left: screen.x, top: screen.y,
             transform: "translate(-50%, -100%)",
@@ -8214,7 +8264,7 @@ export default function App() {
         const res = resourceNode.resource;
         const mineTimeSec = MINE_TIMES[res?.rarity] || 2;
         return (
-          <div
+          <div ref={resourceElRef}
             onMouseDown={startMining}
             onMouseUp={stopMining}
             onMouseLeave={stopMining}
@@ -8332,7 +8382,7 @@ export default function App() {
 
       {/* ─── MINE (biome variant rock formation) ─── */}
       {mineNugget && (
-        <div style={{
+        <div ref={mineNuggetElRef} style={{
           position: "absolute", left: poiLeft(mineNugget.x, mineNugget.y) ?? `${mineNugget.x}%`,
           ...(isoModeRef.current ? { top: poiTop(mineNugget.x, mineNugget.y) } : { bottom: "12%" }),
           zIndex: poiZIndex(mineNugget.x, mineNugget.y), transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", userSelect: "none",
@@ -8448,7 +8498,7 @@ export default function App() {
 
       {/* ─── MERCENARY CAMP ─── */}
       {mercCamp && (
-        <div style={{
+        <div ref={mercCampElRef} style={{
           position: "absolute", left: poiLeft(mercCamp.x, mercCamp.y) ?? `${mercCamp.x}%`,
           ...(isoModeRef.current ? { top: poiTop(mercCamp.x, mercCamp.y) } : { bottom: "12%" }),
           zIndex: poiZIndex(mercCamp.x, mercCamp.y),
@@ -8534,7 +8584,7 @@ export default function App() {
         <>
           {/* Merchant building */}
           {shopScreenX !== null && (
-          <div
+          <div ref={shopElRef}
             onClick={() => togglePanel("shop")}
             style={{
               position: "absolute", left: shopScreenX,
@@ -8592,7 +8642,7 @@ export default function App() {
 
           {/* Hideout building */}
           {hideoutScreenX !== null && (
-          <div
+          <div ref={hideoutElRef}
             onClick={() => togglePanel("hideout")}
             style={{
               position: "absolute", left: hideoutScreenX,
@@ -8660,7 +8710,7 @@ export default function App() {
         const ammoNames = { dynamite: "Dynamit", harpoon: "Harpuny", cannonball: "Kule armatnie", rum: "Rum", chain: "Łańcuchy" };
         const ammoIcon = ammoIcons[wizardPoi.ammoType] || "dynamite";
         return (
-          <div style={{
+          <div ref={wizardElRef} style={{
             position: "absolute", left: poiLeft(wizardPoi.x, wizardPoi.y) ?? `${wizardPoi.x}%`,
             ...(isoModeRef.current ? { top: poiTop(wizardPoi.x, wizardPoi.y) } : { bottom: "12%" }),
             zIndex: poiZIndex(wizardPoi.x, wizardPoi.y),
@@ -8744,7 +8794,7 @@ export default function App() {
         };
         const col = poiColors[biomePoi.type] || "#c0a060";
         return (
-          <div style={{
+          <div ref={biomePoiElRef} style={{
             position: "absolute", left: _bpLeft,
             ...(isoModeRef.current ? { top: poiTop(biomePoi.x, biomePoi.y) } : { bottom: "12%" }),
             zIndex: poiZIndex(biomePoi.x, biomePoi.y),
@@ -9032,7 +9082,7 @@ export default function App() {
           const _dpLeft = poiLeft(defensePoi.x, defensePoi.y);
           if (_dpLeft === null) return null;
           return (
-            <div
+            <div ref={defensePoiElRef}
               key="defense-poi"
               onClick={handleDefensePoiClick}
               style={{
