@@ -229,7 +229,7 @@ describe("Obstacle Visibility Logic", () => {
   it("panoramic obstacles (x > 100) are only visible when panned to", () => {
     // Obstacle at x=200% of viewport
     // With no pan, this is off-screen
-    const noPanResult = wrapPctToScreen(200, 0, GAME_W);
+    wrapPctToScreen(200, 0, GAME_W);
     // With panOffset=0, returns raw pct (200) - CSS left:200% is off-screen but not null
     // The DOM element exists but is visually outside the overflow:hidden container
     // This is expected behavior

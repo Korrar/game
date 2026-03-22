@@ -6,14 +6,14 @@ import { describe, it, expect } from "vitest";
 import {
   depthFromY,
   scaleAtDepth,
-  zIndexAtDepth,
+  // zIndexAtDepth - available but not directly tested here
   fogAtDepth,
   DEPTH_CONFIG,
 } from "../src/rendering/DepthSystem.js";
 import {
   wrapPxToScreen,
-  wrapPctToScreen,
-  PANORAMA_WORLD_W,
+  // wrapPctToScreen - available but not directly called here
+  // PANORAMA_WORLD_W - available but not directly used here
 } from "../src/utils/panoramaWrap.js";
 
 const GAME_W = 1280;
@@ -49,7 +49,7 @@ describe("BUG: No obstacles in defense rooms", () => {
 // ─── BUG 3: Obstacle viewport coverage ───
 describe("BUG: Many obstacles spawn outside viewport", () => {
   it("only ~33% of obstacles are in initial viewport with no pan", () => {
-    const total = 25;
+    // total = 25 obstacles expected
     let inViewport = 0;
     // Simulate obstacle spawning
     for (let i = 0; i < 1000; i++) {
@@ -68,7 +68,7 @@ describe("BUG: Many obstacles spawn outside viewport", () => {
     // New algorithm: half obstacles in viewport (0-100%), half in panoramic (100-290%)
     const total = 25;
     const viewportCount = Math.ceil(total * 0.5); // 13
-    const panoramaCount = total - viewportCount; // 12
+    // panoramaCount = total - viewportCount = 12
 
     let inViewport = 0;
     for (let i = 0; i < total; i++) {
@@ -106,7 +106,7 @@ describe("BUG: Enemies instantly teleport to minY on first frame", () => {
     const ySpeed = 0.02;
     const yDir = 1;
     const minY = 25;
-    const maxY = 92;
+    // maxY = 92
 
     // First frame Y movement
     y += ySpeed * yDir;
@@ -121,7 +121,7 @@ describe("BUG: Enemies instantly teleport to minY on first frame", () => {
 describe("BUG: Walker DOM element positioning flash", () => {
   it("initial React position is at center/horizon", () => {
     const initialLeft = "50%";
-    const initialTop = "calc(25% - 75px)";
+    // initialTop = "calc(25% - 75px)"
     // All walkers start at this position until RAF loop repositions them
     // This causes a brief flash at the wrong position on every React re-render
     expect(initialLeft).toBe("50%");
@@ -129,9 +129,8 @@ describe("BUG: Walker DOM element positioning flash", () => {
 
   it("RAF loop corrects position to actual walkData position", () => {
     const wrappedX = 45; // wrapPctToScreen result
-    const yPos = 50;
+    // yPos = 50, correctedTop = `calc(${yPos}% - 75px)`
     const correctedLeft = `${wrappedX}%`;
-    const correctedTop = `calc(${yPos}% - 75px)`;
     expect(correctedLeft).toBe("45%");
     // At y=50: top = calc(50% - 75px) = 360-75 = 285px from top (visible)
   });

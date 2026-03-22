@@ -8,8 +8,6 @@ export const PANORAMA_WORLD_W = 3;  // multiplier of viewport width
 export function renderBiome(ctx, biome, room, W, H, isNight, panOffset = 0) {
   const GY = H * 0.25;
   const rng = seedRng(room * 137 + 42);
-  const worldW = W * PANORAMA_WORLD_W;
-
   // Sky (full viewport, no pan — sky is always visible)
   const sky = ctx.createLinearGradient(0, 0, 0, GY);
   sky.addColorStop(0, biome.skyTop); sky.addColorStop(1, biome.skyBot);

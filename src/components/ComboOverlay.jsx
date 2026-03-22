@@ -1,17 +1,25 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export default function ComboOverlay({ combo, comboCounter }) {
-  const [visible, setVisible] = useState(false);
-  const [flash, setFlash] = useState(null);
+  const [state, setState] = useState({ visible: false, flash: null, trigger: null, counter: 0 });
 
-  useEffect(() => {
-    if (!combo) { setVisible(false); return; }
-    setVisible(true);
-    setFlash(combo.flashColor || "rgba(255,255,255,0.2)");
-    const t1 = setTimeout(() => setFlash(null), 300);
-    const t2 = setTimeout(() => setVisible(false), 2000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [combo, comboCounter]);
+  // Detect combo change during render (derived state pattern)
+  if (combo && (combo !== state.trigger || comboCounter !== state.counter)) {
+    if (state.flashTimer) clearTimeout(state.flashTimer);
+    if (state.hideTimer) clearTimeout(state.hideTimer);
+    const flashTimer = setTimeout(() => setState(s => ({ ...s, flash: null })), 300);
+    const hideTimer = setTimeout(() => setState(s => ({ ...s, visible: false })), 2000);
+    setState({
+      visible: true,
+      flash: combo.flashColor || "rgba(255,255,255,0.2)",
+      trigger: combo,
+      counter: comboCounter,
+      flashTimer,
+      hideTimer,
+    });
+  }
+
+  const { visible, flash } = state;
 
   return (
     <>

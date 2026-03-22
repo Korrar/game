@@ -560,7 +560,7 @@ export class CombatParticles {
     });
   }
 
-  spawnArrowTrail(x, y, vx, vy) {
+  spawnArrowTrail(x, y) {
     this._emit(this.mobile ? 1 : 3, x, y, {
       vx: () => (Math.random() - 0.5) * 0.5,
       vy: () => (Math.random() - 0.5) * 0.5,

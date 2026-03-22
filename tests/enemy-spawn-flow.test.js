@@ -55,7 +55,7 @@ describe("Enemy Rendering Chain (simulating PixiRenderer.render)", () => {
     const visible = screenX !== null;
 
     // 6. CharacterSprite: check if torso exists (it should after spawnNpc)
-    const hasTorso = true; // assumed
+    // hasTorso assumed true after spawnNpc
 
     // 7. Final screen position of torso (world position + container offset)
     const finalScreenX = visible ? torsoX + containerOffset : null;

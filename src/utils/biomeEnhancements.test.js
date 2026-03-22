@@ -100,7 +100,7 @@ describe('biome interactable counts', () => {
 
   it('interactables have valid action types', () => {
     const validActions = ['click', 'shoot', 'saber', 'proximity'];
-    for (const [biomeId, items] of Object.entries(BIOME_INTERACTABLES)) {
+    for (const [_biomeId, items] of Object.entries(BIOME_INTERACTABLES)) {
       for (const item of items) {
         expect(validActions, `invalid action "${item.action}" for "${item.id}"`).toContain(item.action);
       }

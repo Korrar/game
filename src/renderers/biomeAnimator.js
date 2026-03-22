@@ -257,7 +257,7 @@ export class BiomeAnimator {
   }
 
   _drawMeleeClash(ctx, eff, t) {
-    const { tx, ty, color } = eff;
+    const { tx, ty } = eff;
     const alpha = 1 - t;
     const r = 12 + t * 18;
     // Central flash
@@ -293,7 +293,7 @@ export class BiomeAnimator {
   }
 
   _drawMeteorTrail(ctx, eff, t) {
-    const { sx, sy, tx, ty } = eff;
+    const { sy, tx, ty } = eff;
     const curY = sy + (ty - sy) * t;
     const curX = tx + Math.sin(t * 12) * 3;
 
@@ -350,7 +350,7 @@ export class BiomeAnimator {
   }
 
   _drawMeteorImpact(ctx, eff, t) {
-    const { tx, ty, color } = eff;
+    const { tx, ty } = eff;
     // Phase 1: bright flash (first 30%)
     if (t < 0.3) {
       const ft = t / 0.3;
@@ -636,7 +636,7 @@ export class BiomeAnimator {
   }
 
   _drawShadowBolt(ctx, eff, t) {
-    const { sx, sy, tx, ty, color, colorLight } = eff;
+    const { sx, sy, tx, ty } = eff;
     if (t < 0.4) {
       const pt = t / 0.4;
       const x = sx + (tx - sx) * pt;

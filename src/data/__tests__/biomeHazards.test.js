@@ -80,7 +80,7 @@ describe("BIOME_HAZARD_ZONES", () => {
   });
 
   it("hazards with slow have a speedMult between 0 and 1", () => {
-    for (const [biomeId, hz] of Object.entries(BIOME_HAZARD_ZONES)) {
+    for (const [_biomeId, hz] of Object.entries(BIOME_HAZARD_ZONES)) {
       if (hz.effect.type === "slow" || hz.effect.type === "damage_and_slow") {
         expect(hz.effect.speedMult).toBeGreaterThan(0);
         expect(hz.effect.speedMult).toBeLessThan(1);

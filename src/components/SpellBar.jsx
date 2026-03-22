@@ -72,12 +72,8 @@ function HpIcon({ hp, maxHp, showHp, isMobile }) {
 }
 
 // Travel button with compass icon and prominent styling
-function TravelIcon({ initiative, maxInitiative, cost, canTravel, onClick, isMobile }) {
+function TravelIcon({ initiative, cost, canTravel, onClick, isMobile }) {
   const m = isMobile;
-  const pct = Math.min(1, initiative / maxInitiative);
-  const costPct = cost / maxInitiative;
-  const ready = pct >= costPct;
-
   return (
     <div onClick={onClick} style={{
       position: "relative", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center",
@@ -174,18 +170,18 @@ function SpellSlot({ spell, isSelected, canCast, onCooldown, cdPct, cdEnd, now, 
 }
 
 export default function SpellBar({
-  mana, ammo, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart, isMobile, gameW, gameH, equippedSaber,
+  mana, ammo, selectedSpell, cooldowns, learnedSpells, onSelect, onDragStart, isMobile, equippedSaber,
   // Caravan props
   caravanHp, caravanMaxHp, showCaravanHp, initiative, maxInitiative, caravanCost, canTravel, onTravel,
 }) {
-  const [, tick] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const [inneOpen, setInneOpen] = useState(false);
   const m = isMobile;
 
   useEffect(() => {
     const hasCD = Object.values(cooldowns).some(t => t > Date.now());
     if (!hasCD) return;
-    const id = setInterval(() => tick(n => n + 1), 100);
+    const id = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(id);
   }, [cooldowns]);
 
@@ -209,9 +205,8 @@ export default function SpellBar({
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [ammo, onSelect, m]);
+  }, [ammo, onSelect, m, learnedSpells]);
 
-  const now = Date.now();
   const visibleSpells = getVisibleSpells(ammo, learnedSpells);
   const primarySpells = PRIMARY_IDS.map(id => visibleSpells.find(s => s.id === id)).filter(Boolean);
   const secondarySpells = visibleSpells.filter(s => !PRIMARY_IDS.includes(s.id));

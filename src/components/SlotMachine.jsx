@@ -21,7 +21,7 @@ function playSpinTick(pitch = 800) {
     osc.connect(gain).connect(ctx.destination);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.05);
-  } catch (_) { /* audio not available */ }
+  } catch { /* audio not available */ }
 }
 
 function playReelStop(reelIdx) {
@@ -36,7 +36,7 @@ function playReelStop(reelIdx) {
     osc.connect(gain).connect(ctx.destination);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.15);
-  } catch (_) {}
+  } catch { /* ignored */ }
 }
 
 function playWinSound(big) {
@@ -77,7 +77,7 @@ function playWinSound(big) {
       noise.start(ctx.currentTime);
       noise.stop(ctx.currentTime + 0.5);
     }
-  } catch (_) {}
+  } catch { /* ignored */ }
 }
 
 function playLoseSound() {
@@ -93,7 +93,7 @@ function playLoseSound() {
     osc.connect(gain).connect(ctx.destination);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.25);
-  } catch (_) {}
+  } catch { /* ignored */ }
 }
 
 // ─── Pirate Slot Machine with 96% RTP ───
@@ -386,18 +386,18 @@ function ChaseLights({ active, win }) {
 }
 
 // ─── Main Slot Machine Component ───
-export default function SlotMachine({ money, totalCopper: getTotalCopper, onWin, onLose, copperToMoney: convertMoney }) {
+export default function SlotMachine({ money, totalCopper: getTotalCopper, onWin, onLose }) {
   const [betIdx, setBetIdx] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [reelStops, setReelStops] = useState([0, 0, 0]);
   const [lastResult, setLastResult] = useState(null);
-  const [reelsDone, setReelsDone] = useState(0);
+  const [_reelsDone, setReelsDone] = useState(0);
   const [showWin, setShowWin] = useState(false);
   const [totalWon, setTotalWon] = useState(0);
   const [totalLost, setTotalLost] = useState(0);
   const [spinsCount, setSpinsCount] = useState(0);
   const [jackpotFlash, setJackpotFlash] = useState(false);
-  const [lightsActive, setLightsActive] = useState(true);
+  const [lightsActive] = useState(true);
 
   const bet = BET_OPTIONS[betIdx];
   const tc = getTotalCopper(money);
@@ -420,38 +420,28 @@ export default function SlotMachine({ money, totalCopper: getTotalCopper, onWin,
     setReelStops(result.stops);
     setSpinning(true);
 
-    // Store result for when reels finish
+    // Store result and process win/loss after reels finish
     setTimeout(() => {
       setLastResult(result);
+      setSpinning(false);
+      if (result.totalWin > 0) {
+        setShowWin(true);
+        setTotalWon(prev => prev + result.totalWin);
+        onWin(result.totalWin);
+        playWinSound(result.totalWin >= bet.copper * 5);
+        if (result.totalWin >= bet.copper * 20) {
+          setJackpotFlash(true);
+          setTimeout(() => setJackpotFlash(false), 3000);
+        }
+      } else {
+        playLoseSound();
+      }
     }, 1200 + 2 * 400 + 200); // After last reel stops
-  }, [canBet, bet, onLose]);
+  }, [canBet, bet, onLose, onWin]);
 
   const handleReelDone = useCallback(() => {
-    setReelsDone(prev => {
-      const next = prev + 1;
-      if (next >= 3) {
-        setSpinning(false);
-      }
-      return next;
-    });
+    setReelsDone(prev => prev + 1);
   }, []);
-
-  // Show win after all reels stopped
-  useEffect(() => {
-    if (!lastResult || spinning) return;
-    if (lastResult.totalWin > 0) {
-      setShowWin(true);
-      setTotalWon(prev => prev + lastResult.totalWin);
-      onWin(lastResult.totalWin);
-      playWinSound(lastResult.totalWin >= bet.copper * 5);
-      if (lastResult.totalWin >= bet.copper * 20) {
-        setJackpotFlash(true);
-        setTimeout(() => setJackpotFlash(false), 3000);
-      }
-    } else {
-      playLoseSound();
-    }
-  }, [lastResult, spinning]);
 
   const netProfit = totalWon - totalLost;
 

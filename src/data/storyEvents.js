@@ -344,7 +344,7 @@ export const MORAL_DILEMMAS = [
   },
 ];
 
-export function rollStoryStep(activeStory, roomNum) {
+export function rollStoryStep(activeStory) {
   if (!activeStory) return null;
   const arc = STORY_ARCS.find(a => a.id === activeStory.id);
   if (!arc) return null;

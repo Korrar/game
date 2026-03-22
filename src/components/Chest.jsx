@@ -112,18 +112,20 @@ function ChestBody({ stage }) {
 }
 
 export default function Chest({ pos, onClick, clicks = 0, maxClicks = CLICKS_TO_OPEN }) {
-  if (!pos) return null;
-  const [shaking, setShaking] = useState(false);
+  const [shakeDir, setShakeDir] = useState(0);
 
   const stage = getStage(clicks);
   const isOpen = clicks >= maxClicks;
 
   const handleClick = useCallback((e) => {
     if (isOpen) return;
-    setShaking(true);
-    setTimeout(() => setShaking(false), 200);
+    // Alternate shake direction: 1, -1, 1, -1...
+    setShakeDir(prev => prev === 0 ? 1 : -prev);
+    setTimeout(() => setShakeDir(0), 200);
     onClick(e);
   }, [isOpen, onClick]);
+
+  if (!pos) return null;
 
   const progress = Math.min(1, clicks / maxClicks);
 
@@ -139,8 +141,8 @@ export default function Chest({ pos, onClick, clicks = 0, maxClicks = CLICKS_TO_
         filter: `drop-shadow(0 0 ${6 + stage * 3}px rgba(160,128,60,${0.3 + stage * 0.12}))`,
         animation: isOpen ? "none" : "chestG 2.5s ease-in-out infinite",
         userSelect: "none",
-        transform: `translate(-50%, -50%) ${shaking ? `translate(${Math.random() > 0.5 ? 2 : -2}px, ${Math.random() > 0.5 ? 1 : -1}px)` : ""}`,
-        transition: shaking ? "none" : "filter 0.3s",
+        transform: `translate(-50%, -50%) ${shakeDir ? `translate(${shakeDir * 2}px, ${shakeDir}px)` : ""}`,
+        transition: shakeDir ? "none" : "filter 0.3s",
       }}
     >
       <svg width="80" height="72" viewBox="0 0 80 72">
