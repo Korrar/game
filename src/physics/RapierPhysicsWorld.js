@@ -14,7 +14,7 @@ import {
   getLizardOffsets, getCrabOffsets, getBirdOffsets, getTentacleOffsets,
   getPrimateOffsets, getFishOffsets,
 } from "./bodies/animOffsets.js";
-import { screenPxToWorld } from "../utils/panoramaWrap.js";
+import { screenPxToWorld, PANORAMA_WORLD_W } from "../utils/panoramaWrap.js";
 import {
   getColors, drawBody, drawWeapon, drawProjectile,
 } from "./bodies/bodyRenderers.js";
@@ -1202,7 +1202,13 @@ export class PhysicsWorld {
     }
 
     // Linear or arc projectile
-    const dx = targetPx - sx, dy = targetPy - sy;
+    // Account for panoramic world wrap — choose shortest path to target
+    const worldW = this.W * PANORAMA_WORLD_W;
+    let dx = targetPx - sx;
+    if (worldW > 0 && Math.abs(dx) > worldW / 2) {
+      dx -= Math.sign(dx) * worldW;
+    }
+    const dy = targetPy - sy;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
     // Total flight time = distance / speed (in frames)
@@ -1294,9 +1300,6 @@ export class PhysicsWorld {
       proj.y += proj.vy;
       if (proj.gravity) proj.vy += proj.gravity;
       if (proj.windDrift) proj.x += proj.windDrift;
-      if (this.windDeflection) {
-        proj.vx += this.windDeflection * 0.3;
-      }
 
       // Trail effects (throttled to reduce particle load)
       const trail = proj.trail;
