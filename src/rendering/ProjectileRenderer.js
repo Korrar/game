@@ -1,6 +1,7 @@
 // ProjectileRenderer — PixiJS-based projectile rendering with enhanced glow effects
 import { Container, Graphics } from "pixi.js";
 import { wrapPxToScreen } from "../utils/panoramaWrap.js";
+import { worldToScreen } from "../utils/isometricUtils.js";
 
 export class ProjectileRenderer {
   constructor(layer) {
@@ -90,6 +91,70 @@ export class ProjectileRenderer {
         this._applyPan(gfx, ind.x, po, gw);
       }
     }
+  }
+
+  // Isometric mode update — uses camera position instead of panoramic wrapping
+  updateIso(projectiles, playerSkillshots, mines, areaIndicators, cameraX, cameraY, gameW) {
+    this._gameW = gameW || 1280;
+    const allActive = new Set([
+      ...projectiles,
+      ...(playerSkillshots || []),
+      ...(mines || []),
+      ...(areaIndicators || []),
+    ]);
+    for (const [proj, gfx] of this.sprites) {
+      if (!allActive.has(proj)) {
+        this.layer.removeChild(gfx);
+        gfx.destroy();
+        this.sprites.delete(proj);
+      }
+    }
+    for (const proj of projectiles) {
+      let gfx = this.sprites.get(proj);
+      if (!gfx) { gfx = new Graphics(); this.sprites.set(proj, gfx); this.layer.addChild(gfx); }
+      gfx.clear();
+      this._drawProjectile(gfx, proj);
+      this._applyIso(gfx, proj, cameraX, cameraY);
+    }
+    if (playerSkillshots) {
+      for (const proj of playerSkillshots) {
+        let gfx = this.sprites.get(proj);
+        if (!gfx) { gfx = new Graphics(); this.sprites.set(proj, gfx); this.layer.addChild(gfx); }
+        gfx.clear();
+        this._drawSkillshot(gfx, proj);
+        this._applyIso(gfx, proj, cameraX, cameraY);
+      }
+    }
+    if (mines) {
+      for (const mine of mines) {
+        let gfx = this.sprites.get(mine);
+        if (!gfx) { gfx = new Graphics(); this.sprites.set(mine, gfx); this.layer.addChild(gfx); }
+        gfx.clear();
+        this._drawMine(gfx, mine);
+        this._applyIso(gfx, mine, cameraX, cameraY);
+      }
+    }
+    if (areaIndicators) {
+      for (const ind of areaIndicators) {
+        let gfx = this.sprites.get(ind);
+        if (!gfx) { gfx = new Graphics(); this.sprites.set(ind, gfx); this.layer.addChild(gfx); }
+        gfx.clear();
+        this._drawAreaIndicator(gfx, ind);
+        this._applyIso(gfx, ind, cameraX, cameraY);
+      }
+    }
+  }
+
+  // Isometric positioning — convert physics pixel coords to iso screen position
+  _applyIso(gfx, obj, cameraX, cameraY) {
+    // Convert physics pixel coords to world tile coords
+    const wx = obj.wx ?? (obj.x / this._gameW) * 40; // MAP_COLS=40
+    const wy = obj.wy ?? (obj.y / 720) * 40;         // MAP_ROWS=40
+    const screen = worldToScreen(wx, wy, cameraX, cameraY);
+    // Offset container: sprite draws at (obj.x, obj.y), shift so it appears at screen pos
+    gfx.position.x = screen.x - (obj.x || 0);
+    gfx.position.y = screen.y - (obj.y || 0);
+    gfx.visible = screen.x > -100 && screen.x < this._gameW + 100;
   }
 
   // Offset Graphics container so world-space drawing appears at correct screen position

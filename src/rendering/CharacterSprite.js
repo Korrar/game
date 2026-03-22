@@ -391,7 +391,7 @@ export class CharacterSprite {
 
     // ─── ALIVE: Normal icon rendering ───
 
-    // 2.5D: depth-aware shadow
+    // Depth-aware shadow (works for both 2.5D and iso)
     const shadow = shadowAtDepth(depth);
     this._drawShadow(this.shadowGfx, tx, ty + halfH + shadow.offsetY,
       14 * shadow.scaleX, 5 * shadow.scaleY, shadow.alpha);

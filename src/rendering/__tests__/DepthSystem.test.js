@@ -15,6 +15,9 @@ import {
   desatAtDepth,
   parallaxAtDepth,
   particleSizeAtDepth,
+  isoDepthFromWorld,
+  isoZIndex,
+  isoSortByDepth,
 } from "../DepthSystem.js";
 
 // ─── CONFIGURATION ───
@@ -437,5 +440,60 @@ describe("integration: full depth pipeline", () => {
     const scaleFar = scaleAtDepth(depthFromY(npcFar.yPct));
     const scaleNear = scaleAtDepth(depthFromY(npcNear.yPct));
     expect(scaleNear).toBeGreaterThan(scaleFar);
+  });
+});
+
+// ─── ISOMETRIC DEPTH FUNCTIONS ───
+
+describe("isoDepthFromWorld", () => {
+  it("returns higher depth for objects further down-right", () => {
+    expect(isoDepthFromWorld(15, 15)).toBeGreaterThan(isoDepthFromWorld(5, 5));
+  });
+
+  it("objects on same iso diagonal have same depth", () => {
+    expect(isoDepthFromWorld(10, 10)).toBe(isoDepthFromWorld(15, 5));
+  });
+
+  it("returns a normalized value between 0 and 1 for map bounds", () => {
+    const d = isoDepthFromWorld(20, 20);
+    expect(d).toBeGreaterThanOrEqual(0);
+    expect(d).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("isoZIndex", () => {
+  it("returns higher zIndex for closer iso objects", () => {
+    const zFar = isoZIndex(5, 5);
+    const zNear = isoZIndex(25, 25);
+    expect(zNear).toBeGreaterThan(zFar);
+  });
+
+  it("returns integer values", () => {
+    expect(Number.isInteger(isoZIndex(10, 10))).toBe(true);
+  });
+});
+
+describe("isoSortByDepth", () => {
+  it("sorts objects by iso depth (far first, near last)", () => {
+    const items = [
+      { id: "near", wx: 30, wy: 30 },
+      { id: "far", wx: 5, wy: 5 },
+      { id: "mid", wx: 15, wy: 15 },
+    ];
+    const sorted = isoSortByDepth(items);
+    expect(sorted[0].id).toBe("far");
+    expect(sorted[1].id).toBe("mid");
+    expect(sorted[2].id).toBe("near");
+  });
+
+  it("does not mutate original array", () => {
+    const items = [{ id: 1, wx: 30, wy: 30 }, { id: 2, wx: 5, wy: 5 }];
+    const copy = [...items];
+    isoSortByDepth(items);
+    expect(items[0].id).toBe(copy[0].id);
+  });
+
+  it("handles empty array", () => {
+    expect(isoSortByDepth([])).toEqual([]);
   });
 });
