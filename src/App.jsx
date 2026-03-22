@@ -935,7 +935,7 @@ export default function App() {
     spawnDmgPopup(enemyId, `${damage}`, "#40e060");
     // Lunge on the friendly walker
     const fw = walkDataRef.current[friendlyId];
-    if (fw) { fw.lungeFrames = 8; fw.lungeOffset = 12; }
+    if (fw) { fw.lungeFrames = 12; fw.lungeOffset = 24; }
     const ew = walkDataRef.current[enemyId];
     const meleeDirX = (fw && ew) ? Math.sign(ew.x - fw.x) || 1 : 1;
     // Alchemist passive: slow_hit — slow enemy on hit
@@ -1064,7 +1064,7 @@ export default function App() {
     spawnDmgPopup(friendlyId, `${damage}`, "#e05040");
     // Lunge on the enemy walker
     const ew = walkDataRef.current[enemyId];
-    if (ew) { ew.lungeFrames = 8; ew.lungeOffset = 12; }
+    if (ew) { ew.lungeFrames = 12; ew.lungeOffset = 24; }
     const fw = walkDataRef.current[friendlyId];
     const meleeDirX = (ew && fw) ? Math.sign(fw.x - ew.x) || 1 : 1;
     // Clash effect at friendly position
@@ -1095,7 +1095,7 @@ export default function App() {
     sfxMeleeHit();
     spawnDmgPopup(targetId, `${damage}`, "#c080ff");
     const aw = walkDataRef.current[attackerId];
-    if (aw) { aw.lungeFrames = 8; aw.lungeOffset = 12; }
+    if (aw) { aw.lungeFrames = 12; aw.lungeOffset = 24; }
     const tw = walkDataRef.current[targetId];
     const meleeDirX = (aw && tw) ? Math.sign(tw.x - aw.x) || 1 : 1;
     const tel = npcElsRef.current[targetId];
@@ -1135,7 +1135,7 @@ export default function App() {
     if (hasRelic("ice_core") && Math.random() < 0.25) {
       spawnDmgPopup(enemyId, "BLOK!", "#40a8b8");
       const ew = walkDataRef.current[enemyId];
-      if (ew) { ew.lungeFrames = 8; ew.lungeOffset = 12; }
+      if (ew) { ew.lungeFrames = 12; ew.lungeOffset = 24; }
       return;
     }
     let armor = CARAVAN_LEVELS[caravanLevelRef.current].armor;
@@ -1173,7 +1173,7 @@ export default function App() {
     setAttackSlash({ id: slashId, fromX: slashFromX, dmg: actualDmg });
     setTimeout(() => setAttackSlash(prev => prev?.id === slashId ? null : prev), 600);
     // Lunge anim on the enemy
-    if (ew) { ew.lungeFrames = 8; ew.lungeOffset = 12; }
+    if (ew) { ew.lungeFrames = 12; ew.lungeOffset = 24; }
     // Thorn Armor: reflect damage back to attacking enemy
     const thornData = CARAVAN_LEVELS[caravanLevelRef.current].thornArmor;
     if (thornData && ew && ew.alive) {
@@ -1590,6 +1590,29 @@ export default function App() {
             }
           }
 
+          // ─── VISUAL STATE MANAGEMENT ───
+          // Set aggroState based on distance and combat phase
+          {
+            const _engageDist = isoModeRef.current ? 25 : 25;
+            const _oldState = w.aggroState || "idle";
+            if (w.windupTimer > 0) {
+              w.windupTimer--;
+              w.aggroState = "windup";
+            } else if (w.combatState === "retreat" || w.combatState === "circle") {
+              w.aggroState = "alert";
+            } else if (friendDist < _engageDist) {
+              w.aggroState = "alert";
+            } else {
+              w.aggroState = "idle";
+            }
+            // Push visual state to physics renderer
+            if (physicsRef.current) {
+              const currentHp = walkers.find(ww => ww.id === idNum);
+              const hpPct = currentHp ? currentHp.hp / (currentHp.maxHp || currentHp.hp || 1) : 1;
+              physicsRef.current.setNpcVisualState(idNum, w.aggroState, hpPct);
+            }
+          }
+
           // NPC ability usage (any combat encounter) — targets caravan or intercepting friendlies
           if (w.ability && friendX !== null) {
             const ability = w.ability;
@@ -1604,6 +1627,15 @@ export default function App() {
               const dirX = friendX > w.x ? 1 : -1;
               const _idNum = idNum; // capture for closures
               if (physicsRef.current) physicsRef.current.triggerAttackAnim(idNum);
+              // Set visual state to attacking
+              w.aggroState = "attacking";
+              if (physicsRef.current) physicsRef.current.setNpcVisualState(idNum, "attacking");
+              // Spawn ranged charge-up particles for projectile abilities
+              if (_abIsRanged && pixiRef.current) {
+                const ewPx = isoModeRef.current ? (w.x / ISO_CONFIG.MAP_COLS) * GAME_W : (w.x / 100) * GAME_W;
+                const ewPy = isoModeRef.current ? ((w.y || ISO_CONFIG.MAP_ROWS / 2) / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H * 0.25;
+                pixiRef.current.spawnRangedChargeUp(ewPx, ewPy, ability.element);
+              }
               // Caravan target pixel position for projectile targetPos
               const _caravanPosPx = targetIsCaravan ? (isoModeRef.current
                 ? { x: (caravanPosRef.current.x / ISO_CONFIG.MAP_COLS) * GAME_W, y: (caravanPosRef.current.y / ISO_CONFIG.MAP_ROWS) * GAME_H }
@@ -1645,7 +1677,16 @@ export default function App() {
                   const origSpeed = w.speed;
                   w.speed = origSpeed * 3;
                   w.dir = friendX > w.x ? 1 : -1;
-                  setTimeout(() => { if (wd[id]) wd[id].speed = origSpeed; }, 800);
+                  // P5: Set charge visual state
+                  w.aggroState = "charging";
+                  if (physicsRef.current) physicsRef.current.setNpcVisualState(idNum, "charging");
+                  setTimeout(() => {
+                    if (wd[id]) {
+                      wd[id].speed = origSpeed;
+                      wd[id].aggroState = "alert";
+                      if (physicsRef.current) physicsRef.current.setNpcVisualState(parseInt(id), "alert");
+                    }
+                  }, 800);
                   if (targetIsCaravan) {
                     if (attackCaravanRef.current) attackCaravanRef.current(idNum, ability.damage);
                   } else {
@@ -1856,6 +1897,14 @@ export default function App() {
                 atkCds[cdKey] = dateNow;
                 const eDmg = w.damage || 5;
                 if (physicsRef.current) physicsRef.current.triggerAttackAnim(idNum);
+                // P3: Enhanced lunge + slash trail particles
+                w.aggroState = "attacking";
+                if (physicsRef.current) physicsRef.current.setNpcVisualState(idNum, "attacking");
+                if (pixiRef.current) {
+                  const ewPx = isoModeRef.current ? (w.x / ISO_CONFIG.MAP_COLS) * GAME_W : (w.x / 100) * GAME_W;
+                  const ewPy = isoModeRef.current ? ((w.y || ISO_CONFIG.MAP_ROWS / 2) / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H * 0.25;
+                  pixiRef.current.spawnMeleeSlashTrail(ewPx, ewPy, w.dir);
+                }
                 if (targetIsCaravan) {
                   if (attackCaravanRef.current) attackCaravanRef.current(idNum, eDmg);
                 } else {
@@ -2086,7 +2135,7 @@ export default function App() {
         // Lunge animation decay
         if (w.lungeFrames > 0) {
           w.lungeFrames--;
-          w.lungeOffset *= 0.75;
+          w.lungeOffset *= 0.88;
         } else {
           w.lungeOffset = 0;
         }
@@ -3465,6 +3514,8 @@ export default function App() {
           lungeFrames: 0,
           lungeOffset: 0,
           ability: npcData.ability || null,
+          aggroState: "idle",
+          windupTimer: 0,
         };
       }
     }

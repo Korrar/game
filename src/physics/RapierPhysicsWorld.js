@@ -694,6 +694,8 @@ export class PhysicsWorld {
       hitFlash: 0, frozenTimer: 0,
       bodyType: bt,
       attackAnim: 0,
+      visualState: "idle",
+      hpPct: 1,
       _dir: 1,
       _px: px,
       _yPct: yPct ?? 65,
@@ -1084,6 +1086,21 @@ export class PhysicsWorld {
   triggerAttackAnim(walkerId) {
     const entry = this.bodies[walkerId];
     if (entry) entry.attackAnim = 10;
+  }
+
+  // Set visual state for NPC rendering (alert, windup, attacking, charging, idle)
+  setNpcVisualState(walkerId, state, hpPct) {
+    const entry = this.bodies[walkerId];
+    if (!entry) return;
+    entry.visualState = state;
+    if (hpPct !== undefined) entry.hpPct = hpPct;
+  }
+
+  // Get visual state for NPC
+  getNpcVisualState(walkerId) {
+    const entry = this.bodies[walkerId];
+    if (!entry) return { visualState: "idle", hpPct: 1 };
+    return { visualState: entry.visualState || "idle", hpPct: entry.hpPct ?? 1 };
   }
 
   // ─── PROJECTILE SYSTEM ───
