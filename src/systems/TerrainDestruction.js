@@ -81,6 +81,8 @@ export class TerrainDestructionState {
     this.overlayMods = new Map();
     // Pending particle spawns
     this.pendingParticles = [];
+    // Flag: set to true when terrain changed and walkGrid needs rebuild
+    this.needsWalkGridRebuild = false;
   }
 
   // ─── EXPLOSION ───
@@ -213,6 +215,9 @@ export class TerrainDestructionState {
       element: element || "fire",
     });
 
+    if (results.craterTiles.length > 0 || results.destroyedVeg.length > 0) {
+      this.needsWalkGridRebuild = true;
+    }
     return results;
   }
 
@@ -290,6 +295,8 @@ export class TerrainDestructionState {
       wx: col + 0.5, wy: row + 0.5,
     });
 
+    this.needsWalkGridRebuild = true;
+
     return true;
   }
 
@@ -343,11 +350,12 @@ export class TerrainDestructionState {
           if (eff.type === TERRAIN_EFFECTS.FROZEN) {
             const overlayMod = this.overlayMods.get(tileKey);
             if (overlayMod) {
-              // Restore original overlay
+              // Restore original overlay (water becomes impassable again)
               if (terrainData?.overlays) {
                 terrainData.overlays[tileKey] = overlayMod.original;
               }
               this.overlayMods.delete(tileKey);
+              this.needsWalkGridRebuild = true;
             }
           }
 
@@ -477,5 +485,6 @@ export class TerrainDestructionState {
     this.heightMods.clear();
     this.overlayMods.clear();
     this.pendingParticles = [];
+    this.needsWalkGridRebuild = false;
   }
 }

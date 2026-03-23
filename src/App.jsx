@@ -3133,6 +3133,11 @@ export default function App() {
       // Terrain destruction tick: update burning, frozen, poison zones
       if (isoModeRef.current && terrainDataRef.current) {
         terrainDestructionRef.current.update(terrainDataRef.current, dateNow);
+        // Rebuild walk grid if terrain changed (craters, frozen water thaw, destroyed vegetation)
+        if (terrainDestructionRef.current.needsWalkGridRebuild) {
+          walkGridRef.current = buildWalkGrid(terrainDataRef.current);
+          terrainDestructionRef.current.needsWalkGridRebuild = false;
+        }
 
         // Terrain zone damage: damage enemies standing on burning/poison tiles (every ~0.5s)
         if (frameCount % 30 === 0) {
@@ -6555,8 +6560,31 @@ export default function App() {
     const world = _isoScreenToWorld(screenX, screenY, cam.x, cam.y);
 
     // Clamp to map bounds
-    const tx = Math.max(1, Math.min(ISO_CONFIG.MAP_COLS - 2, world.x));
-    const ty = Math.max(1, Math.min(ISO_CONFIG.MAP_ROWS - 2, world.y));
+    let tx = Math.max(1, Math.min(ISO_CONFIG.MAP_COLS - 2, world.x));
+    let ty = Math.max(1, Math.min(ISO_CONFIG.MAP_ROWS - 2, world.y));
+
+    // Check if target tile is walkable (not cliff or deep water)
+    if (walkGridRef.current) {
+      const tc = Math.floor(tx), tr = Math.floor(ty);
+      const tileCost = walkGridRef.current[tr * ISO_CONFIG.MAP_COLS + tc];
+      if (tileCost <= 0) {
+        // Find nearest walkable tile
+        let found = false;
+        for (let r = 1; r <= 3 && !found; r++) {
+          for (let dr = -r; dr <= r && !found; dr++) {
+            for (let dc = -r; dc <= r && !found; dc++) {
+              if (Math.abs(dr) !== r && Math.abs(dc) !== r) continue;
+              const nc = tc + dc, nr = tr + dr;
+              if (nc < 1 || nc >= ISO_CONFIG.MAP_COLS - 1 || nr < 1 || nr >= ISO_CONFIG.MAP_ROWS - 1) continue;
+              if (walkGridRef.current[nr * ISO_CONFIG.MAP_COLS + nc] > 0) {
+                tx = nc + 0.5; ty = nr + 0.5; found = true;
+              }
+            }
+          }
+        }
+        if (!found) return false; // no walkable tile nearby
+      }
+    }
 
     caravanMoveRef.current = { active: true, targetX: tx, targetY: ty, speed: 2.5 };
     setCaravanSelected(false);

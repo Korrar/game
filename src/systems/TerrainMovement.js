@@ -50,6 +50,7 @@ export function getTileSpeedMod(col, row, terrainData) {
     }
     case 3: return TERRAIN_SPEED.cliff;
     case 4: return TERRAIN_SPEED.bridge;
+    case 5: return TERRAIN_SPEED.ice; // frozen water (from TerrainDestruction)
     default: break;
   }
 
