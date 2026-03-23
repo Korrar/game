@@ -11,6 +11,9 @@ import {
   tileToWorld,
   isInMapBounds,
   distanceWorld,
+  generateHeightMap,
+  getHeightAt,
+  getHeightSmooth,
 } from "../isometricUtils.js";
 
 // ─── CONFIGURATION ───
@@ -128,10 +131,15 @@ describe("isoDepth", () => {
     expect(isoDepth(10, 10)).toBeGreaterThan(isoDepth(5, 5));
   });
 
-  it("objects on same diagonal have same depth", () => {
+  it("objects on same diagonal have same depth (no height)", () => {
     // wx+wy = 20 for both
     expect(isoDepth(15, 5)).toBe(isoDepth(10, 10));
     expect(isoDepth(15, 5)).toBe(isoDepth(5, 15));
+  });
+
+  it("height increases depth slightly", () => {
+    expect(isoDepth(10, 10, 2)).toBeGreaterThan(isoDepth(10, 10, 0));
+    expect(isoDepth(10, 10, 0)).toBe(isoDepth(10, 10));
   });
 
   it("is a number", () => {
@@ -245,5 +253,104 @@ describe("integration: isometric pipeline", () => {
       Math.floor(ISO_CONFIG.MAP_COLS / 2),
       Math.floor(ISO_CONFIG.MAP_ROWS / 2)
     )).toBe(true);
+  });
+});
+
+// ─── TERRAIN HEIGHT SYSTEM ───
+
+describe("worldToScreen with height", () => {
+  it("height lifts object upward on screen (lower Y)", () => {
+    const flat = worldToScreen(10, 10, 0, 0);
+    const elevated = worldToScreen(10, 10, 0, 0, 2);
+    expect(elevated.x).toBe(flat.x); // X unchanged
+    expect(elevated.y).toBeLessThan(flat.y); // lifted up
+  });
+
+  it("height 0 returns same as no height", () => {
+    const noH = worldToScreen(5, 5, 0, 0);
+    const zeroH = worldToScreen(5, 5, 0, 0, 0);
+    expect(zeroH.x).toBe(noH.x);
+    expect(zeroH.y).toBe(noH.y);
+  });
+});
+
+describe("generateHeightMap", () => {
+  it("generates a height map with correct dimensions", () => {
+    const hm = generateHeightMap(1, { terrain: "forest" });
+    expect(hm.cols).toBe(ISO_CONFIG.MAP_COLS);
+    expect(hm.rows).toBe(ISO_CONFIG.MAP_ROWS);
+    expect(hm.data.length).toBe(hm.cols * hm.rows);
+  });
+
+  it("is deterministic for same room number", () => {
+    const hm1 = generateHeightMap(42, { terrain: "forest" });
+    const hm2 = generateHeightMap(42, { terrain: "forest" });
+    for (let i = 0; i < hm1.data.length; i++) {
+      expect(hm1.data[i]).toBe(hm2.data[i]);
+    }
+  });
+
+  it("different rooms produce different height maps", () => {
+    const hm1 = generateHeightMap(1, { terrain: "forest" });
+    const hm2 = generateHeightMap(2, { terrain: "forest" });
+    let different = false;
+    for (let i = 0; i < hm1.data.length; i++) {
+      if (hm1.data[i] !== hm2.data[i]) { different = true; break; }
+    }
+    expect(different).toBe(true);
+  });
+
+  it("heights are non-negative", () => {
+    const hm = generateHeightMap(5, { terrain: "mountain" });
+    for (let i = 0; i < hm.data.length; i++) {
+      expect(hm.data[i]).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("edges have low/zero height", () => {
+    const hm = generateHeightMap(1, { terrain: "forest" });
+    // Corner tiles should be 0 (edge falloff)
+    expect(getHeightAt(hm, 0, 0)).toBe(0);
+    expect(getHeightAt(hm, hm.cols - 1, hm.rows - 1)).toBe(0);
+  });
+
+  it("flatCenter profile flattens map center", () => {
+    const hm = generateHeightMap(1, { terrain: "forest" });
+    const cx = Math.floor(hm.cols / 2);
+    const cy = Math.floor(hm.rows / 2);
+    const centerH = getHeightAt(hm, cx, cy);
+    // Center should be low due to flatCenter
+    expect(centerH).toBeLessThan(1.0);
+  });
+});
+
+describe("getHeightAt", () => {
+  it("returns 0 for null height map", () => {
+    expect(getHeightAt(null, 5, 5)).toBe(0);
+  });
+
+  it("returns 0 for out-of-bounds coordinates", () => {
+    const hm = generateHeightMap(1, { terrain: "forest" });
+    expect(getHeightAt(hm, -1, 5)).toBe(0);
+    expect(getHeightAt(hm, 5, -1)).toBe(0);
+    expect(getHeightAt(hm, 100, 5)).toBe(0);
+  });
+});
+
+describe("getHeightSmooth", () => {
+  it("returns 0 for null height map", () => {
+    expect(getHeightSmooth(null, 5, 5)).toBe(0);
+  });
+
+  it("interpolates between tile centers", () => {
+    const hm = generateHeightMap(1, { terrain: "mountain" });
+    const h1 = getHeightAt(hm, 10, 10);
+    const h2 = getHeightAt(hm, 11, 10);
+    const hMid = getHeightSmooth(hm, 10.5, 10);
+    // Should be between the two tile heights (or close)
+    const minH = Math.min(h1, h2);
+    const maxH = Math.max(h1, h2);
+    expect(hMid).toBeGreaterThanOrEqual(minH - 0.01);
+    expect(hMid).toBeLessThanOrEqual(maxH + 0.01);
   });
 });
