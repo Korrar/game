@@ -10,8 +10,8 @@ import { getIconImage } from "../rendering/icons.js";
 // Cache rendered tile images to avoid re-drawing each frame
 const _tileCache = new Map();
 
-function getTileCacheKey(biomeId, variant, elevated) {
-  return `${biomeId}_${variant}_${elevated ? 1 : 0}`;
+function getTileCacheKey(biomeId, variant, heightPx) {
+  return `${biomeId}_${variant}_${heightPx}`;
 }
 
 // Create a single diamond tile image (flat ground tile)
@@ -91,21 +91,32 @@ function createElevatedTileImage(topColor, leftColor, rightColor, outlineColor, 
 
 // Get or create cached tile image
 function getCachedTile(biomeId, colorIndex, colors, outlineColor, heightPx) {
-  const elevated = heightPx > 0;
-  const key = getTileCacheKey(biomeId, colorIndex, elevated);
-  if (_tileCache.has(key)) return _tileCache.get(key);
+  // Round heightPx to nearest 4px for cache efficiency with continuous heights
+  const hRound = Math.round(heightPx / 4) * 4;
+  const key = getTileCacheKey(biomeId, colorIndex, hRound);
+  if (_tileCache.has(key)) return { img: _tileCache.get(key), heightPx: hRound };
 
   let img;
-  if (elevated) {
+  if (hRound > 0) {
     const top = colors[colorIndex];
-    const left = darkenColor(top, 0.35);
-    const right = darkenColor(top, 0.2);
-    img = createElevatedTileImage(top, left, right, outlineColor, heightPx);
+    // Height-based shading: higher tiles get slightly lighter tops
+    const brightBoost = Math.min(0.15, hRound * 0.002);
+    const topLit = lightenColor(top, brightBoost);
+    const left = darkenColor(top, 0.4 + hRound * 0.003);
+    const right = darkenColor(top, 0.22 + hRound * 0.002);
+    img = createElevatedTileImage(topLit, left, right, outlineColor, hRound);
   } else {
     img = createTileImage(colors[colorIndex], outlineColor);
   }
   _tileCache.set(key, img);
-  return img;
+  return { img, heightPx: hRound };
+}
+
+function lightenColor(hex, amount) {
+  const r = Math.min(255, Math.round(parseInt(hex.slice(1, 3), 16) * (1 + amount)));
+  const g = Math.min(255, Math.round(parseInt(hex.slice(3, 5), 16) * (1 + amount)));
+  const b = Math.min(255, Math.round(parseInt(hex.slice(5, 7), 16) * (1 + amount)));
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 }
 
 // ─── COLOR UTILITIES ───
@@ -318,14 +329,34 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
 
       if (heightPx > 2) {
         // Elevated tile with side walls
-        const tileImg = getCachedTile(biome.id + "_elev", variant, tileInfo.colors, tileInfo.outline, heightPx);
+        const cached = getCachedTile(biome.id + "_elev", variant, tileInfo.colors, tileInfo.outline, heightPx);
         const tx = screen.x - TILE_W / 2;
-        const ty = screen.y - heightPx;
-        ctx.drawImage(tileImg, tx, ty, TILE_W, TILE_H + heightPx);
+        const ty = screen.y - cached.heightPx;
+        ctx.drawImage(cached.img, tx, ty, TILE_W, TILE_H + cached.heightPx);
+
+        // Shadow on lower neighboring tiles for depth
+        if (col + 1 < MAP_COLS && row + 1 < MAP_ROWS) {
+          const neighborH = getHeightAt(heightMap, col + 1, row + 1);
+          const diff = h - neighborH;
+          if (diff > 0.5) {
+            const nScreen = worldToScreen(col + 1, row + 1, cameraX, cameraY);
+            const shadowAlpha = Math.min(0.2, diff * 0.06);
+            ctx.globalAlpha = shadowAlpha;
+            ctx.fillStyle = "#000";
+            ctx.beginPath();
+            ctx.moveTo(nScreen.x, nScreen.y);
+            ctx.lineTo(nScreen.x + TILE_W / 2, nScreen.y + TILE_H / 2);
+            ctx.lineTo(nScreen.x, nScreen.y + TILE_H);
+            ctx.lineTo(nScreen.x - TILE_W / 2, nScreen.y + TILE_H / 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+        }
       } else {
         // Flat tile
-        const tileImg = getCachedTile(biome.id, variant, tileInfo.colors, tileInfo.outline, 0);
-        ctx.drawImage(tileImg, screen.x - TILE_W / 2, screen.y, TILE_W, TILE_H);
+        const cached = getCachedTile(biome.id, variant, tileInfo.colors, tileInfo.outline, 0);
+        ctx.drawImage(cached.img, screen.x - TILE_W / 2, screen.y, TILE_W, TILE_H);
       }
     }
   }
