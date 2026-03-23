@@ -356,7 +356,7 @@ export function calcHeightAdvantage(attackerWx, attackerWy, targetWx, targetWy, 
 
 // ─── LINE OF SIGHT ───
 
-export function hasLineOfSight(x1, y1, x2, y2, terrainData) {
+export function hasLineOfSight(x1, y1, x2, y2, terrainData, terrainDestruction) {
   if (!terrainData) return true;
   const { vegetation, heightMap } = terrainData;
 
@@ -391,6 +391,11 @@ export function hasLineOfSight(x1, y1, x2, y2, terrainData) {
       const vdx = veg.wx - cx;
       const vdy = veg.wy - cy;
       if (vdx * vdx + vdy * vdy < 0.6) return false;
+    }
+
+    // Check terrain destruction effects (smoke blocks LOS)
+    if (terrainDestruction && terrainDestruction.doesEffectBlockLOS(col, row, terrainData.cols)) {
+      return false;
     }
   }
 
