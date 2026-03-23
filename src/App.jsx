@@ -6482,7 +6482,7 @@ export default function App() {
     }
     if (!combatEngagedRef.current) combatEngagedRef.current = true;
     setWandActive(true);
-    wandOrbsRef.current = { active: true, startTime: Date.now(), cursorX, cursorY, hitCooldowns: {}, lastDrainTime: Date.now() };
+    wandOrbsRef.current = { active: true, startTime: Date.now(), cursorX, cursorY, screenX: screenPx, screenY: screenPy, hitCooldowns: {}, lastDrainTime: Date.now() };
     sfxLightning();
   }, [isWandMode, gameScale]);
 
@@ -6548,7 +6548,7 @@ export default function App() {
     if ((ammoRef.current.cannonball || 0) < 1) { showMessage("Brak kul armatnich!", "#c04040"); return; }
     if (manaRef.current < 5) { showMessage("Za mało prochu!", "#c0a060"); return; }
     setSalvaActive(true);
-    salvaRef.current = { active: true, cursorX, cursorY, lastShotTime: 0 };
+    salvaRef.current = { active: true, cursorX, cursorY, lastShotTime: 0, screenX: screenPx, screenY: screenPy };
   }, [isSalvaMode, gameScale]);
 
   const moveSalva = useCallback((e) => {
@@ -6559,6 +6559,9 @@ export default function App() {
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
     const sxPx = (cx - gr.left) / gameScale;
     const syPx = (cy - gr.top) / gameScale;
+    // Always store screen pixel position for crosshair overlay
+    salvaRef.current.screenX = sxPx;
+    salvaRef.current.screenY = syPx;
     if (isoModeRef.current) {
       const cam = isoCameraRef.current;
       const iw = _isoScreenToWorld(sxPx, syPx, cam.x, cam.y);
@@ -7931,11 +7934,11 @@ export default function App() {
       <div ref={gameContainerRef}
         onClick={placingFort ? handleFortPlaceClick : placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode && !isSalvaMode) ? handleSkillshotClick : undefined}
         onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
-        onMouseMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; if (isoModeRef.current) { const sx = (cx - gr.left) / gameScale; const sy = (cy - gr.top) / gameScale; const cam = isoCameraRef.current; const iw = _isoScreenToWorld(sx, sy, cam.x, cam.y); wandOrbsRef.current.cursorX = iw.x; wandOrbsRef.current.cursorY = iw.y; } else { wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } } }}
+        onMouseMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; const _wsx = (cx - gr.left) / gameScale; const _wsy = (cy - gr.top) / gameScale; wandOrbsRef.current.screenX = _wsx; wandOrbsRef.current.screenY = _wsy; if (isoModeRef.current) { const cam = isoCameraRef.current; const iw = _isoScreenToWorld(_wsx, _wsy, cam.x, cam.y); wandOrbsRef.current.cursorX = iw.x; wandOrbsRef.current.cursorY = iw.y; } else { wandOrbsRef.current.cursorX = (_wsx / GAME_W) * 100; wandOrbsRef.current.cursorY = (_wsy / GAME_H) * 100; } } }}
         onMouseUp={(e) => { if (panRef.current.dragging) { handlePanEnd(); return; } if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
         onMouseLeave={(e) => { handlePanEnd(); if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
         onTouchStart={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
-        onTouchMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active && e.touches[0]) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current && e.touches[0]) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.touches[0].clientX; const cy = e.touches[0].clientY; if (isoModeRef.current) { const sx = (cx - gr.left) / gameScale; const sy = (cy - gr.top) / gameScale; const cam = isoCameraRef.current; const iw = _isoScreenToWorld(sx, sy, cam.x, cam.y); wandOrbsRef.current.cursorX = iw.x; wandOrbsRef.current.cursorY = iw.y; } else { wandOrbsRef.current.cursorX = ((cx - gr.left) / gameScale / GAME_W) * 100; wandOrbsRef.current.cursorY = ((cy - gr.top) / gameScale / GAME_H) * 100; } } }}
+        onTouchMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active && e.touches[0]) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current && e.touches[0]) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.touches[0].clientX; const cy = e.touches[0].clientY; const _wsx = (cx - gr.left) / gameScale; const _wsy = (cy - gr.top) / gameScale; wandOrbsRef.current.screenX = _wsx; wandOrbsRef.current.screenY = _wsy; if (isoModeRef.current) { const cam = isoCameraRef.current; const iw = _isoScreenToWorld(_wsx, _wsy, cam.x, cam.y); wandOrbsRef.current.cursorX = iw.x; wandOrbsRef.current.cursorY = iw.y; } else { wandOrbsRef.current.cursorX = (_wsx / GAME_W) * 100; wandOrbsRef.current.cursorY = (_wsy / GAME_H) * 100; } } }}
         onTouchEnd={(e) => { if (panRef.current.dragging) { handlePanEnd(); return; } if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
         style={{
         width: GAME_W, height: GAME_H,
@@ -8111,8 +8114,9 @@ export default function App() {
       {/* Wand orbiting lightning balls — time-based smooth rotation */}
       {wandActive && (() => {
         const wo = wandOrbsRef.current;
-        const centerX = (wo.cursorX / 100) * GAME_W;
-        const centerY = (wo.cursorY / 100) * GAME_H;
+        // Use screen-space cursor position for visual overlay
+        const centerX = wo.screenX ?? GAME_W / 2;
+        const centerY = wo.screenY ?? GAME_H / 2;
         const orbRadius = GAME_W * 0.08;
         const ySquash = 0.55;
         // Time-based angle matching physics calculation (elapsed / 600)
@@ -8200,16 +8204,9 @@ export default function App() {
       {/* Salva Armatnia: red crosshair overlay (projectiles rendered by PixiJS) */}
       {salvaActive && (() => {
         const sv = salvaRef.current;
-        let cx, cy;
-        if (isoModeRef.current) {
-          // Iso: cursorX/Y are tile coords — convert to screen via worldToScreen
-          const cam = isoCameraRef.current;
-          const scr = _isoWorldToScreen(sv.cursorX, sv.cursorY, cam.x, cam.y);
-          cx = scr.x; cy = scr.y;
-        } else {
-          cx = (sv.cursorX / 100) * GAME_W;
-          cy = (sv.cursorY / 100) * GAME_H;
-        }
+        // Use screen-space cursor position for crosshair (avoids iso coordinate confusion)
+        const cx = sv.screenX ?? GAME_W / 2;
+        const cy = sv.screenY ?? GAME_H / 2;
         const pulse = Math.sin(Date.now() * 0.012) * 0.3 + 0.7;
         return (
           <>
