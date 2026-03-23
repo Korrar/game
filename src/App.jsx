@@ -6,6 +6,9 @@ import { IsoCamera } from "./rendering/IsoCamera.js";
 const _toPhysPct = (val, isIso, maxTiles) => isIso ? (val / maxTiles) * 100 : val;
 const _isoCenter = () => ISO_CONFIG.MAP_COLS / 2;
 import { renderIsoBiome, clearTileCache } from "./renderers/isoBiomeRenderer.js";
+import { renderTerrainOverlays } from "./renderers/isoTerrainOverlayRenderer.js";
+import { generateTerrainData, updateFogOfWar, calcHeightAdvantage, hasLineOfSight } from "./systems/TerrainSystem.js";
+import { TerrainParticleSystem } from "./rendering/TerrainParticles.js";
 import { BIOMES } from "./data/biomes";
 import { RARITY_C, RARITY_L } from "./data/treasures";
 import { rollCardDrop, ALL_NPCS, BIOME_NAMES } from "./data/bestiary";
@@ -310,6 +313,8 @@ export default function App() {
   const caravanLevelRef = useRef(0);
   // Caravan world position (iso tile coords)
   const caravanPosRef = useRef({ x: 3, y: ISO_CONFIG.MAP_ROWS / 2 });
+  const terrainDataRef = useRef(null);
+  const terrainParticlesRef = useRef(null);
   caravanLevelRef.current = caravanLevel;
 
   // Refs for game-over stats capture (needed inside interval callbacks)
@@ -1145,7 +1150,16 @@ export default function App() {
     if (hasSynergy("twierdza")) armor += 2;
     // Perk: caravan armor
     armor += perkCaravanArmor;
-    const actualDmg = Math.max(1, damage - armor);
+    let actualDmg = Math.max(1, damage - armor);
+    // Height advantage: enemies on high ground deal more damage to caravan
+    if (isoModeRef.current && terrainDataRef.current?.heightMap) {
+      const ew = walkDataRef.current[enemyId];
+      const _cp = caravanPosRef.current;
+      if (ew && _cp) {
+        const _ha = calcHeightAdvantage(ew.x, ew.y || ISO_CONFIG.MAP_ROWS / 2, _cp.x, _cp.y, terrainDataRef.current.heightMap);
+        actualDmg = Math.round(actualDmg * _ha.damageMult);
+      }
+    }
     // Challenge: no_caravan_dmg fails on caravan damage
     if (roomChallengeRef.current?.id === "no_caravan_dmg" && !roomChallengeRef.current.completed && !roomChallengeRef.current.failed) {
       setRoomChallenge(prev => prev ? { ...prev, failed: true } : prev);
@@ -1325,7 +1339,9 @@ export default function App() {
           if (w.stationary) {
             if (w.combatStyle === "ranged" && nearId !== null) {
               const range = w.range || 40;
-              if (nearDist < range) {
+              const _stLOS = !isoModeRef.current || !terrainDataRef.current ||
+                hasLineOfSight(w.x, w.y || ISO_CONFIG.MAP_ROWS / 2, wd[nearId]?.x || nearX, wd[nearId]?.y || nearY || ISO_CONFIG.MAP_ROWS / 2, terrainDataRef.current);
+              if (_stLOS && nearDist < range) {
                 w.dir = (wd[nearId]?.x || 50) > w.x ? 1 : -1;
                 const projCd = w.projectileCd || w.attackCd || 2000;
                 if (!atkCds[id] || dateNow - atkCds[id] > projCd) {
@@ -1375,8 +1391,16 @@ export default function App() {
                 }
               }
 
-              const range = w.range || 35;
-              if (nearDist < range) {
+              let range = w.range || 35;
+              // Height advantage: mercenaries on high ground get extra range
+              if (isoModeRef.current && terrainDataRef.current?.heightMap && nearX != null) {
+                const _ha = calcHeightAdvantage(w.x, w.y || ISO_CONFIG.MAP_ROWS / 2, nearX, nearY || ISO_CONFIG.MAP_ROWS / 2, terrainDataRef.current.heightMap);
+                range += _ha.rangeBonusTiles;
+              }
+              // LOS check for ranged mercenaries
+              const _mercHasLOS = !isoModeRef.current || !terrainDataRef.current ||
+                hasLineOfSight(w.x, w.y || ISO_CONFIG.MAP_ROWS / 2, nearX, nearY || ISO_CONFIG.MAP_ROWS / 2, terrainDataRef.current);
+              if (_mercHasLOS && nearDist < range) {
                 // Sheriff aura: use cached knight positions instead of O(n) scan
                 const rangedAuraBonus = _hasKnightAura(w.x, w.y || 50) ? 1.15 : 1;
 
@@ -1635,10 +1659,18 @@ export default function App() {
             const abCdKey = "ab" + id;
             // Scale ability range to ~4-6 tiles (iso: 5-6 tiles, panoramic: ~13-15 units)
             const _abIsRanged = ["poisonSpit", "iceShot", "shadowBolt", "fireBreath", "drain"].includes(ability.type);
-            const _effectiveAbRange = isoModeRef.current
+            let _effectiveAbRange = isoModeRef.current
               ? (_abIsRanged ? Math.min(ability.range, 6) : Math.min(ability.range, 2))
               : (_abIsRanged ? Math.min(ability.range * 0.55, 15) : Math.min(ability.range * 0.25, 5));
-            if (friendDist < _effectiveAbRange && (!atkCds[abCdKey] || dateNow - atkCds[abCdKey] > ability.cooldown)) {
+            // Height advantage: enemies on high ground get extra range
+            if (isoModeRef.current && terrainDataRef.current?.heightMap && _abIsRanged) {
+              const _ha = calcHeightAdvantage(w.x, w.y || ISO_CONFIG.MAP_ROWS / 2, friendX, friendY || ISO_CONFIG.MAP_ROWS / 2, terrainDataRef.current.heightMap);
+              _effectiveAbRange += _ha.rangeBonusTiles;
+            }
+            // LOS check: ranged enemies need clear line of sight through terrain/vegetation
+            const _hasLOS = !_abIsRanged || !isoModeRef.current || !terrainDataRef.current ||
+              hasLineOfSight(w.x, w.y || ISO_CONFIG.MAP_ROWS / 2, friendX, friendY || ISO_CONFIG.MAP_ROWS / 2, terrainDataRef.current);
+            if (_hasLOS && friendDist < _effectiveAbRange && (!atkCds[abCdKey] || dateNow - atkCds[abCdKey] > ability.cooldown)) {
               atkCds[abCdKey] = dateNow;
               const dirX = friendX > w.x ? 1 : -1;
               const _idNum = idNum; // capture for closures
@@ -2993,6 +3025,21 @@ export default function App() {
         }
       }
 
+      // Fog of war: reveal around caravan and mercenaries every 10 frames
+      if (isoModeRef.current && terrainDataRef.current && frameCount % 10 === 0) {
+        const revealPoints = [];
+        const _cp = caravanPosRef.current;
+        if (_cp) revealPoints.push({ wx: _cp.x, wy: _cp.y, radius: 8 });
+        // Add mercenary vision
+        for (const fid of friendlyList) {
+          const fw = wd[fid.id || fid];
+          if (fw && fw.alive) {
+            revealPoints.push({ wx: fw.x, wy: fw.y || ISO_CONFIG.MAP_ROWS / 2, radius: 5 });
+          }
+        }
+        if (revealPoints.length > 0) updateFogOfWar(terrainDataRef.current, revealPoints);
+      }
+
       // Step physics simulation
       if (physicsRef.current) physicsRef.current.step();
     };
@@ -3022,6 +3069,12 @@ export default function App() {
       if (pixiRef.current) pixiRef.current.setIsoCamera(cam.x, cam.y);
       // Place caravan at left side of the map, vertically centered
       caravanPosRef.current = { x: 3, y: ISO_CONFIG.MAP_ROWS / 2 };
+      // Generate terrain overlays (roads, water, vegetation, fog)
+      terrainDataRef.current = generateTerrainData(newRoom, nextB);
+      if (!terrainParticlesRef.current) {
+        terrainParticlesRef.current = new TerrainParticleSystem(isMobileScreen());
+      }
+      terrainParticlesRef.current.clear();
     } else {
       if (pixiRef.current) pixiRef.current.setPanOffset(0);
     }
@@ -3698,6 +3751,15 @@ export default function App() {
       if (isoModeRef.current) {
         const cam = isoCameraRef.current;
         renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current, !!placingFortRef.current);
+        // Render terrain overlays (roads, water, vegetation, fog of war)
+        if (terrainDataRef.current) {
+          renderTerrainOverlays(ctx, terrainDataRef.current, cam.x, cam.y, true);
+          // Render terrain particles
+          if (terrainParticlesRef.current) {
+            terrainParticlesRef.current.spawnAmbient(terrainDataRef.current, cam.x, cam.y);
+            terrainParticlesRef.current.update(ctx, cam.x, cam.y);
+          }
+        }
       } else {
         renderBiome(ctx, biome, room, c.width, c.height, isNight, panOffset);
       }
@@ -5789,6 +5851,16 @@ export default function App() {
         dmg = Math.round(dmg * (1 + ACCURACY_COMBO_BONUS));
       }
 
+      // Height advantage: bonus/penalty based on elevation difference (iso mode)
+      if (isoModeRef.current && terrainDataRef.current?.heightMap) {
+        const _cp = caravanPosRef.current;
+        const _wd = walkDataRef.current[walkerId];
+        if (_cp && _wd) {
+          const heightAdv = calcHeightAdvantage(_cp.x, _cp.y, _wd.x, _wd.y, terrainDataRef.current.heightMap);
+          dmg = Math.round(dmg * heightAdv.damageMult);
+        }
+      }
+
       // Element combo system
       let comboText = null;
       const prevDebuff = elementDebuffs.current[walkerId];
@@ -6239,6 +6311,9 @@ export default function App() {
         const ctx = c.getContext("2d");
         ctx.clearRect(0, 0, GAME_W, GAME_H);
         renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current, !!placingFortRef.current);
+        if (terrainDataRef.current) {
+          renderTerrainOverlays(ctx, terrainDataRef.current, cam.x, cam.y, true);
+        }
       }
     } else {
       const dx = (panRef.current.startX - clientX) / gameScale;
