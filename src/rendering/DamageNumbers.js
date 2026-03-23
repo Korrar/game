@@ -1,7 +1,7 @@
 // DamageNumbers — floating damage numbers with glow effects
 import { Container, Text, TextStyle } from "pixi.js";
 import { wrapPxToScreen } from "../utils/panoramaWrap.js";
-import { worldToScreen } from "../utils/isometricUtils.js";
+import { worldToScreen, ISO_CONFIG } from "../utils/isometricUtils.js";
 
 const ELEMENT_COLORS = {
   fire: "#ff6030",
@@ -116,15 +116,18 @@ export class DamageNumbers {
   updateIso(cameraX, cameraY, gameW = 1280) {
     for (let i = this.numbers.length - 1; i >= 0; i--) {
       const n = this.numbers[i];
-      n.text.position.y += n.vy;
+      // Track float offset separately so iso projection stays correct
+      if (n._floatY === undefined) n._floatY = -10;
+      n._floatY += n.vy;
       n.vy *= 0.96;
       n.life--;
 
       // Convert physics pixel coords to iso world coords for projection
-      const wx = n.wx ?? (n.worldX / gameW) * 40;  // MAP_COLS=40
-      const wy = n.wy ?? ((n.worldY ?? 360) / 720) * 40; // MAP_ROWS=40
+      const wx = n.wx ?? (n.worldX / gameW) * ISO_CONFIG.MAP_COLS;
+      const wy = n.wy ?? ((n.worldY ?? (ISO_CONFIG.GAME_H / 2)) / ISO_CONFIG.GAME_H) * ISO_CONFIG.MAP_ROWS;
       const screen = worldToScreen(wx, wy, cameraX, cameraY);
       n.text.position.x = screen.x;
+      n.text.position.y = screen.y + n._floatY;
       n.text.visible = screen.x > -50 && screen.x < gameW + 50;
 
       const lifeRatio = n.life / n.maxLife;

@@ -1,7 +1,8 @@
 // ProjectileRenderer — PixiJS-based projectile rendering with enhanced glow effects
 import { Container, Graphics } from "pixi.js";
 import { wrapPxToScreen } from "../utils/panoramaWrap.js";
-import { worldToScreen } from "../utils/isometricUtils.js";
+import { worldToScreen, ISO_CONFIG } from "../utils/isometricUtils.js";
+import { isoZIndex } from "./DepthSystem.js";
 
 export class ProjectileRenderer {
   constructor(layer) {
@@ -148,13 +149,16 @@ export class ProjectileRenderer {
   // Isometric positioning — convert physics pixel coords to iso screen position
   _applyIso(gfx, obj, cameraX, cameraY) {
     // Convert physics pixel coords to world tile coords
-    const wx = obj.wx ?? (obj.x / this._gameW) * 40; // MAP_COLS=40
-    const wy = obj.wy ?? (obj.y / 720) * 40;         // MAP_ROWS=40
+    const wx = obj.wx ?? (obj.x / this._gameW) * ISO_CONFIG.MAP_COLS;
+    const wy = obj.wy ?? (obj.y / ISO_CONFIG.GAME_H) * ISO_CONFIG.MAP_ROWS;
     const screen = worldToScreen(wx, wy, cameraX, cameraY);
     // Offset container: sprite draws at (obj.x, obj.y), shift so it appears at screen pos
     gfx.position.x = screen.x - (obj.x || 0);
     gfx.position.y = screen.y - (obj.y || 0);
-    gfx.visible = screen.x > -100 && screen.x < this._gameW + 100;
+    gfx.visible = screen.x > -100 && screen.x < this._gameW + 100 &&
+                  screen.y > -100 && screen.y < ISO_CONFIG.GAME_H + 100;
+    // Depth sorting: projectiles render in front of NPCs at same depth
+    gfx.zIndex = isoZIndex(wx, wy) + 1;
   }
 
   // Offset Graphics container so world-space drawing appears at correct screen position

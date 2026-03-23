@@ -4,11 +4,11 @@
 import { Application, Container, Graphics, Text, TextStyle, BlurFilter } from "pixi.js";
 import { CharacterSprite } from "./CharacterSprite.js";
 import { wrapPxToScreen } from "../utils/panoramaWrap.js";
-import { worldToScreen } from "../utils/isometricUtils.js";
+import { worldToScreen, ISO_CONFIG } from "../utils/isometricUtils.js";
 import { ProjectileRenderer } from "./ProjectileRenderer.js";
 import { CombatParticles } from "./CombatParticles.js";
 import { DamageNumbers } from "./DamageNumbers.js";
-import { depthFromY, scaleAtDepth, zIndexAtDepth, isoDepthFromWorld, isoZIndex } from "./DepthSystem.js";
+import { depthFromY, scaleAtDepth, zIndexAtDepth, isoDepthFromWorld, isoZIndex, isoScaleAtDepth } from "./DepthSystem.js";
 import { createDebris, updateDebris, clearDebris, DEBRIS_CONFIG } from "../systems/DebrisSystem.js";
 import { createGroundMark, updateGroundMarks, clearGroundMarks, GROUND_MARKS_CONFIG } from "../systems/GroundMarks.js";
 
@@ -80,6 +80,7 @@ export class PixiRenderer {
     this.npcLayer = new Container();
     this.npcLayer.sortableChildren = true; // 2.5D depth sorting by Y
     this.projectileLayer = new Container();
+    this.projectileLayer.sortableChildren = true; // iso depth sorting for projectiles
     this.particleLayer = new Container();
     this.uiLayer = new Container();
 
@@ -160,7 +161,7 @@ export class PixiRenderer {
     if (!gfx || !this._caravanPos) { if (gfx) gfx.visible = false; return; }
     const { wx, wy } = this._caravanPos;
     const screen = worldToScreen(wx, wy, this._cameraX, this._cameraY);
-    if (screen.x < -100 || screen.x > this.W + 100) { gfx.visible = false; return; }
+    if (screen.x < -100 || screen.x > this.W + 100 || screen.y < -100 || screen.y > this.H + 100) { gfx.visible = false; return; }
 
     gfx.visible = true;
     gfx.clear();
@@ -267,8 +268,8 @@ export class PixiRenderer {
       gfx.fill();
     }
 
-    // Z-ordering: keep caravan below enemies at same depth
-    gfx.zIndex = Math.round((wx + wy) * 1.2);
+    // Z-ordering: keep caravan slightly below enemies at same depth
+    gfx.zIndex = Math.max(0, isoZIndex(wx, wy) - 1);
   }
 
   // Isometric camera position
@@ -323,7 +324,7 @@ export class PixiRenderer {
         const wx = entry._wx ?? 20;
         const wy = entry._wy ?? 20;
         const isoDepth = isoDepthFromWorld(wx, wy);
-        const depthScale = 1.0; // uniform scale in iso (no perspective distortion)
+        const depthScale = isoScaleAtDepth(wx, wy);
         char.container.zIndex = isoZIndex(wx, wy);
 
         const screen = worldToScreen(wx, wy, this._cameraX, this._cameraY);
@@ -472,8 +473,8 @@ export class PixiRenderer {
       let sx, debrisY = d.y;
       if (this._isoMode) {
         // Convert physics pixel coords to iso world tiles
-        const dwx = d.wx ?? (d.x / this.W) * 40;
-        const dwy = d.wy ?? (d.y / this.H) * 40;
+        const dwx = d.wx ?? (d.x / this.W) * ISO_CONFIG.MAP_COLS;
+        const dwy = d.wy ?? (d.y / this.H) * ISO_CONFIG.MAP_ROWS;
         const screen = worldToScreen(dwx, dwy, this._cameraX, this._cameraY);
         sx = screen.x;
         debrisY = screen.y;
@@ -538,8 +539,8 @@ export class PixiRenderer {
     for (const m of this._groundMarks) {
       let mx, markY = m.y;
       if (this._isoMode) {
-        const mwx = m.wx ?? (m.x / this.W) * 40;
-        const mwy = m.wy ?? (m.y / this.H) * 40;
+        const mwx = m.wx ?? (m.x / this.W) * ISO_CONFIG.MAP_COLS;
+        const mwy = m.wy ?? (m.y / this.H) * ISO_CONFIG.MAP_ROWS;
         const screen = worldToScreen(mwx, mwy, this._cameraX, this._cameraY);
         mx = screen.x;
         markY = screen.y;
