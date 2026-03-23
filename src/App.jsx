@@ -3343,6 +3343,13 @@ export default function App() {
     // Biome interactive terrain elements
     if (!isDefenseRoom) {
       const roomInteractables = rollInteractables(b.id);
+      // In iso mode, interactables start hidden until fog reveals them
+      if (isoModeRef.current) {
+        for (const item of roomInteractables) {
+          item._fogHidden = true;
+          item._discovered = false;
+        }
+      }
       setInteractables(roomInteractables);
     } else {
       setInteractables([]);
