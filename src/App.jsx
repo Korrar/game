@@ -1306,12 +1306,14 @@ export default function App() {
         if (w.friendly) {
           // Friendly AI: find nearest enemy from pre-computed list
           let nearX = null, nearY = null, nearDist = Infinity, nearId = null;
+          const _fDefY = isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 65;
+          const _fYScale = isoModeRef.current ? 1 : 0.5;
           for (let ei = 0; ei < enemyList.length; ei++) {
             const e = enemyList[ei].w;
             const dx = e.x - w.x;
-            const dy = ((e.y || 65) - (w.y || 65)) * 0.5;
+            const dy = ((e.y || _fDefY) - (w.y || _fDefY)) * _fYScale;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < nearDist) { nearDist = dist; nearX = e.x; nearY = e.y || 65; nearId = enemyList[ei].id; }
+            if (dist < nearDist) { nearDist = dist; nearX = e.x; nearY = e.y || _fDefY; nearId = enemyList[ei].id; }
           }
 
           // Mage mana regen (uses dt for frame-rate independence)
@@ -1348,12 +1350,14 @@ export default function App() {
 
           if (nearX !== null) {
             if (isRanged) {
-              // Ranged AI: keep distance 15-35%, strafe while shooting
+              // Ranged AI: keep distance, strafe while shooting
               if (!w.strafeDir) w.strafeDir = Math.random() < 0.5 ? 1 : -1;
-              if (nearDist < 15) {
+              const _fRangedClose = isoModeRef.current ? 4 : 15;
+              const _fRangedFar = isoModeRef.current ? 10 : 35;
+              if (nearDist < _fRangedClose) {
                 w.dir = nearX > w.x ? -1 : 1; // retreat
                 w.x += w.speed * w.dir;
-              } else if (nearDist > 35) {
+              } else if (nearDist > _fRangedFar) {
                 w.dir = nearX > w.x ? 1 : -1; // approach
                 w.x += w.speed * w.dir;
               }
@@ -1438,8 +1442,18 @@ export default function App() {
 
               w.dir = nearX > w.x ? 1 : -1; // always face enemy
 
+              // Distance thresholds scaled for iso vs panoramic
+              const _fPushBack = isoModeRef.current ? 1 : 3;
+              const _fCircleFar = isoModeRef.current ? 3 : 10;
+              const _fCircleClose = isoModeRef.current ? 1.5 : 5;
+              const _fCircleBreak = isoModeRef.current ? 4 : 14;
+              const _fApproachDist = isoModeRef.current ? 2 : 6;
+              const _fAttackRange = isoModeRef.current ? 3 : 10;
+              const _fYThresh = isoModeRef.current ? 0.5 : 2;
+              const _fYMult = isoModeRef.current ? 1.5 : 0.8;
+
               // Push back if too close
-              if (nearDist < 3) {
+              if (nearDist < _fPushBack) {
                 w.x -= w.speed * w.dir * 0.6;
               } else if (w.combatState === "retreat") {
                 w.x -= w.speed * w.dir * 0.8;
@@ -1451,26 +1465,26 @@ export default function App() {
                 }
               } else if (w.combatState === "circle") {
                 if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.5;
-                if (nearDist > 10) w.x += w.speed * w.dir * 0.4;
-                else if (nearDist < 5) w.x -= w.speed * w.dir * 0.3;
+                if (nearDist > _fCircleFar) w.x += w.speed * w.dir * 0.4;
+                else if (nearDist < _fCircleClose) w.x -= w.speed * w.dir * 0.3;
                 w.combatTimer--;
-                if (w.combatTimer <= 0 || nearDist > 14) {
+                if (w.combatTimer <= 0 || nearDist > _fCircleBreak) {
                   w.combatState = "approach";
                   w.combatTimer = 0;
                   w.strafeDir *= -1;
                 }
               } else {
-                // Approach: stop at engagement distance
-                if (nearDist > 6) {
+                // Approach: move toward enemy
+                if (nearDist > _fApproachDist) {
                   w.x += w.speed * w.dir;
                   if (w.y != null && nearY != null) {
                     const yd = nearY - w.y;
-                    if (Math.abs(yd) > 2) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * 0.8;
+                    if (Math.abs(yd) > _fYThresh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * _fYMult;
                   }
                 }
               }
               // Attack when in melee range
-              if (nearDist < 10) {
+              if (nearDist < _fAttackRange) {
                 const SEA_BIOMES = ["island", "blue_lagoon", "sunset_beach"];
                 const seaShantyMult = (hasRelic("sea_shanty") && SEA_BIOMES.includes(biome?.id)) ? 0.80 : 1;
                 const atkCdMs = Math.round((w.attackCd || 2500) * seaShantyMult);
@@ -1541,11 +1555,13 @@ export default function App() {
             }
             if (nearEnemyId !== null) {
               w.dir = nearEnemyX > w.x ? 1 : -1;
-              if (nearEnemyDist > 6) {
+              const _confApproachDist = isoModeRef.current ? 3 : 6;
+              if (nearEnemyDist > _confApproachDist) {
                 w.x += w.speed * w.dir;
                 if (w.y != null && nearEnemyY != null) {
                   const yd = nearEnemyY - w.y;
-                  if (Math.abs(yd) > 2) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * 0.6;
+                  const _yTh = isoModeRef.current ? 0.5 : 2;
+                  if (Math.abs(yd) > _yTh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * (isoModeRef.current ? 1.5 : 0.6);
                 }
               }
               if (nearEnemyDist < 10) {
@@ -1793,13 +1809,15 @@ export default function App() {
             // Check if blocked by a player barricade on the path
             let barricadeBlock = false;
             const pTrapsCheck = playerTrapsRef.current;
+            const _defYb = isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50;
+            const _yScaleB = isoModeRef.current ? 1 : 0.5;
             for (let bi = 0; bi < pTrapsCheck.length; bi++) {
               const bt = pTrapsCheck[bi];
               if (!bt.active || !(bt.trapType === "barricade" || bt.config?.type === "wall")) continue;
               const bdx = bt.x - w.x;
-              const bdy = ((bt.y || 50) - (w.y || 50)) * 0.5;
+              const bdy = ((bt.y || _defYb) - (w.y || _defYb)) * _yScaleB;
               const bdistSq = bdx * bdx + bdy * bdy;
-              const blockR = bt.config.blockRadius || 5;
+              const blockR = bt.config.blockRadius || (isoModeRef.current ? 2 : 5);
               if (bdistSq < blockR * blockR) {
                 barricadeBlock = true;
                 w.dir = bdx > 0 ? 1 : -1;
@@ -1849,7 +1867,8 @@ export default function App() {
                 w.x += w.speed * w.dir;
                 if (w.y != null && friendY != null) {
                   const yd = friendY - w.y;
-                  if (Math.abs(yd) > 2) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * 0.6;
+                  const _yThresh = isoModeRef.current ? 0.5 : 2;
+                  if (Math.abs(yd) > _yThresh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * (isoModeRef.current ? 1.5 : 0.6);
                 }
               } else {
                 // At ideal range — strafe
@@ -1867,7 +1886,7 @@ export default function App() {
                 w.combatTimer--;
                 if (w.combatTimer <= 0) {
                   w.combatState = Math.random() < 0.5 ? "circle" : "approach";
-                  w.combatTimer = 40 + Math.floor(Math.random() * 50);
+                  w.combatTimer = isoModeRef.current ? (20 + Math.floor(Math.random() * 30)) : (40 + Math.floor(Math.random() * 50));
                 }
               } else if (w.combatState === "circle") {
                 if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2;
@@ -1880,12 +1899,14 @@ export default function App() {
                   w.strafeDir *= -1;
                 }
               } else {
-                // Approach: stop at ~1 tile engagement distance
+                // Approach: move toward target — close both X and Y gaps
                 if (friendDist > _meleeRange) {
                   w.x += w.speed * w.dir;
                   if (w.y != null && friendY != null) {
                     const yd = friendY - w.y;
-                    if (Math.abs(yd) > 2) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * 0.6;
+                    const _yThresh = isoModeRef.current ? 0.5 : 2;
+                    const _yMult = isoModeRef.current ? 1.5 : 0.6;
+                    if (Math.abs(yd) > _yThresh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * _yMult;
                   }
                 }
               }
@@ -1921,13 +1942,15 @@ export default function App() {
             w.combatState = null;
             let blockedByBarricade = false;
             const pTrapsForBlock = playerTrapsRef.current;
+            const _defYb2 = isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50;
+            const _yScaleB2 = isoModeRef.current ? 1 : 0.5;
             for (let bi = 0; bi < pTrapsForBlock.length; bi++) {
               const bt = pTrapsForBlock[bi];
               if (!bt.active || !(bt.trapType === "barricade" || bt.config?.type === "wall")) continue;
               const bdx = bt.x - w.x;
-              const bdy = ((bt.y || 50) - (w.y || 50)) * 0.5;
+              const bdy = ((bt.y || _defYb2) - (w.y || _defYb2)) * _yScaleB2;
               const bdistSq = bdx * bdx + bdy * bdy;
-              const blockR2 = bt.config.blockRadius || 5;
+              const blockR2 = bt.config.blockRadius || (isoModeRef.current ? 2 : 5);
               if (bdistSq < blockR2 * blockR2) {
                 // Blocked — stop and attack the barricade
                 blockedByBarricade = true;
@@ -1957,10 +1980,14 @@ export default function App() {
               const dxC = caravanX - w.x;
               const _defYm = isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50;
               const dyC = caravanY - (w.y || _defYm);
-              if (Math.abs(dxC) > (isoModeRef.current ? 1 : 2)) w.x += Math.sign(dxC) * w.speed * 0.6;
-              if (w.y != null && Math.abs(dyC) > (isoModeRef.current ? 1 : 2)) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * 2.5;
+              // March speed: iso uses full speed toward caravan, panoramic uses 60%
+              const _marchXMult = isoModeRef.current ? 1.0 : 0.6;
+              const _marchYMult = isoModeRef.current ? 4.0 : 2.5;
+              const _marchThresh = isoModeRef.current ? 0.5 : 2;
+              if (Math.abs(dxC) > _marchThresh) w.x += Math.sign(dxC) * w.speed * _marchXMult;
+              if (w.y != null && Math.abs(dyC) > _marchThresh) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * _marchYMult;
               w.dir = dxC > 0 ? 1 : -1;
-              // Attack when close enough to caravan (~1 tile: iso 1.5², panoramic 4²)
+              // Attack when close enough to caravan (~1.5 tile: iso 2.25, panoramic 16)
               const distToCaravanSq = dxC * dxC + dyC * dyC;
               const _atkThreshSq = isoModeRef.current ? 2.25 : 16; // 1.5² or 4²
               if (distToCaravanSq < _atkThreshSq) {
@@ -2030,13 +2057,15 @@ export default function App() {
 
         // ─── Elite: Frozen – slow aura (reduce nearby friendly merc speed) ───
         if (w.isElite && w.eliteMod?.slowAura) {
+          const _slowDefY = isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50;
+          const _slowYScale = isoModeRef.current ? 1 : 0.5;
+          const _slowRadiusSq = isoModeRef.current ? 36 : 900; // 6² tiles or 30² pct
           for (let fi = 0; fi < friendlyList.length; fi++) {
             const f = friendlyList[fi].w;
             const dx = f.x - w.x;
-            const dy = ((f.y || 50) - (w.y || 50)) * 0.5;
-            // Use squared distance: 30*30 = 900
+            const dy = ((f.y || _slowDefY) - (w.y || _slowDefY)) * _slowYScale;
             const distSq = dx * dx + dy * dy;
-            if (distSq < 900) {
+            if (distSq < _slowRadiusSq) {
               // Apply slow: store original speed once, then halve
               if (!f._origSpeed) f._origSpeed = f.speed;
               f.speed = f._origSpeed * 0.5;
