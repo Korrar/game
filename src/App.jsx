@@ -6164,7 +6164,8 @@ export default function App() {
   }, [mana, cooldowns, showMessage, processSkillshotHit, spawnDmgPopup]);
 
   // ─── PANORAMIC SCROLLING: Drag to look around when no action selected ───
-  const canPanScroll = !skillshotMode && !placingTrap && !showFortMenu && (!defenseMode || defenseMode.phase === "complete" || defenseMode.phase === "setup");
+  // In iso mode, always allow camera panning (even during defense waves) so player can survey the battlefield
+  const canPanScroll = !skillshotMode && !placingTrap && !showFortMenu && (isoModeRef.current || !defenseMode || defenseMode.phase === "complete" || defenseMode.phase === "setup");
 
   // Convenience: wrap percentage position using current pan offset
   const wrapPctToScreen = useCallback(
