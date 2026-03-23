@@ -313,6 +313,10 @@ export default function App() {
   const caravanLevelRef = useRef(0);
   // Caravan world position (iso tile coords)
   const caravanPosRef = useRef({ x: 3, y: ISO_CONFIG.MAP_ROWS / 2 });
+  const caravanMoveRef = useRef({ active: false, targetX: 0, targetY: 0, speed: 2.5 }); // tiles per second
+  const [caravanSelected, setCaravanSelected] = useState(false);
+  const caravanSelectedRef = useRef(false);
+  caravanSelectedRef.current = caravanSelected;
   const terrainDataRef = useRef(null);
   const terrainParticlesRef = useRef(null);
   caravanLevelRef.current = caravanLevel;
@@ -2310,6 +2314,28 @@ export default function App() {
           if (defensePoiElRef.current && _dp && !_dp.activated) _positionPoiEl(defensePoiElRef.current, _dp.x, _dp.y);
           if (shopElRef.current) _positionPoiEl(shopElRef.current, 10, 15);
           if (hideoutElRef.current) _positionPoiEl(hideoutElRef.current, 30, 25);
+          // Caravan movement
+          {
+            const mv = caravanMoveRef.current;
+            if (mv.active) {
+              const _cp = caravanPosRef.current;
+              const dx = mv.targetX - _cp.x;
+              const dy = mv.targetY - _cp.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < 0.15) {
+                // Arrived
+                _cp.x = mv.targetX;
+                _cp.y = mv.targetY;
+                mv.active = false;
+              } else {
+                // Move toward target
+                const step = mv.speed * dt;
+                const ratio = Math.min(1, step / dist);
+                _cp.x += dx * ratio;
+                _cp.y += dy * ratio;
+              }
+            }
+          }
           // Caravan
           const _cp = caravanPosRef.current;
           if (caravanElRef.current && _cp) _positionPoiEl(caravanElRef.current, _cp.x, _cp.y);
@@ -3068,6 +3094,8 @@ export default function App() {
       if (pixiRef.current) pixiRef.current.setIsoCamera(cam.x, cam.y);
       // Place caravan at left side of the map, vertically centered
       caravanPosRef.current = { x: 3, y: ISO_CONFIG.MAP_ROWS / 2 };
+      caravanMoveRef.current = { active: false, targetX: 0, targetY: 0, speed: 2.5 };
+      setCaravanSelected(false);
       // Generate terrain overlays (roads, water, vegetation, fog)
       terrainDataRef.current = generateTerrainData(newRoom, nextB);
       if (!terrainParticlesRef.current) {
@@ -6347,6 +6375,37 @@ export default function App() {
     }
   }, []);
 
+  // ─── CARAVAN MOVEMENT: Click to select, click map to move ───
+  const handleCaravanClick = useCallback((e) => {
+    e.stopPropagation();
+    if (!isoModeRef.current) return;
+    setCaravanSelected(prev => !prev);
+    // Cancel any active movement when toggling selection
+    if (caravanSelectedRef.current) {
+      caravanMoveRef.current.active = false;
+    }
+  }, []);
+
+  const handleCaravanMoveClick = useCallback((e) => {
+    // Only intercept clicks when caravan is selected and no spell is active
+    if (!caravanSelectedRef.current || !isoModeRef.current || !gameContainerRef.current) return false;
+    if (selectedSpell && skillshotMode) return false;
+
+    const gr = gameContainerRef.current.getBoundingClientRect();
+    const screenX = (e.clientX - gr.left) / gameScale;
+    const screenY = (e.clientY - gr.top) / gameScale;
+    const cam = isoCameraRef.current;
+    const world = _isoScreenToWorld(screenX, screenY, cam.x, cam.y);
+
+    // Clamp to map bounds
+    const tx = Math.max(1, Math.min(ISO_CONFIG.MAP_COLS - 2, world.x));
+    const ty = Math.max(1, Math.min(ISO_CONFIG.MAP_ROWS - 2, world.y));
+
+    caravanMoveRef.current = { active: true, targetX: tx, targetY: ty, speed: 2.5 };
+    setCaravanSelected(false);
+    return true;
+  }, [gameScale, selectedSpell, skillshotMode]);
+
   // ─── SKILLSHOT: Canvas click handler for aiming ───
   const handleSkillshotClick = useCallback((e) => {
     if (!selectedSpell || !gameContainerRef.current) return;
@@ -7908,6 +7967,7 @@ export default function App() {
         <style>{`
           @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
           @keyframes pulse{0%,100%{box-shadow:0 0 8px rgba(212,160,48,0.2)}50%{box-shadow:0 0 22px rgba(212,160,48,0.45)}}
+          @keyframes caravanSelectPulse{0%,100%{opacity:0.5;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.15)}}
         `}</style>
       </div>
     );
@@ -7932,7 +7992,7 @@ export default function App() {
 
       {/* Scaled game container – fills entire screen on mobile */}
       <div ref={gameContainerRef}
-        onClick={placingFort ? handleFortPlaceClick : placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode && !isSalvaMode) ? handleSkillshotClick : undefined}
+        onClick={placingFort ? handleFortPlaceClick : placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode && !isSalvaMode) ? handleSkillshotClick : (e) => { handleCaravanMoveClick(e); }}
         onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
         onMouseMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; const _wsx = (cx - gr.left) / gameScale; const _wsy = (cy - gr.top) / gameScale; wandOrbsRef.current.screenX = _wsx; wandOrbsRef.current.screenY = _wsy; if (isoModeRef.current) { const cam = isoCameraRef.current; const iw = _isoScreenToWorld(_wsx, _wsy, cam.x, cam.y); wandOrbsRef.current.cursorX = iw.x; wandOrbsRef.current.cursorY = iw.y; } else { wandOrbsRef.current.cursorX = (_wsx / GAME_W) * 100; wandOrbsRef.current.cursorY = (_wsy / GAME_H) * 100; } } }}
         onMouseUp={(e) => { if (panRef.current.dragging) { handlePanEnd(); return; } if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
@@ -8469,13 +8529,14 @@ export default function App() {
         const hpPct = caravanHpRef.current / CARAVAN_LEVELS[caravanLevelRef.current].hp * 100;
         const hpColor = hpPct > 50 ? "#40e060" : hpPct > 25 ? "#e0c040" : "#e04040";
         return (
-          <div ref={caravanElRef} style={{
+          <div ref={caravanElRef} onClick={handleCaravanClick} style={{
             position: "absolute",
             left: screen.x, top: screen.y,
             transform: "translate(-50%, -100%)",
             zIndex: 10 + Math.round((cp.x + cp.y) * 1.2),
-            pointerEvents: "none",
+            pointerEvents: "auto",
             textAlign: "center",
+            cursor: "pointer",
           }}>
             {/* HP bar above caravan */}
             <div style={{
@@ -8498,10 +8559,46 @@ export default function App() {
               <Icon name="ship" size={36} />
             </div>
             <div style={{
-              fontSize: 9, color: "#d4a030", fontWeight: "bold",
+              fontSize: 9, color: caravanSelected ? "#60ff80" : "#d4a030", fontWeight: "bold",
               textShadow: "0 1px 3px rgba(0,0,0,0.9)",
-            }}>Karawana</div>
+            }}>{caravanSelected ? "Wybierz cel" : "Karawana"}</div>
+            {/* Selection ring */}
+            {caravanSelected && (
+              <div style={{
+                position: "absolute", left: "50%", bottom: 0,
+                transform: "translateX(-50%)",
+                width: 50, height: 16,
+                border: "2px solid #60ff80",
+                borderRadius: "50%",
+                animation: "caravanSelectPulse 1s ease-in-out infinite",
+                pointerEvents: "none",
+              }} />
+            )}
           </div>
+        );
+      })()}
+
+      {/* Caravan movement destination marker */}
+      {isoModeRef.current && caravanMoveRef.current.active && (() => {
+        const mv = caravanMoveRef.current;
+        const cam = isoCameraRef.current;
+        const tgt = _isoWorldToScreen(mv.targetX, mv.targetY, cam.x, cam.y);
+        const src = _isoWorldToScreen(caravanPosRef.current.x, caravanPosRef.current.y, cam.x, cam.y);
+        const pulse = Math.sin(Date.now() * 0.006) * 0.3 + 0.7;
+        return (
+          <svg style={{ position: "absolute", left: 0, top: 0, width: GAME_W, height: GAME_H, pointerEvents: "none", zIndex: 9 }}>
+            {/* Path line */}
+            <line x1={src.x} y1={src.y} x2={tgt.x} y2={tgt.y}
+              stroke={`rgba(212,160,48,${pulse * 0.4})`} strokeWidth="1.5" strokeDasharray="6 4" />
+            {/* Destination diamond */}
+            <polygon
+              points={`${tgt.x},${tgt.y - 10} ${tgt.x + 8},${tgt.y} ${tgt.x},${tgt.y + 10} ${tgt.x - 8},${tgt.y}`}
+              fill={`rgba(212,160,48,${pulse * 0.25})`}
+              stroke={`rgba(255,200,60,${pulse * 0.7})`} strokeWidth="1.5"
+            />
+            {/* Destination flag icon */}
+            <text x={tgt.x} y={tgt.y - 14} textAnchor="middle" fontSize="14" fill={`rgba(255,200,60,${pulse})`}>⚑</text>
+          </svg>
         );
       })()}
 
