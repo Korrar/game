@@ -1562,7 +1562,14 @@ export default function App() {
             // No enemies – normal patrol
             w.combatState = null;
             w.combatTimer = 0;
-            w.x += w.speed * w.dir;
+            {
+              let _fPatrolMod = 1.0;
+              if (isoModeRef.current && terrainDataRef.current) {
+                _fPatrolMod = applyTerrainMovement(w, terrainDataRef.current);
+                if (_fPatrolMod <= 0) _fPatrolMod = 0.1;
+              }
+              w.x += w.speed * w.dir * _fPatrolMod;
+            }
             if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
             if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
           }
@@ -1571,7 +1578,14 @@ export default function App() {
           // Enemies are passive until the player attacks first
           if (!combatEngagedRef.current && defenseModeRef.current?.phase !== "wave_active") {
             // Idle patrol only — enemies passive until player attacks (skip in defense mode)
-            w.x += w.speed * w.dir;
+            {
+              let _ePatrolMod = 1.0;
+              if (isoModeRef.current && terrainDataRef.current) {
+                _ePatrolMod = applyTerrainMovement(w, terrainDataRef.current);
+                if (_ePatrolMod <= 0) { w.dir *= -1; _ePatrolMod = 0.1; } // reverse if stuck
+              }
+              w.x += w.speed * w.dir * _ePatrolMod;
+            }
             if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
             if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
           } else {
@@ -2059,7 +2073,14 @@ export default function App() {
             w.combatState = null;
             w.combatTimer = 0;
             // Normal patrol
-            w.x += w.speed * w.dir;
+            {
+              let _eIdleMod = 1.0;
+              if (isoModeRef.current && terrainDataRef.current) {
+                _eIdleMod = applyTerrainMovement(w, terrainDataRef.current);
+                if (_eIdleMod <= 0) { w.dir *= -1; _eIdleMod = 0.1; }
+              }
+              w.x += w.speed * w.dir * _eIdleMod;
+            }
             if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
             if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
           }
@@ -8747,6 +8768,14 @@ export default function App() {
               fontSize: 9, color: caravanSelected ? "#60ff80" : "#d4a030", fontWeight: "bold",
               textShadow: "0 1px 3px rgba(0,0,0,0.9)",
             }}>{caravanSelected ? "Wybierz cel" : "Karawana"}</div>
+            {/* Terrain speed indicator (shows when moving) */}
+            {caravanMoveRef.current.active && (() => {
+              const _tMod = terrainDataRef.current ? applyTerrainMovement(cp, terrainDataRef.current) : 1;
+              const _tColor = _tMod > 1.1 ? "#60ff80" : _tMod < 0.7 ? "#ff6040" : "#d4a030";
+              const _tLabel = _tMod > 1.1 ? "Droga" : _tMod < 0.7 ? "Trudny teren" : null;
+              if (!_tLabel) return null;
+              return <div style={{ fontSize: 7, color: _tColor, textShadow: "0 1px 2px #000" }}>{_tLabel}</div>;
+            })()}
             {/* Selection ring */}
             {caravanSelected && (
               <div style={{
@@ -8759,6 +8788,22 @@ export default function App() {
                 pointerEvents: "none",
               }} />
             )}
+            {/* Resource gathering progress bar */}
+            {mapResourcesRef.current.gatheringId && mapResourcesRef.current.gatherProgress > 0 && (() => {
+              const gp = mapResourcesRef.current.gatherProgress;
+              const gRes = mapResourcesRef.current.resources.find(r => r.id === mapResourcesRef.current.gatheringId);
+              if (!gRes) return null;
+              return (
+                <div style={{ marginTop: 2 }}>
+                  <div style={{ fontSize: 7, color: gRes.color || "#ffd700", textShadow: "0 1px 2px #000", marginBottom: 1 }}>
+                    Zbieranie: {gRes.name}
+                  </div>
+                  <div style={{ width: 50, height: 3, background: "rgba(0,0,0,0.7)", borderRadius: 2, margin: "0 auto" }}>
+                    <div style={{ width: `${gp * 100}%`, height: "100%", background: gRes.color || "#ffd700", borderRadius: 2, transition: "width 0.3s" }} />
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
