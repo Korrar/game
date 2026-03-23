@@ -3134,25 +3134,42 @@ export default function App() {
       if (isoModeRef.current && terrainDataRef.current) {
         terrainDestructionRef.current.update(terrainDataRef.current, dateNow);
 
-        // Terrain zone damage: damage enemies/allies standing on burning/poison tiles
+        // Terrain zone damage: damage enemies standing on burning/poison tiles (every ~0.5s)
         if (frameCount % 30 === 0) {
           const _td = terrainDestructionRef.current;
           const _cols = ISO_CONFIG.MAP_COLS;
+          const _zoneDmgIds = [];
           for (const nid of Object.keys(wd)) {
             const w = wd[nid];
-            if (!w || !w.alive) continue;
+            if (!w || !w.alive || w.friendly) continue; // only damage enemies
             const col = Math.floor(w.x);
             const row = Math.floor(w.y ?? ISO_CONFIG.MAP_ROWS / 2);
             const zoneDmg = _td.getEffectDamage(col, row, _cols);
-            if (zoneDmg && pixiRef.current) {
+            if (zoneDmg) {
               const _dmg = Math.round(zoneDmg.damage);
               if (_dmg > 0) {
-                const px = (w.x / ISO_CONFIG.MAP_COLS) * GAME_W;
-                const py = ((w.y || ISO_CONFIG.MAP_ROWS / 2) / ISO_CONFIG.MAP_ROWS) * GAME_H;
-                if (zoneDmg.element === "fire") pixiRef.current.spawnFire(px, py);
-                else if (zoneDmg.element === "poison") pixiRef.current.spawnPoisonCloud(px, py);
+                _zoneDmgIds.push({ id: parseInt(nid), dmg: _dmg, elem: zoneDmg.element });
+                if (pixiRef.current) {
+                  const px = (w.x / _cols) * GAME_W;
+                  const py = ((w.y || ISO_CONFIG.MAP_ROWS / 2) / ISO_CONFIG.MAP_ROWS) * GAME_H;
+                  if (zoneDmg.element === "fire") pixiRef.current.spawnFire(px, py);
+                  else if (zoneDmg.element === "poison") pixiRef.current.spawnPoisonCloud(px, py);
+                }
               }
             }
+          }
+          // Apply zone damage to enemy walkers
+          if (_zoneDmgIds.length > 0) {
+            setWalkers(prev => prev.map(ww => {
+              const hit = _zoneDmgIds.find(z => z.id === ww.id);
+              if (!hit || !ww.alive || ww.dying) return ww;
+              const newHp = Math.max(0, ww.hp - hit.dmg);
+              spawnDmgPopup(ww.id, `${hit.dmg}`, hit.elem === "fire" ? "#ff6020" : "#44ff44");
+              if (newHp <= 0) {
+                return { ...ww, hp: 0, alive: false, dying: true, deathTime: Date.now() };
+              }
+              return { ...ww, hp: newHp };
+            }));
           }
         }
 
@@ -6076,6 +6093,31 @@ export default function App() {
         wd._burnDps = 5;
         wd._burnUntil = Date.now() + 3000;
         spawnDmgPopup(walkerId, "PODPALENIE!", "#ff6020");
+      }
+
+      // Terrain effects from elemental skillshot impacts (iso mode)
+      if (isoModeRef.current && terrainDataRef.current && wd && element) {
+        const _impactCol = Math.floor(wd.x);
+        const _impactRow = Math.floor(wd.y ?? ISO_CONFIG.MAP_ROWS / 2);
+        const _td = terrainDestructionRef.current;
+        const _tData = terrainDataRef.current;
+        if (element === "ice") {
+          // Ice spells freeze nearby water tiles
+          _td.freezeWaterAt(_impactCol, _impactRow, _tData);
+        } else if (element === "fire") {
+          // Fire spells burn nearby vegetation
+          const _veg = _tData.vegetation;
+          if (_veg) {
+            for (const v of _veg) {
+              if (!v.alive || !v.destructible) continue;
+              const vdx = v.col - _impactCol, vdy = v.row - _impactRow;
+              if (vdx * vdx + vdy * vdy <= 4) { // within 2 tiles
+                _td.burnVegetation(v.id, _tData);
+                break; // burn one tree per hit
+              }
+            }
+          }
+        }
       }
 
       if (resistant) {
