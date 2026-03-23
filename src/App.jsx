@@ -1375,6 +1375,13 @@ export default function App() {
 
           const isRanged = w.combatStyle === "ranged";
 
+          // Terrain speed modifier for friendly mercenaries
+          let _fTerrainMod = 1.0;
+          if (isoModeRef.current && terrainDataRef.current) {
+            _fTerrainMod = applyTerrainMovement(w, terrainDataRef.current);
+            if (_fTerrainMod <= 0) _fTerrainMod = 0.1;
+          }
+
           if (nearX !== null) {
             if (isRanged) {
               // Ranged AI: keep distance, strafe while shooting
@@ -1383,22 +1390,22 @@ export default function App() {
               const _fRangedFar = isoModeRef.current ? 10 : 35;
               if (nearDist < _fRangedClose) {
                 w.dir = nearX > w.x ? -1 : 1; // retreat
-                w.x += w.speed * w.dir;
+                w.x += w.speed * w.dir * _fTerrainMod;
               } else if (nearDist > _fRangedFar) {
                 w.dir = nearX > w.x ? 1 : -1; // approach
-                w.x += w.speed * w.dir;
+                w.x += w.speed * w.dir * _fTerrainMod;
               }
               w.dir = nearX > w.x ? 1 : -1; // face enemy
               // Strafe in Y while in combat range
               if (w.y != null) {
                 if (nearDist < 35 && nearDist > 12) {
                   // Active strafe while at ideal range
-                  w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2;
+                  w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2 * _fTerrainMod;
                   if (Math.random() < 0.008) w.strafeDir *= -1;
                 } else if (nearY != null) {
                   // Drift toward enemy Y when not in ideal range
                   const yd = nearY - w.y;
-                  if (Math.abs(yd) > 3) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * 0.5;
+                  if (Math.abs(yd) > 3) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * 0.5 * _fTerrainMod;
                 }
               }
 
@@ -1489,19 +1496,19 @@ export default function App() {
 
               // Push back if too close
               if (nearDist < _fPushBack) {
-                w.x -= w.speed * w.dir * 0.6;
+                w.x -= w.speed * w.dir * 0.6 * _fTerrainMod;
               } else if (w.combatState === "retreat") {
-                w.x -= w.speed * w.dir * 0.8;
-                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.5;
+                w.x -= w.speed * w.dir * 0.8 * _fTerrainMod;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.5 * _fTerrainMod;
                 w.combatTimer--;
                 if (w.combatTimer <= 0) {
                   w.combatState = Math.random() < 0.6 ? "circle" : "approach";
                   w.combatTimer = 30 + Math.floor(Math.random() * 40);
                 }
               } else if (w.combatState === "circle") {
-                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.5;
-                if (nearDist > _fCircleFar) w.x += w.speed * w.dir * 0.4;
-                else if (nearDist < _fCircleClose) w.x -= w.speed * w.dir * 0.3;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.5 * _fTerrainMod;
+                if (nearDist > _fCircleFar) w.x += w.speed * w.dir * 0.4 * _fTerrainMod;
+                else if (nearDist < _fCircleClose) w.x -= w.speed * w.dir * 0.3 * _fTerrainMod;
                 w.combatTimer--;
                 if (w.combatTimer <= 0 || nearDist > _fCircleBreak) {
                   w.combatState = "approach";
@@ -1511,10 +1518,10 @@ export default function App() {
               } else {
                 // Approach: move toward enemy
                 if (nearDist > _fApproachDist) {
-                  w.x += w.speed * w.dir;
+                  w.x += w.speed * w.dir * _fTerrainMod;
                   if (w.y != null && nearY != null) {
                     const yd = nearY - w.y;
-                    if (Math.abs(yd) > _fYThresh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * _fYMult;
+                    if (Math.abs(yd) > _fYThresh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * _fYMult * _fTerrainMod;
                   }
                 }
               }
@@ -1948,19 +1955,19 @@ export default function App() {
               // Melee enemy AI: approach to ~1 tile distance
               // Push back if too close
               if (friendDist < (isoModeRef.current ? 0.8 : 2)) {
-                w.x -= w.speed * w.dir * 0.5;
+                w.x -= w.speed * w.dir * 0.5 * _terrainSpeedMod;
               } else if (w.combatState === "retreat") {
-                w.x -= w.speed * w.dir * 0.6;
-                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.4;
+                w.x -= w.speed * w.dir * 0.6 * _terrainSpeedMod;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.4 * _terrainSpeedMod;
                 w.combatTimer--;
                 if (w.combatTimer <= 0) {
                   w.combatState = Math.random() < 0.5 ? "circle" : "approach";
                   w.combatTimer = isoModeRef.current ? (20 + Math.floor(Math.random() * 30)) : (40 + Math.floor(Math.random() * 50));
                 }
               } else if (w.combatState === "circle") {
-                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2;
-                if (friendDist > _meleeRange * 2) w.x += w.speed * w.dir * 0.3;
-                else if (friendDist < _meleeRange * 0.7) w.x -= w.speed * w.dir * 0.2;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2 * _terrainSpeedMod;
+                if (friendDist > _meleeRange * 2) w.x += w.speed * w.dir * 0.3 * _terrainSpeedMod;
+                else if (friendDist < _meleeRange * 0.7) w.x -= w.speed * w.dir * 0.2 * _terrainSpeedMod;
                 w.combatTimer--;
                 if (w.combatTimer <= 0 || friendDist > _meleeRange * 3) {
                   w.combatState = "approach";
@@ -2053,8 +2060,18 @@ export default function App() {
               const _marchXMult = isoModeRef.current ? 1.0 : 0.6;
               const _marchYMult = isoModeRef.current ? 4.0 : 2.5;
               const _marchThresh = isoModeRef.current ? 0.5 : 2;
-              if (Math.abs(dxC) > _marchThresh) w.x += Math.sign(dxC) * w.speed * _marchXMult;
-              if (w.y != null && Math.abs(dyC) > _marchThresh) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * _marchYMult;
+              // Terrain speed modifier for marching enemies
+              let _marchTerrainMod = 1.0;
+              if (isoModeRef.current && terrainDataRef.current) {
+                _marchTerrainMod = applyTerrainMovement(w, terrainDataRef.current);
+                const _tdMod2 = terrainDestructionRef.current.getEffectSpeedMod(
+                  Math.floor(w.x), Math.floor(w.y ?? ISO_CONFIG.MAP_ROWS / 2), ISO_CONFIG.MAP_COLS
+                );
+                _marchTerrainMod *= _tdMod2;
+                if (_marchTerrainMod <= 0) _marchTerrainMod = 0.05;
+              }
+              if (Math.abs(dxC) > _marchThresh) w.x += Math.sign(dxC) * w.speed * _marchXMult * _marchTerrainMod;
+              if (w.y != null && Math.abs(dyC) > _marchThresh) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * _marchYMult * _marchTerrainMod;
               w.dir = dxC > 0 ? 1 : -1;
               // Attack when close enough to caravan (~1.5 tile: iso 2.25, panoramic 16)
               const distToCaravanSq = dxC * dxC + dyC * dyC;
