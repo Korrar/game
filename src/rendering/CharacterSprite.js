@@ -12,6 +12,28 @@ const GLOW_FRIENDLY = { color: 0x3cdc50, alpha: 0.5 };
 const GLOW_ENEMY = { color: 0xc83c3c, alpha: 0.35 };
 const GLOW_HIT = { color: 0xff2828, alpha: 0.7 };
 
+// ─── NPC VISUAL STATE SYSTEM ───
+export const NPC_VISUAL_STATES = {
+  IDLE: "idle",
+  ALERT: "alert",       // enemy noticed caravan, approaching
+  WINDUP: "windup",     // winding up ability/attack
+  ATTACKING: "attacking", // mid-attack (melee slash or projectile fire)
+  CHARGING: "charging",  // charge rush (3x speed)
+};
+
+export const GLOW_ALERT = { color: 0xff6a20, alpha: 0.55 };    // bright orange
+export const GLOW_CHARGING = { color: 0xffcc00, alpha: 0.7 };  // intense yellow
+export const GLOW_LOW_HP = { color: 0x8b0000, alpha: 0.5 };    // dark red
+
+// Idle bob animation
+export const IDLE_BOB_SPEED = 0.003;   // radians per ms
+export const IDLE_BOB_AMOUNT = 2;       // pixels up/down
+
+// Enhanced melee lunge
+export const ENHANCED_LUNGE_OFFSET = 24;
+export const ENHANCED_LUNGE_FRAMES = 12;
+export const LUNGE_DECAY = 0.88;
+
 // Icon size per body type (in pixels)
 const ICON_SIZES = {
   humanoid: 48, quadruped: 44, floating: 44, scorpion: 40,
@@ -288,7 +310,6 @@ export class CharacterSprite {
     if (fogVisibility && !this.friendly && !entry.ragdoll) {
       let distPct;
       if (entry._wx !== undefined) {
-        // Iso mode: distance from caravan area (left side of map)
         const dx = (entry._wx ?? 20) - 3;
         const dy = (entry._wy ?? 20) - 20;
         distPct = Math.sqrt(dx * dx + dy * dy) / 40;
@@ -302,30 +323,28 @@ export class CharacterSprite {
         : 0.05;
       alpha *= fogAlpha;
     }
-    // 2.5D: atmospheric depth fog (far objects fade slightly)
     const depthFog = fogAtDepth(depth);
-    alpha *= (1 - depthFog * 0.5); // subtle — don't fully obscure far NPCs
-    // Ensure minimum visibility — enemies should always be at least faintly visible
+    alpha *= (1 - depthFog * 0.5);
     alpha = Math.max(alpha, 0.15);
     this.container.alpha = alpha;
 
-    // 2.5D: desaturate far-away sprites (atmospheric color perspective)
     const desat = desatAtDepth(depth);
     if (desat > 0.01 && this.container.filters !== undefined) {
-      // PixiJS ColorMatrixFilter for desaturation — only apply if significant
-      this.container.tint = desat > 0.1
-        ? 0xddddee  // slight blue-grey tint for distant objects
-        : 0xffffff;
+      this.container.tint = desat > 0.1 ? 0xddddee : 0xffffff;
     } else if (this.container.tint !== 0xffffff) {
       this.container.tint = 0xffffff;
     }
 
-    // Store depth scale for use in icon/flash sprite sizing
     this._depthScale = depthScale;
 
     const dir = entry._dir || 1;
     this._lastDir = dir;
     const flash = entry.hitFlash > 0;
+
+    // Read visual state from entry (set by App.jsx AI loop)
+    const visualState = entry.visualState || NPC_VISUAL_STATES.IDLE;
+    const hpPct = entry.hpPct ?? 1; // 0-1 ratio of current/max HP
+    const now = Date.now();
 
     // Clear graphics
     this.auraGfx.clear();
@@ -399,19 +418,23 @@ export class CharacterSprite {
 
     // ─── ALIVE: Normal icon rendering ───
 
-    // Depth-aware shadow (works for both 2.5D and iso)
+    // P6: Idle bob animation — subtle floating motion
+    const bob = Math.sin(now * IDLE_BOB_SPEED) * IDLE_BOB_AMOUNT;
+    const renderTy = ty + bob;
+
+    // Depth-aware shadow
     const shadow = shadowAtDepth(depth);
     this._drawShadow(this.shadowGfx, tx, ty + halfH + shadow.offsetY,
       14 * shadow.scaleX, 5 * shadow.scaleY, shadow.alpha);
 
-    // Ground aura
-    this._drawGroundAura(tx, ty);
+    // Ground aura — state-aware color
+    this._drawGroundAura(tx, ty, visualState, hpPct);
 
-    // Position icon sprite at torso
-    this.iconSprite.position.set(tx, ty);
-    this.flashSprite.position.set(tx, ty);
+    // Position icon sprite at torso + bob offset
+    this.iconSprite.position.set(tx, renderTy);
+    this.flashSprite.position.set(tx, renderTy);
 
-    // Hit flash — show/hide flash sprite
+    // Hit flash
     if (flash) {
       this.iconSprite.visible = false;
       this.flashSprite.visible = true;
@@ -421,42 +444,142 @@ export class CharacterSprite {
       this.flashSprite.visible = false;
     }
 
-    this.iconSprite.rotation = 0;
-    this.flashSprite.rotation = 0;
+    // P2: Windup telegraph — scale pulse + tilt
+    let scaleBoost = 0;
+    let tilt = 0;
+    if (visualState === NPC_VISUAL_STATES.WINDUP) {
+      const windupPulse = Math.sin(now * 0.015) * 0.5 + 0.5;
+      scaleBoost = 0.08 * windupPulse;
+      tilt = dir * 0.1 * windupPulse; // lean forward
+    } else if (visualState === NPC_VISUAL_STATES.ATTACKING) {
+      scaleBoost = 0.05;
+      tilt = dir * -0.15; // snap back on hit
+    } else if (visualState === NPC_VISUAL_STATES.CHARGING) {
+      tilt = dir * 0.25; // lean forward heavily during charge
+      scaleBoost = 0.04;
+    }
+
+    this.iconSprite.rotation = tilt;
+    this.flashSprite.rotation = tilt;
     this.iconSprite.anchor.set(0.5, 0.5);
     this.flashSprite.anchor.set(0.5, 0.5);
 
-    // 2.5D: scale sprites by depth (direction via sign)
-    this.iconSprite.scale.set(dir * this._depthScale, this._depthScale);
-    this.flashSprite.scale.set(dir * this._depthScale, this._depthScale);
+    // 2.5D: scale sprites by depth + state boost
+    const finalScale = this._depthScale + scaleBoost;
+    this.iconSprite.scale.set(dir * finalScale, finalScale);
+    this.flashSprite.scale.set(dir * finalScale, finalScale);
 
-    // Glow ring around icon
-    this._drawSymbolGlow(tx, ty, halfH, flash);
+    // Glow ring — state-aware
+    this._drawSymbolGlow(tx, renderTy, halfH, flash, visualState, hpPct);
 
-    // Draw weapon if applicable
-    if (entry.friendly && entry.npcData.weapon && this.bodyType === "humanoid") {
+    // P1: Alert "!" indicator
+    if (!this.friendly && (visualState === NPC_VISUAL_STATES.ALERT || visualState === NPC_VISUAL_STATES.WINDUP)) {
+      this._drawAlertIndicator(tx, renderTy, halfH, visualState);
+    }
+
+    // P5: Charge speed lines
+    if (visualState === NPC_VISUAL_STATES.CHARGING) {
+      this._drawChargeSpeedLines(tx, renderTy, dir, halfH);
+    }
+
+    // P7: Low HP darkening effect
+    if (!this.friendly && hpPct < 0.3 && hpPct > 0) {
+      this._drawLowHpEffect(tx, renderTy, halfH);
+    }
+
+    // Draw weapon (now for both friendlies AND enemies with attackAnim)
+    if (entry.npcData.weapon && this.bodyType === "humanoid") {
       this._drawWeapon(limbs, entry, dir, GY);
+    } else if (!this.friendly && entry.attackAnim > 0) {
+      // P3: Enemy melee slash arc (no weapon model — draw generic slash)
+      this._drawMeleeSlashArc(tx, renderTy, dir, entry.attackAnim, halfH);
     }
   }
 
-  _drawSymbolGlow(tx, ty, halfH, flash) {
-    const pulse = 0.7 + Math.sin(Date.now() * 0.004) * 0.3;
-    const glow = this.friendly ? GLOW_FRIENDLY : GLOW_ENEMY;
-    const glowColor = flash ? GLOW_HIT.color : glow.color;
-    const glowAlpha = (flash ? GLOW_HIT.alpha : glow.alpha) * pulse;
+  _drawSymbolGlow(tx, ty, halfH, flash, visualState = "idle", hpPct = 1) {
+    const now = Date.now();
     const scale = this._depthScale || 1;
     const r = this.iconSize * 0.5 * scale;
-    this.glowGfx.setStrokeStyle({ width: 2, color: glowColor, alpha: glowAlpha });
+
+    let glowColor, glowAlpha, pulseSpeed = 0.004;
+    if (flash) {
+      glowColor = GLOW_HIT.color;
+      glowAlpha = GLOW_HIT.alpha;
+    } else if (this.friendly) {
+      glowColor = GLOW_FRIENDLY.color;
+      glowAlpha = GLOW_FRIENDLY.alpha;
+    } else if (visualState === NPC_VISUAL_STATES.CHARGING) {
+      glowColor = GLOW_CHARGING.color;
+      glowAlpha = GLOW_CHARGING.alpha;
+      pulseSpeed = 0.012; // fast pulse
+    } else if (visualState === NPC_VISUAL_STATES.WINDUP) {
+      glowColor = GLOW_CHARGING.color;
+      glowAlpha = GLOW_CHARGING.alpha * 0.8;
+      pulseSpeed = 0.01;
+    } else if (visualState === NPC_VISUAL_STATES.ALERT) {
+      glowColor = GLOW_ALERT.color;
+      glowAlpha = GLOW_ALERT.alpha;
+      pulseSpeed = 0.006;
+    } else if (hpPct < 0.3 && hpPct > 0) {
+      glowColor = GLOW_LOW_HP.color;
+      glowAlpha = GLOW_LOW_HP.alpha;
+    } else {
+      glowColor = GLOW_ENEMY.color;
+      glowAlpha = GLOW_ENEMY.alpha;
+    }
+
+    const pulse = 0.7 + Math.sin(now * pulseSpeed) * 0.3;
+    const finalAlpha = glowAlpha * pulse;
+
+    // Main glow ring
+    this.glowGfx.setStrokeStyle({ width: 2, color: glowColor, alpha: finalAlpha });
     this.glowGfx.circle(tx, ty, r);
     this.glowGfx.stroke();
+
+    // P4: Ranged charge-up — expanding inner ring during windup
+    if (visualState === NPC_VISUAL_STATES.WINDUP && !this.friendly) {
+      const chargeR = r * 0.6 + Math.sin(now * 0.02) * r * 0.3;
+      this.glowGfx.setStrokeStyle({ width: 1.5, color: 0xffaa00, alpha: finalAlpha * 0.6 });
+      this.glowGfx.circle(tx, ty, chargeR);
+      this.glowGfx.stroke();
+      // Energy converging dots
+      for (let i = 0; i < 4; i++) {
+        const angle = now * 0.008 + i * Math.PI * 0.5;
+        const dotR = r * 1.2 * (1 - (now % 600) / 600);
+        const dx = tx + Math.cos(angle) * dotR;
+        const dy = ty + Math.sin(angle) * dotR;
+        this.glowGfx.circle(dx, dy, 2);
+        this.glowGfx.fill({ color: 0xffcc00, alpha: finalAlpha * 0.5 });
+      }
+    }
   }
 
-  _drawGroundAura(tx, ty) {
-    const pulse = 0.6 + Math.sin(Date.now() * 0.003) * 0.2;
-    const color = this.friendly ? 0x3cdc50 : 0xc83c3c;
+  _drawGroundAura(tx, ty, visualState = "idle", hpPct = 1) {
+    const now = Date.now();
     const halfH = HALF_HEIGHTS[this.bodyType] || FIGURE_HALF_HEIGHT;
+    let color, pulseBase, pulseAmp;
+    if (this.friendly) {
+      color = 0x3cdc50;
+      pulseBase = 0.08; pulseAmp = 0.03;
+    } else if (visualState === NPC_VISUAL_STATES.CHARGING) {
+      color = 0xffcc00;
+      pulseBase = 0.15; pulseAmp = 0.08;
+    } else if (visualState === NPC_VISUAL_STATES.WINDUP) {
+      color = 0xff8800;
+      pulseBase = 0.12; pulseAmp = 0.05;
+    } else if (visualState === NPC_VISUAL_STATES.ALERT) {
+      color = 0xff5020;
+      pulseBase = 0.10; pulseAmp = 0.04;
+    } else if (hpPct < 0.3 && hpPct > 0) {
+      color = 0x8b0000;
+      pulseBase = 0.12; pulseAmp = 0.06;
+    } else {
+      color = 0xc83c3c;
+      pulseBase = 0.08; pulseAmp = 0.02;
+    }
+    const pulse = pulseBase + Math.sin(now * 0.003) * pulseAmp;
     this.auraGfx.ellipse(tx, ty + halfH + 3, 16, 6);
-    this.auraGfx.fill({ color, alpha: 0.08 * pulse });
+    this.auraGfx.fill({ color, alpha: pulse });
   }
 
   _drawShadow(g, x, y, rx, ry, alpha = 0.25) {
@@ -532,6 +655,89 @@ export class CharacterSprite {
         }
         break;
       }
+    }
+  }
+
+  // P1: Alert "!" or "!!" indicator above enemy head
+  _drawAlertIndicator(tx, ty, halfH, visualState) {
+    const g = this.glowGfx;
+    const scale = this._depthScale || 1;
+    const y = ty - halfH * scale - 12;
+    const now = Date.now();
+    const bounce = Math.sin(now * 0.008) * 3;
+
+    if (visualState === NPC_VISUAL_STATES.WINDUP) {
+      // Double "!!" for windup
+      g.setStrokeStyle({ width: 2.5, color: 0xffcc00, alpha: 0.9 });
+      g.moveTo(tx - 3, y + bounce - 8); g.lineTo(tx - 3, y + bounce); g.stroke();
+      g.circle(tx - 3, y + bounce + 3, 1.2); g.fill({ color: 0xffcc00, alpha: 0.9 });
+      g.moveTo(tx + 3, y + bounce - 8); g.lineTo(tx + 3, y + bounce); g.stroke();
+      g.circle(tx + 3, y + bounce + 3, 1.2); g.fill({ color: 0xffcc00, alpha: 0.9 });
+    } else {
+      // Single "!" for alert
+      g.setStrokeStyle({ width: 2.5, color: 0xff4020, alpha: 0.85 });
+      g.moveTo(tx, y + bounce - 8); g.lineTo(tx, y + bounce); g.stroke();
+      g.circle(tx, y + bounce + 3, 1.2); g.fill({ color: 0xff4020, alpha: 0.85 });
+    }
+  }
+
+  // P5: Speed lines behind charging enemy
+  _drawChargeSpeedLines(tx, ty, dir, halfH) {
+    const g = this.glowGfx;
+    const now = Date.now();
+    for (let i = 0; i < 5; i++) {
+      const offset = ((now * 0.5 + i * 30) % 60) - 30;
+      const lineY = ty - halfH * 0.6 + i * (halfH * 0.3);
+      const lineAlpha = 0.3 * (1 - Math.abs(offset) / 30);
+      g.setStrokeStyle({ width: 1.5, color: 0xffaa00, alpha: lineAlpha });
+      g.moveTo(tx - dir * 20 + offset, lineY);
+      g.lineTo(tx - dir * 40 + offset, lineY);
+      g.stroke();
+    }
+    // Red glow behind
+    const glowR = 20 + Math.sin(now * 0.01) * 5;
+    g.circle(tx - dir * 15, ty, glowR);
+    g.fill({ color: 0xff2020, alpha: 0.06 });
+  }
+
+  // P7: Low HP darkening/pulsing red overlay
+  _drawLowHpEffect(tx, ty, halfH) {
+    const now = Date.now();
+    const pulse = 0.08 + Math.sin(now * 0.006) * 0.04;
+    const scale = this._depthScale || 1;
+    const r = this.iconSize * 0.5 * scale;
+    this.glowGfx.circle(tx, ty, r);
+    this.glowGfx.fill({ color: 0x600000, alpha: pulse });
+  }
+
+  // P3: Enemy melee slash arc (generic — no weapon model needed)
+  _drawMeleeSlashArc(tx, ty, dir, attackAnim, halfH) {
+    const g = this.weaponGfx;
+    const animT = attackAnim / 10;
+    if (animT <= 0) return;
+
+    // Arc sweep
+    const arcAngle = dir > 0 ? -0.5 + animT * 2.5 : Math.PI + 0.5 - animT * 2.5;
+    const arcLen = 22 * (this._depthScale || 1);
+    const endX = tx + Math.cos(arcAngle) * arcLen;
+    const endY = ty + Math.sin(arcAngle) * arcLen;
+
+    // Main slash line (white-hot)
+    g.setStrokeStyle({ width: 3, color: 0xffffff, alpha: animT * 0.8 });
+    g.moveTo(tx + dir * 5, ty);
+    g.lineTo(endX, endY);
+    g.stroke();
+
+    // Orange trail
+    g.setStrokeStyle({ width: 5, color: 0xff6020, alpha: animT * 0.4 });
+    g.moveTo(tx + dir * 5, ty);
+    g.lineTo(endX, endY);
+    g.stroke();
+
+    // Impact spark at tip
+    if (animT > 0.5) {
+      g.circle(endX, endY, 3 + animT * 4);
+      g.fill({ color: 0xffcc00, alpha: animT * 0.5 });
     }
   }
 

@@ -561,6 +561,60 @@ export class CombatParticles {
     });
   }
 
+  // P3: Melee slash trail — arc of sparks from attacker
+  spawnMeleeSlashTrail(x, y, dir = 1) {
+    this._emit(this._c(8), x, y, {
+      vx: () => dir * (2 + Math.random() * 4),
+      vy: () => (Math.random() - 0.5) * 6,
+      life: 12 + Math.random() * 6,
+      size: 2.5 + Math.random() * 1.5,
+      color: 0xff8040,
+      gravity: 0.08,
+      shrink: true,
+    });
+    // White-hot center sparks
+    this._emit(this._c(3), x, y, {
+      vx: () => dir * (3 + Math.random() * 3),
+      vy: () => (Math.random() - 0.5) * 4,
+      life: 8,
+      size: 3,
+      color: 0xffffff,
+      shrink: true,
+    });
+  }
+
+  // P5: Charge dust trail — kicked-up debris behind charging enemy
+  spawnChargeTrail(x, y) {
+    this._emit(this._c(4), x, y, {
+      vx: () => (Math.random() - 0.5) * 3,
+      vy: () => -(Math.random() * 2 + 1),
+      life: 15 + Math.random() * 8,
+      size: 3 + Math.random() * 3,
+      color: 0xa09070,
+      gravity: 0.05,
+      shrink: true,
+    });
+  }
+
+  // P4: Ranged charge-up — converging energy particles
+  spawnRangedChargeUp(x, y, element) {
+    const color = element === "fire" ? 0xff6020
+      : element === "ice" ? 0x60c0ff
+      : element === "shadow" ? 0xa050e0
+      : element === "poison" ? 0x44ff44
+      : 0xffaa00;
+    this._emit(this._c(6), x, y, {
+      vx: () => (Math.random() - 0.5) * 8,
+      vy: () => (Math.random() - 0.5) * 8,
+      life: 12 + Math.random() * 4,
+      size: 2 + Math.random() * 2,
+      color,
+      gravity: 0,
+      converge: true, // custom: particles converge to origin
+      cx: x, cy: y,
+    });
+  }
+
   spawnArrowTrail(x, y) {
     this._emit(this.mobile ? 1 : 3, x, y, {
       vx: () => (Math.random() - 0.5) * 0.5,
