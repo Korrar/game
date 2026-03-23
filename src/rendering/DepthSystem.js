@@ -155,26 +155,35 @@ export function sortByDepth(items) {
 
 // ─── ISOMETRIC DEPTH FUNCTIONS ───
 // These functions use isometric world coordinates (wx, wy) instead of Y percentage
+// Height parameter adds vertical offset for terrain elevation
 
 import { ISO_CONFIG } from "../utils/isometricUtils.js";
 
 // Normalized depth from isometric world position (0 = far, 1 = near)
 // In iso view, depth = wx + wy (objects further down-right are closer to camera)
-export function isoDepthFromWorld(wx, wy) {
+// Height slightly increases depth so elevated objects sort above ground-level ones
+export function isoDepthFromWorld(wx, wy, height) {
   const maxDepth = ISO_CONFIG.MAP_COLS + ISO_CONFIG.MAP_ROWS;
-  return Math.max(0, Math.min(1, (wx + wy) / maxDepth));
+  const baseDepth = (wx + wy) / maxDepth;
+  const heightBonus = (height || 0) * 0.005; // subtle height contribution
+  return Math.max(0, Math.min(1, baseDepth + heightBonus));
 }
 
-// Z-index for isometric sorting
-export function isoZIndex(wx, wy) {
-  const depth = isoDepthFromWorld(wx, wy);
+// Z-index for isometric sorting (height-aware)
+export function isoZIndex(wx, wy, height) {
+  const depth = isoDepthFromWorld(wx, wy, height);
   const { zMin, zMax } = DEPTH_CONFIG;
   return Math.round(zMin + (zMax - zMin) * depth);
 }
 
 // Sort objects by isometric depth (far first = drawn first)
+// Objects at same tile but different heights sort by height
 export function isoSortByDepth(items) {
-  return [...items].sort((a, b) => (a.wx + a.wy) - (b.wx + b.wy));
+  return [...items].sort((a, b) => {
+    const depthA = (a.wx + a.wy) + (a.height || 0) * 0.01;
+    const depthB = (b.wx + b.wy) + (b.height || 0) * 0.01;
+    return depthA - depthB;
+  });
 }
 
 // Isometric scale — subtle perspective: far objects slightly smaller, near slightly larger
@@ -195,4 +204,18 @@ export function isoFogAtDepth(wx, wy) {
 export function isoDesatAtDepth(wx, wy) {
   const depth = isoDepthFromWorld(wx, wy);
   return 0.15 * (1 - depth);
+}
+
+// Shadow parameters for isometric view (height-aware)
+export function isoShadowAtDepth(wx, wy, height) {
+  const depth = isoDepthFromWorld(wx, wy);
+  const h = height || 0;
+  return {
+    scaleX: 0.88 + 0.20 * depth,
+    scaleY: (0.88 + 0.20 * depth) * 0.4,
+    alpha: 0.15 + 0.15 * depth,
+    offsetY: 2 + depth * 4 + h * ISO_CONFIG.HEIGHT_PX * 0.5,
+    // Shadow stretches further when object is elevated
+    offsetX: h * 3,
+  };
 }

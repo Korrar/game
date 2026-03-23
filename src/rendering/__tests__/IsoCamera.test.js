@@ -81,7 +81,118 @@ describe("IsoCamera", () => {
   it("getScreenOffset returns camera position for rendering", () => {
     const cam = new IsoCamera(150, 80);
     const offset = cam.getScreenOffset();
+    // Without shake, offset equals raw position
     expect(offset.x).toBe(150);
     expect(offset.y).toBe(80);
+  });
+
+  // ─── ZOOM TESTS ───
+
+  it("initializes with default zoom of 1.0", () => {
+    const cam = new IsoCamera();
+    expect(cam.getZoom()).toBe(1.0);
+  });
+
+  it("setZoom changes target zoom", () => {
+    const cam = new IsoCamera();
+    cam.setZoom(1.5);
+    cam.update();
+    // Should start interpolating toward 1.5
+    expect(cam.getZoom()).toBeGreaterThan(1.0);
+  });
+
+  it("setZoom clamps to min/max", () => {
+    const cam = new IsoCamera();
+    cam.setZoom(0.01); // below minimum
+    // After many updates, zoom should not go below min
+    for (let i = 0; i < 200; i++) cam.update();
+    expect(cam.getZoom()).toBeGreaterThanOrEqual(0.5);
+
+    cam.setZoom(10.0); // above maximum
+    for (let i = 0; i < 200; i++) cam.update();
+    expect(cam.getZoom()).toBeLessThanOrEqual(2.0);
+  });
+
+  it("resetZoom returns to default", () => {
+    const cam = new IsoCamera();
+    cam.setZoom(1.8);
+    for (let i = 0; i < 200; i++) cam.update();
+    cam.resetZoom();
+    for (let i = 0; i < 200; i++) cam.update();
+    expect(cam.getZoom()).toBeCloseTo(1.0, 2);
+  });
+
+  // ─── FOLLOW TESTS ───
+
+  it("startFollow enables camera tracking", () => {
+    const cam = new IsoCamera(0, 0);
+    cam.setBounds(-9999, -9999, 9999, 9999);
+    const startX = cam.x;
+    cam.startFollow(20, 20);
+    for (let i = 0; i < 50; i++) cam.update();
+    // Camera should have moved toward the target
+    expect(cam.x !== startX || cam.y !== startX).toBe(true);
+  });
+
+  it("stopFollow freezes camera", () => {
+    const cam = new IsoCamera(0, 0);
+    cam.setBounds(-9999, -9999, 9999, 9999);
+    cam.startFollow(20, 20);
+    for (let i = 0; i < 20; i++) cam.update();
+    cam.stopFollow();
+    const posAfterStop = { x: cam.x, y: cam.y };
+    for (let i = 0; i < 20; i++) cam.update();
+    // Should not move after stopping (no shake active)
+    expect(cam.x).toBeCloseTo(posAfterStop.x, 2);
+    expect(cam.y).toBeCloseTo(posAfterStop.y, 2);
+  });
+
+  // ─── SCREEN SHAKE TESTS ───
+
+  it("shake offsets getScreenOffset from raw position", () => {
+    const cam = new IsoCamera(100, 100);
+    cam.setBounds(-9999, -9999, 9999, 9999);
+    cam.shake(20);
+    cam.update();
+    const offset = cam.getScreenOffset();
+    const raw = cam.getRawPosition();
+    // Shake should add some offset
+    const hasDrift = offset.x !== raw.x || offset.y !== raw.y;
+    expect(hasDrift).toBe(true);
+  });
+
+  it("shake decays over time", () => {
+    const cam = new IsoCamera(100, 100);
+    cam.setBounds(-9999, -9999, 9999, 9999);
+    cam.shake(10);
+    // After many updates, shake should be gone
+    for (let i = 0; i < 100; i++) cam.update();
+    const offset = cam.getScreenOffset();
+    const raw = cam.getRawPosition();
+    expect(offset.x).toBeCloseTo(raw.x, 0);
+    expect(offset.y).toBeCloseTo(raw.y, 0);
+  });
+
+  // ─── DYNAMIC MAP SIZE ───
+
+  it("setMapSize updates camera bounds", () => {
+    const cam = new IsoCamera();
+    cam.setMapSize(20, 20); // smaller arena
+    // Should not throw
+    expect(cam._bounds).toBeDefined();
+    expect(cam._bounds.maxX).toBeLessThan(9999);
+  });
+
+  // ─── VISIBILITY CULLING ───
+
+  it("isVisible returns true for on-screen objects", () => {
+    const cam = new IsoCamera();
+    expect(cam.isVisible(640, 360, 50, 50)).toBe(true);
+  });
+
+  it("isVisible returns false for far off-screen objects", () => {
+    const cam = new IsoCamera();
+    expect(cam.isVisible(-500, -500, 10, 10)).toBe(false);
+    expect(cam.isVisible(2000, 2000, 10, 10)).toBe(false);
   });
 });
