@@ -121,13 +121,13 @@ export function generateHeightMap(room, biome, cols, rows) {
   // Terrain profile per biome type
   const terrain = biome?.terrain || "forest";
   const profiles = {
-    forest: { amplitude: 1.5, frequency: 0.08, flatCenter: true },
-    mine: { amplitude: 2.5, frequency: 0.06, flatCenter: false },
-    desert: { amplitude: 0.8, frequency: 0.12, flatCenter: true },
-    swamp: { amplitude: 0.4, frequency: 0.15, flatCenter: true },
-    mountain: { amplitude: 3.0, frequency: 0.05, flatCenter: false },
-    coast: { amplitude: 1.0, frequency: 0.10, flatCenter: true },
-    volcanic: { amplitude: 2.0, frequency: 0.07, flatCenter: false },
+    forest: { amplitude: 2.5, frequency: 0.08, flatCenter: true, octaves: 3 },
+    mine: { amplitude: 3.5, frequency: 0.06, flatCenter: false, octaves: 3 },
+    desert: { amplitude: 1.8, frequency: 0.10, flatCenter: true, octaves: 2 },
+    swamp: { amplitude: 1.0, frequency: 0.12, flatCenter: true, octaves: 2 },
+    mountain: { amplitude: 4.5, frequency: 0.05, flatCenter: false, octaves: 4 },
+    coast: { amplitude: 2.0, frequency: 0.09, flatCenter: true, octaves: 2 },
+    volcanic: { amplitude: 3.5, frequency: 0.07, flatCenter: false, octaves: 3 },
   };
   const profile = profiles[terrain] || profiles.forest;
 
@@ -164,11 +164,16 @@ export function generateHeightMap(room, biome, cols, rows) {
       const nx = col / cols;
       const ny = row / rows;
 
-      // Base noise height
+      // Multi-octave noise for richer terrain
       let h = sampleNoise(nx, ny) * profile.amplitude;
-
-      // Add octave for detail
-      h += sampleNoise(nx * 2.3 + 0.5, ny * 2.3 + 0.5) * profile.amplitude * 0.3;
+      const octaves = profile.octaves || 2;
+      let amp = profile.amplitude * 0.4;
+      let freq = 2.3;
+      for (let oct = 1; oct < octaves; oct++) {
+        h += sampleNoise(nx * freq + oct * 0.5, ny * freq + oct * 0.3) * amp;
+        amp *= 0.45;
+        freq *= 2.1;
+      }
 
       // Flatten center for caravan area
       if (profile.flatCenter) {

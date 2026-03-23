@@ -61,7 +61,7 @@ export const WATER_FEATURES = {
     shallowColor: "#4a8aaa",
     animated: true,
     rippleSpeed: 0.8,
-    maxHeight: 0.3, // only forms below this terrain height
+    maxHeight: 1.0, // only forms below this terrain height
   },
   stream: {
     width: 1,
@@ -77,7 +77,7 @@ export const WATER_FEATURES = {
     shallowColor: "#3a5a28",
     animated: true,
     rippleSpeed: 0.3,
-    maxHeight: 0.5,
+    maxHeight: 1.5,
     bubbles: true,
   },
   lava_pool: {
@@ -87,7 +87,7 @@ export const WATER_FEATURES = {
     shallowColor: "#ff4400",
     animated: true,
     rippleSpeed: 0.5,
-    maxHeight: 0.4,
+    maxHeight: 1.2,
     glow: true,
     glowColor: "#ff6600",
     damagePerSec: 8,
@@ -99,7 +99,7 @@ export const WATER_FEATURES = {
     color: "#90c0e0",
     shallowColor: "#b0e0ff",
     animated: false,
-    maxHeight: 0.3,
+    maxHeight: 1.0,
     slippery: true,
     crackChance: 0.3,
   },
@@ -110,7 +110,7 @@ export const WATER_FEATURES = {
     shallowColor: "#40a0c0",
     animated: true,
     rippleSpeed: 0.6,
-    maxHeight: 0.4,
+    maxHeight: 1.2,
     coralColors: ["#ff6080", "#ffa040", "#a040ff"],
   },
 };

@@ -2808,11 +2808,10 @@ export default function App() {
                   processSkillshotHit(salvaSpell, hitId, damage, element, true);
                 },
                 panOffsetRef.current,
-                // Salvo: fire from bottom-center of screen (spell bar area)
+                // Salvo: fire from caravan position
                 isoModeRef.current ? (() => {
-                  const cam = isoCameraRef.current;
-                  const bottomCenter = _isoScreenToWorld(GAME_W / 2, GAME_H + 80, cam.x, cam.y);
-                  return { x: (bottomCenter.x / ISO_CONFIG.MAP_COLS) * GAME_W, y: (bottomCenter.y / ISO_CONFIG.MAP_ROWS) * GAME_H };
+                  const _cp = caravanPosRef.current;
+                  return { x: (_cp.x / ISO_CONFIG.MAP_COLS) * GAME_W, y: (_cp.y / ISO_CONFIG.MAP_ROWS) * GAME_H };
                 })() : null
               );
             }
@@ -3750,7 +3749,7 @@ export default function App() {
       ctx.clearRect(0, 0, GAME_W, GAME_H);
       if (isoModeRef.current) {
         const cam = isoCameraRef.current;
-        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current, !!placingFortRef.current);
+        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current, !!placingFortRef.current, terrainDataRef.current?.heightMap);
         // Render terrain overlays (roads, water, vegetation, fog of war)
         if (terrainDataRef.current) {
           renderTerrainOverlays(ctx, terrainDataRef.current, cam.x, cam.y, true);
@@ -6216,13 +6215,12 @@ export default function App() {
           processSkillshotHit(spell, hitId, damage, element, true);
         },
         panOffsetRef.current,
-        // Iso mode: fire from bottom-center of screen (spell bar area) — projectiles arc onto the map
+        // Iso mode: fire from caravan position — projectiles arc from caravan toward target
         isoModeRef.current ? (() => {
-          const cam = isoCameraRef.current;
-          const bottomCenter = _isoScreenToWorld(GAME_W / 2, GAME_H + 80, cam.x, cam.y);
+          const _cp = caravanPosRef.current;
           return {
-            x: (bottomCenter.x / ISO_CONFIG.MAP_COLS) * GAME_W,
-            y: (bottomCenter.y / ISO_CONFIG.MAP_ROWS) * GAME_H,
+            x: (_cp.x / ISO_CONFIG.MAP_COLS) * GAME_W,
+            y: (_cp.y / ISO_CONFIG.MAP_ROWS) * GAME_H,
           };
         })() : null
       );
@@ -6310,7 +6308,7 @@ export default function App() {
         const c = canvasRef.current;
         const ctx = c.getContext("2d");
         ctx.clearRect(0, 0, GAME_W, GAME_H);
-        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current, !!placingFortRef.current);
+        renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current, !!placingFortRef.current, terrainDataRef.current?.heightMap);
         if (terrainDataRef.current) {
           renderTerrainOverlays(ctx, terrainDataRef.current, cam.x, cam.y, true);
         }
@@ -6436,7 +6434,17 @@ export default function App() {
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
     const screenX = (cx - gr.left) / gameScale;
-    rapidFireRef.current.lastPos = { x: _screenToWorld(screenX, panOffsetRef.current, GAME_W), y: (cy - gr.top) / gameScale };
+    const screenY = (cy - gr.top) / gameScale;
+    if (isoModeRef.current) {
+      const cam = isoCameraRef.current;
+      const isoWorld = _isoScreenToWorld(screenX, screenY, cam.x, cam.y);
+      rapidFireRef.current.lastPos = {
+        x: (isoWorld.x / ISO_CONFIG.MAP_COLS) * GAME_W,
+        y: (isoWorld.y / ISO_CONFIG.MAP_ROWS) * GAME_H,
+      };
+    } else {
+      rapidFireRef.current.lastPos = { x: _screenToWorld(screenX, panOffsetRef.current, GAME_W), y: screenY };
+    }
   }, [gameScale]);
 
   const stopRapidFire = useCallback(() => {
@@ -8192,8 +8200,16 @@ export default function App() {
       {/* Salva Armatnia: red crosshair overlay (projectiles rendered by PixiJS) */}
       {salvaActive && (() => {
         const sv = salvaRef.current;
-        const cx = (sv.cursorX / 100) * GAME_W;
-        const cy = (sv.cursorY / 100) * GAME_H;
+        let cx, cy;
+        if (isoModeRef.current) {
+          // Iso: cursorX/Y are tile coords — convert to screen via worldToScreen
+          const cam = isoCameraRef.current;
+          const scr = _isoWorldToScreen(sv.cursorX, sv.cursorY, cam.x, cam.y);
+          cx = scr.x; cy = scr.y;
+        } else {
+          cx = (sv.cursorX / 100) * GAME_W;
+          cy = (sv.cursorY / 100) * GAME_H;
+        }
         const pulse = Math.sin(Date.now() * 0.012) * 0.3 + 0.7;
         return (
           <>
