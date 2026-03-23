@@ -176,3 +176,23 @@ export function isoZIndex(wx, wy) {
 export function isoSortByDepth(items) {
   return [...items].sort((a, b) => (a.wx + a.wy) - (b.wx + b.wy));
 }
+
+// Isometric scale — subtle perspective: far objects slightly smaller, near slightly larger
+// Range: 0.88 (far corner) to 1.08 (near corner) — much subtler than panoramic
+export function isoScaleAtDepth(wx, wy) {
+  const depth = isoDepthFromWorld(wx, wy);
+  return 0.88 + 0.20 * depth;
+}
+
+// Isometric fog — light atmospheric haze on distant objects
+// Range: 0.18 (far) to 0.0 (near)
+export function isoFogAtDepth(wx, wy) {
+  const depth = isoDepthFromWorld(wx, wy);
+  return 0.18 * (1 - depth);
+}
+
+// Isometric desaturation — far objects slightly washed out
+export function isoDesatAtDepth(wx, wy) {
+  const depth = isoDepthFromWorld(wx, wy);
+  return 0.15 * (1 - depth);
+}

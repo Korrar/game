@@ -263,6 +263,27 @@ export function renderIsoBiome(ctx, biome, room, W, H, isNight, cameraX, cameraY
     }
   }
 
+  // Atmospheric perspective — far tiles (low wx+wy) get subtle haze overlay
+  const maxTileDepth = MAP_COLS + MAP_ROWS;
+  for (let row = minRow; row <= maxRow; row++) {
+    for (let col = minCol; col <= maxCol; col++) {
+      const tileDepth = (col + row) / maxTileDepth; // 0=far, 1=near
+      const hazeAlpha = 0.12 * (1 - tileDepth); // subtle haze on far tiles
+      if (hazeAlpha > 0.01) {
+        const screen = worldToScreen(col, row, cameraX, cameraY);
+        if (screen.x < -TILE_W || screen.x > W + TILE_W) continue;
+        ctx.fillStyle = `rgba(180,200,220,${hazeAlpha})`;
+        ctx.beginPath();
+        ctx.moveTo(screen.x, screen.y);
+        ctx.lineTo(screen.x + TILE_W / 2, screen.y + TILE_H / 2);
+        ctx.lineTo(screen.x, screen.y + TILE_H);
+        ctx.lineTo(screen.x - TILE_W / 2, screen.y + TILE_H / 2);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
   // Map border effect — darker edges
   const edgeFade = 3; // tiles from edge to start darkening
   for (let row = minRow; row <= maxRow; row++) {

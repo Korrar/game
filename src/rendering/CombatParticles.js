@@ -3,7 +3,7 @@
 
 import { Graphics } from "pixi.js";
 import { wrapPxToScreen } from "../utils/panoramaWrap.js";
-import { worldToScreen } from "../utils/isometricUtils.js";
+import { worldToScreen, ISO_CONFIG } from "../utils/isometricUtils.js";
 
 const _isMobile = ("ontouchstart" in window || navigator.maxTouchPoints > 0) && window.innerWidth < 900;
 const MAX_PARTICLES = _isMobile ? 100 : 250;
@@ -700,16 +700,16 @@ export class CombatParticles {
       // Convert physics pixel coords to iso world coords for projection
       // Particles move in physics pixel space; convert to tile coords for iso
       const gw = this._gameW || 1280;
-      const wx = p.wx ?? (p.x / gw) * 40;  // MAP_COLS=40
-      const wy = p.wy ?? (p.y / 720) * 40; // MAP_ROWS=40
+      const wx = p.wx ?? (p.x / gw) * ISO_CONFIG.MAP_COLS;
+      const wy = p.wy ?? (p.y / ISO_CONFIG.GAME_H) * ISO_CONFIG.MAP_ROWS;
       const screen = worldToScreen(wx, wy, cameraX, cameraY);
       const sx = screen.x;
-      if (sx < -50 || sx > gw + 50) continue;
+      const sy = screen.y;
+      if (sx < -50 || sx > gw + 50 || sy < -50 || sy > ISO_CONFIG.GAME_H + 50) continue;
 
       const lifeRatio = p.life / p.maxLife;
       const alpha = lifeRatio > 0.7 ? 1 : lifeRatio / 0.7;
       const size = p.shrink ? p.size * lifeRatio : p.size;
-      const sy = screen.y;
 
       if (p.type === "diamond") {
         this.gfx.moveTo(sx, sy - size);
