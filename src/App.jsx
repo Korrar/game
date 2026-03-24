@@ -588,6 +588,17 @@ export default function App() {
   const eventMercHpBuffRef = useRef(0);
   eventMercHpBuffRef.current = eventMercHpBuff;
 
+  // ─── FEATURE: Secret Room Buffs ───
+  const [secretPermDmgBuff, setSecretPermDmgBuff] = useState(0); // permanent +X% dmg from secret rooms
+  const secretPermDmgBuffRef = useRef(0);
+  secretPermDmgBuffRef.current = secretPermDmgBuff;
+  const [secretSpellBuffRooms, setSecretSpellBuffRooms] = useState(0); // rooms remaining for spell dmg buff
+  const secretSpellBuffRoomsRef = useRef(0);
+  secretSpellBuffRoomsRef.current = secretSpellBuffRooms;
+  const [secretSpellBuffMult, setSecretSpellBuffMult] = useState(0); // spell dmg multiplier from secret rooms
+  const secretSpellBuffMultRef = useRef(0);
+  secretSpellBuffMultRef.current = secretSpellBuffMult;
+
   // ─── FEATURE: Crew Management ───
   const [crew, setCrew] = useState([]);           // [{role, loyalty, skillLevel, id}]
   const crewRef = useRef([]);
@@ -644,6 +655,8 @@ export default function App() {
   const [ownedArtifacts, setOwnedArtifacts] = useState([]);
   const [totalDiscoveries, setTotalDiscoveries] = useState(0);
   const [secretRoom, setSecretRoom] = useState(null);
+  const secretRoomRef = useRef(null);
+  secretRoomRef.current = secretRoom;
   const [_showJournal, setShowJournal] = useState(false);
 
   // Knowledge bonus: +5% damage per discovered NPC type (max +50%)
@@ -775,12 +788,15 @@ export default function App() {
 
   // ─── Discovery helpers ───
   const addDiscovery = useCallback((category, entry) => {
+    let added = false;
     setJournal(prev => {
       const cat = prev[category] || [];
       if (cat.find(e => e.id === entry.id)) return prev;
+      added = true;
       return { ...prev, [category]: [...cat, entry] };
     });
-    setTotalDiscoveries(prev => prev + 1);
+    // Only increment if journal actually changed (not a duplicate)
+    if (added) setTotalDiscoveries(prev => prev + 1);
   }, []);
 
   // ─── Computed faction bonuses ───
@@ -794,8 +810,17 @@ export default function App() {
     return bonuses;
   };
 
-  // ─── Computed discovery bonuses ───
-  const _getArtifactSetBonuses = () => getCompletedSetBonuses(ownedArtifacts);
+  // ─── Computed artifact set bonuses (applied to damage, armor, etc.) ───
+  const artifactSetBonuses = getCompletedSetBonuses(ownedArtifacts);
+  const artifactDmgMult = artifactSetBonuses.reduce((m, b) => m * (b.effect.dmgMult || 1), 1);
+  const artifactArmor = artifactSetBonuses.reduce((a, b) => a + (b.effect.caravanArmor || 0), 0);
+  const artifactCooldownMult = artifactSetBonuses.reduce((m, b) => m * (b.effect.cooldownMult || 1), 1);
+  const artifactDmgMultRef = useRef(1);
+  artifactDmgMultRef.current = artifactDmgMult;
+  const artifactArmorRef = useRef(0);
+  artifactArmorRef.current = artifactArmor;
+  const artifactCooldownMultRef = useRef(1);
+  artifactCooldownMultRef.current = artifactCooldownMult;
 
   const [activeBoss, setActiveBoss] = useState(null);
   const activeBossRef = useRef(null);
@@ -1176,6 +1201,8 @@ export default function App() {
     if (hasSynergy("twierdza")) armor += 2;
     // Perk: caravan armor
     armor += perkCaravanArmor;
+    // Artifact set bonus: extra caravan armor
+    armor += artifactArmorRef.current;
     let actualDmg = Math.max(1, damage - armor);
     // Height advantage: enemies on high ground deal more damage to caravan
     if (isoModeRef.current && terrainDataRef.current?.heightMap) {
@@ -1289,7 +1316,8 @@ export default function App() {
       // Pause game when any modal/overlay is blocking gameplay
       if (levelUpChoicesRef.current || upgradeChoicesRef.current
         || relicChoicesRef.current || storyEventRef.current || moralDilemmaRef.current
-        || factionEventRef.current || seaEventRef.current || showChestRef.current) {
+        || factionEventRef.current || seaEventRef.current || showChestRef.current
+        || secretRoomRef.current) {
         lastTime = performance.now();
         // Still render physics (so visuals stay) but skip all logic
         if (physicsRef.current) physicsRef.current.step();
@@ -3379,6 +3407,7 @@ export default function App() {
     // Decrement risk event room counters
     if (enemyBuffRoomsRef.current > 0) setEnemyBuffRooms(prev => prev - 1);
     if (playerDoubleDmgRoomsRef.current > 0) setPlayerDoubleDmgRooms(prev => prev - 1);
+    if (secretSpellBuffRoomsRef.current > 0) setSecretSpellBuffRooms(prev => prev - 1);
     // Reset per-room merchant buffs (active for 1 room after purchase)
     if (eventMercDmgBuffRef.current > 0) { setEventMercDmgBuff(0); eventMercDmgBuffRef.current = 0; }
     if (eventMercHpBuffRef.current > 0) { setEventMercHpBuff(0); eventMercHpBuffRef.current = 0; }
@@ -5025,6 +5054,7 @@ export default function App() {
     setSpellUpgrades({}); setUpgradeChoices(null);
     setKillStreak(0); setPowerSpikeWarning(false);
     setEnemyBuffRooms(0); setPlayerDoubleDmgRooms(0); setEventMercDmgBuff(0); setEventMercHpBuff(0);
+    setSecretPermDmgBuff(0); setSecretSpellBuffRooms(0); setSecretSpellBuffMult(0);
     setPlayerTraps([]); setPlacingTrap(null);
     setRoomChallenge(null);
     setCaravanShield({ active: false, cooldown: 0 });
@@ -5071,6 +5101,7 @@ export default function App() {
       spellUpgrades,
       killStreak,
       enemyBuffRooms, playerDoubleDmgRooms,
+      secretPermDmgBuff, secretSpellBuffRooms, secretSpellBuffMult,
       // New gameplay systems
       crew, activeStory, completedStories,
       shipUpgrades, discoveredIslands, shipMapPos,
@@ -5130,6 +5161,9 @@ export default function App() {
       setKillStreak(s.killStreak || 0);
       setEnemyBuffRooms(s.enemyBuffRooms || 0);
       setPlayerDoubleDmgRooms(s.playerDoubleDmgRooms || 0);
+      setSecretPermDmgBuff(s.secretPermDmgBuff || 0);
+      setSecretSpellBuffRooms(s.secretSpellBuffRooms || 0);
+      setSecretSpellBuffMult(s.secretSpellBuffMult || 0);
       // Load new gameplay systems
       setCrew(s.crew || []);
       setActiveStory(s.activeStory || null);
@@ -5180,6 +5214,7 @@ export default function App() {
         playerXp, playerLevel, levelPerks,
         spellUpgrades, killStreak,
         enemyBuffRooms, playerDoubleDmgRooms,
+        secretPermDmgBuff, secretSpellBuffRooms, secretSpellBuffMult,
         crew, activeStory, completedStories,
         shipUpgrades, discoveredIslands,
         unlockedFortifications, factionRep,
@@ -6113,6 +6148,9 @@ export default function App() {
         dmg = Math.round(dmg * (1 + moonbladeBonusRef.current.spellBonus));
       }
       if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
+      if (secretPermDmgBuffRef.current > 0) dmg = Math.round(dmg * (1 + secretPermDmgBuffRef.current));
+      if (secretSpellBuffRoomsRef.current > 0 && secretSpellBuffMultRef.current > 0) dmg = Math.round(dmg * (1 + secretSpellBuffMultRef.current));
+      if (artifactDmgMultRef.current !== 1) dmg = Math.round(dmg * artifactDmgMultRef.current);
 
       // Headshot bonus: +50% damage
       if (isHeadshot) dmg = Math.round(dmg * (1 + HEADSHOT_BONUS));
@@ -6459,7 +6497,7 @@ export default function App() {
       setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
     }
     {
-      const finalCd = Math.round(_skStats.cooldown * perkCooldownMult);
+      const finalCd = Math.round(_skStats.cooldown * perkCooldownMult * artifactCooldownMultRef.current);
       // Immediately update cooldown ref to prevent double-fire between React renders
       cooldownsRef.current = { ...cooldownsRef.current, [spell.id]: Date.now() + finalCd };
       setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
@@ -7025,6 +7063,8 @@ export default function App() {
         }
         dmg = Math.round(dmg * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
+        if (secretPermDmgBuffRef.current > 0) dmg = Math.round(dmg * (1 + secretPermDmgBuffRef.current));
+        if (artifactDmgMultRef.current !== 1) dmg = Math.round(dmg * artifactDmgMultRef.current);
         if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
         if (hasRelic("mermaid_tear") && saberData.element === "ice") dmg = Math.round(dmg * 1.25);
         if (isCrit) dmg = Math.round(dmg * 2.5);
@@ -7586,7 +7626,7 @@ export default function App() {
     // Cooldown with upgrades + perk
     {
       const uStats = _uStats;
-      const finalCd = Math.round(uStats.cooldown * perkCooldownMult);
+      const finalCd = Math.round(uStats.cooldown * perkCooldownMult * artifactCooldownMultRef.current);
       setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
     }
 
@@ -7628,6 +7668,9 @@ export default function App() {
       damage = Math.round(damage * perkSpellDmgMult);
       // Risk event: player double damage
       if (playerDoubleDmgRoomsRef.current > 0) damage = Math.round(damage * 2);
+      if (secretPermDmgBuffRef.current > 0) damage = Math.round(damage * (1 + secretPermDmgBuffRef.current));
+      if (secretSpellBuffRoomsRef.current > 0 && secretSpellBuffMultRef.current > 0) damage = Math.round(damage * (1 + secretSpellBuffMultRef.current));
+      if (artifactDmgMultRef.current !== 1) damage = Math.round(damage * artifactDmgMultRef.current);
       // Element combo system (uses imported COMBOS from combos.js)
       let comboText = null;
       const prevDebuff = elementDebuffs.current[wid];
@@ -7825,7 +7868,7 @@ export default function App() {
     {
       const spellUps = spellUpgradesRef.current[spell.id] || [];
       const uStats = getUpgradedSpellStats(spell, spellUps);
-      const finalCd = Math.round(uStats.cooldown * perkCooldownMult);
+      const finalCd = Math.round(uStats.cooldown * perkCooldownMult * artifactCooldownMultRef.current);
       setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
     }
 
@@ -7876,6 +7919,9 @@ export default function App() {
         damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
         damage = Math.round(damage * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) damage = Math.round(damage * 2);
+        if (secretPermDmgBuffRef.current > 0) damage = Math.round(damage * (1 + secretPermDmgBuffRef.current));
+        if (secretSpellBuffRoomsRef.current > 0 && secretSpellBuffMultRef.current > 0) damage = Math.round(damage * (1 + secretSpellBuffMultRef.current));
+        if (artifactDmgMultRef.current !== 1) damage = Math.round(damage * artifactDmgMultRef.current);
         // Element combo for AoE (uses imported COMBOS)
         const prevDebuff = elementDebuffs.current[w.id];
         let comboText = null;
@@ -8116,8 +8162,9 @@ export default function App() {
         if (spell) handleSelectSpellRef.current(spell.id);
         return;
       }
-      // Escape to cancel selection + skillshot mode + trap placement
+      // Escape to cancel selection + skillshot mode + trap placement + secret room
       if (e.key === "Escape") {
+        if (secretRoomRef.current) { setSecretRoom(null); return; }
         setSelectedSpell(null);
         setSkillshotMode(false);
         setSkillshotSpell(null);
@@ -11407,59 +11454,198 @@ export default function App() {
           </div>
           <div style={{ fontSize: 13, color: "#d8c8a8", marginBottom: 8 }}>{secretRoom.desc}</div>
           <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>{secretRoom.puzzle.desc}</div>
-          {secretRoom.puzzle.type === "trade" ? (
-            secretRoom.puzzle.trades.map((trade, i) => (
+          {/* ─── Helper: apply secret room reward ─── */}
+          {(() => {
+            const applyReward = (reward) => {
+              if (reward.permDmgBuff) {
+                setSecretPermDmgBuff(prev => prev + reward.permDmgBuff);
+                showMessage(`Permanentny bonus: +${Math.round(reward.permDmgBuff * 100)}% obrażeń!`, "#a050e0");
+              }
+              if ((reward.spellDmgBuff || reward.shadowDmgBuff) && reward.duration) {
+                const mult = reward.spellDmgBuff || reward.shadowDmgBuff;
+                setSecretSpellBuffMult(mult);
+                setSecretSpellBuffRooms(reward.duration);
+                showMessage(`+${Math.round(mult * 100)}% mocy na ${reward.duration} pokoi!`, "#a050e0");
+              }
+              if (reward.copper) addMoneyFn({ copper: reward.copper });
+              if (reward.gold) addMoneyFn({ gold: reward.gold });
+              if (reward.silver) addMoneyFn({ silver: reward.silver });
+              if (reward.knowledge) setKnowledge(prev => prev + reward.knowledge);
+              if (reward.initiative) setInitiative(prev => Math.min(MAX_INITIATIVE, prev + reward.initiative));
+              if (reward.fullHeal) setCaravanHp(CARAVAN_LEVELS[caravanLevelRef.current].hp);
+              if (reward.fullMana) setMana(MAX_MANA);
+              if (reward.permMaxMana) showMessage(`+${reward.permMaxMana} max prochu permanentnie!`, "#4080ff");
+              if (reward.ammo) {
+                setAmmo(prev => {
+                  const next = { ...prev };
+                  for (const [k, v] of Object.entries(reward.ammo)) next[k] = (next[k] || 0) + v;
+                  return next;
+                });
+                showMessage("Otrzymano amunicję!", "#d4a030");
+              }
+              if (reward.mercRevive || reward.tempMercs || reward.ghostMerc) {
+                const count = reward.tempMercs || 1;
+                for (let mi = 0; mi < count; mi++) {
+                  const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
+                  setTimeout(() => spawnFreeMerc(mt, 1), 600 + mi * 300);
+                }
+                showMessage(count > 1 ? `${count} najemników dołącza!` : "Nowy najemnik dołącza!", "#40c040");
+              }
+              if (reward.randomRelic) {
+                const owned = activeRelicsRef.current.map(r => r.id);
+                const pool = RELICS.filter(r => !owned.includes(r.id));
+                if (pool.length > 0) {
+                  const relic = pool[Math.floor(Math.random() * pool.length)];
+                  setActiveRelics(prev => [...prev, relic]);
+                  showMessage(`Relikt: ${relic.name}!`, "#d4a030");
+                }
+              }
+              if (reward.treasure) {
+                const t = pickTreasure(room + 5);
+                setInventory(prev => [...prev, t]);
+                showMessage(`Skarb: ${t.name}!`, "#d4a030");
+              }
+              if (reward.artifact) {
+                setOwnedArtifacts(prev => {
+                  const allPieces = ARTIFACT_SETS.flatMap(s => s.pieces).filter(p => !prev.includes(p.id));
+                  if (allPieces.length === 0) return prev;
+                  const piece = allPieces[Math.floor(Math.random() * allPieces.length)];
+                  addDiscovery("artifacts", { id: piece.id, name: piece.name });
+                  showMessage(`Artefakt: ${piece.name}!`, "#d4a030");
+                  return [...prev, piece.id];
+                });
+              }
+            };
+
+            const applyPenalty = (pen) => {
+              if (!pen) return;
+              if (pen.caravanDmg) setCaravanHp(prev => Math.max(1, prev - pen.caravanDmg));
+              if (pen.manaLoss) setMana(prev => Math.max(0, prev - pen.manaLoss));
+              if (pen.copperLoss) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - pen.copperLoss)));
+              if (pen.mercDeath) showMessage("Najemnik zginął!", "#cc4040");
+              if (pen.enemyBuff) setEnemyBuffRooms(prev => prev + pen.enemyBuff);
+            };
+
+            const canAffordTrade = (cost) => {
+              if (cost.copper && totalCopper(money) < cost.copper) return false;
+              if (cost.silver && totalCopper(money) < cost.silver * 100) return false;
+              if (cost.gold && totalCopper(money) < cost.gold * 10000) return false;
+              if (cost.mana && mana < cost.mana) return false;
+              if (cost.caravanHp && caravanHp <= cost.caravanHp) return false;
+              return true;
+            };
+
+            const applyTradeCost = (cost) => {
+              if (cost.caravanHp) setCaravanHp(prev => Math.max(1, prev - cost.caravanHp));
+              if (cost.mana) setMana(prev => Math.max(0, prev - cost.mana));
+              if (cost.copper) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - cost.copper)));
+              if (cost.silver) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - cost.silver * 100)));
+              if (cost.gold) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - cost.gold * 10000)));
+              if (cost.initLoss) setInitiative(prev => Math.max(0, prev - cost.initLoss));
+              if (cost.mercSacrifice) {
+                setWalkers(prev => {
+                  const friendlies = prev.filter(w => w.friendly && w.alive);
+                  if (friendlies.length === 0) return prev;
+                  const victim = friendlies[Math.floor(Math.random() * friendlies.length)];
+                  return prev.map(w => w.id === victim.id ? { ...w, alive: false, hp: 0 } : w);
+                });
+                showMessage("Najemnik poświęcony!", "#cc4040");
+              }
+            };
+
+            const btnStyle = { display: "block", width: "100%", marginBottom: 6, padding: "12px 14px", minHeight: 44, background: "none", border: `1px solid ${secretRoom.themeColor}66`, color: secretRoom.themeColor, fontSize: 12, cursor: "pointer", textAlign: "left" };
+            const btnDisabled = { ...btnStyle, opacity: 0.4, cursor: "not-allowed", color: "#666" };
+            const pType = secretRoom.puzzle.type;
+
+            // ─── Trade puzzle ───
+            if (pType === "trade") return secretRoom.puzzle.trades.map((trade, i) => {
+              const affordable = canAffordTrade(trade.cost);
+              return <button key={i} disabled={!affordable} onClick={() => {
+                if (!affordable) return;
+                applyTradeCost(trade.cost);
+                applyReward(trade.reward);
+                setSecretRoom(null);
+              }} style={affordable ? btnStyle : btnDisabled}>
+                Ofiaruj {trade.offer} → {trade.rewardDesc}
+              </button>;
+            });
+
+            // ─── Pact puzzle (Ghost Captain) ───
+            if (pType === "pact") return secretRoom.puzzle.pacts.map((pact, i) => (
               <button key={i} onClick={() => {
-                if (trade.cost.caravanHp) setCaravanHp(prev => Math.max(1, prev - trade.cost.caravanHp));
-                if (trade.cost.mana) setMana(prev => Math.max(0, prev - trade.cost.mana));
-                if (trade.cost.silver) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - trade.cost.silver * 100)));
-                if (trade.reward.permDmgBuff) showMessage(`Permanentny bonus: +${trade.reward.permDmgBuff * 100}% obrażeń!`, "#a050e0");
-                if (trade.reward.artifact) {
-                  const allPieces = ARTIFACT_SETS.flatMap(s => s.pieces).filter(p => !ownedArtifacts.includes(p.id));
-                  if (allPieces.length > 0) {
-                    const piece = allPieces[Math.floor(Math.random() * allPieces.length)];
-                    setOwnedArtifacts(prev => [...prev, piece.id]);
-                    addDiscovery("artifacts", { id: piece.id, name: piece.name });
-                    showMessage(`Znaleziono artefakt: ${piece.name}!`, "#d4a030");
-                  }
+                if (pact.cost.maxHpReduction) {
+                  setCaravanHp(prev => Math.max(1, prev - pact.cost.maxHpReduction));
+                  showMessage(`-${pact.cost.maxHpReduction} max HP karawany`, "#cc4040");
+                }
+                if (pact.cost.mercSacrifice) applyTradeCost({ mercSacrifice: pact.cost.mercSacrifice });
+                applyReward(pact.reward);
+                setSecretRoom(null);
+              }} style={btnStyle}>
+                {pact.name}: {pact.rewardDesc}
+              </button>
+            ));
+
+            // ─── Choose puzzle (Ancient Armory) ───
+            if (pType === "choose") return secretRoom.puzzle.choices.map((choice, i) => (
+              <button key={i} onClick={() => {
+                applyReward(choice.reward);
+                showMessage(`Wybrano: ${choice.name}!`, secretRoom.themeColor);
+                setSecretRoom(null);
+              }} style={btnStyle}>
+                <Icon name={choice.icon} size={14} /> {choice.name} — {choice.desc}
+              </button>
+            ));
+
+            // ─── Gamble puzzle (Time Rift) ───
+            if (pType === "gamble") return secretRoom.puzzle.options.map((opt, i) => (
+              <button key={i} onClick={() => {
+                const won = Math.random() < opt.chance;
+                if (won) {
+                  applyReward(opt.success);
+                  showMessage(opt.successDesc, "#40c040");
+                } else {
+                  applyPenalty(opt.fail);
+                  showMessage(opt.failDesc, "#cc4040");
                 }
                 setSecretRoom(null);
-              }} style={{ display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: "1px solid #6040a0", color: "#c0a0ff", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
-                Ofiaruj {trade.offer} → {trade.rewardDesc}
+              }} style={btnStyle}>
+                {opt.name} (szansa: {Math.round(opt.chance * 100)}%)
               </button>
-            ))
-          ) : (
-            <button onClick={() => {
+            ));
+
+            // ─── Risk puzzle (Cursed Throne) ───
+            if (pType === "risk") return secretRoom.puzzle.tiers.map((tier, i) => (
+              <button key={i} onClick={() => {
+                const failed = Math.random() < tier.risk;
+                if (!failed) {
+                  applyReward(tier.reward);
+                  showMessage(tier.rewardDesc, "#40c040");
+                } else {
+                  applyPenalty(tier.penalty);
+                  showMessage(tier.penaltyDesc, "#cc4040");
+                }
+                setSecretRoom(null);
+              }} style={btnStyle}>
+                {tier.name} (ryzyko: {Math.round(tier.risk * 100)}%) → {tier.rewardDesc}
+              </button>
+            ));
+
+            // ─── Default: difficulty-based puzzle (sequence, riddle, timing, multi_key) ───
+            return <button onClick={() => {
               const success = Math.random() < (1 / secretRoom.puzzle.difficulty);
               if (success) {
-                const r = secretRoom.puzzle.reward;
-                if (r.copper) addMoneyFn({ copper: r.copper });
-                if (r.gold) addMoneyFn({ gold: r.gold });
-                if (r.silver) addMoneyFn({ silver: r.silver });
-                if (r.knowledge) { setKnowledge(prev => prev + r.knowledge); }
-                if (r.artifact) {
-                  const allPieces = ARTIFACT_SETS.flatMap(s => s.pieces).filter(p => !ownedArtifacts.includes(p.id));
-                  if (allPieces.length > 0) {
-                    const piece = allPieces[Math.floor(Math.random() * allPieces.length)];
-                    setOwnedArtifacts(prev => [...prev, piece.id]);
-                    addDiscovery("artifacts", { id: piece.id, name: piece.name });
-                    showMessage(`Artefakt: ${piece.name}!`, "#d4a030");
-                  }
-                }
+                applyReward(secretRoom.puzzle.reward);
                 showMessage("Zagadka rozwiązana!", "#40c040");
               } else {
-                const pen = secretRoom.puzzle.failPenalty;
-                if (pen.caravanDmg) setCaravanHp(prev => Math.max(1, prev - pen.caravanDmg));
-                if (pen.manaLoss) setMana(prev => Math.max(0, prev - pen.manaLoss));
-                if (pen.copperLoss) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - pen.copperLoss)));
+                applyPenalty(secretRoom.puzzle.failPenalty);
                 showMessage("Nie udało się...", "#cc4040");
               }
               setSecretRoom(null);
-            }} style={{ padding: "8px 16px", background: "none", border: "1px solid #c0a0ff", color: "#c0a0ff", fontSize: 13, cursor: "pointer" }}>
+            }} style={{ padding: "12px 16px", minHeight: 44, background: "none", border: `1px solid ${secretRoom.themeColor}`, color: secretRoom.themeColor, fontSize: 13, cursor: "pointer" }}>
               Spróbuj rozwiązać! (szansa: {Math.round(100 / secretRoom.puzzle.difficulty)}%)
-            </button>
-          )}
-          <button onClick={() => setSecretRoom(null)} style={{ marginTop: 8, padding: "6px 12px", background: "none", border: "1px solid #555", color: "#888", fontSize: 11, cursor: "pointer" }}>
+            </button>;
+          })()}
+          <button onClick={() => setSecretRoom(null)} style={{ marginTop: 8, padding: "10px 14px", minHeight: 44, background: "none", border: "1px solid #555", color: "#888", fontSize: 11, cursor: "pointer" }}>
             Odejdź
           </button>
         </div>
