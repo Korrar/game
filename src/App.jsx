@@ -588,6 +588,17 @@ export default function App() {
   const eventMercHpBuffRef = useRef(0);
   eventMercHpBuffRef.current = eventMercHpBuff;
 
+  // ─── FEATURE: Secret Room Buffs ───
+  const [secretPermDmgBuff, setSecretPermDmgBuff] = useState(0); // permanent +X% dmg from secret rooms
+  const secretPermDmgBuffRef = useRef(0);
+  secretPermDmgBuffRef.current = secretPermDmgBuff;
+  const [secretSpellBuffRooms, setSecretSpellBuffRooms] = useState(0); // rooms remaining for spell dmg buff
+  const secretSpellBuffRoomsRef = useRef(0);
+  secretSpellBuffRoomsRef.current = secretSpellBuffRooms;
+  const [secretSpellBuffMult, setSecretSpellBuffMult] = useState(0); // spell dmg multiplier from secret rooms
+  const secretSpellBuffMultRef = useRef(0);
+  secretSpellBuffMultRef.current = secretSpellBuffMult;
+
   // ─── FEATURE: Crew Management ───
   const [crew, setCrew] = useState([]);           // [{role, loyalty, skillLevel, id}]
   const crewRef = useRef([]);
@@ -3379,6 +3390,7 @@ export default function App() {
     // Decrement risk event room counters
     if (enemyBuffRoomsRef.current > 0) setEnemyBuffRooms(prev => prev - 1);
     if (playerDoubleDmgRoomsRef.current > 0) setPlayerDoubleDmgRooms(prev => prev - 1);
+    if (secretSpellBuffRoomsRef.current > 0) setSecretSpellBuffRooms(prev => prev - 1);
     // Reset per-room merchant buffs (active for 1 room after purchase)
     if (eventMercDmgBuffRef.current > 0) { setEventMercDmgBuff(0); eventMercDmgBuffRef.current = 0; }
     if (eventMercHpBuffRef.current > 0) { setEventMercHpBuff(0); eventMercHpBuffRef.current = 0; }
@@ -5025,6 +5037,7 @@ export default function App() {
     setSpellUpgrades({}); setUpgradeChoices(null);
     setKillStreak(0); setPowerSpikeWarning(false);
     setEnemyBuffRooms(0); setPlayerDoubleDmgRooms(0); setEventMercDmgBuff(0); setEventMercHpBuff(0);
+    setSecretPermDmgBuff(0); setSecretSpellBuffRooms(0); setSecretSpellBuffMult(0);
     setPlayerTraps([]); setPlacingTrap(null);
     setRoomChallenge(null);
     setCaravanShield({ active: false, cooldown: 0 });
@@ -5071,6 +5084,7 @@ export default function App() {
       spellUpgrades,
       killStreak,
       enemyBuffRooms, playerDoubleDmgRooms,
+      secretPermDmgBuff, secretSpellBuffRooms, secretSpellBuffMult,
       // New gameplay systems
       crew, activeStory, completedStories,
       shipUpgrades, discoveredIslands, shipMapPos,
@@ -5130,6 +5144,9 @@ export default function App() {
       setKillStreak(s.killStreak || 0);
       setEnemyBuffRooms(s.enemyBuffRooms || 0);
       setPlayerDoubleDmgRooms(s.playerDoubleDmgRooms || 0);
+      setSecretPermDmgBuff(s.secretPermDmgBuff || 0);
+      setSecretSpellBuffRooms(s.secretSpellBuffRooms || 0);
+      setSecretSpellBuffMult(s.secretSpellBuffMult || 0);
       // Load new gameplay systems
       setCrew(s.crew || []);
       setActiveStory(s.activeStory || null);
@@ -5180,6 +5197,7 @@ export default function App() {
         playerXp, playerLevel, levelPerks,
         spellUpgrades, killStreak,
         enemyBuffRooms, playerDoubleDmgRooms,
+        secretPermDmgBuff, secretSpellBuffRooms, secretSpellBuffMult,
         crew, activeStory, completedStories,
         shipUpgrades, discoveredIslands,
         unlockedFortifications, factionRep,
@@ -6113,6 +6131,8 @@ export default function App() {
         dmg = Math.round(dmg * (1 + moonbladeBonusRef.current.spellBonus));
       }
       if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
+      if (secretPermDmgBuffRef.current > 0) dmg = Math.round(dmg * (1 + secretPermDmgBuffRef.current));
+      if (secretSpellBuffRoomsRef.current > 0 && secretSpellBuffMultRef.current > 0) dmg = Math.round(dmg * (1 + secretSpellBuffMultRef.current));
 
       // Headshot bonus: +50% damage
       if (isHeadshot) dmg = Math.round(dmg * (1 + HEADSHOT_BONUS));
@@ -7025,6 +7045,7 @@ export default function App() {
         }
         dmg = Math.round(dmg * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
+        if (secretPermDmgBuffRef.current > 0) dmg = Math.round(dmg * (1 + secretPermDmgBuffRef.current));
         if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
         if (hasRelic("mermaid_tear") && saberData.element === "ice") dmg = Math.round(dmg * 1.25);
         if (isCrit) dmg = Math.round(dmg * 2.5);
@@ -7628,6 +7649,8 @@ export default function App() {
       damage = Math.round(damage * perkSpellDmgMult);
       // Risk event: player double damage
       if (playerDoubleDmgRoomsRef.current > 0) damage = Math.round(damage * 2);
+      if (secretPermDmgBuffRef.current > 0) damage = Math.round(damage * (1 + secretPermDmgBuffRef.current));
+      if (secretSpellBuffRoomsRef.current > 0 && secretSpellBuffMultRef.current > 0) damage = Math.round(damage * (1 + secretSpellBuffMultRef.current));
       // Element combo system (uses imported COMBOS from combos.js)
       let comboText = null;
       const prevDebuff = elementDebuffs.current[wid];
@@ -7876,6 +7899,8 @@ export default function App() {
         damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
         damage = Math.round(damage * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) damage = Math.round(damage * 2);
+        if (secretPermDmgBuffRef.current > 0) damage = Math.round(damage * (1 + secretPermDmgBuffRef.current));
+        if (secretSpellBuffRoomsRef.current > 0 && secretSpellBuffMultRef.current > 0) damage = Math.round(damage * (1 + secretSpellBuffMultRef.current));
         // Element combo for AoE (uses imported COMBOS)
         const prevDebuff = elementDebuffs.current[w.id];
         let comboText = null;
@@ -11410,7 +11435,15 @@ export default function App() {
           {/* ─── Helper: apply secret room reward ─── */}
           {(() => {
             const applyReward = (reward) => {
-              if (reward.permDmgBuff) showMessage(`Permanentny bonus: +${Math.round(reward.permDmgBuff * 100)}% obrażeń!`, "#a050e0");
+              if (reward.permDmgBuff) {
+                setSecretPermDmgBuff(prev => prev + reward.permDmgBuff);
+                showMessage(`Permanentny bonus: +${Math.round(reward.permDmgBuff * 100)}% obrażeń!`, "#a050e0");
+              }
+              if (reward.spellDmgBuff && reward.duration) {
+                setSecretSpellBuffMult(reward.spellDmgBuff);
+                setSecretSpellBuffRooms(reward.duration);
+                showMessage(`+${Math.round(reward.spellDmgBuff * 100)}% mocy zaklęć na ${reward.duration} pokoi!`, "#a050e0");
+              }
               if (reward.copper) addMoneyFn({ copper: reward.copper });
               if (reward.gold) addMoneyFn({ gold: reward.gold });
               if (reward.silver) addMoneyFn({ silver: reward.silver });
@@ -11463,6 +11496,7 @@ export default function App() {
               if (pen.manaLoss) setMana(prev => Math.max(0, prev - pen.manaLoss));
               if (pen.copperLoss) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - pen.copperLoss)));
               if (pen.mercDeath) showMessage("Najemnik zginął!", "#cc4040");
+              if (pen.enemyBuff) setEnemyBuffRooms(prev => prev + pen.enemyBuff);
             };
 
             const canAffordTrade = (cost) => {
@@ -11532,7 +11566,6 @@ export default function App() {
                   showMessage(opt.successDesc, "#40c040");
                 } else {
                   applyPenalty(opt.fail);
-                  if (opt.fail.copperLoss) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - opt.fail.copperLoss)));
                   showMessage(opt.failDesc, "#cc4040");
                 }
                 setSecretRoom(null);
