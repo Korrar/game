@@ -269,7 +269,7 @@ function renderBridges(ctx, terrainData, cameraX, cameraY) {
 // ─── VEGETATION RENDERING ───
 
 function renderVegetation(ctx, terrainData, cameraX, cameraY, time) {
-  const { vegetation, heightMap } = terrainData;
+  const { vegetation } = terrainData;
   if (!vegetation || vegetation.length === 0) return;
 
   // Sort by depth (far first)
@@ -379,20 +379,205 @@ function renderFogOfWar(ctx, terrainData, cameraX, cameraY) {
   ctx.globalAlpha = 1;
 }
 
+// ─── TERRAIN EFFECTS RENDERING (craters, fire, ice, poison, smoke) ───
+
+function renderTerrainEffects(ctx, terrainEffects, cameraX, cameraY, time) {
+  if (!terrainEffects || terrainEffects.length === 0) return;
+
+  for (const eff of terrainEffects) {
+    const screen = worldToScreen(eff.col, eff.row, cameraX, cameraY);
+    if (screen.x < -TILE_W || screen.x > GAME_W + TILE_W ||
+        screen.y < -TILE_H * 2 || screen.y > GAME_H + TILE_H * 2) continue;
+
+    const now = Date.now();
+    const age = now - eff.startTime;
+    const lifeFrac = eff.duration > 0 ? Math.min(1, age / eff.duration) : 0;
+    const fadeAlpha = eff.duration > 0 ? (lifeFrac > 0.7 ? (1 - lifeFrac) / 0.3 : 1) : 1;
+
+    switch (eff.type) {
+      case "crater": {
+        ctx.globalAlpha = 0.45 * eff.intensity;
+        diamondPath(ctx, screen.x, screen.y);
+        ctx.fillStyle = "#2a1a0a";
+        ctx.fill();
+        // Crater edge highlight
+        ctx.globalAlpha = 0.2 * eff.intensity;
+        ctx.strokeStyle = "#4a3a2a";
+        ctx.lineWidth = 1;
+        diamondPath(ctx, screen.x, screen.y);
+        ctx.stroke();
+        break;
+      }
+      case "burning": {
+        ctx.globalAlpha = 0.35 * fadeAlpha * eff.intensity;
+        diamondPath(ctx, screen.x, screen.y);
+        const firePhase = time * 3 + eff.col * 0.7;
+        const r = 200 + Math.floor(Math.sin(firePhase) * 55);
+        const g = 80 + Math.floor(Math.sin(firePhase * 1.3) * 40);
+        ctx.fillStyle = `rgb(${r},${g},0)`;
+        ctx.fill();
+        // Flickering glow
+        ctx.globalAlpha = 0.12 * fadeAlpha;
+        const grad = ctx.createRadialGradient(screen.x, screen.y + TILE_H / 2, 0, screen.x, screen.y + TILE_H / 2, TILE_W * 0.5);
+        grad.addColorStop(0, "#ff6020");
+        grad.addColorStop(1, "transparent");
+        ctx.fillStyle = grad;
+        ctx.fillRect(screen.x - TILE_W, screen.y - TILE_H, TILE_W * 2, TILE_H * 3);
+        break;
+      }
+      case "frozen": {
+        ctx.globalAlpha = 0.55 * fadeAlpha;
+        diamondPath(ctx, screen.x, screen.y);
+        ctx.fillStyle = "#a0d0f0";
+        ctx.fill();
+        // Ice sparkle
+        ctx.globalAlpha = 0.2 * fadeAlpha;
+        const sparkle = Math.sin(time * 4 + eff.col + eff.row * 1.3) * 0.5 + 0.5;
+        ctx.fillStyle = `rgba(255,255,255,${sparkle * 0.4})`;
+        ctx.beginPath();
+        ctx.arc(screen.x + (eff.col % 3 - 1) * 4, screen.y + TILE_H / 2 + (eff.row % 3 - 1) * 2, 2, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case "poisoned": {
+        ctx.globalAlpha = 0.3 * fadeAlpha * eff.intensity;
+        diamondPath(ctx, screen.x, screen.y);
+        const pPhase = time * 2 + eff.col * 0.5;
+        ctx.fillStyle = `rgba(60,${140 + Math.floor(Math.sin(pPhase) * 40)},40,0.6)`;
+        ctx.fill();
+        // Bubble effect
+        if (Math.sin(pPhase * 3) > 0.6) {
+          ctx.globalAlpha = 0.25 * fadeAlpha;
+          ctx.fillStyle = "#60e040";
+          ctx.beginPath();
+          ctx.arc(screen.x + Math.sin(pPhase * 2) * 6, screen.y + TILE_H / 2 - 3, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+      }
+      case "smoke": {
+        ctx.globalAlpha = 0.25 * fadeAlpha;
+        const smokeR = TILE_W * 0.4 + Math.sin(time * 1.5 + eff.col) * 4;
+        const grad2 = ctx.createRadialGradient(screen.x, screen.y + TILE_H / 2, 0, screen.x, screen.y + TILE_H / 2, smokeR);
+        grad2.addColorStop(0, "rgba(80,80,80,0.4)");
+        grad2.addColorStop(1, "transparent");
+        ctx.fillStyle = grad2;
+        ctx.fillRect(screen.x - smokeR, screen.y + TILE_H / 2 - smokeR, smokeR * 2, smokeR * 2);
+        break;
+      }
+      case "scorched": {
+        ctx.globalAlpha = 0.3 * fadeAlpha;
+        diamondPath(ctx, screen.x, screen.y);
+        ctx.fillStyle = "#1a0a05";
+        ctx.fill();
+        break;
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ─── MAP RESOURCES RENDERING (ore, wood, herbs, treasure) ───
+
+function renderMapResources(ctx, resources, cameraX, cameraY, time, heightMap) {
+  if (!resources || resources.length === 0) return;
+
+  for (const res of resources) {
+    const h = getHeightAt(heightMap, res.col, res.row);
+    const screen = worldToScreen(res.col, res.row, cameraX, cameraY, h);
+    if (screen.x < -TILE_W || screen.x > GAME_W + TILE_W ||
+        screen.y < -TILE_H * 2 || screen.y > GAME_H + TILE_H * 2) continue;
+
+    // Pulsing glow on ground
+    const pulse = Math.sin(time * 2 + res.pulsePhase) * 0.15 + 0.85;
+    ctx.globalAlpha = 0.2 * pulse;
+    const glowR = TILE_W * 0.35;
+    const grad = ctx.createRadialGradient(screen.x, screen.y + TILE_H / 2, 0, screen.x, screen.y + TILE_H / 2, glowR);
+    grad.addColorStop(0, res.glowColor || res.color);
+    grad.addColorStop(1, "transparent");
+    ctx.fillStyle = grad;
+    ctx.fillRect(screen.x - glowR, screen.y + TILE_H / 2 - glowR, glowR * 2, glowR * 2);
+
+    // Resource icon
+    const iconSize = 20;
+    ctx.globalAlpha = 0.85 * pulse;
+    const img = getIconImage(res.icon, iconSize);
+    if (img) {
+      ctx.drawImage(img, screen.x - iconSize / 2, screen.y + TILE_H / 2 - iconSize - 2, iconSize, iconSize);
+    }
+
+    // Gather progress bar
+    if (res.gatherProgress > 0 && res.gatherProgress < 1) {
+      const barW = 24;
+      const barH = 3;
+      const barX = screen.x - barW / 2;
+      const barY = screen.y + TILE_H / 2 - iconSize - 8;
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = "#222";
+      ctx.fillRect(barX, barY, barW, barH);
+      ctx.fillStyle = res.color;
+      ctx.fillRect(barX, barY, barW * res.gatherProgress, barH);
+      ctx.strokeStyle = "#555";
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(barX, barY, barW, barH);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ─── CHOKEPOINT INDICATORS (subtle tile highlight for strategic placement) ───
+
+function renderChokepoints(ctx, chokepoints, cameraX, cameraY) {
+  if (!chokepoints || chokepoints.length === 0) return;
+
+  for (const cp of chokepoints) {
+    const screen = worldToScreen(cp.col, cp.row, cameraX, cameraY);
+    if (screen.x < -TILE_W || screen.x > GAME_W + TILE_W) continue;
+
+    ctx.globalAlpha = 0.08 + cp.narrowness * 0.07;
+    diamondPath(ctx, screen.x, screen.y);
+    ctx.fillStyle = "#ff8040";
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
 // ─── MAIN RENDER FUNCTION ───
 // Call after renderIsoBiome to overlay terrain features
 
-export function renderTerrainOverlays(ctx, terrainData, cameraX, cameraY, enableFog) {
+export function renderTerrainOverlays(ctx, terrainData, cameraX, cameraY, enableFog, terrainDestruction, mapResources, chokepoints) {
   if (!terrainData) return;
 
   const time = (typeof performance !== "undefined" ? performance.now() : Date.now()) * 0.001;
 
-  // Layer order: roads → water → cliffs → bridges → vegetation → fog
+  // Layer order: roads → water → cliffs → bridges → terrain effects → resources → vegetation → chokepoints → fog
   renderRoads(ctx, terrainData, cameraX, cameraY);
   renderWater(ctx, terrainData, cameraX, cameraY, time);
   renderCliffs(ctx, terrainData, cameraX, cameraY);
   renderBridges(ctx, terrainData, cameraX, cameraY);
+
+  // Dynamic terrain effects (craters, fire, ice, poison)
+  if (terrainDestruction) {
+    const effects = terrainDestruction.getAllEffects();
+    if (effects.length > 0) {
+      renderTerrainEffects(ctx, effects, cameraX, cameraY, time);
+    }
+  }
+
+  // Map resources (ore, wood, herbs)
+  if (mapResources) {
+    const visible = mapResources.getVisibleResources();
+    if (visible.length > 0) {
+      renderMapResources(ctx, visible, cameraX, cameraY, time, terrainData.heightMap);
+    }
+  }
+
   renderVegetation(ctx, terrainData, cameraX, cameraY, time);
+
+  // Chokepoint indicators (subtle)
+  if (chokepoints && chokepoints.length > 0) {
+    renderChokepoints(ctx, chokepoints, cameraX, cameraY);
+  }
 
   if (enableFog) {
     renderFogOfWar(ctx, terrainData, cameraX, cameraY);

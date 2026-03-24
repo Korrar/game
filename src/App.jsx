@@ -8,6 +8,9 @@ const _isoCenter = () => ISO_CONFIG.MAP_COLS / 2;
 import { renderIsoBiome, clearTileCache } from "./renderers/isoBiomeRenderer.js";
 import { renderTerrainOverlays } from "./renderers/isoTerrainOverlayRenderer.js";
 import { generateTerrainData, updateFogOfWar, calcHeightAdvantage, hasLineOfSight } from "./systems/TerrainSystem.js";
+import { applyTerrainMovement, buildWalkGrid, getTerrainAwareMove, detectChokepoints } from "./systems/TerrainMovement.js";
+import { TerrainDestructionState } from "./systems/TerrainDestruction.js";
+import { MapResourceState } from "./systems/MapResources.js";
 import { TerrainParticleSystem } from "./rendering/TerrainParticles.js";
 import { BIOMES } from "./data/biomes";
 import { RARITY_C, RARITY_L } from "./data/treasures";
@@ -319,6 +322,10 @@ export default function App() {
   caravanSelectedRef.current = caravanSelected;
   const terrainDataRef = useRef(null);
   const terrainParticlesRef = useRef(null);
+  const terrainDestructionRef = useRef(new TerrainDestructionState());
+  const mapResourcesRef = useRef(new MapResourceState());
+  const walkGridRef = useRef(null);
+  const chokepointsRef = useRef([]);
   caravanLevelRef.current = caravanLevel;
 
   // Refs for game-over stats capture (needed inside interval callbacks)
@@ -1344,7 +1351,7 @@ export default function App() {
             if (w.combatStyle === "ranged" && nearId !== null) {
               const range = w.range || 40;
               const _stLOS = !isoModeRef.current || !terrainDataRef.current ||
-                hasLineOfSight(w.x, w.y || ISO_CONFIG.MAP_ROWS / 2, wd[nearId]?.x || nearX, wd[nearId]?.y || nearY || ISO_CONFIG.MAP_ROWS / 2, terrainDataRef.current);
+                hasLineOfSight(w.x, w.y || ISO_CONFIG.MAP_ROWS / 2, wd[nearId]?.x || nearX, wd[nearId]?.y || nearY || ISO_CONFIG.MAP_ROWS / 2, terrainDataRef.current, terrainDestructionRef.current);
               if (_stLOS && nearDist < range) {
                 w.dir = (wd[nearId]?.x || 50) > w.x ? 1 : -1;
                 const projCd = w.projectileCd || w.attackCd || 2000;
@@ -1368,6 +1375,13 @@ export default function App() {
 
           const isRanged = w.combatStyle === "ranged";
 
+          // Terrain speed modifier for friendly mercenaries
+          let _fTerrainMod = 1.0;
+          if (isoModeRef.current && terrainDataRef.current) {
+            _fTerrainMod = applyTerrainMovement(w, terrainDataRef.current);
+            if (_fTerrainMod <= 0) _fTerrainMod = 0.1;
+          }
+
           if (nearX !== null) {
             if (isRanged) {
               // Ranged AI: keep distance, strafe while shooting
@@ -1376,22 +1390,22 @@ export default function App() {
               const _fRangedFar = isoModeRef.current ? 10 : 35;
               if (nearDist < _fRangedClose) {
                 w.dir = nearX > w.x ? -1 : 1; // retreat
-                w.x += w.speed * w.dir;
+                w.x += w.speed * w.dir * _fTerrainMod;
               } else if (nearDist > _fRangedFar) {
                 w.dir = nearX > w.x ? 1 : -1; // approach
-                w.x += w.speed * w.dir;
+                w.x += w.speed * w.dir * _fTerrainMod;
               }
               w.dir = nearX > w.x ? 1 : -1; // face enemy
               // Strafe in Y while in combat range
               if (w.y != null) {
                 if (nearDist < 35 && nearDist > 12) {
                   // Active strafe while at ideal range
-                  w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2;
+                  w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2 * _fTerrainMod;
                   if (Math.random() < 0.008) w.strafeDir *= -1;
                 } else if (nearY != null) {
                   // Drift toward enemy Y when not in ideal range
                   const yd = nearY - w.y;
-                  if (Math.abs(yd) > 3) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * 0.5;
+                  if (Math.abs(yd) > 3) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * 0.5 * _fTerrainMod;
                 }
               }
 
@@ -1403,7 +1417,7 @@ export default function App() {
               }
               // LOS check for ranged mercenaries
               const _mercHasLOS = !isoModeRef.current || !terrainDataRef.current ||
-                hasLineOfSight(w.x, w.y || ISO_CONFIG.MAP_ROWS / 2, nearX, nearY || ISO_CONFIG.MAP_ROWS / 2, terrainDataRef.current);
+                hasLineOfSight(w.x, w.y || ISO_CONFIG.MAP_ROWS / 2, nearX, nearY || ISO_CONFIG.MAP_ROWS / 2, terrainDataRef.current, terrainDestructionRef.current);
               if (_mercHasLOS && nearDist < range) {
                 // Sheriff aura: use cached knight positions instead of O(n) scan
                 const rangedAuraBonus = _hasKnightAura(w.x, w.y || 50) ? 1.15 : 1;
@@ -1482,19 +1496,19 @@ export default function App() {
 
               // Push back if too close
               if (nearDist < _fPushBack) {
-                w.x -= w.speed * w.dir * 0.6;
+                w.x -= w.speed * w.dir * 0.6 * _fTerrainMod;
               } else if (w.combatState === "retreat") {
-                w.x -= w.speed * w.dir * 0.8;
-                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.5;
+                w.x -= w.speed * w.dir * 0.8 * _fTerrainMod;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.5 * _fTerrainMod;
                 w.combatTimer--;
                 if (w.combatTimer <= 0) {
                   w.combatState = Math.random() < 0.6 ? "circle" : "approach";
                   w.combatTimer = 30 + Math.floor(Math.random() * 40);
                 }
               } else if (w.combatState === "circle") {
-                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.5;
-                if (nearDist > _fCircleFar) w.x += w.speed * w.dir * 0.4;
-                else if (nearDist < _fCircleClose) w.x -= w.speed * w.dir * 0.3;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.5 * _fTerrainMod;
+                if (nearDist > _fCircleFar) w.x += w.speed * w.dir * 0.4 * _fTerrainMod;
+                else if (nearDist < _fCircleClose) w.x -= w.speed * w.dir * 0.3 * _fTerrainMod;
                 w.combatTimer--;
                 if (w.combatTimer <= 0 || nearDist > _fCircleBreak) {
                   w.combatState = "approach";
@@ -1504,10 +1518,10 @@ export default function App() {
               } else {
                 // Approach: move toward enemy
                 if (nearDist > _fApproachDist) {
-                  w.x += w.speed * w.dir;
+                  w.x += w.speed * w.dir * _fTerrainMod;
                   if (w.y != null && nearY != null) {
                     const yd = nearY - w.y;
-                    if (Math.abs(yd) > _fYThresh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * _fYMult;
+                    if (Math.abs(yd) > _fYThresh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * _fYMult * _fTerrainMod;
                   }
                 }
               }
@@ -1555,7 +1569,14 @@ export default function App() {
             // No enemies – normal patrol
             w.combatState = null;
             w.combatTimer = 0;
-            w.x += w.speed * w.dir;
+            {
+              let _fPatrolMod = 1.0;
+              if (isoModeRef.current && terrainDataRef.current) {
+                _fPatrolMod = applyTerrainMovement(w, terrainDataRef.current);
+                if (_fPatrolMod <= 0) _fPatrolMod = 0.1;
+              }
+              w.x += w.speed * w.dir * _fPatrolMod;
+            }
             if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
             if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
           }
@@ -1564,7 +1585,14 @@ export default function App() {
           // Enemies are passive until the player attacks first
           if (!combatEngagedRef.current && defenseModeRef.current?.phase !== "wave_active") {
             // Idle patrol only — enemies passive until player attacks (skip in defense mode)
-            w.x += w.speed * w.dir;
+            {
+              let _ePatrolMod = 1.0;
+              if (isoModeRef.current && terrainDataRef.current) {
+                _ePatrolMod = applyTerrainMovement(w, terrainDataRef.current);
+                if (_ePatrolMod <= 0) { w.dir *= -1; _ePatrolMod = 0.1; } // reverse if stuck
+              }
+              w.x += w.speed * w.dir * _ePatrolMod;
+            }
             if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
             if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
           } else {
@@ -1673,7 +1701,7 @@ export default function App() {
             }
             // LOS check: ranged enemies need clear line of sight through terrain/vegetation
             const _hasLOS = !_abIsRanged || !isoModeRef.current || !terrainDataRef.current ||
-              hasLineOfSight(w.x, w.y || ISO_CONFIG.MAP_ROWS / 2, friendX, friendY || ISO_CONFIG.MAP_ROWS / 2, terrainDataRef.current);
+              hasLineOfSight(w.x, w.y || ISO_CONFIG.MAP_ROWS / 2, friendX, friendY || ISO_CONFIG.MAP_ROWS / 2, terrainDataRef.current, terrainDestructionRef.current);
             if (_hasLOS && friendDist < _effectiveAbRange && (!atkCds[abCdKey] || dateNow - atkCds[abCdKey] > ability.cooldown)) {
               atkCds[abCdKey] = dateNow;
               const dirX = friendX > w.x ? 1 : -1;
@@ -1885,6 +1913,18 @@ export default function App() {
 
             w.dir = friendX > w.x ? 1 : -1; // face target
 
+            // Terrain speed modifier for iso mode (roads boost, water/cliffs slow/block)
+            let _terrainSpeedMod = 1.0;
+            if (isoModeRef.current && terrainDataRef.current) {
+              _terrainSpeedMod = applyTerrainMovement(w, terrainDataRef.current);
+              // Also apply terrain destruction effects (fire zones slow, frozen speeds up)
+              const _tdMod = terrainDestructionRef.current.getEffectSpeedMod(
+                Math.floor(w.x), Math.floor(w.y ?? ISO_CONFIG.MAP_ROWS / 2), ISO_CONFIG.MAP_COLS
+              );
+              _terrainSpeedMod *= _tdMod;
+              if (_terrainSpeedMod <= 0) _terrainSpeedMod = 0.05; // never fully stuck (find a way around)
+            }
+
             // Determine if enemy uses ranged attacks (abilities like projectiles/breath)
             const _isEnemyRanged = w.ability && ["poisonSpit", "iceShot", "shadowBolt", "fireBreath", "drain"].includes(w.ability.type);
             // ~1 tile for melee, ~5 tiles for ranged
@@ -1896,38 +1936,38 @@ export default function App() {
               // Ranged enemy AI: maintain 4-6 tile distance, strafe while shooting
               if (friendDist < (_engageDist * 0.6)) {
                 // Too close — retreat
-                w.x -= w.speed * w.dir * 0.7;
-                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.8;
+                w.x -= w.speed * w.dir * 0.7 * _terrainSpeedMod;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.8 * _terrainSpeedMod;
               } else if (friendDist > (_engageDist * 1.3)) {
                 // Too far — approach
-                w.x += w.speed * w.dir;
+                w.x += w.speed * w.dir * _terrainSpeedMod;
                 if (w.y != null && friendY != null) {
                   const yd = friendY - w.y;
                   const _yThresh = isoModeRef.current ? 0.5 : 2;
-                  if (Math.abs(yd) > _yThresh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * (isoModeRef.current ? 1.5 : 0.6);
+                  if (Math.abs(yd) > _yThresh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * (isoModeRef.current ? 1.5 : 0.6) * _terrainSpeedMod;
                 }
               } else {
                 // At ideal range — strafe
-                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2 * _terrainSpeedMod;
                 if (Math.random() < 0.008) w.strafeDir *= -1;
               }
             } else {
               // Melee enemy AI: approach to ~1 tile distance
               // Push back if too close
               if (friendDist < (isoModeRef.current ? 0.8 : 2)) {
-                w.x -= w.speed * w.dir * 0.5;
+                w.x -= w.speed * w.dir * 0.5 * _terrainSpeedMod;
               } else if (w.combatState === "retreat") {
-                w.x -= w.speed * w.dir * 0.6;
-                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.4;
+                w.x -= w.speed * w.dir * 0.6 * _terrainSpeedMod;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 0.4 * _terrainSpeedMod;
                 w.combatTimer--;
                 if (w.combatTimer <= 0) {
                   w.combatState = Math.random() < 0.5 ? "circle" : "approach";
                   w.combatTimer = isoModeRef.current ? (20 + Math.floor(Math.random() * 30)) : (40 + Math.floor(Math.random() * 50));
                 }
               } else if (w.combatState === "circle") {
-                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2;
-                if (friendDist > _meleeRange * 2) w.x += w.speed * w.dir * 0.3;
-                else if (friendDist < _meleeRange * 0.7) w.x -= w.speed * w.dir * 0.2;
+                if (w.y != null) w.y += w.strafeDir * (w.ySpeed || 0.01) * 1.2 * _terrainSpeedMod;
+                if (friendDist > _meleeRange * 2) w.x += w.speed * w.dir * 0.3 * _terrainSpeedMod;
+                else if (friendDist < _meleeRange * 0.7) w.x -= w.speed * w.dir * 0.2 * _terrainSpeedMod;
                 w.combatTimer--;
                 if (w.combatTimer <= 0 || friendDist > _meleeRange * 3) {
                   w.combatState = "approach";
@@ -1937,12 +1977,12 @@ export default function App() {
               } else {
                 // Approach: move toward target — close both X and Y gaps
                 if (friendDist > _meleeRange) {
-                  w.x += w.speed * w.dir;
+                  w.x += w.speed * w.dir * _terrainSpeedMod;
                   if (w.y != null && friendY != null) {
                     const yd = friendY - w.y;
                     const _yThresh = isoModeRef.current ? 0.5 : 2;
                     const _yMult = isoModeRef.current ? 1.5 : 0.6;
-                    if (Math.abs(yd) > _yThresh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * _yMult;
+                    if (Math.abs(yd) > _yThresh) w.y += Math.sign(yd) * (w.ySpeed || 0.01) * _yMult * _terrainSpeedMod;
                   }
                 }
               }
@@ -2020,8 +2060,18 @@ export default function App() {
               const _marchXMult = isoModeRef.current ? 1.0 : 0.6;
               const _marchYMult = isoModeRef.current ? 4.0 : 2.5;
               const _marchThresh = isoModeRef.current ? 0.5 : 2;
-              if (Math.abs(dxC) > _marchThresh) w.x += Math.sign(dxC) * w.speed * _marchXMult;
-              if (w.y != null && Math.abs(dyC) > _marchThresh) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * _marchYMult;
+              // Terrain speed modifier for marching enemies
+              let _marchTerrainMod = 1.0;
+              if (isoModeRef.current && terrainDataRef.current) {
+                _marchTerrainMod = applyTerrainMovement(w, terrainDataRef.current);
+                const _tdMod2 = terrainDestructionRef.current.getEffectSpeedMod(
+                  Math.floor(w.x), Math.floor(w.y ?? ISO_CONFIG.MAP_ROWS / 2), ISO_CONFIG.MAP_COLS
+                );
+                _marchTerrainMod *= _tdMod2;
+                if (_marchTerrainMod <= 0) _marchTerrainMod = 0.05;
+              }
+              if (Math.abs(dxC) > _marchThresh) w.x += Math.sign(dxC) * w.speed * _marchXMult * _marchTerrainMod;
+              if (w.y != null && Math.abs(dyC) > _marchThresh) w.y += Math.sign(dyC) * (w.ySpeed || 0.015) * _marchYMult * _marchTerrainMod;
               w.dir = dxC > 0 ? 1 : -1;
               // Attack when close enough to caravan (~1.5 tile: iso 2.25, panoramic 16)
               const distToCaravanSq = dxC * dxC + dyC * dyC;
@@ -2040,7 +2090,14 @@ export default function App() {
             w.combatState = null;
             w.combatTimer = 0;
             // Normal patrol
-            w.x += w.speed * w.dir;
+            {
+              let _eIdleMod = 1.0;
+              if (isoModeRef.current && terrainDataRef.current) {
+                _eIdleMod = applyTerrainMovement(w, terrainDataRef.current);
+                if (_eIdleMod <= 0) { w.dir *= -1; _eIdleMod = 0.1; }
+              }
+              w.x += w.speed * w.dir * _eIdleMod;
+            }
             if (w.x > w.maxX) { w.x = w.maxX; w.dir = -1; }
             if (w.x < w.minX) { w.x = w.minX; w.dir = 1; }
           }
@@ -2314,7 +2371,7 @@ export default function App() {
           if (defensePoiElRef.current && _dp && !_dp.activated) _positionPoiEl(defensePoiElRef.current, _dp.x, _dp.y);
           if (shopElRef.current) _positionPoiEl(shopElRef.current, 10, 15);
           if (hideoutElRef.current) _positionPoiEl(hideoutElRef.current, 30, 25);
-          // Caravan movement
+          // Caravan movement (terrain-aware: roads +30%, water -40%, cliffs block)
           {
             const mv = caravanMoveRef.current;
             if (mv.active) {
@@ -2328,8 +2385,18 @@ export default function App() {
                 _cp.y = mv.targetY;
                 mv.active = false;
               } else {
+                // Apply terrain speed modifier to caravan
+                let caravanTerrainMod = 1.0;
+                if (terrainDataRef.current) {
+                  caravanTerrainMod = applyTerrainMovement(_cp, terrainDataRef.current);
+                  const _tdMod = terrainDestructionRef.current.getEffectSpeedMod(
+                    Math.floor(_cp.x), Math.floor(_cp.y), ISO_CONFIG.MAP_COLS
+                  );
+                  caravanTerrainMod *= _tdMod;
+                  if (caravanTerrainMod <= 0.1) caravanTerrainMod = 0.1; // never fully stuck
+                }
                 // Move toward target
-                const step = mv.speed * dt;
+                const step = mv.speed * dt * caravanTerrainMod;
                 const ratio = Math.min(1, step / dist);
                 _cp.x += dx * ratio;
                 _cp.y += dy * ratio;
@@ -2921,6 +2988,18 @@ export default function App() {
                   const matDef = OBSTACLE_MATERIALS[o.material] || OBSTACLE_MATERIALS.wood;
                   pixiRef.current.spawnObstacleHitSpark(closestX, closestY, matDef.color);
                 }
+                // Terrain destruction: explosive projectiles create craters, burn trees, freeze water
+                if (isoModeRef.current && terrainDataRef.current) {
+                  const _blastWx = (closestX / GAME_W) * ISO_CONFIG.MAP_COLS;
+                  const _blastWy = (closestY / GAME_H) * ISO_CONFIG.MAP_ROWS;
+                  const _blastR = (proj.splashRadius || 8) / GAME_W * ISO_CONFIG.MAP_COLS * 2;
+                  terrainDestructionRef.current.applyExplosion(
+                    _blastWx, _blastWy, Math.max(1.5, Math.min(4, _blastR)),
+                    proj.element || "fire", terrainDataRef.current
+                  );
+                  // Rebuild walk grid after terrain modification
+                  walkGridRef.current = buildWalkGrid(terrainDataRef.current);
+                }
                 // Kill the projectile (consumed by explosion)
                 proj.age = proj.maxAge + 1;
               } else if (proj._bounceCount < MAX_BOUNCES) {
@@ -3063,6 +3142,94 @@ export default function App() {
           }
         }
         if (revealPoints.length > 0) updateFogOfWar(terrainDataRef.current, revealPoints);
+
+        // Update resource discovery (resources hidden until fog reveals them)
+        if (terrainDataRef.current.fogGrid) {
+          mapResourcesRef.current.updateDiscovery(terrainDataRef.current.fogGrid, ISO_CONFIG.MAP_COLS);
+        }
+
+        // Update interactable discovery (hidden in fog until revealed)
+        const _interacts = interactablesRef.current;
+        if (_interacts.length > 0) {
+          let anyDiscovered = false;
+          for (const item of _interacts) {
+            if (item._fogHidden === undefined) { item._fogHidden = true; item._discovered = false; }
+            if (item._discovered) continue;
+            // Convert item viewport% to world tile
+            const iwx = (item.x / 100) * ISO_CONFIG.MAP_COLS;
+            const iwy = (item.y / 100) * ISO_CONFIG.MAP_ROWS;
+            const icol = Math.floor(iwx), irow = Math.floor(iwy);
+            if (icol >= 0 && icol < ISO_CONFIG.MAP_COLS && irow >= 0 && irow < ISO_CONFIG.MAP_ROWS) {
+              const fogVal = terrainDataRef.current.fogGrid[irow * ISO_CONFIG.MAP_COLS + icol];
+              if (fogVal >= 0.5) { item._discovered = true; item._fogHidden = false; anyDiscovered = true; }
+            }
+          }
+          if (anyDiscovered) setInteractables([..._interacts]); // trigger re-render
+        }
+      }
+
+      // Terrain destruction tick: update burning, frozen, poison zones
+      if (isoModeRef.current && terrainDataRef.current) {
+        terrainDestructionRef.current.update(terrainDataRef.current, dateNow);
+        // Rebuild walk grid if terrain changed (craters, frozen water thaw, destroyed vegetation)
+        if (terrainDestructionRef.current.needsWalkGridRebuild) {
+          walkGridRef.current = buildWalkGrid(terrainDataRef.current);
+          terrainDestructionRef.current.needsWalkGridRebuild = false;
+        }
+
+        // Terrain zone damage: damage enemies standing on burning/poison tiles (every ~0.5s)
+        if (frameCount % 30 === 0) {
+          const _td = terrainDestructionRef.current;
+          const _cols = ISO_CONFIG.MAP_COLS;
+          const _zoneDmgIds = [];
+          for (const nid of Object.keys(wd)) {
+            const w = wd[nid];
+            if (!w || !w.alive || w.friendly) continue; // only damage enemies
+            const col = Math.floor(w.x);
+            const row = Math.floor(w.y ?? ISO_CONFIG.MAP_ROWS / 2);
+            const zoneDmg = _td.getEffectDamage(col, row, _cols);
+            if (zoneDmg) {
+              const _dmg = Math.round(zoneDmg.damage);
+              if (_dmg > 0) {
+                _zoneDmgIds.push({ id: parseInt(nid), dmg: _dmg, elem: zoneDmg.element });
+                if (pixiRef.current) {
+                  const px = (w.x / _cols) * GAME_W;
+                  const py = ((w.y || ISO_CONFIG.MAP_ROWS / 2) / ISO_CONFIG.MAP_ROWS) * GAME_H;
+                  if (zoneDmg.element === "fire") pixiRef.current.spawnFire(px, py);
+                  else if (zoneDmg.element === "poison") pixiRef.current.spawnPoisonCloud(px, py);
+                }
+              }
+            }
+          }
+          // Apply zone damage to enemy walkers
+          if (_zoneDmgIds.length > 0) {
+            setWalkers(prev => prev.map(ww => {
+              const hit = _zoneDmgIds.find(z => z.id === ww.id);
+              if (!hit || !ww.alive || ww.dying) return ww;
+              const newHp = Math.max(0, ww.hp - hit.dmg);
+              spawnDmgPopup(ww.id, `${hit.dmg}`, hit.elem === "fire" ? "#ff6020" : "#44ff44");
+              if (newHp <= 0) {
+                return { ...ww, hp: 0, alive: false, dying: true, deathTime: Date.now() };
+              }
+              return { ...ww, hp: newHp };
+            }));
+          }
+        }
+
+        // Resource gathering: check caravan proximity to resources
+        if (frameCount % 15 === 0) {
+          const _cp = caravanPosRef.current;
+          if (_cp) {
+            const gathered = mapResourcesRef.current.updateGathering(_cp.x, _cp.y, dateNow);
+            if (gathered) {
+              const val = gathered.value;
+              if (val.copper) addMoneyFn({ copper: val.copper });
+              if (val.heal) setCaravanHp(prev => Math.min(prev + val.heal, CARAVAN_LEVELS[caravanLevelRef.current].hp));
+              if (val.ammo) setAmmo(prev => ({ ...prev, [val.ammo]: (prev[val.ammo] || 0) + val.amount }));
+              showMessage(`Zebrano: ${gathered.resource.name}!`, gathered.resource.color);
+            }
+          }
+        }
       }
 
       // Step physics simulation
@@ -3098,6 +3265,14 @@ export default function App() {
       setCaravanSelected(false);
       // Generate terrain overlays (roads, water, vegetation, fog)
       terrainDataRef.current = generateTerrainData(newRoom, nextB);
+      // Build walk grid for terrain-aware pathfinding
+      walkGridRef.current = buildWalkGrid(terrainDataRef.current);
+      chokepointsRef.current = detectChokepoints(walkGridRef.current, ISO_CONFIG.MAP_COLS, ISO_CONFIG.MAP_ROWS);
+      // Reset terrain destruction state for new room
+      terrainDestructionRef.current.reset();
+      // Generate collectible map resources (ore, wood, herbs)
+      mapResourcesRef.current.reset();
+      mapResourcesRef.current.generate(newRoom, nextB.id, terrainDataRef.current);
       if (!terrainParticlesRef.current) {
         terrainParticlesRef.current = new TerrainParticleSystem(isMobileScreen());
       }
@@ -3168,6 +3343,13 @@ export default function App() {
     // Biome interactive terrain elements
     if (!isDefenseRoom) {
       const roomInteractables = rollInteractables(b.id);
+      // In iso mode, interactables start hidden until fog reveals them
+      if (isoModeRef.current) {
+        for (const item of roomInteractables) {
+          item._fogHidden = true;
+          item._discovered = false;
+        }
+      }
       setInteractables(roomInteractables);
     } else {
       setInteractables([]);
@@ -3780,7 +3962,7 @@ export default function App() {
         renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current, !!placingFortRef.current, terrainDataRef.current?.heightMap);
         // Render terrain overlays (roads, water, vegetation, fog of war)
         if (terrainDataRef.current) {
-          renderTerrainOverlays(ctx, terrainDataRef.current, cam.x, cam.y, true);
+          renderTerrainOverlays(ctx, terrainDataRef.current, cam.x, cam.y, true, terrainDestructionRef.current, mapResourcesRef.current, chokepointsRef.current);
           // Render terrain particles
           if (terrainParticlesRef.current) {
             terrainParticlesRef.current.spawnAmbient(terrainDataRef.current, cam.x, cam.y);
@@ -5963,6 +6145,31 @@ export default function App() {
         spawnDmgPopup(walkerId, "PODPALENIE!", "#ff6020");
       }
 
+      // Terrain effects from elemental skillshot impacts (iso mode)
+      if (isoModeRef.current && terrainDataRef.current && wd && element) {
+        const _impactCol = Math.floor(wd.x);
+        const _impactRow = Math.floor(wd.y ?? ISO_CONFIG.MAP_ROWS / 2);
+        const _td = terrainDestructionRef.current;
+        const _tData = terrainDataRef.current;
+        if (element === "ice") {
+          // Ice spells freeze nearby water tiles
+          _td.freezeWaterAt(_impactCol, _impactRow, _tData);
+        } else if (element === "fire") {
+          // Fire spells burn nearby vegetation
+          const _veg = _tData.vegetation;
+          if (_veg) {
+            for (const v of _veg) {
+              if (!v.alive || !v.destructible) continue;
+              const vdx = v.col - _impactCol, vdy = v.row - _impactRow;
+              if (vdx * vdx + vdy * vdy <= 4) { // within 2 tiles
+                _td.burnVegetation(v.id, _tData);
+                break; // burn one tree per hit
+              }
+            }
+          }
+        }
+      }
+
       if (resistant) {
         const resistLabel = RESIST_NAMES[npcData.resist] || npcData.resist;
         showMessage(`${npcData.name} odporny na ${resistLabel}! (-70% obrażeń)`, "#6688aa");
@@ -6338,7 +6545,7 @@ export default function App() {
         ctx.clearRect(0, 0, GAME_W, GAME_H);
         renderIsoBiome(ctx, biome, room, c.width, c.height, isNight, cam.x, cam.y, caravanPosRef.current, !!placingFortRef.current, terrainDataRef.current?.heightMap);
         if (terrainDataRef.current) {
-          renderTerrainOverlays(ctx, terrainDataRef.current, cam.x, cam.y, true);
+          renderTerrainOverlays(ctx, terrainDataRef.current, cam.x, cam.y, true, terrainDestructionRef.current, mapResourcesRef.current, chokepointsRef.current);
         }
       }
     } else {
@@ -6398,8 +6605,31 @@ export default function App() {
     const world = _isoScreenToWorld(screenX, screenY, cam.x, cam.y);
 
     // Clamp to map bounds
-    const tx = Math.max(1, Math.min(ISO_CONFIG.MAP_COLS - 2, world.x));
-    const ty = Math.max(1, Math.min(ISO_CONFIG.MAP_ROWS - 2, world.y));
+    let tx = Math.max(1, Math.min(ISO_CONFIG.MAP_COLS - 2, world.x));
+    let ty = Math.max(1, Math.min(ISO_CONFIG.MAP_ROWS - 2, world.y));
+
+    // Check if target tile is walkable (not cliff or deep water)
+    if (walkGridRef.current) {
+      const tc = Math.floor(tx), tr = Math.floor(ty);
+      const tileCost = walkGridRef.current[tr * ISO_CONFIG.MAP_COLS + tc];
+      if (tileCost <= 0) {
+        // Find nearest walkable tile
+        let found = false;
+        for (let r = 1; r <= 3 && !found; r++) {
+          for (let dr = -r; dr <= r && !found; dr++) {
+            for (let dc = -r; dc <= r && !found; dc++) {
+              if (Math.abs(dr) !== r && Math.abs(dc) !== r) continue;
+              const nc = tc + dc, nr = tr + dr;
+              if (nc < 1 || nc >= ISO_CONFIG.MAP_COLS - 1 || nr < 1 || nr >= ISO_CONFIG.MAP_ROWS - 1) continue;
+              if (walkGridRef.current[nr * ISO_CONFIG.MAP_COLS + nc] > 0) {
+                tx = nc + 0.5; ty = nr + 0.5; found = true;
+              }
+            }
+          }
+        }
+        if (!found) return false; // no walkable tile nearby
+      }
+    }
 
     caravanMoveRef.current = { active: true, targetX: tx, targetY: ty, speed: 2.5 };
     setCaravanSelected(false);
@@ -6969,7 +7199,7 @@ export default function App() {
   const saberCheckInteractableHits = useCallback((x, y) => {
     for (let i = 0; i < interactablesRef.current.length; i++) {
       const item = interactablesRef.current[i];
-      if (item.used || item.action !== "saber") continue;
+      if (item.used || item.action !== "saber" || (isoModeRef.current && item._fogHidden)) continue;
       const dx = item.x - x, dy = (100 - item.y) - y;
       if (dx * dx + dy * dy < 64) { // ~8% radius
         setInteractables(prev => prev.map((it, idx) => idx === i ? { ...it, used: true } : it));
@@ -8562,6 +8792,14 @@ export default function App() {
               fontSize: 9, color: caravanSelected ? "#60ff80" : "#d4a030", fontWeight: "bold",
               textShadow: "0 1px 3px rgba(0,0,0,0.9)",
             }}>{caravanSelected ? "Wybierz cel" : "Karawana"}</div>
+            {/* Terrain speed indicator (shows when moving) */}
+            {caravanMoveRef.current.active && (() => {
+              const _tMod = terrainDataRef.current ? applyTerrainMovement(cp, terrainDataRef.current) : 1;
+              const _tColor = _tMod > 1.1 ? "#60ff80" : _tMod < 0.7 ? "#ff6040" : "#d4a030";
+              const _tLabel = _tMod > 1.1 ? "Droga" : _tMod < 0.7 ? "Trudny teren" : null;
+              if (!_tLabel) return null;
+              return <div style={{ fontSize: 7, color: _tColor, textShadow: "0 1px 2px #000" }}>{_tLabel}</div>;
+            })()}
             {/* Selection ring */}
             {caravanSelected && (
               <div style={{
@@ -8574,6 +8812,22 @@ export default function App() {
                 pointerEvents: "none",
               }} />
             )}
+            {/* Resource gathering progress bar */}
+            {mapResourcesRef.current.gatheringId && mapResourcesRef.current.gatherProgress > 0 && (() => {
+              const gp = mapResourcesRef.current.gatherProgress;
+              const gRes = mapResourcesRef.current.resources.find(r => r.id === mapResourcesRef.current.gatheringId);
+              if (!gRes) return null;
+              return (
+                <div style={{ marginTop: 2 }}>
+                  <div style={{ fontSize: 7, color: gRes.color || "#ffd700", textShadow: "0 1px 2px #000", marginBottom: 1 }}>
+                    Zbieranie: {gRes.name}
+                  </div>
+                  <div style={{ width: 50, height: 3, background: "rgba(0,0,0,0.7)", borderRadius: 2, margin: "0 auto" }}>
+                    <div style={{ width: `${gp * 100}%`, height: "100%", background: gRes.color || "#ffd700", borderRadius: 2, transition: "width 0.3s" }} />
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
@@ -9506,6 +9760,8 @@ export default function App() {
       {/* ─── BIOME INTERACTABLE ELEMENTS ─── */}
       {interactables.map((item, idx) => {
         if (item.used) return null;
+        // In iso mode, hide interactables until fog of war reveals them
+        if (isoModeRef.current && item._fogHidden) return null;
         const screenX = wrapPctToScreen(item.x);
         if (screenX === null) return null;
         const actionColors = { shoot: "#ff6040", click: "#40c0ff", saber: "#ffd740", proximity: "#80ff80" };
