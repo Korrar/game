@@ -1184,7 +1184,7 @@ export class PhysicsWorld {
 
   // Spawn a player-aimed skillshot projectile toward target pixel coordinates
   // isoOrigin: { x, y } in physics pixel coords for iso mode (replaces default panoramic origin)
-  spawnPlayerSkillshot(spellId, targetPx, targetPy, damage, element, onHit, onMiss, onHeadshot, panOffset = 0, isoOrigin = null) {
+  spawnPlayerSkillshot(spellId, targetPx, targetPy, damage, element, onHit, onMiss, onHeadshot, panOffset = 0, isoOrigin = null, onTerrainImpact = null) {
     const cfg = SKILLSHOT_TYPES[spellId];
     if (!cfg) return;
 
@@ -1301,7 +1301,7 @@ export class PhysicsWorld {
       type: cfg.type,
       spellId, damage, element,
       age: 0, maxAge: Math.round(tFlight) + 30, // a little extra in case of miss
-      onHit, onMiss, onHeadshot,
+      onHit, onMiss, onHeadshot, onTerrainImpact,
       hitIds: [], // track pierced enemies
     });
   }
@@ -1383,6 +1383,8 @@ export class PhysicsWorld {
 
           if (proj.splashRadius > 0) {
             this._applySplashDamage(proj, ePos.x, ePos.y, nid);
+            // Terrain destruction at impact point
+            if (proj.onTerrainImpact) proj.onTerrainImpact(ePos.x, ePos.y, proj.splashRadius, proj.element);
           }
 
           // Handle chain on hit (rykoszet)
@@ -1431,6 +1433,8 @@ export class PhysicsWorld {
         // Splash damage at target point
         if (proj.splashRadius > 0) {
           this._applySplashDamage(proj, ex, ey, -1);
+          // Terrain destruction at ground impact
+          if (proj.onTerrainImpact) proj.onTerrainImpact(ex, ey, proj.splashRadius, proj.element);
         }
         if (!hitAnybody && proj.onMiss) proj.onMiss();
       }
