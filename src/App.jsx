@@ -11407,58 +11407,172 @@ export default function App() {
           </div>
           <div style={{ fontSize: 13, color: "#d8c8a8", marginBottom: 8 }}>{secretRoom.desc}</div>
           <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>{secretRoom.puzzle.desc}</div>
-          {secretRoom.puzzle.type === "trade" ? (
-            secretRoom.puzzle.trades.map((trade, i) => (
+          {/* ─── Helper: apply secret room reward ─── */}
+          {(() => {
+            const applyReward = (reward) => {
+              if (reward.permDmgBuff) showMessage(`Permanentny bonus: +${Math.round(reward.permDmgBuff * 100)}% obrażeń!`, "#a050e0");
+              if (reward.copper) addMoneyFn({ copper: reward.copper });
+              if (reward.gold) addMoneyFn({ gold: reward.gold });
+              if (reward.silver) addMoneyFn({ silver: reward.silver });
+              if (reward.knowledge) setKnowledge(prev => prev + reward.knowledge);
+              if (reward.initiative) setInitiative(prev => Math.min(MAX_INITIATIVE, prev + reward.initiative));
+              if (reward.fullHeal) setCaravanHp(CARAVAN_LEVELS[caravanLevel].hp);
+              if (reward.fullMana) setMana(MAX_MANA);
+              if (reward.permMaxMana) showMessage(`+${reward.permMaxMana} max prochu permanentnie!`, "#4080ff");
+              if (reward.ammo) {
+                setAmmo(prev => {
+                  const next = { ...prev };
+                  for (const [k, v] of Object.entries(reward.ammo)) next[k] = (next[k] || 0) + v;
+                  return next;
+                });
+                showMessage("Otrzymano amunicję!", "#d4a030");
+              }
+              if (reward.mercRevive || reward.tempMercs || reward.ghostMerc) {
+                const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
+                setTimeout(() => spawnFreeMerc(mt, 1), 600);
+                showMessage("Nowy najemnik dołącza!", "#40c040");
+              }
+              if (reward.randomRelic) {
+                const owned = activeRelicsRef.current.map(r => r.id);
+                const pool = RELICS.filter(r => !owned.includes(r.id));
+                if (pool.length > 0) {
+                  const relic = pool[Math.floor(Math.random() * pool.length)];
+                  setActiveRelics(prev => [...prev, relic]);
+                  showMessage(`Relikt: ${relic.name}!`, "#d4a030");
+                }
+              }
+              if (reward.treasure) {
+                const t = pickTreasure(room + 5);
+                setInventory(prev => [...prev, t]);
+                showMessage(`Skarb: ${t.name}!`, "#d4a030");
+              }
+              if (reward.artifact) {
+                const allPieces = ARTIFACT_SETS.flatMap(s => s.pieces).filter(p => !ownedArtifacts.includes(p.id));
+                if (allPieces.length > 0) {
+                  const piece = allPieces[Math.floor(Math.random() * allPieces.length)];
+                  setOwnedArtifacts(prev => [...prev, piece.id]);
+                  addDiscovery("artifacts", { id: piece.id, name: piece.name });
+                  showMessage(`Artefakt: ${piece.name}!`, "#d4a030");
+                }
+              }
+            };
+
+            const applyPenalty = (pen) => {
+              if (!pen) return;
+              if (pen.caravanDmg) setCaravanHp(prev => Math.max(1, prev - pen.caravanDmg));
+              if (pen.manaLoss) setMana(prev => Math.max(0, prev - pen.manaLoss));
+              if (pen.copperLoss) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - pen.copperLoss)));
+              if (pen.mercDeath) showMessage("Najemnik zginął!", "#cc4040");
+            };
+
+            const canAffordTrade = (cost) => {
+              if (cost.copper && totalCopper(money) < cost.copper) return false;
+              if (cost.silver && totalCopper(money) < cost.silver * 100) return false;
+              if (cost.gold && totalCopper(money) < cost.gold * 10000) return false;
+              if (cost.mana && mana < cost.mana) return false;
+              if (cost.caravanHp && caravanHp <= cost.caravanHp) return false;
+              return true;
+            };
+
+            const applyTradeCost = (cost) => {
+              if (cost.caravanHp) setCaravanHp(prev => Math.max(1, prev - cost.caravanHp));
+              if (cost.mana) setMana(prev => Math.max(0, prev - cost.mana));
+              if (cost.copper) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - cost.copper)));
+              if (cost.silver) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - cost.silver * 100)));
+              if (cost.gold) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - cost.gold * 10000)));
+              if (cost.initLoss) setInitiative(prev => Math.max(0, prev - cost.initLoss));
+            };
+
+            const btnStyle = { display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: `1px solid ${secretRoom.themeColor}66`, color: secretRoom.themeColor, fontSize: 12, cursor: "pointer", textAlign: "left" };
+            const btnDisabled = { ...btnStyle, opacity: 0.4, cursor: "not-allowed", color: "#666" };
+            const pType = secretRoom.puzzle.type;
+
+            // ─── Trade puzzle ───
+            if (pType === "trade") return secretRoom.puzzle.trades.map((trade, i) => {
+              const affordable = canAffordTrade(trade.cost);
+              return <button key={i} disabled={!affordable} onClick={() => {
+                if (!affordable) return;
+                applyTradeCost(trade.cost);
+                applyReward(trade.reward);
+                setSecretRoom(null);
+              }} style={affordable ? btnStyle : btnDisabled}>
+                Ofiaruj {trade.offer} → {trade.rewardDesc}
+              </button>;
+            });
+
+            // ─── Pact puzzle (Ghost Captain) ───
+            if (pType === "pact") return secretRoom.puzzle.pacts.map((pact, i) => (
               <button key={i} onClick={() => {
-                if (trade.cost.caravanHp) setCaravanHp(prev => Math.max(1, prev - trade.cost.caravanHp));
-                if (trade.cost.mana) setMana(prev => Math.max(0, prev - trade.cost.mana));
-                if (trade.cost.silver) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - trade.cost.silver * 100)));
-                if (trade.reward.permDmgBuff) showMessage(`Permanentny bonus: +${trade.reward.permDmgBuff * 100}% obrażeń!`, "#a050e0");
-                if (trade.reward.artifact) {
-                  const allPieces = ARTIFACT_SETS.flatMap(s => s.pieces).filter(p => !ownedArtifacts.includes(p.id));
-                  if (allPieces.length > 0) {
-                    const piece = allPieces[Math.floor(Math.random() * allPieces.length)];
-                    setOwnedArtifacts(prev => [...prev, piece.id]);
-                    addDiscovery("artifacts", { id: piece.id, name: piece.name });
-                    showMessage(`Znaleziono artefakt: ${piece.name}!`, "#d4a030");
-                  }
+                if (pact.cost.maxHpReduction) showMessage(`-${pact.cost.maxHpReduction} max HP karawany`, "#cc4040");
+                if (pact.cost.mercSacrifice) showMessage("Najemnik poświęcony!", "#cc4040");
+                applyReward(pact.reward);
+                setSecretRoom(null);
+              }} style={btnStyle}>
+                {pact.name}: {pact.rewardDesc}
+              </button>
+            ));
+
+            // ─── Choose puzzle (Ancient Armory) ───
+            if (pType === "choose") return secretRoom.puzzle.choices.map((choice, i) => (
+              <button key={i} onClick={() => {
+                applyReward(choice.reward);
+                showMessage(`Wybrano: ${choice.name}!`, secretRoom.themeColor);
+                setSecretRoom(null);
+              }} style={btnStyle}>
+                <Icon name={choice.icon} size={14} /> {choice.name} — {choice.desc}
+              </button>
+            ));
+
+            // ─── Gamble puzzle (Time Rift) ───
+            if (pType === "gamble") return secretRoom.puzzle.options.map((opt, i) => (
+              <button key={i} onClick={() => {
+                const won = Math.random() < opt.chance;
+                if (won) {
+                  applyReward(opt.success);
+                  showMessage(opt.successDesc, "#40c040");
+                } else {
+                  applyPenalty(opt.fail);
+                  if (opt.fail.copperLoss) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - opt.fail.copperLoss)));
+                  showMessage(opt.failDesc, "#cc4040");
                 }
                 setSecretRoom(null);
-              }} style={{ display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: "1px solid #6040a0", color: "#c0a0ff", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
-                Ofiaruj {trade.offer} → {trade.rewardDesc}
+              }} style={btnStyle}>
+                {opt.name} (szansa: {Math.round(opt.chance * 100)}%)
               </button>
-            ))
-          ) : (
-            <button onClick={() => {
+            ));
+
+            // ─── Risk puzzle (Cursed Throne) ───
+            if (pType === "risk") return secretRoom.puzzle.tiers.map((tier, i) => (
+              <button key={i} onClick={() => {
+                const failed = Math.random() < tier.risk;
+                if (!failed) {
+                  applyReward(tier.reward);
+                  showMessage(tier.rewardDesc, "#40c040");
+                } else {
+                  applyPenalty(tier.penalty);
+                  showMessage(tier.penaltyDesc, "#cc4040");
+                }
+                setSecretRoom(null);
+              }} style={btnStyle}>
+                {tier.name} (ryzyko: {Math.round(tier.risk * 100)}%) → {tier.rewardDesc}
+              </button>
+            ));
+
+            // ─── Default: difficulty-based puzzle (sequence, riddle, timing, multi_key) ───
+            return <button onClick={() => {
               const success = Math.random() < (1 / secretRoom.puzzle.difficulty);
               if (success) {
-                const r = secretRoom.puzzle.reward;
-                if (r.copper) addMoneyFn({ copper: r.copper });
-                if (r.gold) addMoneyFn({ gold: r.gold });
-                if (r.silver) addMoneyFn({ silver: r.silver });
-                if (r.knowledge) { setKnowledge(prev => prev + r.knowledge); }
-                if (r.artifact) {
-                  const allPieces = ARTIFACT_SETS.flatMap(s => s.pieces).filter(p => !ownedArtifacts.includes(p.id));
-                  if (allPieces.length > 0) {
-                    const piece = allPieces[Math.floor(Math.random() * allPieces.length)];
-                    setOwnedArtifacts(prev => [...prev, piece.id]);
-                    addDiscovery("artifacts", { id: piece.id, name: piece.name });
-                    showMessage(`Artefakt: ${piece.name}!`, "#d4a030");
-                  }
-                }
+                applyReward(secretRoom.puzzle.reward);
                 showMessage("Zagadka rozwiązana!", "#40c040");
               } else {
-                const pen = secretRoom.puzzle.failPenalty;
-                if (pen.caravanDmg) setCaravanHp(prev => Math.max(1, prev - pen.caravanDmg));
-                if (pen.manaLoss) setMana(prev => Math.max(0, prev - pen.manaLoss));
-                if (pen.copperLoss) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - pen.copperLoss)));
+                applyPenalty(secretRoom.puzzle.failPenalty);
                 showMessage("Nie udało się...", "#cc4040");
               }
               setSecretRoom(null);
-            }} style={{ padding: "8px 16px", background: "none", border: "1px solid #c0a0ff", color: "#c0a0ff", fontSize: 13, cursor: "pointer" }}>
+            }} style={{ padding: "8px 16px", background: "none", border: `1px solid ${secretRoom.themeColor}`, color: secretRoom.themeColor, fontSize: 13, cursor: "pointer" }}>
               Spróbuj rozwiązać! (szansa: {Math.round(100 / secretRoom.puzzle.difficulty)}%)
-            </button>
-          )}
+            </button>;
+          })()}
           <button onClick={() => setSecretRoom(null)} style={{ marginTop: 8, padding: "6px 12px", background: "none", border: "1px solid #555", color: "#888", fontSize: 11, cursor: "pointer" }}>
             Odejdź
           </button>
