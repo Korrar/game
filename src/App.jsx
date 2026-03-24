@@ -655,6 +655,8 @@ export default function App() {
   const [ownedArtifacts, setOwnedArtifacts] = useState([]);
   const [totalDiscoveries, setTotalDiscoveries] = useState(0);
   const [secretRoom, setSecretRoom] = useState(null);
+  const secretRoomRef = useRef(null);
+  secretRoomRef.current = secretRoom;
   const [_showJournal, setShowJournal] = useState(false);
 
   // Knowledge bonus: +5% damage per discovered NPC type (max +50%)
@@ -1300,7 +1302,8 @@ export default function App() {
       // Pause game when any modal/overlay is blocking gameplay
       if (levelUpChoicesRef.current || upgradeChoicesRef.current
         || relicChoicesRef.current || storyEventRef.current || moralDilemmaRef.current
-        || factionEventRef.current || seaEventRef.current || showChestRef.current) {
+        || factionEventRef.current || seaEventRef.current || showChestRef.current
+        || secretRoomRef.current) {
         lastTime = performance.now();
         // Still render physics (so visuals stay) but skip all logic
         if (physicsRef.current) physicsRef.current.step();
@@ -8141,8 +8144,9 @@ export default function App() {
         if (spell) handleSelectSpellRef.current(spell.id);
         return;
       }
-      // Escape to cancel selection + skillshot mode + trap placement
+      // Escape to cancel selection + skillshot mode + trap placement + secret room
       if (e.key === "Escape") {
+        if (secretRoomRef.current) { setSecretRoom(null); return; }
         setSelectedSpell(null);
         setSkillshotMode(false);
         setSkillshotSpell(null);
@@ -11439,10 +11443,11 @@ export default function App() {
                 setSecretPermDmgBuff(prev => prev + reward.permDmgBuff);
                 showMessage(`Permanentny bonus: +${Math.round(reward.permDmgBuff * 100)}% obrażeń!`, "#a050e0");
               }
-              if (reward.spellDmgBuff && reward.duration) {
-                setSecretSpellBuffMult(reward.spellDmgBuff);
+              if ((reward.spellDmgBuff || reward.shadowDmgBuff) && reward.duration) {
+                const mult = reward.spellDmgBuff || reward.shadowDmgBuff;
+                setSecretSpellBuffMult(mult);
                 setSecretSpellBuffRooms(reward.duration);
-                showMessage(`+${Math.round(reward.spellDmgBuff * 100)}% mocy zaklęć na ${reward.duration} pokoi!`, "#a050e0");
+                showMessage(`+${Math.round(mult * 100)}% mocy na ${reward.duration} pokoi!`, "#a050e0");
               }
               if (reward.copper) addMoneyFn({ copper: reward.copper });
               if (reward.gold) addMoneyFn({ gold: reward.gold });
@@ -11461,9 +11466,12 @@ export default function App() {
                 showMessage("Otrzymano amunicję!", "#d4a030");
               }
               if (reward.mercRevive || reward.tempMercs || reward.ghostMerc) {
-                const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
-                setTimeout(() => spawnFreeMerc(mt, 1), 600);
-                showMessage("Nowy najemnik dołącza!", "#40c040");
+                const count = reward.tempMercs || 1;
+                for (let mi = 0; mi < count; mi++) {
+                  const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
+                  setTimeout(() => spawnFreeMerc(mt, 1), 600 + mi * 300);
+                }
+                showMessage(count > 1 ? `${count} najemników dołącza!` : "Nowy najemnik dołącza!", "#40c040");
               }
               if (reward.randomRelic) {
                 const owned = activeRelicsRef.current.map(r => r.id);
@@ -11515,6 +11523,15 @@ export default function App() {
               if (cost.silver) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - cost.silver * 100)));
               if (cost.gold) setMoney(prev => copperToMoney(Math.max(0, totalCopper(prev) - cost.gold * 10000)));
               if (cost.initLoss) setInitiative(prev => Math.max(0, prev - cost.initLoss));
+              if (cost.mercSacrifice) {
+                setWalkers(prev => {
+                  const friendlies = prev.filter(w => w.friendly && w.alive);
+                  if (friendlies.length === 0) return prev;
+                  const victim = friendlies[Math.floor(Math.random() * friendlies.length)];
+                  return prev.map(w => w.id === victim.id ? { ...w, alive: false, hp: 0 } : w);
+                });
+                showMessage("Najemnik poświęcony!", "#cc4040");
+              }
             };
 
             const btnStyle = { display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: `1px solid ${secretRoom.themeColor}66`, color: secretRoom.themeColor, fontSize: 12, cursor: "pointer", textAlign: "left" };
@@ -11537,8 +11554,11 @@ export default function App() {
             // ─── Pact puzzle (Ghost Captain) ───
             if (pType === "pact") return secretRoom.puzzle.pacts.map((pact, i) => (
               <button key={i} onClick={() => {
-                if (pact.cost.maxHpReduction) showMessage(`-${pact.cost.maxHpReduction} max HP karawany`, "#cc4040");
-                if (pact.cost.mercSacrifice) showMessage("Najemnik poświęcony!", "#cc4040");
+                if (pact.cost.maxHpReduction) {
+                  setCaravanHp(prev => Math.max(1, prev - pact.cost.maxHpReduction));
+                  showMessage(`-${pact.cost.maxHpReduction} max HP karawany`, "#cc4040");
+                }
+                if (pact.cost.mercSacrifice) applyTradeCost({ mercSacrifice: pact.cost.mercSacrifice });
                 applyReward(pact.reward);
                 setSecretRoom(null);
               }} style={btnStyle}>
