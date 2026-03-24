@@ -788,12 +788,15 @@ export default function App() {
 
   // ─── Discovery helpers ───
   const addDiscovery = useCallback((category, entry) => {
+    let added = false;
     setJournal(prev => {
       const cat = prev[category] || [];
       if (cat.find(e => e.id === entry.id)) return prev;
+      added = true;
       return { ...prev, [category]: [...cat, entry] };
     });
-    setTotalDiscoveries(prev => prev + 1);
+    // Only increment if journal actually changed (not a duplicate)
+    if (added) setTotalDiscoveries(prev => prev + 1);
   }, []);
 
   // ─── Computed faction bonuses ───
@@ -807,8 +810,17 @@ export default function App() {
     return bonuses;
   };
 
-  // ─── Computed discovery bonuses ───
-  const _getArtifactSetBonuses = () => getCompletedSetBonuses(ownedArtifacts);
+  // ─── Computed artifact set bonuses (applied to damage, armor, etc.) ───
+  const artifactSetBonuses = getCompletedSetBonuses(ownedArtifacts);
+  const artifactDmgMult = artifactSetBonuses.reduce((m, b) => m * (b.effect.dmgMult || 1), 1);
+  const artifactArmor = artifactSetBonuses.reduce((a, b) => a + (b.effect.caravanArmor || 0), 0);
+  const artifactCooldownMult = artifactSetBonuses.reduce((m, b) => m * (b.effect.cooldownMult || 1), 1);
+  const artifactDmgMultRef = useRef(1);
+  artifactDmgMultRef.current = artifactDmgMult;
+  const artifactArmorRef = useRef(0);
+  artifactArmorRef.current = artifactArmor;
+  const artifactCooldownMultRef = useRef(1);
+  artifactCooldownMultRef.current = artifactCooldownMult;
 
   const [activeBoss, setActiveBoss] = useState(null);
   const activeBossRef = useRef(null);
@@ -1189,6 +1201,8 @@ export default function App() {
     if (hasSynergy("twierdza")) armor += 2;
     // Perk: caravan armor
     armor += perkCaravanArmor;
+    // Artifact set bonus: extra caravan armor
+    armor += artifactArmorRef.current;
     let actualDmg = Math.max(1, damage - armor);
     // Height advantage: enemies on high ground deal more damage to caravan
     if (isoModeRef.current && terrainDataRef.current?.heightMap) {
@@ -6136,6 +6150,7 @@ export default function App() {
       if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
       if (secretPermDmgBuffRef.current > 0) dmg = Math.round(dmg * (1 + secretPermDmgBuffRef.current));
       if (secretSpellBuffRoomsRef.current > 0 && secretSpellBuffMultRef.current > 0) dmg = Math.round(dmg * (1 + secretSpellBuffMultRef.current));
+      if (artifactDmgMultRef.current !== 1) dmg = Math.round(dmg * artifactDmgMultRef.current);
 
       // Headshot bonus: +50% damage
       if (isHeadshot) dmg = Math.round(dmg * (1 + HEADSHOT_BONUS));
@@ -6482,7 +6497,7 @@ export default function App() {
       setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
     }
     {
-      const finalCd = Math.round(_skStats.cooldown * perkCooldownMult);
+      const finalCd = Math.round(_skStats.cooldown * perkCooldownMult * artifactCooldownMultRef.current);
       // Immediately update cooldown ref to prevent double-fire between React renders
       cooldownsRef.current = { ...cooldownsRef.current, [spell.id]: Date.now() + finalCd };
       setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
@@ -7049,6 +7064,7 @@ export default function App() {
         dmg = Math.round(dmg * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) dmg = Math.round(dmg * 2);
         if (secretPermDmgBuffRef.current > 0) dmg = Math.round(dmg * (1 + secretPermDmgBuffRef.current));
+        if (artifactDmgMultRef.current !== 1) dmg = Math.round(dmg * artifactDmgMultRef.current);
         if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
         if (hasRelic("mermaid_tear") && saberData.element === "ice") dmg = Math.round(dmg * 1.25);
         if (isCrit) dmg = Math.round(dmg * 2.5);
@@ -7610,7 +7626,7 @@ export default function App() {
     // Cooldown with upgrades + perk
     {
       const uStats = _uStats;
-      const finalCd = Math.round(uStats.cooldown * perkCooldownMult);
+      const finalCd = Math.round(uStats.cooldown * perkCooldownMult * artifactCooldownMultRef.current);
       setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
     }
 
@@ -7654,6 +7670,7 @@ export default function App() {
       if (playerDoubleDmgRoomsRef.current > 0) damage = Math.round(damage * 2);
       if (secretPermDmgBuffRef.current > 0) damage = Math.round(damage * (1 + secretPermDmgBuffRef.current));
       if (secretSpellBuffRoomsRef.current > 0 && secretSpellBuffMultRef.current > 0) damage = Math.round(damage * (1 + secretSpellBuffMultRef.current));
+      if (artifactDmgMultRef.current !== 1) damage = Math.round(damage * artifactDmgMultRef.current);
       // Element combo system (uses imported COMBOS from combos.js)
       let comboText = null;
       const prevDebuff = elementDebuffs.current[wid];
@@ -7851,7 +7868,7 @@ export default function App() {
     {
       const spellUps = spellUpgradesRef.current[spell.id] || [];
       const uStats = getUpgradedSpellStats(spell, spellUps);
-      const finalCd = Math.round(uStats.cooldown * perkCooldownMult);
+      const finalCd = Math.round(uStats.cooldown * perkCooldownMult * artifactCooldownMultRef.current);
       setCooldowns(prev => ({ ...prev, [spell.id]: Date.now() + finalCd }));
     }
 
@@ -7904,6 +7921,7 @@ export default function App() {
         if (playerDoubleDmgRoomsRef.current > 0) damage = Math.round(damage * 2);
         if (secretPermDmgBuffRef.current > 0) damage = Math.round(damage * (1 + secretPermDmgBuffRef.current));
         if (secretSpellBuffRoomsRef.current > 0 && secretSpellBuffMultRef.current > 0) damage = Math.round(damage * (1 + secretSpellBuffMultRef.current));
+        if (artifactDmgMultRef.current !== 1) damage = Math.round(damage * artifactDmgMultRef.current);
         // Element combo for AoE (uses imported COMBOS)
         const prevDebuff = elementDebuffs.current[w.id];
         let comboText = null;

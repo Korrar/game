@@ -60,6 +60,7 @@ export const ARTIFACT_SETS = [
   {
     id: "olympian_relics",
     name: "Relikty Olimpu",
+    icon: "lightning",
     color: "#80b0ff",
     desc: "Artefakty wykute przez bogów na szczycie Olimpu",
     pieces: [
