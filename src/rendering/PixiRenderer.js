@@ -11,6 +11,7 @@ import { DamageNumbers } from "./DamageNumbers.js";
 import { depthFromY, scaleAtDepth, zIndexAtDepth, isoDepthFromWorld, isoZIndex, isoScaleAtDepth } from "./DepthSystem.js";
 import { createDebris, updateDebris, clearDebris, DEBRIS_CONFIG } from "../systems/DebrisSystem.js";
 import { createGroundMark, updateGroundMarks, clearGroundMarks, GROUND_MARKS_CONFIG } from "../systems/GroundMarks.js";
+import { drawShockwave } from "../systems/ShockwaveSystem.js";
 
 export class PixiRenderer {
   constructor() {
@@ -43,6 +44,7 @@ export class PixiRenderer {
     this._groundMarks = [];
     this._debrisGfx = null;
     this._groundMarkGfx = null;
+    this._shockwaveGfx = null;
   }
 
   async init(parentElement, width, height) {
@@ -88,12 +90,14 @@ export class PixiRenderer {
     this.groundMarkLayer.addChild(this._groundMarkGfx);
     this._debrisGfx = new Graphics();
     this.debrisLayer.addChild(this._debrisGfx);
+    this._shockwaveGfx = new Graphics();
 
     this.app.stage.addChild(this.groundMarkLayer);
     this.app.stage.addChild(this.debrisLayer);
     this.app.stage.addChild(this.npcLayer);
     this.app.stage.addChild(this.projectileLayer);
     this.app.stage.addChild(this.particleLayer);
+    this.app.stage.addChild(this._shockwaveGfx);
     this.app.stage.addChild(this.uiLayer);
 
     this.projectileRenderer = new ProjectileRenderer(this.projectileLayer);
@@ -562,6 +566,17 @@ export class PixiRenderer {
       // Inner darker core
       g.ellipse(mx, markY, m.radius * 0.5, m.radius * 0.25);
       g.fill({ color, alpha: baseAlpha * 0.8 });
+    }
+  }
+
+  renderShockwaves(shockwaves) {
+    if (!this._shockwaveGfx) return;
+    const g = this._shockwaveGfx;
+    g.clear();
+    if (!shockwaves || shockwaves.length === 0) return;
+
+    for (const sw of shockwaves) {
+      drawShockwave(g, sw, 0, 0);
     }
   }
 

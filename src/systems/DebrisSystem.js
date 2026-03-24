@@ -118,3 +118,85 @@ export function updateDebris(debris, groundY) {
 export function clearDebris() {
   return [];
 }
+
+// ─── PROJECTILE DEBRIS (ADVANCED) ───
+// High-velocity debris fragments that can damage nearby NPCs on impact
+// Only active debris (not grounded) with sufficient speed can deal damage
+
+export const PROJECTILE_DEBRIS_CONFIG = {
+  minSpeedToDamage: 3.0,     // minimum velocity magnitude to deal damage
+  baseDamage: 4,              // base damage per hit
+  damageSpeedScale: 1.5,     // damage scales with speed
+  maxDamagePerDebris: 12,    // cap per debris piece
+  hitRadius: 15,              // px radius for NPC collision check
+  debrisPerExplosion: 12,     // more debris from explosions
+  explosionSpeedMult: 2.0,    // faster debris from explosions
+};
+
+// Create high-velocity "projectile" debris from explosions
+export function createExplosiveDebris(material, x, y, explosionForce = 1.0) {
+  const defs = getDebrisForMaterial(material);
+  const pieces = [];
+  const count = PROJECTILE_DEBRIS_CONFIG.debrisPerExplosion;
+
+  for (let i = 0; i < count; i++) {
+    const def = defs[i % defs.length];
+    const size = def.sizeMin + Math.random() * (def.sizeMax - def.sizeMin);
+    const angle = Math.random() * Math.PI * 2;
+    const baseSpeed = 2.5 + Math.random() * 4.5;
+    const speed = baseSpeed * PROJECTILE_DEBRIS_CONFIG.explosionSpeedMult * explosionForce;
+
+    pieces.push({
+      x: x + (Math.random() - 0.5) * 20,
+      y: y + (Math.random() - 0.5) * 15,
+      vx: Math.cos(angle) * speed,
+      vy: -Math.abs(Math.sin(angle) * speed) - 2,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.5,
+      size: size * 1.3,  // slightly larger debris from explosions
+      color: def.color,
+      shape: def.shape,
+      life: 200 + Math.floor(Math.random() * 150),
+      maxLife: 350,
+      grounded: false,
+      isProjectile: true,     // can damage NPCs
+      hitNpcs: new Set(),     // track which NPCs were already hit
+      material,
+    });
+  }
+
+  return pieces;
+}
+
+// Check if a debris piece can damage a target at given position
+export function checkDebrisDamage(debris, targetX, targetY, targetId) {
+  if (!debris.isProjectile || debris.grounded) return null;
+  if (debris.hitNpcs && debris.hitNpcs.has(targetId)) return null;
+
+  const speed = Math.sqrt(debris.vx * debris.vx + debris.vy * debris.vy);
+  if (speed < PROJECTILE_DEBRIS_CONFIG.minSpeedToDamage) return null;
+
+  const dx = targetX - debris.x;
+  const dy = targetY - debris.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist > PROJECTILE_DEBRIS_CONFIG.hitRadius) return null;
+
+  // Calculate damage from speed
+  const dmg = Math.min(
+    PROJECTILE_DEBRIS_CONFIG.maxDamagePerDebris,
+    Math.round(PROJECTILE_DEBRIS_CONFIG.baseDamage + speed * PROJECTILE_DEBRIS_CONFIG.damageSpeedScale)
+  );
+
+  if (debris.hitNpcs) debris.hitNpcs.add(targetId);
+
+  // Slow debris after hit
+  debris.vx *= 0.4;
+  debris.vy *= 0.4;
+
+  return {
+    damage: dmg,
+    element: null,
+    fromDebris: true,
+    material: debris.material,
+  };
+}

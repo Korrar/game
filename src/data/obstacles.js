@@ -85,6 +85,19 @@ export const OBSTACLE_DEFS = {
   frozen_gas_vent:  { material: "ice",     hp: 18,  loot: { copper: 2 },  destructible: true, explosive: true, explosionDmg: 22, explosionRadius: 14, element: "ice" },
   swamp_gas_pod:    { material: "organic", hp: 10,  loot: { copper: 1 },  destructible: true, explosive: true, explosionDmg: 18, explosionRadius: 12, element: "poison" },
 
+  // ─── STRUCTURAL (multi-stage collapse) ───
+  watchtower:       { material: "wood",    hp: 90,  loot: { copper: 10, silver: 2 }, destructible: true, structural: true },
+  stone_wall:       { material: "stone",   hp: 120, loot: { copper: 6 },  destructible: true, structural: true },
+  wooden_bridge:    { material: "wood",    hp: 70,  loot: { copper: 5 },  destructible: true, structural: true },
+  bell_tower:       { material: "stone",   hp: 100, loot: { copper: 8, silver: 1 }, destructible: true, structural: true },
+  crane:            { material: "metal",   hp: 85,  loot: { copper: 7, silver: 1 }, destructible: true, structural: true },
+
+  // ─── HAZARDOUS (leave environmental hazards on destruction) ───
+  acid_barrel:      { material: "metal",   hp: 12,  loot: { copper: 2 },  destructible: true, explosive: true, explosionDmg: 20, explosionRadius: 14, element: "poison", hazardOnDestroy: "toxic_cloud" },
+  shadow_crystal:   { material: "crystal", hp: 25,  loot: { copper: 4 },  destructible: true, explosive: true, explosionDmg: 22, explosionRadius: 13, element: "shadow", hazardOnDestroy: "shadow_rift" },
+  oil_lamp:         { material: "metal",   hp: 10,  loot: { copper: 1 },  destructible: true, hazardOnDestroy: "oil_spill" },
+  cracked_pillar:   { material: "stone",   hp: 50,  loot: { copper: 3 },  destructible: true, hazardOnDestroy: "rubble_zone" },
+
   // ─── INDESTRUCTIBLE / TERRAIN ───
   tide_pool:     { material: "stone",   hp: 0,   loot: {},              destructible: false },
   lava_pool:     { material: "stone",   hp: 0,   loot: {},              destructible: false },
