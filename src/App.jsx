@@ -20,6 +20,7 @@ import { CARAVAN_LEVELS } from "./data/caravanLevels";
 import { KNIGHT_LEVELS } from "./data/knightLevels";
 import { MERCENARY_TYPES } from "./data/mercenaries";
 import { SHOP_TOOLS, MANA_POTIONS, AMMO_ITEMS, pickResource, MINE_TIMES } from "./data/shopItems";
+import { BAZAAR_SPECIALS, BIOME_SHOP_ITEMS, generateShopStock, attemptBargain, applyDiscount, BARGAIN_CONFIG } from "./data/bazaarSpecials";
 import { pickNpc, SPELLS, RESIST_NAMES } from "./data/npcs";
 import { SKILLSHOT_TYPES, ACCURACY_COMBO_THRESHOLD, ACCURACY_COMBO_BONUS, HEADSHOT_BONUS, DEFENSE_TRAPS, MAX_PLAYER_TRAPS } from "./data/skillshots";
 import { totalCopper, copperToMoney, pickTreasure, formatValHTML } from "./utils/helpers";
@@ -466,6 +467,15 @@ export default function App() {
   const [killsByType, setKillsByType] = useState({}); // { "Krokodyl": 5, ... }
   const killsByTypeRef = useRef({});
   killsByTypeRef.current = killsByType;
+
+  // ─── FEATURE: Bazaar Specials (expanded shop) ───
+  const [boughtSpecials, setBoughtSpecials] = useState([]); // IDs of specials bought this run
+  const [shopStock, setShopStock] = useState(null);         // { specials, biomeItems } for current visit
+  const [shopDiscount, setShopDiscount] = useState(0);      // current bargain discount (0 = none)
+  const [bargainUsed, setBargainUsed] = useState(false);    // already bargained this visit?
+  const [activeBuffs, setActiveBuffs] = useState([]);       // [{ id, name, effect, roomsLeft, color }]
+  const activeBuffsRef = useRef([]);
+  activeBuffsRef.current = activeBuffs;
 
   // ─── FEATURE: Ghost Ship ───
   const [ghostShipActive, setGhostShipActive] = useState(false);
@@ -3412,6 +3422,14 @@ export default function App() {
     if (eventMercDmgBuffRef.current > 0) { setEventMercDmgBuff(0); eventMercDmgBuffRef.current = 0; }
     if (eventMercHpBuffRef.current > 0) { setEventMercHpBuff(0); eventMercHpBuffRef.current = 0; }
 
+    // Decrement bazaar special buff durations
+    setActiveBuffs(prev => prev
+      .map(b => b.roomsLeft === -1 ? b : { ...b, roomsLeft: b.roomsLeft - 1 })
+      .filter(b => b.roomsLeft === -1 || b.roomsLeft > 0)
+    );
+    // Reset shop stock so it regenerates on next visit
+    setShopStock(null);
+
     // Enemy Mutations: every 10 rooms, least-killed enemies evolve
     if (newRoom > 1 && newRoom % MUTATION_INTERVAL === 0) {
       const biomeEnemies = b.enemies || [];
@@ -5072,6 +5090,7 @@ export default function App() {
     setMorale(MORALE_CONFIG.initial); setActiveMutations([]); setKillsByType({}); setGhostShipActive(false);
     setHasWand(false); setWandActive(false); wandOrbsRef.current = { active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {}, lastDrainTime: 0 };
     setSalvaActive(false); salvaRef.current = { active: false, cursorX: 50, cursorY: 50, lastShotTime: 0 };
+    setBoughtSpecials([]); setShopStock(null); setShopDiscount(0); setBargainUsed(false); setActiveBuffs([]);
     walkDataRef.current = {};
     if (pixiRef.current) { pixiRef.current.clearNpcs(); pixiRef.current.clearDestruction(); }
     if (physicsRef.current) physicsRef.current.clear();
@@ -8251,6 +8270,72 @@ export default function App() {
     showMessage(`Zdobyto: ${saber.name}!`, saber.color);
   };
 
+  // ─── BAZAAR SPECIALS: Buy unique / biome items ───
+  const buySpecialItem = (item) => {
+    const cost = shopDiscount !== 0 ? applyDiscount(item.cost, shopDiscount) : item.cost;
+    const tc = totalCopper(money); const need = totalCopper(cost);
+    if (tc < need) { showMessage("Za mało monet!", "#b83030"); return; }
+    sfxBuy(); setMoney(copperToMoney(tc - need));
+    setBoughtSpecials(prev => [...prev, item.id]);
+    // Remove from current shop stock
+    setShopStock(prev => {
+      if (!prev) return prev;
+      return {
+        specials: prev.specials.filter(s => s.id !== item.id),
+        biomeItems: prev.biomeItems.filter(s => s.id !== item.id),
+      };
+    });
+    // Apply immediate effects
+    const eff = item.effect;
+    if (eff.type === "heal") {
+      setCaravanHp(prev => Math.min(prev + eff.amount, CARAVAN_LEVELS[caravanLevel].hp));
+      showMessage(`+${eff.amount} HP karawany!`, "#40c040");
+    } else if (eff.type === "restore") {
+      if (eff.hp) setCaravanHp(prev => Math.min(prev + eff.hp, CARAVAN_LEVELS[caravanLevel].hp));
+      if (eff.mana) setMana(prev => Math.min(prev + eff.mana, MAX_MANA));
+      showMessage(`Przywrócono ${eff.hp || 0} HP i ${eff.mana || 0} prochu!`, "#40c0c0");
+    } else if (eff.type === "full_mana") {
+      setMana(MAX_MANA);
+      showMessage("Proch w pełni przywrócony!", "#80d0ff");
+    } else if (eff.type === "perm_armor") {
+      // Permanent armor stored as buff with duration -1
+      setActiveBuffs(prev => [...prev, { id: item.id, name: item.name, effect: eff, roomsLeft: -1, color: item.color }]);
+      showMessage(`+${eff.armor} pancerza permanentnie!`, item.color);
+    } else if (eff.type === "perm_max_hp") {
+      setCaravanHp(prev => prev + eff.amount);
+      showMessage(`+${eff.amount} max HP karawany!`, item.color);
+    } else if (eff.type === "instant_level") {
+      setPlayerXp(prev => prev); // trigger level up logic
+      setPlayerLevel(prev => prev + 1);
+      showMessage("Poziom w górę! (Nektar Bogów)", item.color);
+    } else if (eff.type === "trade_value") {
+      setInventory(prev => [...prev, { id: Date.now(), icon: item.icon, name: item.name, rarity: item.rarity, value: eff.value }]);
+      showMessage(`${item.name} dodano do ekwipunku!`, item.color);
+    } else if (eff.type === "random_buff") {
+      const chosen = eff.options[Math.floor(Math.random() * eff.options.length)];
+      setActiveBuffs(prev => [...prev, { id: chosen.id, name: chosen.name, effect: chosen.buff, roomsLeft: eff.duration, color: chosen.color }]);
+      showMessage(`${chosen.name}: ${chosen.desc} (${eff.duration} pokoje)`, chosen.color);
+    } else {
+      // Duration-based buffs
+      const duration = eff.duration || eff.charges || 3;
+      setActiveBuffs(prev => [...prev, { id: item.id, name: item.name, effect: eff, roomsLeft: duration, color: item.color }]);
+      showMessage(`${item.name} aktywowany! (${duration > 0 ? duration + " pokoje" : "permanentnie"})`, item.color);
+    }
+  };
+
+  const doBargain = () => {
+    if (bargainUsed) { showMessage("Już się targowałeś!", "#c0a060"); return; }
+    setBargainUsed(true);
+    const relicIds = activeRelics.map(r => r.id);
+    const result = attemptBargain(money, relicIds);
+    setShopDiscount(result.discount);
+    if (result.success) {
+      showMessage(`Udane targowanie! (${result.roll}/${result.threshold}) — ${Math.round(result.discount * 100)}% zniżki!`, "#50e050");
+    } else {
+      showMessage(`Nieudane targowanie... (${result.roll}/${result.threshold}) — ceny wzrosły o ${Math.round(Math.abs(result.discount) * 100)}%!`, "#e05050");
+    }
+  };
+
   const equipSaber = (saberId) => {
     if (!ownedSabers.includes(saberId)) return;
     setEquippedSaber(saberId);
@@ -8367,7 +8452,19 @@ export default function App() {
     showMessage(`Ulepszono ${names[upgradeId]}!`, "#60a0ff");
   };
 
-  const togglePanel = (p) => setPanel(prev => prev === p ? null : p);
+  const togglePanel = (p) => {
+    setPanel(prev => {
+      const next = prev === p ? null : p;
+      // Generate shop stock when opening shop panel
+      if (next === "shop" && !shopStock) {
+        const lastBiomeId = biome?.id || "city";
+        setShopStock(generateShopStock(lastBiomeId, boughtSpecials, room));
+        setBargainUsed(false);
+        setShopDiscount(0);
+      }
+      return next;
+    });
+  };
   const hlvl = HIDEOUT_LEVELS[hideoutLevel];
   const canStoreMore = hideoutItems.length < hlvl.slots;
   const nextLevel = hideoutLevel < HIDEOUT_LEVELS.length - 1 ? HIDEOUT_LEVELS[hideoutLevel + 1] : null;
@@ -10779,6 +10876,67 @@ export default function App() {
             </div>
           );
         })()}
+
+        {/* ─── BARGAIN BUTTON ─── */}
+        <div style={{ marginTop: 14, marginBottom: 10, padding: "8px 12px", background: "rgba(100,80,30,0.15)", border: "2px solid #5a4a18", textAlign: "center" }}>
+          <div style={{ fontSize: 13, color: "#c0a060", marginBottom: 6 }}>
+            <Icon name="dice" size={14} /> Targowanie{shopDiscount > 0 ? ` (${Math.round(shopDiscount * 100)}% zniżki!)` : shopDiscount < 0 ? ` (+${Math.round(Math.abs(shopDiscount) * 100)}% drożej!)` : ""}
+          </div>
+          {activeBuffs.length > 0 && (
+            <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>
+              Aktywne buffy: {activeBuffs.map(b => <span key={b.id} style={{ color: b.color, marginRight: 6 }}>{b.name}{b.roomsLeft > 0 ? ` (${b.roomsLeft})` : ""}</span>)}
+            </div>
+          )}
+          <button onClick={doBargain} disabled={bargainUsed}
+            style={{ background: bargainUsed ? "#1a1510" : "linear-gradient(180deg, #4a3a18, #2a1a08)", border: `2px solid ${bargainUsed ? "#333" : "#c0a060"}`, color: bargainUsed ? "#555" : "#ffd700", fontSize: 14, padding: "6px 20px", cursor: bargainUsed ? "not-allowed" : "pointer", fontWeight: "bold" }}>
+            {bargainUsed ? (shopDiscount > 0 ? "Udane!" : shopDiscount < 0 ? "Nieudane..." : "Użyto") : "Spróbuj się targować"}
+          </button>
+        </div>
+
+        {/* ─── UNIQUE SPECIALS ─── */}
+        {shopStock && shopStock.specials.length > 0 && (<>
+          <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#e040e0", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #4a1a4a", paddingBottom: 4 }}><Icon name="star" size={15} /> Unikalne Przedmioty</h3>
+          <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>Ograniczona ilość — znikają po zakupie!</div>
+          {shopStock.specials.map(item => {
+            const cost = shopDiscount !== 0 ? applyDiscount(item.cost, shopDiscount) : item.cost;
+            const canAfford = totalCopper(money) >= totalCopper(cost);
+            const SPECIAL_RARITY_COLOR = { uncommon: "#40a040", rare: "#4080ff", epic: "#a040e0", legendary: "#ffd700" };
+            return (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: `2px solid ${item.color}30`, marginBottom: 6, background: `${item.color}08`, backgroundImage: item.rarity === "legendary" ? "linear-gradient(110deg, transparent 20%, rgba(255,215,0,0.08) 50%, transparent 80%)" : item.rarity === "epic" ? `linear-gradient(110deg, transparent 20%, ${item.color}10 50%, transparent 80%)` : "none", backgroundSize: "200% 100%", animation: item.rarity === "legendary" ? "saberShimmerLegendary 3s ease infinite" : item.rarity === "epic" ? "saberShimmerEpic 4s ease infinite" : "none" }}>
+                <span style={{ filter: `drop-shadow(0 0 4px ${item.color}66)` }}><Icon name={item.icon} size={28} /></span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: "bold", fontSize: 14, color: SPECIAL_RARITY_COLOR[item.rarity] || "#ccc" }}>{item.name} <span style={{ fontSize: 9, color: item.color, background: `${item.color}20`, padding: "1px 4px", borderRadius: 3 }}>{item.rarity === "legendary" ? "LEGENDARNY" : item.rarity === "epic" ? "EPICKI" : item.rarity === "rare" ? "RZADKI" : "NIEPOSPOLITY"}</span></div>
+                  <div style={{ fontSize: 11, color: "#999" }}>{item.desc}</div>
+                  <div style={{ fontSize: 12, color: "#888" }}><Icon name="coin" size={12} /> {formatValHTML(cost)}{shopDiscount > 0 && <span style={{ color: "#50e050", fontSize: 10, marginLeft: 4 }}>-{Math.round(shopDiscount*100)}%</span>}{shopDiscount < 0 && <span style={{ color: "#e05050", fontSize: 10, marginLeft: 4 }}>+{Math.round(Math.abs(shopDiscount)*100)}%</span>}</div>
+                </div>
+                <button onClick={() => buySpecialItem(item)} disabled={!canAfford}
+                  style={{ background: "none", border: `2px solid ${canAfford ? item.color : "#333"}`, color: canAfford ? item.color : "#555", fontSize: 13, padding: "3px 10px", cursor: canAfford ? "pointer" : "not-allowed", fontWeight: "bold" }}>Kup</button>
+              </div>
+            );
+          })}
+        </>)}
+
+        {/* ─── BIOME-THEMED ITEMS ─── */}
+        {shopStock && shopStock.biomeItems.length > 0 && (<>
+          <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#40c8c8", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #1a3a3a", paddingBottom: 4 }}><Icon name="compass" size={15} /> Towary z {biome?.name || "Wyprawy"}</h3>
+          <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>Tematyczne przedmioty z ostatniego biomu</div>
+          {shopStock.biomeItems.filter(item => !boughtSpecials.includes(item.id)).map(item => {
+            const cost = shopDiscount !== 0 ? applyDiscount(item.cost, shopDiscount) : item.cost;
+            const canAfford = totalCopper(money) >= totalCopper(cost);
+            return (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: `2px solid ${item.color}30`, marginBottom: 6, background: `${item.color}06` }}>
+                <span style={{ filter: `drop-shadow(0 0 3px ${item.color}44)` }}><Icon name={item.icon} size={28} /></span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: "bold", fontSize: 14, color: item.color }}>{item.name}</div>
+                  <div style={{ fontSize: 11, color: "#999" }}>{item.desc}</div>
+                  <div style={{ fontSize: 12, color: "#888" }}><Icon name="coin" size={12} /> {formatValHTML(cost)}{shopDiscount > 0 && <span style={{ color: "#50e050", fontSize: 10, marginLeft: 4 }}>-{Math.round(shopDiscount*100)}%</span>}{shopDiscount < 0 && <span style={{ color: "#e05050", fontSize: 10, marginLeft: 4 }}>+{Math.round(Math.abs(shopDiscount)*100)}%</span>}</div>
+                </div>
+                <button onClick={() => buySpecialItem(item)} disabled={!canAfford}
+                  style={{ background: "none", border: `2px solid ${canAfford ? item.color : "#333"}`, color: canAfford ? item.color : "#555", fontSize: 13, padding: "3px 10px", cursor: canAfford ? "pointer" : "not-allowed", fontWeight: "bold" }}>Kup</button>
+              </div>
+            );
+          })}
+        </>)}
 
         <h3 style={{ fontWeight: "bold", fontSize: 15, color: "#ffd700", marginTop: 14, marginBottom: 8, borderBottom: "1px solid #5a4a18", paddingBottom: 4 }}><Icon name="star" size={15} /> Piracki Bandit</h3>
         <SlotMachine
