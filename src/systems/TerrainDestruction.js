@@ -254,7 +254,7 @@ export class TerrainDestructionState {
 
   freezeWaterAt(col, row, terrainData) {
     if (!terrainData) return false;
-    const { overlays, cols } = terrainData;
+    const { overlays, cols, rows } = terrainData;
     const idx = row * cols + col;
 
     if (overlays[idx] !== 2) return false; // not water
@@ -276,7 +276,7 @@ export class TerrainDestructionState {
     ];
     for (const n of neighbors) {
       const nc = col + n.dc, nr = row + n.dr;
-      if (nc < 0 || nc >= terrainData.cols || nr < 0 || nr >= terrainData.rows) continue;
+      if (nc < 0 || nc >= cols || nr < 0 || nr >= rows) continue;
       const nIdx = nr * cols + nc;
       if (overlays[nIdx] === 2 && Math.random() < 0.6) {
         this._addEffect(nIdx, {
@@ -318,7 +318,7 @@ export class TerrainDestructionState {
           const cfg = EFFECT_CONFIG[eff.type];
 
           // Burning → smoke transition
-          if (eff.type === TERRAIN_EFFECTS.BURNING && cfg.smokeAfter) {
+          if (eff.type === TERRAIN_EFFECTS.BURNING && cfg?.smokeAfter) {
             effects[i] = {
               type: TERRAIN_EFFECTS.SMOKE,
               col: eff.col, row: eff.row,
@@ -413,18 +413,22 @@ export class TerrainDestructionState {
   }
 
   // Get damage per second for a tile (fire, poison zones)
+  // Accumulates damage from all active damaging effects on the tile
   getEffectDamage(col, row, cols) {
     const tileKey = row * cols + col;
     const effects = this.effects.get(tileKey);
     if (!effects || effects.length === 0) return null;
 
+    let totalDamage = 0;
+    let primaryElement = null;
     for (const eff of effects) {
       const cfg = EFFECT_CONFIG[eff.type];
       if (cfg?.damagePerSec) {
-        return { damage: cfg.damagePerSec * eff.intensity, element: cfg.element };
+        totalDamage += cfg.damagePerSec * eff.intensity;
+        if (!primaryElement) primaryElement = cfg.element;
       }
     }
-    return null;
+    return totalDamage > 0 ? { damage: totalDamage, element: primaryElement } : null;
   }
 
   // Check if tile blocks LOS (smoke)

@@ -179,8 +179,9 @@ export function generateFragments(obstacle, structDef, stage, nextId) {
     const dist = COLLAPSE_CONFIG.fragmentSpawnRadius * (0.5 + Math.random() * 0.5);
 
     // Offset in percentage coordinates (matching obstacle x/y system)
-    const offsetX = Math.cos(angle) * dist * 0.03; // ~percentage offset
-    const offsetY = Math.sin(angle) * dist * 0.03;
+    // dist ~10-20px, convert to ~1.5-4% spread for visible fragment separation
+    const offsetX = Math.cos(angle) * dist * 0.15;
+    const offsetY = Math.sin(angle) * dist * 0.15;
 
     fragments.push({
       id: `frag_${nextId}_${i}`,
