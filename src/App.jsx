@@ -186,6 +186,8 @@ export default function App() {
   const [screen, setScreen] = useState("intro");
   const [room, setRoom] = useState(0);
   const [biome, setBiome] = useState(null);
+  const biomeRef = useRef(null);
+  biomeRef.current = biome;
   const [doors, setDoors] = useState(0);
   const [initiative, setInitiative] = useState(MAX_INITIATIVE);
   const [inventory, setInventory] = useState([]);
@@ -223,6 +225,8 @@ export default function App() {
   const [resourceNode, setResourceNode] = useState(null);
   const [showResource, setShowResource] = useState(false);
   const [isNight, setIsNight] = useState(false);
+  const isNightRef = useRef(false);
+  isNightRef.current = isNight;
   const [weather, setWeather] = useState(null);
   const weatherRef = useRef(null);
   weatherRef.current = weather;
@@ -3230,6 +3234,18 @@ export default function App() {
         if (terrainDestructionRef.current.needsWalkGridRebuild) {
           walkGridRef.current = buildWalkGrid(terrainDataRef.current);
           terrainDestructionRef.current.needsWalkGridRebuild = false;
+        }
+
+        // Re-render canvas directly when terrain effects are active (craters, fire, ice, poison)
+        // The useEffect canvas render only triggers on biome/room/night changes, so without
+        // this, destruction effects would never appear on screen during combat
+        if (terrainDestructionRef.current.effects.size > 0 && canvasRef.current && biomeRef.current) {
+          const c = canvasRef.current;
+          const ctx = c.getContext("2d");
+          const cam = isoCameraRef.current;
+          ctx.clearRect(0, 0, GAME_W, GAME_H);
+          renderIsoBiome(ctx, biomeRef.current, roomRef.current, c.width, c.height, isNightRef.current, cam.x, cam.y, caravanPosRef.current, !!placingFortRef.current, terrainDataRef.current?.heightMap);
+          renderTerrainOverlays(ctx, terrainDataRef.current, cam.x, cam.y, true, terrainDestructionRef.current, mapResourcesRef.current, chokepointsRef.current);
         }
 
         // Terrain zone damage: damage enemies standing on burning/poison tiles (every ~0.5s)
