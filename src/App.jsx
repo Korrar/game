@@ -11454,7 +11454,7 @@ export default function App() {
               if (reward.silver) addMoneyFn({ silver: reward.silver });
               if (reward.knowledge) setKnowledge(prev => prev + reward.knowledge);
               if (reward.initiative) setInitiative(prev => Math.min(MAX_INITIATIVE, prev + reward.initiative));
-              if (reward.fullHeal) setCaravanHp(CARAVAN_LEVELS[caravanLevel].hp);
+              if (reward.fullHeal) setCaravanHp(CARAVAN_LEVELS[caravanLevelRef.current].hp);
               if (reward.fullMana) setMana(MAX_MANA);
               if (reward.permMaxMana) showMessage(`+${reward.permMaxMana} max prochu permanentnie!`, "#4080ff");
               if (reward.ammo) {
@@ -11488,13 +11488,14 @@ export default function App() {
                 showMessage(`Skarb: ${t.name}!`, "#d4a030");
               }
               if (reward.artifact) {
-                const allPieces = ARTIFACT_SETS.flatMap(s => s.pieces).filter(p => !ownedArtifacts.includes(p.id));
-                if (allPieces.length > 0) {
+                setOwnedArtifacts(prev => {
+                  const allPieces = ARTIFACT_SETS.flatMap(s => s.pieces).filter(p => !prev.includes(p.id));
+                  if (allPieces.length === 0) return prev;
                   const piece = allPieces[Math.floor(Math.random() * allPieces.length)];
-                  setOwnedArtifacts(prev => [...prev, piece.id]);
                   addDiscovery("artifacts", { id: piece.id, name: piece.name });
                   showMessage(`Artefakt: ${piece.name}!`, "#d4a030");
-                }
+                  return [...prev, piece.id];
+                });
               }
             };
 
@@ -11534,7 +11535,7 @@ export default function App() {
               }
             };
 
-            const btnStyle = { display: "block", width: "100%", marginBottom: 6, padding: "8px 12px", background: "none", border: `1px solid ${secretRoom.themeColor}66`, color: secretRoom.themeColor, fontSize: 12, cursor: "pointer", textAlign: "left" };
+            const btnStyle = { display: "block", width: "100%", marginBottom: 6, padding: "12px 14px", minHeight: 44, background: "none", border: `1px solid ${secretRoom.themeColor}66`, color: secretRoom.themeColor, fontSize: 12, cursor: "pointer", textAlign: "left" };
             const btnDisabled = { ...btnStyle, opacity: 0.4, cursor: "not-allowed", color: "#666" };
             const pType = secretRoom.puzzle.type;
 
@@ -11622,11 +11623,11 @@ export default function App() {
                 showMessage("Nie udało się...", "#cc4040");
               }
               setSecretRoom(null);
-            }} style={{ padding: "8px 16px", background: "none", border: `1px solid ${secretRoom.themeColor}`, color: secretRoom.themeColor, fontSize: 13, cursor: "pointer" }}>
+            }} style={{ padding: "12px 16px", minHeight: 44, background: "none", border: `1px solid ${secretRoom.themeColor}`, color: secretRoom.themeColor, fontSize: 13, cursor: "pointer" }}>
               Spróbuj rozwiązać! (szansa: {Math.round(100 / secretRoom.puzzle.difficulty)}%)
             </button>;
           })()}
-          <button onClick={() => setSecretRoom(null)} style={{ marginTop: 8, padding: "6px 12px", background: "none", border: "1px solid #555", color: "#888", fontSize: 11, cursor: "pointer" }}>
+          <button onClick={() => setSecretRoom(null)} style={{ marginTop: 8, padding: "10px 14px", minHeight: 44, background: "none", border: "1px solid #555", color: "#888", fontSize: 11, cursor: "pointer" }}>
             Odejdź
           </button>
         </div>
