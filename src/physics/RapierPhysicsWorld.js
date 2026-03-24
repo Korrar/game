@@ -1444,7 +1444,8 @@ export class PhysicsWorld {
       const worldW = this.W * 3; // PANORAMA_WORLD_W = 3
       if (hit || proj.age > proj.maxAge || proj.x < -50 || proj.x > worldW + 50 || proj.y > this.H + 30) {
         // Terrain destruction for expired/off-screen projectiles that missed enemies
-        if (!hitAnybody && proj.splashRadius > 0 && proj.onTerrainImpact) {
+        // Skip arc projectiles that already detonated at target (prevents double-fire)
+        if (!hitAnybody && !proj.explodeAtTarget && proj.splashRadius > 0 && proj.onTerrainImpact) {
           proj.onTerrainImpact(proj.x, proj.y, proj.splashRadius, proj.element);
         }
         if (!hitAnybody && !hit && proj.onMiss) proj.onMiss();

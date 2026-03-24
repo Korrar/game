@@ -3054,95 +3054,14 @@ export default function App() {
                 }
               }
 
-              // ─── DAMAGE: apply to destructible obstacles ───
+              // ─── DAMAGE: apply to destructible obstacles via unified handler ───
               // Explosive projectiles deal extra damage from splash
-              const obsDmgMult = isExplosive ? 1.5 : 1;
               if (o.destructible) {
+                const obsDmgMult = isExplosive ? 1.5 : 1;
                 const spellDmg = Math.round((proj.damage || 20) * obsDmgMult);
                 const spellEl = proj.element || null;
-                const _oid = o.id, _dmg = spellDmg, _el = spellEl;
-                setTimeout(() => {
-                  setObstacles(prev => {
-                    const target = prev.find(ob => ob.id === _oid);
-                    if (!target || !target.destructible || target.hp <= 0 || target.destroying) return prev;
-                    const matDef = OBSTACLE_MATERIALS[target.material] || OBSTACLE_MATERIALS.wood;
-                    let dmg = _dmg;
-                    if (matDef.weakTo && matDef.weakTo === _el) dmg = Math.round(dmg * WEAKNESS_MULT);
-                    if (matDef.resistTo && matDef.resistTo === _el) dmg = Math.round(dmg * OBS_RESIST_MULT);
-                    const newHp = Math.max(0, target.hp - dmg);
-                    const px = isoModeRef.current ? (target.x / ISO_CONFIG.MAP_COLS) * GAME_W : (target.x / 100) * GAME_W;
-                    const py = isoModeRef.current ? (target.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (target.y / 100) * GAME_H;
-                    if (pixiRef.current) {
-                      pixiRef.current.spawnObstacleHitSpark(px, py, matDef.color);
-                    }
-                    if (newHp <= 0) {
-                      if (pixiRef.current) {
-                        switch (matDef.particle) {
-                          case "splinter": pixiRef.current.spawnWoodSplinters(px, py); break;
-                          case "rubble":   pixiRef.current.spawnStoneRubble(px, py); break;
-                          case "shard":
-                            if (target.material === "ice") pixiRef.current.spawnIceShatter(px, py);
-                            else pixiRef.current.spawnCrystalShatter(px, py);
-                            break;
-                          case "leaf":     pixiRef.current.spawnLeafBurst(px, py); break;
-                          case "spark":    pixiRef.current.spawnMetalSparks(px, py); break;
-                          case "dust":     pixiRef.current.spawnDustBurst(px, py); break;
-                          default:         pixiRef.current.spawnWoodSplinters(px, py); break;
-                        }
-                        pixiRef.current.screenShake(matDef.shakeIntensity || 3);
-                        if (target.loot && Object.keys(target.loot).length > 0) {
-                          pixiRef.current.spawnGoldCoins(px, py, 0.4);
-                        }
-                      }
-                      if (target.loot && Object.keys(target.loot).length > 0) addMoneyFn(target.loot);
-                      // ─── EXPLOSIVE OBSTACLE: damage all enemies in blast radius ───
-                      if (target.explosive && target.explosionDmg) {
-                        const radius = target.explosionRadius || 16;
-                        const blastDmg = target.explosionDmg;
-                        const blastEl = target.explosionElement || "fire";
-                        sfxMeteorImpact();
-                        if (animatorRef.current) animatorRef.current.playMeteorImpact(px, py);
-                        if (pixiRef.current) pixiRef.current.screenShake(8);
-                        showMessage("Eksplozja!", blastEl === "poison" ? "#44ff44" : blastEl === "ice" ? "#4488ff" : "#ff6020");
-                        const curWalkers = walkersRef.current;
-                        curWalkers.forEach(w => {
-                          if (!w.alive || w.dying) return;
-                          const wd = walkDataRef.current[w.id];
-                          if (!wd) return;
-                          const ddx = wd.x - target.x;
-                          const ddy = ((wd.y || 50) - (100 - target.y)) * 0.5;
-                          const dist = Math.sqrt(ddx * ddx + ddy * ddy);
-                          if (dist < radius) {
-                            const falloff = 1 - (dist / radius) * 0.5;
-                            const dmg = Math.round(blastDmg * falloff + Math.random() * 10);
-                            const wId = w.id;
-                            spawnDmgPopup(wId, `${dmg}`, blastEl === "poison" ? "#44ff44" : "#ff6020");
-                            setWalkers(ppp => ppp.map(ww => {
-                              if (ww.id !== wId || !ww.alive || ww.dying) return ww;
-                              const newWHp = Math.max(0, ww.hp - dmg);
-                              if (newWHp <= 0) {
-                                sfxNpcDeath();
-                                if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
-                                if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, blastEl, Math.sign(ddx) || 1);
-                                addMoneyFn(ww.npcData.loot);
-                                setKills(k => k + 1);
-                                processKillStreak();
-                                showMessage(`${ww.npcData.name} pokonany eksplozją!`, "#ff6020");
-                                setTimeout(() => setWalkers(pp2 => pp2.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
-                                return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
-                              }
-                              if (physicsRef.current) physicsRef.current.applyHit(ww.id, blastEl, Math.sign(ddx) || 1);
-                              return { ...ww, hp: newWHp };
-                            }));
-                          }
-                        });
-                      }
-                      setTimeout(() => setObstacles(p => p.filter(ob => ob.id !== _oid)), 400);
-                      return prev.map(ob => ob.id === _oid ? { ...ob, hp: 0, destroying: true, hitAnim: Date.now() } : ob);
-                    }
-                    return prev.map(ob => ob.id === _oid ? { ...ob, hp: newHp, hitAnim: Date.now() } : ob);
-                  });
-                }, 0);
+                // Use damageObstacle for full destruction pipeline (combo, collapse, debris, hazards, chains)
+                setTimeout(() => damageObstacle(o.id, spellDmg, spellEl), 0);
               }
               break; // one obstacle collision per projectile per frame
             }
@@ -7359,6 +7278,48 @@ export default function App() {
           const swIntensity = obs.explosive ? 1.0 : 0.6;
           const sw = createShockwave(px, py, swElement, swIntensity, 10);
           shockwavesRef.current.push(sw);
+        }
+
+        // Explosive obstacle: deal blast damage to enemies in radius
+        if (obs.explosive && obs.explosionDmg) {
+          const blastRadius = obs.explosionRadius || 16;
+          const blastDmg = obs.explosionDmg;
+          const blastEl = obs.explosionElement || "fire";
+          sfxMeteorImpact();
+          if (animatorRef.current) animatorRef.current.playMeteorImpact(px, py);
+          showMessage("Eksplozja!", blastEl === "poison" ? "#44ff44" : blastEl === "ice" ? "#4488ff" : "#ff6020");
+          const curWalkers = walkersRef.current;
+          curWalkers.forEach(w => {
+            if (!w.alive || w.dying) return;
+            const wd = walkDataRef.current[w.id];
+            if (!wd) return;
+            const ddx = wd.x - obs.x;
+            const ddy = ((wd.y || 50) - (isoModeRef.current ? obs.y : (100 - obs.y))) * 0.5;
+            const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+            if (dist < blastRadius) {
+              const falloff = 1 - (dist / blastRadius) * 0.5;
+              const bDmg = Math.round(blastDmg * falloff + Math.random() * 10);
+              const wId = w.id;
+              spawnDmgPopup(wId, `${bDmg}`, blastEl === "poison" ? "#44ff44" : "#ff6020");
+              setWalkers(ppp => ppp.map(ww => {
+                if (ww.id !== wId || !ww.alive || ww.dying) return ww;
+                const newWHp = Math.max(0, ww.hp - bDmg);
+                if (newWHp <= 0) {
+                  sfxNpcDeath();
+                  if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                  if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, blastEl, Math.sign(ddx) || 1);
+                  addMoneyFn(ww.npcData.loot);
+                  setKills(k => k + 1);
+                  processKillStreak();
+                  showMessage(`${ww.npcData.name} pokonany eksplozją!`, "#ff6020");
+                  setTimeout(() => setWalkers(pp2 => pp2.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                  return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                }
+                if (physicsRef.current) physicsRef.current.applyHit(ww.id, blastEl, Math.sign(ddx) || 1);
+                return { ...ww, hp: newWHp };
+              }));
+            }
+          });
         }
 
         // Environmental hazards from destruction
