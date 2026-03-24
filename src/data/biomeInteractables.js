@@ -35,6 +35,19 @@ export const BIOME_INTERACTABLES = {
       action: "shoot", chance: 0.30,
       reward: { type: "heal", amount: 3 },
     },
+    // ─── NEW INTERACTABLES ───
+    {
+      id: "jungle_totem_pole", name: "Totem Plemienia", icon: "totem",
+      desc: "Kliknij aby aktywować — totem wzywa duchy przodków do walki (15s)",
+      action: "click", chance: 0.12,
+      reward: { type: "summon_ally", allyType: "spirit", duration: 15000, damage: 10 },
+    },
+    {
+      id: "jungle_poison_barrel", name: "Beczka z Jadem", icon: "barrel",
+      desc: "Strzel aby rozlać — tworzy trującą kałużę spowalniającą wrogów",
+      action: "shoot", chance: 0.18,
+      reward: { type: "hazard_zone", element: "poison", dps: 5, slowMult: 0.4, duration: 12000, radius: 14 },
+    },
   ],
   island: [
     {
@@ -57,6 +70,20 @@ export const BIOME_INTERACTABLES = {
       action: "proximity", chance: 0.25,
       reward: { type: "risk_loot", loot: { copper: 25 }, damage: 5 },
     },
+    {
+      id: "island_shipwreck_cache", name: "Skrytka we Wraku", icon: "anchor",
+      desc: "Wytnij sablem deski wraku — ukryta skrzynka z amunicją",
+      action: "saber", chance: 0.20,
+      reward: { type: "random_loot", options: [
+        { ammo: "dynamite", amount: 3 }, { ammo: "harpoon", amount: 3 }, { copper: 20 }, { ammo: "cannonball", amount: 2 },
+      ]},
+    },
+    {
+      id: "island_signal_fire", name: "Stos na Sygnał", icon: "fire",
+      desc: "Kliknij aby rozpalić — przyciąga handlarza z dodatkowym towarem",
+      action: "click", chance: 0.10,
+      reward: { type: "summon_trader" },
+    },
   ],
   desert: [
     {
@@ -76,6 +103,20 @@ export const BIOME_INTERACTABLES = {
       desc: "Wytnij sablem — rzadki kryształ wart dużo miedziakow",
       action: "saber", chance: 0.15,
       reward: { type: "loot", copper: 20, silverChance: 0.30 },
+    },
+    {
+      id: "desert_mirage_well", name: "Studnia Mirażu", icon: "water",
+      desc: "Kliknij — czy to prawdziwa woda? 50% szans na leczenie, 50% na pułapkę",
+      action: "click", chance: 0.18,
+      reward: { type: "random_effect", options: [
+        { heal: 5, mana: 15 }, { heal: 4 }, { damage: 6 }, { buff: "speed", duration: 10000 },
+      ]},
+    },
+    {
+      id: "desert_scarab_nest", name: "Gniazdo Skarabeuszy", icon: "bug",
+      desc: "Strzel — złote skarabeusze rozsypują się, wrogowie gonią je zamiast karawany",
+      action: "shoot", chance: 0.15,
+      reward: { type: "distract_enemies", duration: 6000, bonusCopper: 12 },
     },
   ],
   winter: [
@@ -139,6 +180,18 @@ export const BIOME_INTERACTABLES = {
         { copper: 10 }, { ammo: "dynamite", amount: 2 }, { ammo: "harpoon", amount: 1 }, { copper: 15 },
       ]},
     },
+    {
+      id: "city_gambling_table", name: "Stół do Gry", icon: "dice",
+      desc: "Kliknij aby zagrać w kości — szybki hazard za miedziaki",
+      action: "click", chance: 0.15,
+      reward: { type: "gambling_trigger" },
+    },
+    {
+      id: "city_black_alley", name: "Ciemna Uliczka", icon: "skull",
+      desc: "Podejdź blisko — handlarz w cieniu oferuje podejrzane towary",
+      action: "proximity", chance: 0.10,
+      reward: { type: "black_market_trigger" },
+    },
   ],
   volcano: [
     {
@@ -158,6 +211,12 @@ export const BIOME_INTERACTABLES = {
       desc: "Kliknij — tymczasowe pociski ognia (+ognisty DoT przez 20s)",
       action: "click", chance: 0.15,
       reward: { type: "buff", buffType: "fire_ammo", value: 5, duration: 20000 },
+    },
+    {
+      id: "volcano_lava_crystal", name: "Kryształ Lawy", icon: "gem",
+      desc: "Wytnij sablem — eksploduje, zadając obrażenia ognia wrogom w dużym obszarze",
+      action: "saber", chance: 0.18,
+      reward: { type: "aoe_damage", damage: 25, radius: 20, element: "fire" },
     },
   ],
   summer: [
@@ -291,6 +350,14 @@ export const BIOME_INTERACTABLES = {
       action: "click", chance: 0.22,
       reward: { type: "campfire", fearDuration: 5000, fearRadius: 20 },
     },
+    {
+      id: "swamp_ancient_altar", name: "Zatopiony Ołtarz", icon: "rock",
+      desc: "Strzel w ołtarz — budzi uśpioną moc bagienna (losowy silny efekt)",
+      action: "shoot", chance: 0.12,
+      reward: { type: "random_effect", options: [
+        { buff: "damage", duration: 30000 }, { heal: 8 }, { copper: 30 }, { summon: "swamp_golem", duration: 12000 },
+      ]},
+    },
   ],
   sunset_beach: [
     {
@@ -310,6 +377,18 @@ export const BIOME_INTERACTABLES = {
       desc: "Magiczny zamek — kliknij aby wywołać piaskową burzę",
       action: "click", chance: 0.15,
       reward: { type: "aoe_damage", damage: 10, radius: 25, element: null },
+    },
+    {
+      id: "beach_buried_chest", name: "Zakopana Skrzynia", icon: "treasure",
+      desc: "Wytnij sablem piasek — odkopujesz starą skrzynię piracką",
+      action: "saber", chance: 0.15,
+      reward: { type: "loot", copper: 20, silverChance: 0.35 },
+    },
+    {
+      id: "beach_tide_pool", name: "Sadzawka Przypływu", icon: "water",
+      desc: "Podejdź blisko — magiczna woda przypływu regeneruje proch i HP",
+      action: "proximity", chance: 0.18,
+      reward: { type: "heal_and_mana", heal: 3, mana: 15 },
     },
   ],
   bamboo_falls: [
@@ -398,6 +477,18 @@ export const BIOME_INTERACTABLES = {
       reward: { type: "random_effect", options: [
         { buff: "damage", duration: 25000 }, { heal: 6 }, { damage: 8 }, { copper: 30 },
       ]},
+    },
+    {
+      id: "underworld_charon_obol", name: "Obol Charona", icon: "coin",
+      desc: "Kliknij aby podnieść monetę — obol pozwala na bezpieczną przeprawę",
+      action: "click", chance: 0.12,
+      reward: { type: "buff", buffType: "shield", value: 15, duration: 30000 },
+    },
+    {
+      id: "underworld_cerberus_bone", name: "Kość Cerbera", icon: "bone",
+      desc: "Wytnij sablem — kość przyciąga uwagę Cerbera, który atakuje wrogów",
+      action: "saber", chance: 0.15,
+      reward: { type: "summon_ally", allyType: "cerberus", duration: 12000, damage: 15 },
     },
   ],
   meteor: [

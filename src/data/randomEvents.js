@@ -1,15 +1,20 @@
 // Random event definitions for convoy travel
-// 30% chance per travel to trigger one of 5 event types
+// 30% chance per travel to trigger one of 8 event types
 
 export const EVENT_CHANCE = 0.30;
 
 export const EVENT_TYPES = [
-  { id: "merchant",      name: "Wędrowny Handlarz",     icon: "shop",    weight: 30, themeColor: "#d4a030", themeBorder: "#8a6a20", themeGlow: "rgba(212,160,48,0.3)" },
-  { id: "altar",         name: "Kamienny Totem",         icon: "rock",    weight: 28, themeColor: "#a050e0", themeBorder: "#4a2060", themeGlow: "rgba(160,80,224,0.3)" },
-  { id: "wounded",       name: "Ranny Rewolwerowiec",    icon: "bandage", weight: 22, themeColor: "#40e060", themeBorder: "#1a6a2a", themeGlow: "rgba(60,200,80,0.3)" },
-  { id: "cursed_chest",  name: "Przeklęta Skrzynia",     icon: "treasure",weight: 20, themeColor: "#9040c0", themeBorder: "#4a1860", themeGlow: "rgba(144,64,192,0.3)" },
-  { id: "shipwreck",     name: "Wrak na Mieliźnie",      icon: "anchor",  weight: 18, themeColor: "#3080a0", themeBorder: "#1a4060", themeGlow: "rgba(48,128,160,0.3)" },
-  { id: "oracle",        name: "Wędrowna Wyrocznia",     icon: "eye",     weight: 15, themeColor: "#d0a0ff", themeBorder: "#6040a0", themeGlow: "rgba(180,140,255,0.3)" },
+  { id: "merchant",      name: "Wędrowny Handlarz",     icon: "shop",    weight: 28, themeColor: "#d4a030", themeBorder: "#8a6a20", themeGlow: "rgba(212,160,48,0.3)" },
+  { id: "altar",         name: "Kamienny Totem",         icon: "rock",    weight: 26, themeColor: "#a050e0", themeBorder: "#4a2060", themeGlow: "rgba(160,80,224,0.3)" },
+  { id: "wounded",       name: "Ranny Rewolwerowiec",    icon: "bandage", weight: 20, themeColor: "#40e060", themeBorder: "#1a6a2a", themeGlow: "rgba(60,200,80,0.3)" },
+  { id: "cursed_chest",  name: "Przeklęta Skrzynia",     icon: "treasure",weight: 18, themeColor: "#9040c0", themeBorder: "#4a1860", themeGlow: "rgba(144,64,192,0.3)" },
+  { id: "shipwreck",     name: "Wrak na Mieliźnie",      icon: "anchor",  weight: 16, themeColor: "#3080a0", themeBorder: "#1a4060", themeGlow: "rgba(48,128,160,0.3)" },
+  { id: "oracle",        name: "Wędrowna Wyrocznia",     icon: "eye",     weight: 14, themeColor: "#d0a0ff", themeBorder: "#6040a0", themeGlow: "rgba(180,140,255,0.3)" },
+  // ─── NEW EVENT TYPES ───
+  { id: "gambling",      name: "Taverna Pod Złamanym Masztem", icon: "pirateRaid", weight: 12, themeColor: "#8a4020", themeBorder: "#4a2010", themeGlow: "rgba(138,64,32,0.4)" },
+  { id: "trader",        name: "Wędrowny Kupiec",        icon: "compass", weight: 14, themeColor: "#c08030", themeBorder: "#6a4020", themeGlow: "rgba(192,128,48,0.3)" },
+  { id: "black_market",  name: "Czarny Rynek",           icon: "skull",   weight: 6,  themeColor: "#2a1a2a", themeBorder: "#1a0a1a", themeGlow: "rgba(100,40,120,0.5)" },
+  { id: "treasure_map",  name: "Stara Mapa Skarbów",     icon: "scroll",  weight: 8,  themeColor: "#c0a040", themeBorder: "#6a5020", themeGlow: "rgba(192,160,64,0.3)" },
 ];
 
 export const MERCHANT_ITEMS = [
@@ -52,13 +57,17 @@ export const CURSED_CHEST_OUTCOMES = [
   { type: "bad",  text: "Duch kapitana jest wściekły!", penalty: { mercDeath: 1 }, desc: "Tracisz najsłabszego najemnika" },
 ];
 
-export function rollRandomEvent(roomNum) {
+export function rollRandomEvent(roomNum, currentBiome = null) {
   if (Math.random() > EVENT_CHANCE) return null;
 
-  const totalWeight = EVENT_TYPES.reduce((s, e) => s + e.weight, 0);
+  // Filter event pool: black_market only after room 5, gambling only in city-adjacent biomes
+  let pool = [...EVENT_TYPES];
+  if (roomNum < 5) pool = pool.filter(e => e.id !== "black_market");
+
+  const totalWeight = pool.reduce((s, e) => s + e.weight, 0);
   let roll = Math.random() * totalWeight;
-  let selected = EVENT_TYPES[0];
-  for (const et of EVENT_TYPES) {
+  let selected = pool[0];
+  for (const et of pool) {
     roll -= et.weight;
     if (roll <= 0) { selected = et; break; }
   }
@@ -103,6 +112,37 @@ export function rollRandomEvent(roomNum) {
         { text: "Nadchodzi burza — bądź czujny.", effect: "dodgeBuff", desc: "Wrogowie mają -20% unik na 3 pokoje", value: -0.2 },
       ];
       event.prophecy = prophecies[Math.floor(Math.random() * prophecies.length)];
+      break;
+    }
+    // ─── NEW EVENT TYPES ───
+    case "gambling": {
+      // Gambling tavern — includes available games
+      const allGames = ["pirate_dice", "fortune_wheel", "pirate_poker"];
+      const shuffled = [...allGames].sort(() => Math.random() - 0.5);
+      event.availableGames = Math.random() < 0.4 ? shuffled : shuffled.slice(0, 2);
+      event.tavernName = "Taverna Pod Złamanym Masztem";
+      event.tavernDesc = "Dym, rum i dźwięk kości — hazard kwitnie w każdym porcie.";
+      break;
+    }
+    case "trader": {
+      // Wandering trader — offers biome resource exchanges
+      event.traderName = "Wędrowny Kupiec";
+      event.traderDesc = "Znam szlaki handlowe na całym świecie. Masz coś ciekawego?";
+      event.currentBiome = currentBiome;
+      // Trades will be resolved by App.jsx using trading.js getTradesForBiome()
+      break;
+    }
+    case "black_market": {
+      // Black market — 3-4 cursed but powerful items
+      event.marketDesc = "Kaptur zasłania twarz handlarza. Towary wyglądają podejrzanie... i potężnie.";
+      event.itemCount = Math.random() < 0.3 ? 4 : 3;
+      // Actual stock will be rolled by App.jsx using blackMarket.js rollBlackMarketStock()
+      break;
+    }
+    case "treasure_map": {
+      // Treasure map found — starts a multi-biome quest
+      event.mapDesc = "Pożółkły pergamin z tajemniczymi symbolami. To mapa prowadząca do skarbu!";
+      // Actual hunt will be rolled by App.jsx using treasureHunts.js rollTreasureMap()
       break;
     }
   }
