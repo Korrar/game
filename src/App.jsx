@@ -35,8 +35,13 @@ import { PhysicsWorld } from "./physics/RapierPhysicsWorld";
 import { initRapier } from "./physics/rapierInit";
 import { PixiRenderer } from "./rendering/PixiRenderer";
 import { depthFromY, scaleAtDepth, zIndexAtDepth } from "./rendering/DepthSystem";
-import { findChainTargets, getChainDamage, getChainDelay } from "./systems/ChainReactions";
+import { findChainTargets, getChainDamage, getChainDelay, getElementSynergy, buildChainSequence } from "./systems/ChainReactions";
 import { getLeakParticles, getDamageVisuals } from "./systems/ProgressiveDamage";
+import { createShockwave, updateShockwaves, calcShockwavePush, calcDebrisPush, drawShockwave } from "./systems/ShockwaveSystem";
+import { hasStructuralCollapse, getStructuralDef, getCollapseStage, generateFragments, getCollapseVisuals, createCollapseEvent, COLLAPSE_CONFIG } from "./systems/StructuralCollapse";
+import { DestructionComboTracker } from "./systems/DestructionCombo";
+import { EnvironmentalHazardManager, HAZARD_TYPES } from "./systems/EnvironmentalHazards";
+import { createExplosiveDebris, checkDebrisDamage } from "./systems/DebrisSystem";
 import {
   startMusic, toggleMusic, changeBiomeMusic, setMusicCombatIntensity, startRiverAmbience, stopRiverAmbience, sfxDoor, sfxChest, sfxSell,
   sfxStore, sfxRetrieve, sfxUpgrade, sfxGather, sfxBuy,
@@ -324,6 +329,12 @@ export default function App() {
   const terrainParticlesRef = useRef(null);
   const terrainDestructionRef = useRef(new TerrainDestructionState());
   const mapResourcesRef = useRef(new MapResourceState());
+  // Advanced destruction system refs
+  const shockwavesRef = useRef([]);
+  const destructionComboRef = useRef(new DestructionComboTracker());
+  const envHazardsRef = useRef(new EnvironmentalHazardManager());
+  const collapseEventsRef = useRef([]);
+  const collapseFragIdRef = useRef(0);
   const walkGridRef = useRef(null);
   const chokepointsRef = useRef([]);
   caravanLevelRef.current = caravanLevel;
@@ -2942,6 +2953,8 @@ export default function App() {
             crystal_geode:{w:26,h:24},barrel_stack:{w:30,h:26},cannon_wreck:{w:44,h:22},treasure_pile:{w:32,h:20},
             coral_reef:{w:36,h:18},fishing_net:{w:42,h:10},rope_coil:{w:20,h:18},barnacle_rock:{w:30,h:26},
             rusted_cage:{w:28,h:32},mast_fragment:{w:14,h:48},powder_keg:{w:20,h:22},whirlpool:{w:34,h:14},seaweed_patch:{w:36,h:14},
+            watchtower:{w:24,h:52},stone_wall:{w:50,h:24},wooden_bridge:{w:48,h:14},bell_tower:{w:22,h:54},crane:{w:20,h:50},
+            acid_barrel:{w:22,h:26},shadow_crystal:{w:20,h:28},oil_lamp:{w:10,h:32},cracked_pillar:{w:14,h:40},
           };
           const _defaultSize = { w: 30, h: 20 };
           const obs = obstaclesRef.current;
@@ -2988,7 +3001,14 @@ export default function App() {
                   pixiRef.current.spawnGoreExplosion(closestX, closestY);
                   const matDef = OBSTACLE_MATERIALS[o.material] || OBSTACLE_MATERIALS.wood;
                   pixiRef.current.spawnObstacleHitSpark(closestX, closestY, matDef.color);
+                  // Spawn explosive debris
+                  const expDebris = createExplosiveDebris(o.material, closestX, closestY, 1.0);
+                  for (const ed of expDebris) pixiRef.current._debris.push(ed);
                 }
+                // Spawn shockwave from explosive projectile impact
+                const swEl = proj.element || "explosion";
+                const sw = createShockwave(closestX, closestY, swEl, 0.8, proj.splashRadius * 0.3);
+                shockwavesRef.current.push(sw);
                 // Terrain destruction: explosive projectiles create craters, burn trees, freeze water
                 if (isoModeRef.current && terrainDataRef.current) {
                   const _blastWx = (closestX / GAME_W) * ISO_CONFIG.MAP_COLS;
@@ -3169,6 +3189,121 @@ export default function App() {
         }
       }
 
+      // ─── ADVANCED DESTRUCTION SYSTEM UPDATES ───
+
+      // Shockwave update: expand rings, apply push forces to NPCs and debris
+      if (shockwavesRef.current.length > 0) {
+        const pushEvents = updateShockwaves(shockwavesRef.current);
+        for (const pushEvt of pushEvents) {
+          // Push NPCs in shockwave ring
+          for (const nid of Object.keys(wd)) {
+            const w = wd[nid];
+            if (!w || !w.alive) continue;
+            const npcPx = isoModeRef.current ? (w.x / ISO_CONFIG.MAP_COLS) * GAME_W : (w.x / 100) * GAME_W;
+            const npcPy = isoModeRef.current ? ((w.y || ISO_CONFIG.MAP_ROWS / 2) / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - ((w.y || 50) / 100) * GAME_H;
+            const push = calcShockwavePush(pushEvt, npcPx, npcPy, nid);
+            if (push) {
+              // Apply knockback offset to walk data
+              w.x += (push.vx / GAME_W) * (isoModeRef.current ? ISO_CONFIG.MAP_COLS : 100);
+              if (w.y !== undefined) w.y += (push.vy / GAME_H) * (isoModeRef.current ? ISO_CONFIG.MAP_ROWS : 100);
+              // Apply physics hit for visual stagger
+              if (physicsRef.current && !w.friendly) {
+                physicsRef.current.applyHit(nid, push.element, push.vx > 0 ? 1 : -1);
+              }
+            }
+          }
+          // Push active debris
+          if (pixiRef.current && pixiRef.current._debris) {
+            for (let di = 0; di < pixiRef.current._debris.length; di++) {
+              const d = pixiRef.current._debris[di];
+              if (d.grounded) continue;
+              const dPush = calcDebrisPush(pushEvt, d.x, d.y, di);
+              if (dPush) {
+                d.vx += dPush.vx;
+                d.vy += dPush.vy;
+                d.grounded = false;
+              }
+            }
+          }
+        }
+      }
+
+      // Render shockwave visuals
+      if (pixiRef.current && shockwavesRef.current.length > 0) {
+        pixiRef.current.renderShockwaves(shockwavesRef.current);
+      } else if (pixiRef.current && pixiRef.current._shockwaveGfx) {
+        pixiRef.current._shockwaveGfx.clear();
+      }
+
+      // Destruction combo decay
+      destructionComboRef.current.update(dateNow);
+
+      // Environmental hazards update
+      envHazardsRef.current.update(dateNow);
+
+      // Environmental hazard damage to enemies (every ~0.5s)
+      if (frameCount % 30 === 0 && envHazardsRef.current.hazards.length > 0) {
+        for (const nid of Object.keys(wd)) {
+          const w = wd[nid];
+          if (!w || !w.alive || w.friendly) continue;
+          const effects = envHazardsRef.current.getHazardEffectsAt(w.x, w.y ?? (isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50));
+          if (effects.damage > 0) {
+            const wObj = walkersRef.current.find(ww => ww.id === nid);
+            if (wObj && wObj.alive && !wObj.dying) {
+              const hDmg = Math.round(effects.damage);
+              spawnDmgPopup(nid, `${hDmg}`, effects.element === "fire" ? "#ff6020" : effects.element === "poison" ? "#44ff44" : "#ffee00");
+              setWalkers(pp => pp.map(ww => {
+                if (ww.id !== nid || !ww.alive || ww.dying) return ww;
+                const newWHp = Math.max(0, ww.hp - hDmg);
+                if (newWHp <= 0) {
+                  sfxNpcDeath();
+                  if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                  if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, effects.element, 1);
+                  addMoneyFn(ww.npcData.loot);
+                  setKills(k => k + 1);
+                  showMessage(`${ww.npcData.name} zniszczony zagrożeniem!`, effects.element === "fire" ? "#ff6020" : "#44ff44");
+                  setTimeout(() => setWalkers(pp2 => pp2.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                  return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                }
+                return { ...ww, hp: newWHp };
+              }));
+            }
+          }
+        }
+      }
+
+      // Projectile debris damage check (every 3 frames for performance)
+      if (frameCount % 3 === 0 && pixiRef.current && pixiRef.current._debris) {
+        for (const d of pixiRef.current._debris) {
+          if (!d.isProjectile || d.grounded) continue;
+          for (const nid of Object.keys(wd)) {
+            const w = wd[nid];
+            if (!w || !w.alive || w.friendly) continue;
+            const npcPx = isoModeRef.current ? (w.x / ISO_CONFIG.MAP_COLS) * GAME_W : (w.x / 100) * GAME_W;
+            const npcPy = isoModeRef.current ? ((w.y || ISO_CONFIG.MAP_ROWS / 2) / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - ((w.y || 50) / 100) * GAME_H;
+            const debrisDmg = checkDebrisDamage(d, npcPx, npcPy, nid);
+            if (debrisDmg) {
+              spawnDmgPopup(nid, `${debrisDmg.damage}`, "#b0b0b0");
+              setWalkers(pp => pp.map(ww => {
+                if (ww.id !== nid || !ww.alive || ww.dying) return ww;
+                const newWHp = Math.max(0, ww.hp - debrisDmg.damage);
+                if (newWHp <= 0) {
+                  sfxNpcDeath();
+                  if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                  if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, null, 1);
+                  addMoneyFn(ww.npcData.loot);
+                  setKills(k => k + 1);
+                  showMessage(`${ww.npcData.name} trafiony odłamkiem!`, "#b0b0b0");
+                  setTimeout(() => setWalkers(pp2 => pp2.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                  return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                }
+                return { ...ww, hp: newWHp };
+              }));
+            }
+          }
+        }
+      }
+
       // Terrain destruction tick: update burning, frozen, poison zones
       if (isoModeRef.current && terrainDataRef.current) {
         terrainDestructionRef.current.update(terrainDataRef.current, dateNow);
@@ -3271,6 +3406,11 @@ export default function App() {
       chokepointsRef.current = detectChokepoints(walkGridRef.current, ISO_CONFIG.MAP_COLS, ISO_CONFIG.MAP_ROWS);
       // Reset terrain destruction state for new room
       terrainDestructionRef.current.reset();
+      // Reset advanced destruction systems for new room
+      shockwavesRef.current = [];
+      destructionComboRef.current.reset();
+      envHazardsRef.current.reset();
+      collapseEventsRef.current = [];
       // Generate collectible map resources (ore, wood, herbs)
       mapResourcesRef.current.reset();
       mapResourcesRef.current.generate(newRoom, nextB.id, terrainDataRef.current);
@@ -7105,7 +7245,7 @@ export default function App() {
     }
   }, [spawnDmgPopup, addMoneyFn, showMessage]);
 
-  // ─── OBSTACLE DAMAGE ───
+  // ─── OBSTACLE DAMAGE (with Advanced Destruction System) ───
   const damageObstacle = useCallback((obsId, damage, element) => {
     setObstacles(prev => prev.map(obs => {
       if (obs.id !== obsId || !obs.destructible || obs.destroying || obs.hp <= 0) return obs;
@@ -7115,17 +7255,76 @@ export default function App() {
       if (matDef.weakTo && matDef.weakTo === element) dmg = Math.round(dmg * WEAKNESS_MULT);
       // Element resistance: 0.25x damage
       if (matDef.resistTo && matDef.resistTo === element) dmg = Math.round(dmg * OBS_RESIST_MULT);
+
+      // Apply destruction combo bonus damage
+      const comboInfo = destructionComboRef.current.getComboInfo();
+      if (comboInfo.level > 0) {
+        dmg = Math.round(dmg * comboInfo.damageMult);
+      }
+
       const newHp = Math.max(0, obs.hp - dmg);
-      const px = (obs.x / 100) * GAME_W;
-      const py = GAME_H - (obs.y / 100) * GAME_H;
+      const px = isoModeRef.current ? (obs.x / ISO_CONFIG.MAP_COLS) * GAME_W : (obs.x / 100) * GAME_W;
+      const py = isoModeRef.current ? (obs.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (obs.y / 100) * GAME_H;
+
+      // Structural collapse: check for stage transition
+      if (hasStructuralCollapse(obs.type) && newHp > 0) {
+        const structDef = getStructuralDef(obs.type);
+        const prevStage = getCollapseStage(obs.hp / obs.maxHp, structDef.stages);
+        const newStage = getCollapseStage(newHp / obs.maxHp, structDef.stages);
+        if (newStage > prevStage) {
+          // Stage transition — spawn fragments and collapse event
+          const event = createCollapseEvent(obs, structDef, prevStage, newStage, element);
+          collapseEventsRef.current.push(event);
+          collapseFragIdRef.current++;
+          const frags = generateFragments(obs, structDef, newStage, collapseFragIdRef.current);
+          // Queue fragment spawning with delay
+          for (const frag of frags) {
+            setTimeout(() => {
+              setObstacles(p => {
+                const fragDef = OBSTACLE_DEFS[frag.type];
+                if (!fragDef) return p;
+                return [...p, {
+                  id: frag.id,
+                  type: frag.type,
+                  x: frag.x,
+                  y: frag.y,
+                  hp: Math.round(fragDef.hp * frag.hpMult),
+                  maxHp: Math.round(fragDef.hp * frag.hpMult),
+                  material: fragDef.material,
+                  destructible: true,
+                  loot: (() => {
+                    const l = {};
+                    for (const [k, v] of Object.entries(fragDef.loot || {})) l[k] = Math.max(1, Math.round(v * frag.lootMult));
+                    return l;
+                  })(),
+                  biomeId: obs.biomeId,
+                  hitAnim: null,
+                  destroying: false,
+                  isFragment: true,
+                }];
+              });
+            }, frag.spawnDelay);
+          }
+          // Dust particles + screen shake for stage transition
+          if (pixiRef.current) {
+            pixiRef.current.screenShake(COLLAPSE_CONFIG.screenShakePerStage);
+            pixiRef.current.spawnDustBurst(px, py);
+          }
+          showMessage(`Struktura pęka! (faza ${newStage}/${structDef.stages})`, "#ff8844");
+        }
+      }
+
       // Hit spark effect on every hit
       if (pixiRef.current) {
         pixiRef.current.spawnObstacleHitSpark(px, py, matDef.color);
-        // Ground mark at impact point
         pixiRef.current.addGroundMark(px, py, element, dmg);
       }
       if (newHp <= 0) {
         // ─── DESTRUCTION ───
+
+        // Register with destruction combo tracker
+        const comboResult = destructionComboRef.current.registerDestruction(element);
+
         if (pixiRef.current) {
           // Spawn material-specific destruction particles
           switch (matDef.particle) {
@@ -7140,34 +7339,82 @@ export default function App() {
             case "dust":     pixiRef.current.spawnDustBurst(px, py); break;
             default:         pixiRef.current.spawnWoodSplinters(px, py); break;
           }
-          pixiRef.current.screenShake(matDef.shakeIntensity || 3);
+          const shakeIntensity = (matDef.shakeIntensity || 3) + (comboResult.level > 3 ? 2 : 0);
+          pixiRef.current.screenShake(shakeIntensity);
           // Persistent debris fragments
           pixiRef.current.spawnDebris(obs.material, px, py);
+
+          // Explosive debris: high-velocity fragments that can damage NPCs
+          if (obs.explosive || comboResult.level >= 3) {
+            const explosiveDebris = createExplosiveDebris(obs.material, px, py, obs.explosive ? 1.2 : 0.6);
+            for (const d of explosiveDebris) {
+              pixiRef.current._debris.push(d);
+            }
+          }
         }
-        // Drop loot
+
+        // Spawn shockwave for explosive obstacles or high combo
+        if (obs.explosive || comboResult.level >= 5) {
+          const swElement = obs.explosive ? (obs.element || "explosion") : element || "explosion";
+          const swIntensity = obs.explosive ? 1.0 : 0.6;
+          const sw = createShockwave(px, py, swElement, swIntensity, 10);
+          shockwavesRef.current.push(sw);
+        }
+
+        // Environmental hazards from destruction
+        const hazard = envHazardsRef.current.spawnFromDestruction(obs, element);
+        if (hazard) {
+          showMessage(`${HAZARD_TYPES[hazard.type]?.name || "Zagrożenie"}!`, "#ff6644");
+        }
+        // Direct hazard override from obstacle definition
+        if (obs.hazardOnDestroy) {
+          envHazardsRef.current._createHazard(obs.hazardOnDestroy, obs.x, obs.y, 1.0);
+        }
+
+        // Drop loot (with combo bonus)
         if (obs.loot && Object.keys(obs.loot).length > 0) {
-          addMoneyFn(obs.loot);
+          const boostedLoot = destructionComboRef.current.applyLootBonus(obs.loot);
+          addMoneyFn(boostedLoot);
           // Biome modifier: bonus_loot (city "Czarny Rynek" — 30% chance extra loot from obstacles)
           const bMod = biomeModifierRef.current;
           if (bMod?.effect?.type === "bonus_loot" && Math.random() < (bMod.effect.bonusLootChance || 0)) {
             addMoneyFn(bMod.effect.bonusLoot || obs.loot);
             showMessage(`${bMod.name}: bonus łup!`, "#e0c040");
           }
-          if (pixiRef.current) pixiRef.current.spawnGoldCoins(px, py, 0.4);
+          if (pixiRef.current) pixiRef.current.spawnGoldCoins(px, py, 0.4 + comboResult.level * 0.05);
         }
-        // Chain reactions — fire spreads to wood, lightning chains to metal, etc.
+
+        // Display combo messages
+        const comboMsgs = destructionComboRef.current.flushMessages();
+        for (const msg of comboMsgs) {
+          showMessage(msg.text, msg.color);
+        }
+
+        // Chain reactions — enhanced with depth tracking and synergies
         if (element) {
-          const chainTargets = findChainTargets(element, obs.x, obs.y, prev, obsId);
-          const chainDmg = getChainDamage(element, damage);
-          const chainDelay = getChainDelay(element);
-          if (chainTargets.length > 0 && chainDmg > 0) {
+          const chainSequence = buildChainSequence(element, obs.x, obs.y, damage, prev, obsId, comboResult.elements);
+          for (const chainEvent of chainSequence) {
+            const totalDelay = chainEvent.delay;
             setTimeout(() => {
-              for (const target of chainTargets) {
-                damageObstacle(target.id, chainDmg, element);
+              let chainDmg = chainEvent.damage;
+              // Apply synergy bonus if applicable
+              if (chainEvent.synergy) {
+                chainDmg = chainEvent.synergyDamage;
+                showMessage(`${chainEvent.synergy.desc}!`, "#ffaa00");
+                // Synergy shockwave
+                const sPx = isoModeRef.current ? (chainEvent.targetX / ISO_CONFIG.MAP_COLS) * GAME_W : (chainEvent.targetX / 100) * GAME_W;
+                const sPy = isoModeRef.current ? (chainEvent.targetY / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (chainEvent.targetY / 100) * GAME_H;
+                const synSw = createShockwave(sPx, sPy, element, 0.5, 5);
+                shockwavesRef.current.push(synSw);
               }
-            }, chainDelay);
+              damageObstacle(chainEvent.targetId, chainDmg, chainEvent.element);
+            }, totalDelay);
           }
         }
+
+        // Element interaction with existing environmental hazards
+        envHazardsRef.current.applyElementToHazards(obs.x, obs.y, 20, element);
+
         // Mark as destroying for fade-out animation, then remove after delay
         setTimeout(() => {
           setObstacles(p => p.filter(o => o.id !== obsId));
@@ -7176,7 +7423,7 @@ export default function App() {
       }
       return { ...obs, hp: newHp, hitAnim: Date.now() };
     }));
-  }, [addMoneyFn]);
+  }, [addMoneyFn, showMessage]);
 
   // Check obstacle hits during saber swipe
   const saberCheckObstacleHits = useCallback((x, y) => {
@@ -9571,6 +9818,31 @@ export default function App() {
       })()}
 
 
+      {/* ─── ENVIRONMENTAL HAZARD ZONES ─── */}
+      {envHazardsRef.current.hazards.map(h => {
+        const hDef = HAZARD_TYPES[h.type];
+        if (!hDef) return null;
+        const hLeft = poiLeft(h.x, h.y);
+        if (hLeft === null) return null;
+        const fadeAlpha = h.lifeRatio < 0.2 ? h.lifeRatio / 0.2 : 1;
+        return (
+          <div key={h.id} style={{
+            position: "absolute",
+            left: hLeft,
+            ...(isoModeRef.current ? { top: poiTop(h.x, h.y), transform: "translateX(-50%) translateY(-50%)" }
+              : { bottom: `${h.y}%`, transform: "translateX(-50%)" }),
+            width: h.radius * 2,
+            height: h.radius * 1.2,
+            borderRadius: "50%",
+            background: hDef.color,
+            opacity: fadeAlpha * 0.6,
+            pointerEvents: "none",
+            zIndex: 12,
+            transition: "opacity 0.3s",
+          }} />
+        );
+      })}
+
       {/* ─── DESTRUCTIBLE OBSTACLES ─── */}
       {obstacles.map(obs => {
         const obsStyles = {
@@ -9632,6 +9904,17 @@ export default function App() {
           powder_keg: { w: 20, h: 22, bg: "radial-gradient(ellipse,#5a3a18,#4a2a10,#3a1a08)", radius: "20%", shadow: "0 0 6px rgba(255,100,20,0.2), 0 2px 6px rgba(0,0,0,0.5)" },
           whirlpool: { w: 34, h: 14, bg: "radial-gradient(ellipse,rgba(60,140,200,0.5),rgba(30,80,140,0.3),rgba(10,40,80,0.1))", radius: "50%", shadow: "0 0 10px rgba(60,140,200,0.3)" },
           seaweed_patch: { w: 36, h: 14, bg: "radial-gradient(ellipse,rgba(40,120,60,0.5),rgba(20,80,40,0.3))", radius: "50%", shadow: "0 0 6px rgba(40,120,60,0.2)" },
+          // ─── STRUCTURAL OBSTACLES ───
+          watchtower: { w: 24, h: 52, bg: "linear-gradient(180deg,#7a3a18 0%,#6a3018 15%,#8a6a40 15%,#7a5a30 60%,#6a4a20 100%)", radius: "4px 4px 2px 2px", shadow: "0 4px 12px rgba(0,0,0,0.6)" },
+          stone_wall: { w: 50, h: 24, bg: "linear-gradient(180deg,#7a7a7a,#6a6a6a,#5a5a5a)", radius: "3px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
+          wooden_bridge: { w: 48, h: 14, bg: "linear-gradient(180deg,#7a5a30,#6a4a20,#5a3a18)", radius: "3px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
+          bell_tower: { w: 22, h: 54, bg: "linear-gradient(180deg,#6a6a6a 0%,#5a5a5a 10%,#8a7a60 10%,#7a6a50 100%)", radius: "6px 6px 3px 3px", shadow: "0 4px 12px rgba(0,0,0,0.6)" },
+          crane: { w: 20, h: 50, bg: "linear-gradient(180deg,#6a6a6a,#5a5a5a,#4a4a4a)", radius: "2px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
+          // ─── HAZARDOUS OBSTACLES ───
+          acid_barrel: { w: 22, h: 26, bg: "linear-gradient(180deg,#3a4a2a,#2a3a1a,#1a2a0a)", radius: "4px", shadow: "0 0 6px rgba(60,200,40,0.25), 0 2px 6px rgba(0,0,0,0.5)" },
+          shadow_crystal: { w: 20, h: 28, bg: "linear-gradient(180deg,#6030a0,#4020a0,#2010a0)", radius: "4px 8px 2px 2px", shadow: "0 0 12px rgba(100,40,200,0.5)" },
+          oil_lamp: { w: 10, h: 32, bg: "linear-gradient(180deg,#5a5a5a,#3a3a3a,#2a2a2a)", radius: "2px", shadow: "0 -6px 12px rgba(255,160,40,0.25), 0 2px 4px rgba(0,0,0,0.5)" },
+          cracked_pillar: { w: 14, h: 40, bg: "linear-gradient(180deg,#6a6a6a,#5a5a5a,#4a4a4a)", radius: "3px", shadow: "0 2px 8px rgba(0,0,0,0.5)" },
           // ─── EXPLOSIVE OBSTACLES ───
           oil_barrel: { w: 22, h: 26, bg: "linear-gradient(180deg,#4a3a2a,#3a2a1a,#2a1a0a)", radius: "4px", shadow: "0 0 6px rgba(200,80,20,0.25), 0 2px 6px rgba(0,0,0,0.5)" },
           dynamite_crate: { w: 26, h: 22, bg: "linear-gradient(180deg,#7a4020,#5a3018,#4a2010)", radius: "3px", shadow: "0 0 8px rgba(255,80,20,0.3), 0 2px 6px rgba(0,0,0,0.5)" },
@@ -9651,6 +9934,12 @@ export default function App() {
         // Progressive damage visuals (material-aware)
         const dmgVis = getDamageVisuals(hpPct, obs.material);
         const crackIntensity = dmgVis.crackOpacity;
+        // Structural collapse visuals (tilt, scale, crumble)
+        const collapseVis = getCollapseVisuals(obs.type, hpPct);
+        const collapseTilt = collapseVis ? collapseVis.tilt : 0;
+        const collapseScaleX = collapseVis ? collapseVis.scaleX : 1;
+        const collapseScaleY = collapseVis ? collapseVis.scaleY : 1;
+        const collapseOffY = collapseVis ? collapseVis.crumbleOffset : 0;
         // HP bar color: green → yellow → red
         const hpColor = hpPct > 0.5 ? `rgb(${Math.round(255 * (1 - hpPct) * 2)},200,40)` : `rgb(255,${Math.round(200 * hpPct * 2)},40)`;
 
@@ -9662,8 +9951,8 @@ export default function App() {
           <div key={`obs-${obs.id}`} ref={el => { if (el) obsElsRef.current[obs.id] = el; }} style={{
             position: "absolute",
             left: _obsLeft,
-            ...(_isI ? { top: poiTop(obs.x, obs.y), transform: `translateX(-50%) translateY(-100%) translateX(${shakeX}px)` }
-              : { bottom: `${obs.y}%`, transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))})` }),
+            ...(_isI ? { top: poiTop(obs.x, obs.y), transform: `translateX(-50%) translateY(-100%) translateX(${shakeX}px) rotate(${collapseTilt}deg) scaleX(${collapseScaleX}) scaleY(${collapseScaleY}) translateY(${collapseOffY}px)` }
+              : { bottom: `${obs.y}%`, transform: `translateX(-50%) translateX(${shakeX}px) scale(${scaleAtDepth(depthFromY(100 - obs.y))}) rotate(${collapseTilt}deg) scaleX(${collapseScaleX}) scaleY(${collapseScaleY})` }),
             zIndex: _isI ? poiZIndex(obs.x, obs.y) : 14 + zIndexAtDepth(depthFromY(100 - obs.y)),
             transition: isDestroying ? "opacity 0.35s ease-out, transform 0.35s ease-out" : "none",
             opacity: isDestroying ? 0 : 1,
