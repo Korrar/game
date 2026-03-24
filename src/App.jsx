@@ -2905,7 +2905,8 @@ export default function App() {
                 isoModeRef.current ? (() => {
                   const _cp = caravanPosRef.current;
                   return { x: (_cp.x / ISO_CONFIG.MAP_COLS) * GAME_W, y: (_cp.y / ISO_CONFIG.MAP_ROWS) * GAME_H };
-                })() : null
+                })() : null,
+                _terrainImpactCb
               );
             }
             // Play sound
@@ -6334,6 +6335,19 @@ export default function App() {
     }));
   }, [mana, addMoneyFn, showMessage, spawnDmgPopup]);
 
+  // ─── TERRAIN IMPACT: callback for physics engine when splash projectile detonates ───
+  const _terrainImpactCb = useCallback((impactPx, impactPy, splashRadius, element) => {
+    if (!isoModeRef.current || !terrainDataRef.current) return;
+    const _blastWx = (impactPx / GAME_W) * ISO_CONFIG.MAP_COLS;
+    const _blastWy = (impactPy / GAME_H) * ISO_CONFIG.MAP_ROWS;
+    const _blastR = (splashRadius || 8) / GAME_W * ISO_CONFIG.MAP_COLS * 2;
+    terrainDestructionRef.current.applyExplosion(
+      _blastWx, _blastWy, Math.max(1.5, Math.min(4, _blastR)),
+      element || "fire", terrainDataRef.current
+    );
+    walkGridRef.current = buildWalkGrid(terrainDataRef.current);
+  }, []);
+
   // ─── SKILLSHOT: Fire a skillshot projectile toward target coordinates ───
   const castSkillshot = useCallback((spell, targetPx, targetPy) => {
     if (!canCastSpell(spell)) {
@@ -6457,7 +6471,8 @@ export default function App() {
             x: (_cp.x / ISO_CONFIG.MAP_COLS) * GAME_W,
             y: (_cp.y / ISO_CONFIG.MAP_ROWS) * GAME_H,
           };
-        })() : null
+        })() : null,
+        _terrainImpactCb
       );
     }
 
