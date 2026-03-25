@@ -70,7 +70,14 @@ import Chest, { CLICKS_TO_OPEN } from "./components/Chest";
 import RelicPicker from "./components/RelicPicker";
 import SlotMachine from "./components/SlotMachine";
 import { RELICS, RELIC_SYNERGIES } from "./data/relics";
-import { getBossForRoom } from "./data/bosses";
+import { getBossForRoom, getDungeonBoss } from "./data/bosses";
+import { generateDungeon, createDungeonBiome, DUNGEON_TYPES } from "./systems/DungeonGenerator.js";
+import { generateDungeonTerrain, transitionDungeonLevel, checkStairsProximity, checkDungeonCompletion, calculateDungeonRewards } from "./systems/DungeonState.js";
+import { renderDungeonLighting, renderStairsMarkers } from "./rendering/DungeonLighting.js";
+import { DUNGEON_HAZARDS, shouldTriggerHazard, applyHazardEffect } from "./data/dungeonHazards.js";
+import DungeonCrossSection from "./components/DungeonCrossSection";
+import StairsPrompt from "./components/StairsPrompt";
+import DungeonHUD from "./components/DungeonHUD";
 import { COMBOS, COMBO_STREAK_BONUS, COMBO_STREAK_CAP, COMBO_STREAK_TIMEOUT } from "./data/combos";
 import { xpForLevel, rollLevelPerks } from "./data/levelPerks";
 import { rollUpgradeChoices, getUpgradedSpellStats, MAX_UPGRADES_PER_SPELL } from "./data/spellUpgrades";
@@ -346,6 +353,16 @@ export default function App() {
   const walkGridRef = useRef(null);
   const chokepointsRef = useRef([]);
   caravanLevelRef.current = caravanLevel;
+
+  // ─── DUNGEON SYSTEM STATE ───
+  const [dungeonState, setDungeonState] = useState(null);
+  const dungeonStateRef = useRef(null);
+  dungeonStateRef.current = dungeonState;
+  const [stairsPrompt, setStairsPrompt] = useState(null); // { type, targetLevel, position }
+  const [showCrossSection, setShowCrossSection] = useState(false);
+  const [dungeonTransitioning, setDungeonTransitioning] = useState(false);
+  const dungeonHazardTimersRef = useRef({}); // { hazardType: lastTriggerTime }
+  const activeDungeonHazardsRef = useRef([]); // currently active hazard effects
 
   // Refs for game-over stats capture (needed inside interval callbacks)
   const roomRef = useRef(0);
@@ -3135,6 +3152,12 @@ export default function App() {
         }
         if (revealPoints.length > 0) updateFogOfWar(terrainDataRef.current, revealPoints);
 
+        // Dungeon stairs proximity check (every 10 frames)
+        if (dungeonStateRef.current && frameCount % 10 === 0) {
+          checkDungeonStairs();
+          checkDungeonLevelCleared();
+        }
+
         // Update resource discovery (resources hidden until fog reveals them)
         if (terrainDataRef.current.fogGrid) {
           mapResourcesRef.current.updateDiscovery(terrainDataRef.current.fogGrid, ISO_CONFIG.MAP_COLS);
@@ -4073,6 +4096,299 @@ export default function App() {
     }
   }, []);
 
+  // ─── DUNGEON SYSTEM FUNCTIONS ───
+
+  // Enter a dungeon from the surface (called when player interacts with dungeon entrance POI)
+  const enterDungeon = useCallback((dungeonType, difficulty) => {
+    const currentRoom = roomRef.current;
+    const dState = generateDungeon(dungeonType, currentRoom, difficulty || 1);
+    if (!dState) return;
+
+    // Save surface biome for return
+    dState.surfaceBiome = biomeRef.current;
+
+    // Generate first level terrain
+    const dungeonBiome = createDungeonBiome(dungeonType, 0, dState);
+    const terrainData = generateDungeonTerrain(dState, 0);
+    dState.levels[0].terrainData = terrainData;
+
+    // Set dungeon state
+    setDungeonState(dState);
+    dungeonStateRef.current = dState;
+
+    // Update terrain and biome
+    setBiome(dungeonBiome);
+    terrainDataRef.current = terrainData;
+    terrainDestructionRef.current.reset();
+    walkGridRef.current = buildWalkGrid(terrainData);
+    chokepointsRef.current = detectChokepoints(walkGridRef.current, ISO_CONFIG.MAP_COLS, ISO_CONFIG.MAP_ROWS);
+    mapResourcesRef.current.reset();
+    mapResourcesRef.current.generate(currentRoom * 1000, dungeonBiome.id, terrainData);
+
+    // Position caravan at exit point
+    const exitPos = dState.levels[0].exitPos || { col: dState.mapSize / 2, row: dState.mapSize - 4 };
+    caravanPosRef.current = { x: exitPos.col + 0.5, y: exitPos.row + 0.5 };
+    caravanMoveRef.current = { active: false, targetX: 0, targetY: 0, speed: 2.5 };
+
+    // Camera
+    const cam = isoCameraRef.current;
+    cam.centerOnWorld(exitPos.col, exitPos.row);
+    clearTileCache();
+
+    // Spawn dungeon enemies
+    spawnDungeonEnemies(dState, 0);
+
+    // Reset combat state
+    combatEngagedRef.current = false;
+    setDefenseMode(null);
+    setStairsPrompt(null);
+
+    // Show dungeon cross section briefly
+    setShowCrossSection(true);
+    setTimeout(() => setShowCrossSection(false), 3000);
+
+    showMessage(`Wchodzisz do: ${dState.dungeonName}!`, "#ffd080");
+  }, []);
+
+  // Change dungeon level (ascend/descend)
+  const changeDungeonLevel = useCallback((targetLevel) => {
+    const dState = dungeonStateRef.current;
+    if (!dState || targetLevel < 0 || targetLevel >= dState.maxLevels) return;
+
+    setDungeonTransitioning(true);
+    setStairsPrompt(null);
+
+    setTimeout(() => {
+      const result = transitionDungeonLevel(dState, targetLevel, terrainDataRef, terrainDestructionRef);
+
+      // Update state
+      setDungeonState(result.dungeonState);
+      dungeonStateRef.current = result.dungeonState;
+
+      // Update biome visuals
+      const dungeonBiome = createDungeonBiome(dState.dungeonType, targetLevel, result.dungeonState);
+      setBiome(dungeonBiome);
+
+      // Rebuild walk grid
+      walkGridRef.current = buildWalkGrid(terrainDataRef.current);
+      chokepointsRef.current = detectChokepoints(walkGridRef.current, ISO_CONFIG.MAP_COLS, ISO_CONFIG.MAP_ROWS);
+
+      // Position caravan
+      caravanPosRef.current = { x: result.spawnPos.x, y: result.spawnPos.y };
+      caravanMoveRef.current = { active: false, targetX: 0, targetY: 0, speed: 2.5 };
+
+      // Camera
+      const cam = isoCameraRef.current;
+      cam.centerOnWorld(result.spawnPos.x, result.spawnPos.y);
+      clearTileCache();
+
+      // Spawn enemies if first visit
+      if (result.isFirstVisit) {
+        spawnDungeonEnemies(result.dungeonState, targetLevel);
+      } else {
+        // Cleared floor — no enemies
+        setWalkers(prev => prev.filter(w => w.friendly));
+        const keptData = {};
+        for (const [id, w] of Object.entries(walkDataRef.current)) {
+          if (w.friendly) keptData[id] = w;
+        }
+        walkDataRef.current = keptData;
+      }
+
+      combatEngagedRef.current = false;
+      setDefenseMode(null);
+
+      const levelData = result.dungeonState.levels[targetLevel];
+      if (levelData.bossLevel) {
+        showMessage(`Arena Bossa — Poziom ${targetLevel + 1}!`, "#ff4444");
+      } else {
+        showMessage(`Poziom ${targetLevel + 1} z ${result.dungeonState.maxLevels}`, "#c0a060");
+      }
+
+      setDungeonTransitioning(false);
+    }, 600);
+  }, []);
+
+  // Exit dungeon back to surface
+  const exitDungeon = useCallback(() => {
+    const dState = dungeonStateRef.current;
+    if (!dState) return;
+
+    // Calculate rewards
+    const rewards = calculateDungeonRewards(dState);
+
+    setDungeonTransitioning(true);
+    setStairsPrompt(null);
+
+    setTimeout(() => {
+      // Restore surface biome
+      const surfaceBiome = dState.surfaceBiome || BIOMES[0];
+      setBiome(surfaceBiome);
+      terrainDataRef.current = generateTerrainData(dState.surfaceRoom, surfaceBiome);
+      terrainDestructionRef.current.reset();
+      walkGridRef.current = buildWalkGrid(terrainDataRef.current);
+      chokepointsRef.current = detectChokepoints(walkGridRef.current, ISO_CONFIG.MAP_COLS, ISO_CONFIG.MAP_ROWS);
+      mapResourcesRef.current.reset();
+      mapResourcesRef.current.generate(dState.surfaceRoom, surfaceBiome.id, terrainDataRef.current);
+
+      // Position caravan
+      caravanPosRef.current = { x: ISO_CONFIG.MAP_COLS / 2, y: ISO_CONFIG.MAP_ROWS / 2 };
+      const cam = isoCameraRef.current;
+      cam.centerOnWorld(ISO_CONFIG.MAP_COLS / 2, ISO_CONFIG.MAP_ROWS / 2);
+      clearTileCache();
+
+      // Apply rewards
+      if (rewards) {
+        setMoney(prev => ({
+          ...prev,
+          copper: prev.copper + (rewards.copper || 0),
+          silver: prev.silver + (rewards.silver || 0),
+        }));
+        const msgs = [`+${rewards.copper} miedzi`];
+        if (rewards.silver) msgs.push(`+${rewards.silver} srebra`);
+        showMessage(`Dungeon ukończony! ${msgs.join(", ")}`, "#ffd700");
+      }
+
+      // Clear dungeon state
+      setDungeonState(null);
+      dungeonStateRef.current = null;
+      setDungeonTransitioning(false);
+      setShowCrossSection(false);
+    }, 600);
+  }, []);
+
+  // Spawn enemies for a dungeon level
+  function spawnDungeonEnemies(dState, level) {
+    const levelData = dState.levels[level];
+    if (!levelData || levelData.cleared) return;
+
+    const newWalkers = [];
+    const newWalkData = {};
+    const mapSize = dState.mapSize;
+    const dungeonBiomeId = `dungeon_${dState.dungeonType}`;
+
+    if (levelData.bossLevel) {
+      // Spawn boss
+      const boss = getDungeonBoss(dState.dungeonType, level, levelData.difficulty);
+      if (boss) {
+        const wid = ++walkerIdCounter;
+        const center = Math.floor(mapSize / 2);
+        newWalkers.push({
+          id: wid, npcData: boss, alive: true, dying: false,
+          hp: boss.hp, maxHp: boss.hp, isBoss: true,
+        });
+        newWalkData[wid] = {
+          x: center, y: center - 4,
+          wx: center, wy: center - 4,
+          dir: 1, yDir: 1, speed: boss.speed || 0.03, ySpeed: 0.02,
+          minX: 3, maxX: mapSize - 3, minY: 3, maxY: mapSize - 3,
+          bouncePhase: 0, alive: true, friendly: false,
+          damage: boss.damage, lungeFrames: 0, lungeOffset: 0,
+          ability: { type: boss.ability, damage: boss.damage, cooldown: boss.abilityCd, element: null, range: 25 },
+          aggroState: "idle", windupTimer: 0,
+        };
+      }
+    } else {
+      // Spawn regular enemies
+      const count = levelData.enemyCount || 5;
+      for (let i = 0; i < count; i++) {
+        const npcData = pickNpc(dungeonBiomeId);
+        if (!npcData) continue;
+        const roomScale = 1 + levelData.difficulty * 0.3;
+        const scaledNpc = { ...npcData, hp: Math.round(npcData.hp * roomScale) };
+        const wid = ++walkerIdCounter;
+        const spawnX = 4 + Math.random() * (mapSize - 8);
+        const spawnY = 4 + Math.random() * (mapSize - 8);
+        const walkRange = 3 + Math.random() * 4;
+        newWalkers.push({
+          id: wid, npcData: scaledNpc, alive: true, dying: false,
+          hp: scaledNpc.hp, maxHp: scaledNpc.hp,
+        });
+        const dmgScale = 1 + levelData.difficulty * 0.2;
+        newWalkData[wid] = {
+          x: spawnX, y: spawnY,
+          wx: spawnX, wy: spawnY,
+          dir: Math.random() < 0.5 ? 1 : -1, yDir: Math.random() < 0.5 ? 1 : -1,
+          speed: 0.01 + Math.random() * 0.02, ySpeed: 0.005 + Math.random() * 0.01,
+          minX: Math.max(2, spawnX - walkRange), maxX: Math.min(mapSize - 2, spawnX + walkRange),
+          minY: Math.max(2, spawnY - walkRange), maxY: Math.min(mapSize - 2, spawnY + walkRange),
+          bouncePhase: Math.random() * Math.PI * 2, alive: true, friendly: false,
+          damage: Math.ceil((scaledNpc.hp / 8) * dmgScale),
+          lungeFrames: 0, lungeOffset: 0,
+          ability: scaledNpc.ability || null,
+          aggroState: "idle", windupTimer: 0,
+        };
+      }
+    }
+
+    // Keep friendly mercenaries
+    const preservedWalkers = walkersRef.current.filter(w => w.alive && w.friendly);
+    const preservedData = {};
+    for (const [id, w] of Object.entries(walkDataRef.current)) {
+      if (w && w.alive && w.friendly) preservedData[id] = w;
+    }
+
+    setWalkers([...preservedWalkers, ...newWalkers]);
+    walkDataRef.current = { ...preservedData, ...newWalkData };
+
+    // Physics
+    if (physicsRef.current) {
+      physicsRef.current.clear();
+      for (const w of newWalkers) {
+        const wd = newWalkData[w.id];
+        const xPct = (wd.x / ISO_CONFIG.MAP_COLS) * 100;
+        const yPct = (wd.y / ISO_CONFIG.MAP_ROWS) * 100;
+        physicsRef.current.spawnNpc(w.id, xPct, w.npcData, false, yPct);
+      }
+      for (const w of preservedWalkers) {
+        const pd = preservedData[w.id];
+        if (pd) {
+          const xPct = (pd.x / ISO_CONFIG.MAP_COLS) * 100;
+          const yPct = (pd.y / ISO_CONFIG.MAP_ROWS) * 100;
+          physicsRef.current.spawnNpc(w.id, xPct, w.npcData, true, yPct);
+        }
+      }
+    }
+  }
+
+  // Check stairs proximity in game loop (called per frame when in dungeon)
+  const checkDungeonStairs = useCallback(() => {
+    const dState = dungeonStateRef.current;
+    if (!dState || dungeonTransitioning) return;
+
+    const interaction = checkStairsProximity(caravanPosRef.current, dState, 2.0);
+    if (interaction && !stairsPrompt) {
+      setStairsPrompt(interaction);
+    } else if (!interaction && stairsPrompt) {
+      setStairsPrompt(null);
+    }
+  }, [stairsPrompt, dungeonTransitioning]);
+
+  // Mark current dungeon level as cleared when all enemies are dead
+  const checkDungeonLevelCleared = useCallback(() => {
+    const dState = dungeonStateRef.current;
+    if (!dState) return;
+    const currentLevelData = dState.levels[dState.currentLevel];
+    if (currentLevelData.cleared) return;
+
+    const aliveEnemies = walkersRef.current.filter(w => w.alive && !w.friendly && !w.dying);
+    if (aliveEnemies.length === 0) {
+      currentLevelData.cleared = true;
+      setDungeonState({ ...dState });
+      dungeonStateRef.current = { ...dState };
+
+      if (currentLevelData.bossLevel) {
+        showMessage("Boss pokonany! Dungeon ukończony!", "#ffd700");
+        // Auto-offer exit after boss
+        setTimeout(() => {
+          setStairsPrompt({ type: "exit_dungeon", position: currentLevelData.exitPos || { col: dState.mapSize / 2, row: dState.mapSize / 2 } });
+        }, 2000);
+      } else {
+        showMessage(`Piętro ${dState.currentLevel + 1} oczyszczone!`, "#44ff44");
+      }
+    }
+  }, []);
+
   // Render biome background — on biome/room/night/panOffset change
   const prevBiomeIdRef = useRef(null);
   useEffect(() => {
@@ -4100,6 +4416,25 @@ export default function App() {
           if (terrainParticlesRef.current) {
             terrainParticlesRef.current.spawnAmbient(terrainDataRef.current, cam.x, cam.y);
             terrainParticlesRef.current.update(ctx, cam.x, cam.y);
+          }
+          // Dungeon lighting overlay (darkness + light sources)
+          if (dungeonStateRef.current && terrainDataRef.current) {
+            const dState = dungeonStateRef.current;
+            const levelData = dState.levels[dState.currentLevel];
+            renderDungeonLighting(ctx, c.width, c.height, {
+              ambientLight: levelData?.config?.ambientLight ?? 0.5,
+              lightSources: levelData?.lightSources || [],
+              caravanPos: caravanPosRef.current,
+              cameraX: cam.x,
+              cameraY: cam.y,
+              heightMap: terrainDataRef.current?.heightMap,
+              time: Date.now(),
+              zoom: cam.zoom || 1,
+            });
+            // Stairs markers
+            if (terrainDataRef.current.dungeonFeatures) {
+              renderStairsMarkers(ctx, terrainDataRef.current.dungeonFeatures, cam.x, cam.y, terrainDataRef.current?.heightMap, Date.now());
+            }
           }
         }
       } else {
@@ -9116,6 +9451,56 @@ export default function App() {
           biome={biome}
           isMobile={isMobile}
         />
+      )}
+
+      {/* Dungeon HUD */}
+      <DungeonHUD
+        dungeonState={dungeonState}
+        onShowCrossSection={() => setShowCrossSection(true)}
+      />
+
+      {/* Dungeon stairs interaction prompt */}
+      <StairsPrompt
+        interaction={stairsPrompt}
+        dungeonState={dungeonState}
+        onConfirm={() => {
+          if (!stairsPrompt) return;
+          if (stairsPrompt.type === "exit_dungeon") {
+            exitDungeon();
+          } else {
+            changeDungeonLevel(stairsPrompt.targetLevel);
+          }
+        }}
+        onCancel={() => setStairsPrompt(null)}
+      />
+
+      {/* Dungeon cross-section overlay */}
+      {showCrossSection && (
+        <DungeonCrossSection
+          dungeonState={dungeonState}
+          onSelectLevel={(level) => {
+            if (dungeonState && dungeonState.levels[level]?.discovered) {
+              changeDungeonLevel(level);
+              setShowCrossSection(false);
+            }
+          }}
+          onClose={() => setShowCrossSection(false)}
+        />
+      )}
+
+      {/* Dungeon level transition overlay */}
+      {dungeonTransitioning && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.9)", zIndex: 9500,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "#c0a060", fontSize: 16, fontWeight: "bold",
+        }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>⛏</div>
+            <div>Zmiana poziomu...</div>
+          </div>
+        </div>
       )}
 
       {/* Caravan HP & Travel integrated into SpellBar icons */}

@@ -189,6 +189,163 @@ export const BOSSES = [
   },
 ];
 
+// ─── DUNGEON-SPECIFIC BOSSES ───
+
+export const DUNGEON_BOSSES = {
+  crystal_guardian: {
+    id: "crystal_guardian",
+    name: "Kryształowy Strażnik",
+    icon: "crystal",
+    bodyType: "humanoid",
+    hp: 600,
+    damage: 20,
+    speed: 0.025,
+    attackCd: 2200,
+    combatStyle: "melee",
+    ability: "charge",
+    abilityCd: 5500,
+    resist: "ice",
+    phase2: { hpThreshold: 0.5, manaShield: true, shieldHp: 100, speed: 0.035, attackCd: 1800 },
+    minions: { type: "Kryształowy Fragment", count: 3, interval: 8000, hp: 30, damage: 6, bodyType: "humanoid", combatStyle: "melee", speed: 0.05, icon: "crystal" },
+  },
+  deep_worm: {
+    id: "deep_worm",
+    name: "Głębinowy Robak",
+    icon: "kraken",
+    bodyType: "serpent",
+    hp: 500,
+    damage: 18,
+    speed: 0.03,
+    attackCd: 2000,
+    combatStyle: "melee",
+    ability: "charge",
+    abilityCd: 4000,
+    resist: null,
+    phase2: { hpThreshold: 0.4, speed: 0.05, abilityCd: 2500, damage: 24 },
+    minions: { type: "Larwa Robaka", count: 4, interval: 6000, hp: 20, damage: 4, bodyType: "serpent", combatStyle: "melee", speed: 0.06, icon: "skull" },
+  },
+  tomb_pharaoh: {
+    id: "tomb_pharaoh",
+    name: "Faraon Grobowca",
+    icon: "emperor",
+    bodyType: "humanoid",
+    hp: 700,
+    damage: 22,
+    speed: 0.02,
+    attackCd: 2500,
+    combatStyle: "ranged",
+    ability: "shadowBolt",
+    abilityCd: 4500,
+    resist: "shadow",
+    phase2: { hpThreshold: 0.5, ability: "drain", abilityCd: 3500, attackCd: 2000 },
+    phase3: { hpThreshold: 0.25, ability: "shadowBolt", abilityCd: 2000, speed: 0.04, manaShield: true, shieldHp: 150 },
+    minions: { type: "Szkielet Hoplita", count: 3, interval: 7000, hp: 35, damage: 8, bodyType: "humanoid", combatStyle: "melee", speed: 0.04, icon: "skull" },
+  },
+  bone_hydra: {
+    id: "bone_hydra",
+    name: "Kościana Hydra",
+    icon: "kraken",
+    bodyType: "serpent",
+    hp: 800,
+    damage: 20,
+    speed: 0.02,
+    attackCd: 2200,
+    combatStyle: "ranged",
+    ability: "poisonSpit",
+    abilityCd: 4000,
+    resist: "shadow",
+    phase2: { hpThreshold: 0.5, abilityCd: 2500, damage: 26, speed: 0.03 },
+    minions: { type: "Głowa Kościanej Hydry", count: 2, interval: 9000, hp: 40, damage: 7, bodyType: "serpent", combatStyle: "ranged", speed: 0.035, icon: "skull" },
+  },
+  deep_kraken: {
+    id: "deep_kraken",
+    name: "Kraken Głębin",
+    icon: "kraken",
+    bodyType: "tentacle",
+    hp: 900,
+    damage: 24,
+    speed: 0.015,
+    attackCd: 2800,
+    combatStyle: "ranged",
+    ability: "iceShot",
+    abilityCd: 5000,
+    resist: "ice",
+    phase2: { hpThreshold: 0.4, ability: "charge", abilityCd: 3500, speed: 0.03, combatStyle: "melee" },
+    minions: { type: "Macka Krakena", count: 3, interval: 8000, hp: 50, damage: 10, bodyType: "tentacle", combatStyle: "melee", speed: 0.04, icon: "kraken" },
+  },
+  cave_leviathan: {
+    id: "cave_leviathan",
+    name: "Jaskiniowy Lewiatan",
+    icon: "kraken",
+    bodyType: "serpent",
+    hp: 750,
+    damage: 22,
+    speed: 0.02,
+    attackCd: 2400,
+    combatStyle: "melee",
+    ability: "charge",
+    abilityCd: 5000,
+    resist: null,
+    phase2: { hpThreshold: 0.5, speed: 0.04, abilityCd: 3000, damage: 28 },
+    minions: { type: "Młody Lewiatan", count: 2, interval: 10000, hp: 60, damage: 10, bodyType: "serpent", combatStyle: "melee", speed: 0.035, icon: "skull" },
+  },
+  ancient_golem: {
+    id: "ancient_golem",
+    name: "Starożytny Golem",
+    icon: "rock",
+    bodyType: "humanoid",
+    hp: 1000,
+    damage: 28,
+    speed: 0.015,
+    attackCd: 3000,
+    combatStyle: "melee",
+    ability: "charge",
+    abilityCd: 6000,
+    resist: "fire",
+    phase2: { hpThreshold: 0.5, manaShield: true, shieldHp: 200, attackCd: 2200 },
+    phase3: { hpThreshold: 0.25, speed: 0.03, abilityCd: 3000, damage: 35 },
+    minions: { type: "Kamienny Fragment", count: 2, interval: 10000, hp: 50, damage: 10, bodyType: "humanoid", combatStyle: "melee", speed: 0.04, icon: "rock" },
+  },
+  ruin_guardian: {
+    id: "ruin_guardian",
+    name: "Strażnik Ruin",
+    icon: "swords",
+    bodyType: "humanoid",
+    hp: 850,
+    damage: 25,
+    speed: 0.025,
+    attackCd: 2200,
+    combatStyle: "ranged",
+    ability: "shadowBolt",
+    abilityCd: 4500,
+    resist: null,
+    phase2: { hpThreshold: 0.5, ability: "fireBreath", abilityCd: 3500, combatStyle: "ranged" },
+    phase3: { hpThreshold: 0.25, ability: "charge", abilityCd: 2000, speed: 0.04, combatStyle: "melee", attackCd: 1500 },
+    minions: { type: "Ruinowy Strażnik", count: 3, interval: 7000, hp: 40, damage: 8, bodyType: "humanoid", combatStyle: "melee", speed: 0.045, icon: "swords" },
+  },
+};
+
+// Get a dungeon boss based on dungeon type and pool
+export function getDungeonBoss(dungeonType, dungeonLevel, difficulty) {
+  const pools = {
+    mine: ["crystal_guardian", "deep_worm"],
+    crypt: ["tomb_pharaoh", "bone_hydra"],
+    cave: ["deep_kraken", "cave_leviathan"],
+    ruins: ["ancient_golem", "ruin_guardian"],
+  };
+  const pool = pools[dungeonType] || pools.mine;
+  const idx = dungeonLevel % pool.length;
+  const boss = { ...DUNGEON_BOSSES[pool[idx]] };
+
+  // Scale boss with difficulty
+  if (difficulty > 1) {
+    const scale = 1 + (difficulty - 1) * 0.3;
+    boss.hp = Math.round(boss.hp * scale);
+    boss.damage = Math.round(boss.damage * scale);
+  }
+  return boss;
+}
+
 export function getBossForRoom(roomNumber) {
   if (roomNumber % 10 !== 0 || roomNumber === 0) return null;
   const idx = Math.floor((roomNumber / 10 - 1) % BOSSES.length);

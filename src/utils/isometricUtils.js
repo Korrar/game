@@ -128,6 +128,11 @@ export function generateHeightMap(room, biome, cols, rows) {
     mountain: { amplitude: 4.5, frequency: 0.05, flatCenter: false, octaves: 4 },
     coast: { amplitude: 2.0, frequency: 0.09, flatCenter: true, octaves: 2 },
     volcanic: { amplitude: 3.5, frequency: 0.07, flatCenter: false, octaves: 3 },
+    // Dungeon terrain profiles — lower amplitude, tunnel-like features
+    dungeon_mine: { amplitude: 2.0, frequency: 0.06, flatCenter: true, octaves: 2, dungeon: true },
+    dungeon_crypt: { amplitude: 1.5, frequency: 0.08, flatCenter: true, octaves: 2, dungeon: true },
+    dungeon_cave: { amplitude: 2.5, frequency: 0.07, flatCenter: true, octaves: 3, dungeon: true },
+    dungeon_ruins: { amplitude: 1.8, frequency: 0.09, flatCenter: true, octaves: 2, dungeon: true },
   };
   const profile = profiles[terrain] || profiles.forest;
 
