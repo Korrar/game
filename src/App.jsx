@@ -3756,7 +3756,29 @@ export default function App() {
           bamboo_falls: { type: "zen_shrine",  label: "Świątynia Zen",        icon: "lotus",  desc: "Cisza — wzmocnienie obrony" },
           blue_lagoon:  { type: "pearl_oyster", label: "Perłowa Muszla",      icon: "gem",    desc: "Rzadka perła — dużo złota" },
         };
-        const poiDef = BIOME_POIS[bid] || BIOME_POIS.summer;
+        // Dungeon entrance: 18% chance to replace normal biome POI (after room 5)
+        const DUNGEON_BIOME_MAP = {
+          jungle: "cave", island: "cave", desert: "mine", winter: "mine",
+          city: "crypt", volcano: "mine", summer: "ruins", autumn: "crypt",
+          spring: "cave", mushroom: "cave", swamp: "crypt", sunset_beach: "ruins",
+          bamboo_falls: "ruins", blue_lagoon: "cave", olympus: "ruins",
+          underworld: "crypt", meteor: "mine",
+        };
+        const dungeonChance = newRoom >= 5 ? 0.18 : 0;
+        let poiDef;
+        if (dungeonChance > 0 && Math.random() < dungeonChance && !dungeonStateRef.current) {
+          const dType = DUNGEON_BIOME_MAP[bid] || "mine";
+          const dName = DUNGEON_TYPES[dType]?.name || "Dungeon";
+          poiDef = {
+            type: "dungeon_entrance",
+            label: dName,
+            icon: DUNGEON_TYPES[dType]?.icon || "skull",
+            desc: DUNGEON_TYPES[dType]?.desc || "Niebezpieczne podziemia pełne skarbów",
+            dungeonType: dType,
+          };
+        } else {
+          poiDef = BIOME_POIS[bid] || BIOME_POIS.summer;
+        }
         newBiomePoi = { ...poiDef, x: bpx, y: lastPickedY(), biomeId: bid, used: false };
       }
     }
@@ -6494,9 +6516,14 @@ export default function App() {
         addMoneyFn({ silver: 2 + Math.floor(Math.random() * 2) });
         showMessage("Piękna perła! +2-3 srebra", "#c0c0e0");
       }
+    } else if (t === "dungeon_entrance") {
+      // Enter a multi-level dungeon
+      const dType = biomePoi.dungeonType || "mine";
+      const difficulty = 1 + Math.min(roomRef.current / 25, 1.5);
+      enterDungeon(dType, difficulty);
     }
     setBiomePoi(prev => prev ? { ...prev, used: true } : null);
-  }, [biomePoi, addMoneyFn, showMessage, sfxChest]);
+  }, [biomePoi, addMoneyFn, showMessage, sfxChest, enterDungeon]);
 
   // ─── SPELL CASTING WITH HP & RESISTANCE ───
 
@@ -10567,6 +10594,7 @@ export default function App() {
           camp_rest: "#e0c060", mushroom_circle: "#a060c0", fairy_well: "#e0c0ff",
           spore_cloud: "#44ff44", witch_hut: "#8a4090", treasure_map: "#ffd700",
           zen_shrine: "#80e0a0", pearl_oyster: "#c0c0e0",
+          dungeon_entrance: "#c08040",
         };
         const col = poiColors[biomePoi.type] || "#c0a060";
         return (
