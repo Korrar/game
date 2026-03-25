@@ -29,6 +29,7 @@ import { rollWeather, applyWeatherDamage } from "./data/weather";
 import { rollModifier, applyModifierDamage } from "./data/biomeModifiers";
 import { rollInteractables, DEFENSE_POIS } from "./data/biomeInteractables";
 import { OBSTACLE_DEFS, OBSTACLE_MATERIALS, WEAKNESS_MULT, RESIST_MULT as OBS_RESIST_MULT } from "./data/obstacles";
+import { STRUCTURE_DEFS, BIOME_STRUCTURES, getRandomStructure, createStructureInstance, checkCascadeCollapse, getStructureBounds } from "./data/structures";
 import { renderBiome } from "./renderers/biomeRenderers";
 import { renderVault } from "./renderers/vaultRenderer";
 import { BiomeAnimator } from "./renderers/biomeAnimator";
@@ -54,6 +55,7 @@ import {
   startCombatDrums, stopCombatDrums, updateCombatEnemyCount, updateComboLevel,
   sfxBossKillDrama, sfxCriticalHit, sfxHeadshotConfirm,
   startCaravanAlarm, stopCaravanAlarm, sfxWaveIncoming,
+  sfxStructureCollapse, sfxStructureFullDestroy,
 } from "./audio/soundEngine";
 import TopBar from "./components/TopBar";
 import SidePanel from "./components/SidePanel";
@@ -283,6 +285,9 @@ export default function App() {
   const [obstacles, setObstacles] = useState([]);        // [{id, type, x, y, biomeId, hp, maxHp, destructible, material, hitAnim, destroying}]
   const obstaclesRef = useRef(obstacles);
   obstaclesRef.current = obstacles;
+  const [structures, setStructures] = useState([]);      // composite multi-segment buildings
+  const structuresRef = useRef(structures);
+  structuresRef.current = structures;
 
   // Traps system
   const [traps, setTraps] = useState([]);               // [{id, type, x, hp?, maxHp?, active, triggered?, cooldown?}]
@@ -3138,6 +3143,42 @@ export default function App() {
         }
       }
 
+      // ─── PROJECTILE vs STRUCTURE collision check ───
+      if (physicsRef.current && structuresRef.current.length > 0) {
+        const skillshots = physicsRef.current.getPlayerSkillshots();
+        for (let si = 0; si < skillshots.length; si++) {
+          const proj = skillshots[si];
+          if (proj.type !== "linear" && proj.type !== "arc") continue;
+          for (const struct of structuresRef.current) {
+            if (struct.allDestroyed) continue;
+            for (const seg of struct.segments) {
+              if (!seg.alive || seg.destroying) continue;
+              // Compute segment center in pixel coords
+              const sPx = isoModeRef.current ? (struct.x / ISO_CONFIG.MAP_COLS) * GAME_W : (struct.x / 100) * GAME_W;
+              const sPy = isoModeRef.current ? (struct.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (struct.y / 100) * GAME_H;
+              const scx = sPx + (seg.x + seg.w / 2) / struct.width * 60;
+              const scy = sPy - (seg.y + seg.h / 2) / struct.height * 100;
+              const shw = seg.w * 0.5 + 4;
+              const shh = seg.h * 0.5 + 4;
+              const pr = proj.hitRadius || 8;
+              const clX = Math.max(scx - shw, Math.min(proj.x, scx + shw));
+              const clY = Math.max(scy - shh, Math.min(proj.y, scy + shh));
+              const dx = proj.x - clX, dy = proj.y - clY;
+              if (dx * dx + dy * dy > pr * pr) continue;
+              // Hit!
+              const isExplosive = (proj.splashRadius || 0) > 0;
+              const obsDmgMult = isExplosive ? 1.5 : 1;
+              const spellDmg = Math.round((proj.damage || 20) * obsDmgMult);
+              const spellEl = proj.element || null;
+              const _sId = struct.id, _segId = seg.id;
+              setTimeout(() => damageStructureSegment(_sId, _segId, spellDmg, spellEl), 0);
+              if (isExplosive) proj.age = proj.maxAge + 1;
+              break; // one segment per projectile per frame
+            }
+          }
+        }
+      }
+
       // Fog of war: reveal around caravan and mercenaries every 10 frames
       if (isoModeRef.current && terrainDataRef.current && frameCount % 10 === 0) {
         const revealPoints = [];
@@ -3417,6 +3458,7 @@ export default function App() {
       destructionComboRef.current.reset();
       envHazardsRef.current.reset();
       collapseEventsRef.current = [];
+      structuresRef.current = [];
       // Generate collectible map resources (ore, wood, herbs)
       mapResourcesRef.current.reset();
       mapResourcesRef.current.generate(newRoom, nextB.id, terrainDataRef.current);
@@ -3817,6 +3859,45 @@ export default function App() {
       });
     }
     setObstacles(newObstacles);
+
+    // ─── COMPOSITE STRUCTURES (multi-segment buildings) ───
+    try {
+      const newStructures = [];
+      const structCandidates = BIOME_STRUCTURES[bid];
+      if (structCandidates && structCandidates.length > 0 && !isDefenseRoom) {
+        // Try to spawn 1-2 structures per room
+        const maxStructs = Math.random() < 0.3 ? 2 : 1;
+        for (let si = 0; si < maxStructs; si++) {
+          const def = getRandomStructure(bid);
+          if (!def) continue;
+          // Find a position that doesn't overlap existing obstacles or structures
+          let sx, sy, sAttempts = 0;
+          const sBounds = getStructureBounds(0, 0, def);
+          const sMinDist = sBounds.radius;
+          do {
+            if (useIso) {
+              sx = 3 + Math.random() * (ISO_CONFIG.MAP_COLS - 6);
+              sy = 3 + Math.random() * (ISO_CONFIG.MAP_ROWS - 6);
+            } else {
+              sx = 10 + Math.random() * 80;
+              sy = 15 + Math.random() * 45;
+            }
+            sAttempts++;
+          } while (sAttempts < 30 && (
+            newObstacles.some(o => { const dx = sx - o.x, dy = sy - o.y; return dx*dx+dy*dy < sMinDist*sMinDist; }) ||
+            newStructures.some(s => { const dx = sx - s.x, dy = sy - s.y; return dx*dx+dy*dy < (sMinDist*2)*(sMinDist*2); })
+          ));
+          if (sAttempts < 30) {
+            newStructures.push(createStructureInstance(def, sx, sy, newRoom));
+          }
+        }
+      }
+      setStructures(newStructures);
+    } catch (structErr) {
+      console.error("[STRUCTURE ERROR]", structErr);
+      setStructures([]);
+    }
+
     } catch (obsError) {
       console.error("[OBSTACLE ERROR] Failed to generate obstacles:", obsError);
       // Fallback: generate minimal obstacles so game is playable
@@ -7817,6 +7898,148 @@ export default function App() {
     }));
   }, [addMoneyFn, showMessage]);
 
+  // ─── COMPOSITE STRUCTURE DAMAGE ───
+  const damageStructureSegment = useCallback((structId, segId, damage, element) => {
+    setStructures(prev => prev.map(struct => {
+      if (struct.id !== structId) return struct;
+      const newSegs = struct.segments.map(seg => {
+        if (seg.id !== segId || !seg.alive || seg.destroying) return seg;
+        const matDef = OBSTACLE_MATERIALS[seg.material] || OBSTACLE_MATERIALS.wood;
+        let dmg = damage;
+        if (matDef.weakTo && matDef.weakTo === element) dmg = Math.round(dmg * WEAKNESS_MULT);
+        if (matDef.resistTo && matDef.resistTo === element) dmg = Math.round(dmg * OBS_RESIST_MULT);
+        // Combo bonus
+        const comboInfo = destructionComboRef.current.getComboInfo();
+        if (comboInfo.level > 0) dmg = Math.round(dmg * comboInfo.damageMult);
+
+        const newHp = Math.max(0, seg.hp - dmg);
+        const px = isoModeRef.current ? (struct.x / ISO_CONFIG.MAP_COLS) * GAME_W : (struct.x / 100) * GAME_W;
+        const py = isoModeRef.current ? (struct.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (struct.y / 100) * GAME_H;
+        // Offset by segment position within structure
+        const segPxX = px + (seg.x / struct.width) * 60;
+        const segPxY = py - (seg.y / struct.height) * 100;
+
+        if (pixiRef.current) {
+          pixiRef.current.spawnObstacleHitSpark(segPxX, segPxY, matDef.color);
+          pixiRef.current.addGroundMark(segPxX, segPxY, element, dmg);
+        }
+
+        if (newHp <= 0) {
+          // Segment destroyed
+          const comboResult = destructionComboRef.current.registerDestruction(element);
+          sfxStructureCollapse();
+          if (pixiRef.current) {
+            switch (matDef.particle) {
+              case "splinter": pixiRef.current.spawnWoodSplinters(segPxX, segPxY); break;
+              case "rubble":   pixiRef.current.spawnStoneRubble(segPxX, segPxY); break;
+              case "shard":
+                if (seg.material === "ice") pixiRef.current.spawnIceShatter(segPxX, segPxY);
+                else pixiRef.current.spawnCrystalShatter(segPxX, segPxY);
+                break;
+              case "leaf":     pixiRef.current.spawnLeafBurst(segPxX, segPxY); break;
+              case "spark":    pixiRef.current.spawnMetalSparks(segPxX, segPxY); break;
+              case "dust":     pixiRef.current.spawnDustBurst(segPxX, segPxY); break;
+              default:         pixiRef.current.spawnWoodSplinters(segPxX, segPxY); break;
+            }
+            const shakeAmt = (seg.onDestroy?.screenShake || matDef.shakeIntensity || 3);
+            pixiRef.current.screenShake(shakeAmt);
+            pixiRef.current.spawnDebris(seg.material, segPxX, segPxY);
+          }
+          // Shockwave
+          if (seg.onDestroy?.shockwave || seg.explosive) {
+            const swInt = seg.explosive ? 1.0 : 0.7;
+            const sw = createShockwave(segPxX, segPxY, seg.explosionElement || element || "explosion", swInt, 10);
+            shockwavesRef.current.push(sw);
+          }
+          // Explosive segment: blast damage to NPCs
+          if (seg.explosive && seg.explosionDmg) {
+            const blastR = seg.explosionRadius || 16;
+            const blastDmg = seg.explosionDmg;
+            const blastEl = seg.explosionElement || "fire";
+            sfxMeteorImpact();
+            if (animatorRef.current) animatorRef.current.playMeteorImpact(segPxX, segPxY);
+            showMessage(`${seg.name} eksploduje!`, blastEl === "ice" ? "#4488ff" : blastEl === "shadow" ? "#8844cc" : "#ff6020");
+            walkersRef.current.forEach(w => {
+              if (!w.alive || w.dying) return;
+              const wd = walkDataRef.current[w.id];
+              if (!wd) return;
+              const ddx = wd.x - struct.x;
+              const ddy = ((wd.y || 50) - (isoModeRef.current ? struct.y : (100 - struct.y))) * 0.5;
+              const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+              if (dist < blastR) {
+                const falloff = 1 - (dist / blastR) * 0.5;
+                const bDmg = Math.round(blastDmg * falloff + Math.random() * 10);
+                spawnDmgPopup(w.id, `${bDmg}`, blastEl === "ice" ? "#4488ff" : "#ff6020");
+                setWalkers(ppp => ppp.map(ww => {
+                  if (ww.id !== w.id || !ww.alive || ww.dying) return ww;
+                  const newWHp = Math.max(0, ww.hp - bDmg);
+                  if (newWHp <= 0) {
+                    sfxNpcDeath();
+                    if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
+                    if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, blastEl, Math.sign(ddx) || 1);
+                    addMoneyFn(ww.npcData.loot);
+                    setKills(k => k + 1);
+                    showMessage(`${ww.npcData.name} pokonany!`, "#ff6020");
+                    setTimeout(() => setWalkers(pp2 => pp2.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
+                    return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
+                  }
+                  if (physicsRef.current) physicsRef.current.applyHit(ww.id, blastEl, Math.sign(ddx) || 1);
+                  return { ...ww, hp: newWHp };
+                }));
+              }
+            });
+          }
+          // Environmental hazard from segment
+          if (seg.onDestroy?.hazard) {
+            envHazardsRef.current._createHazard(seg.onDestroy.hazard, struct.x, struct.y, 1.0);
+          }
+          // Drop loot
+          if (seg.loot && Object.keys(seg.loot).length > 0) {
+            const boostedLoot = destructionComboRef.current.applyLootBonus(seg.loot);
+            addMoneyFn(boostedLoot);
+            if (pixiRef.current) pixiRef.current.spawnGoldCoins(segPxX, segPxY, 0.4);
+          }
+          showMessage(`${seg.name} zniszczony!`, "#ff8844");
+          // Combo messages
+          const comboMsgs = destructionComboRef.current.flushMessages();
+          for (const msg of comboMsgs) showMessage(msg.text, msg.color);
+
+          return { ...seg, hp: 0, alive: false, destroying: true, hitAnim: Date.now() };
+        }
+        return { ...seg, hp: newHp, hitAnim: Date.now() };
+      });
+
+      // Check cascade collapse
+      const updatedStruct = { ...struct, segments: newSegs };
+      const cascadeTargets = checkCascadeCollapse(updatedStruct, segId);
+      for (const target of cascadeTargets) {
+        setTimeout(() => {
+          damageStructureSegment(structId, target.segId, 99999, element);
+        }, target.delay);
+      }
+
+      // Check if all segments destroyed
+      const allDead = newSegs.every(s => !s.alive);
+      if (allDead && !struct.allDestroyed) {
+        sfxStructureFullDestroy();
+        if (struct.fullDestroyBonus) {
+          if (struct.fullDestroyBonus.gold) addMoneyFn({ gold: struct.fullDestroyBonus.gold });
+          if (struct.fullDestroyBonus.silver) addMoneyFn({ silver: struct.fullDestroyBonus.silver });
+          showMessage(struct.fullDestroyBonus.message || "Budowla zniszczona!", "#ffd700");
+        }
+        const px = isoModeRef.current ? (struct.x / ISO_CONFIG.MAP_COLS) * GAME_W : (struct.x / 100) * GAME_W;
+        const py = isoModeRef.current ? (struct.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (struct.y / 100) * GAME_H;
+        if (pixiRef.current) {
+          pixiRef.current.screenShake(8);
+          pixiRef.current.spawnDustBurst(px, py);
+          pixiRef.current.spawnGoldCoins(px, py, 1.0);
+        }
+        return { ...updatedStruct, allDestroyed: true };
+      }
+      return updatedStruct;
+    }));
+  }, [addMoneyFn, showMessage, spawnDmgPopup]);
+
   // Check obstacle hits during saber swipe
   const saberCheckObstacleHits = useCallback((x, y) => {
     const saberData = getEquippedSaberData();
@@ -7848,6 +8071,35 @@ export default function App() {
       }
     }
   }, [damageObstacle]);
+
+  // Check structure hits during saber swipe
+  const saberCheckStructureHits = useCallback((x, y) => {
+    const saberData = getEquippedSaberData();
+    const hitRadius = isoModeRef.current ? 4 : 9;
+    for (const struct of structuresRef.current) {
+      if (struct.allDestroyed) continue;
+      const dx = struct.x - x, dy = struct.y - (isoModeRef.current ? y : (100 - y));
+      if (dx * dx + dy * dy > hitRadius * hitRadius * 4) continue; // broad phase
+      for (const seg of struct.segments) {
+        if (!seg.alive || seg.destroying) continue;
+        const segKey = `struct_${struct.id}_${seg.id}`;
+        if (saberHitIdsRef.current.has(segKey)) continue;
+        // Hit check against segment
+        const segCx = struct.x + (seg.x + seg.w / 2) / struct.width * hitRadius;
+        const segCy = struct.y + (seg.y + seg.h / 2) / struct.height * hitRadius;
+        const sdx = segCx - x, sdy = segCy - (isoModeRef.current ? y : (100 - y));
+        if (sdx * sdx + sdy * sdy < hitRadius * hitRadius) {
+          saberHitIdsRef.current.add(segKey);
+          let dmg = saberData.damage;
+          const isCrit = Math.random() < 0.20;
+          if (isCrit) dmg = Math.round(dmg * 2.5);
+          damageStructureSegment(struct.id, seg.id, dmg, saberData.effect?.element || null);
+          sfxMeleeHit();
+          break; // one segment per swipe per structure
+        }
+      }
+    }
+  }, [damageStructureSegment]);
 
   // Check interactable hits during saber swipe
   const saberCheckInteractableHits = useCallback((x, y) => {
@@ -7883,8 +8135,9 @@ export default function App() {
     sfxSaberSwipe();
     saberCheckHits(pos.x, pos.y);
     saberCheckObstacleHits(pos.x, pos.y);
+    saberCheckStructureHits(pos.x, pos.y);
     saberCheckInteractableHits(pos.x, pos.y);
-  }, [isSaberMode, saberGetGamePos, saberCheckHits, saberCheckObstacleHits, saberCheckInteractableHits]);
+  }, [isSaberMode, saberGetGamePos, saberCheckHits, saberCheckObstacleHits, saberCheckStructureHits, saberCheckInteractableHits]);
 
   const handleSaberMove = useCallback((e) => {
     if (!saberSwipingRef.current) return;
@@ -7895,8 +8148,9 @@ export default function App() {
     setSaberTrail(prev => [...prev, { x: pos.px, y: pos.py }].slice(-30));
     saberCheckHits(pos.x, pos.y);
     saberCheckObstacleHits(pos.x, pos.y);
+    saberCheckStructureHits(pos.x, pos.y);
     saberCheckInteractableHits(pos.x, pos.y);
-  }, [saberGetGamePos, saberCheckHits, saberCheckObstacleHits, saberCheckInteractableHits]);
+  }, [saberGetGamePos, saberCheckHits, saberCheckObstacleHits, saberCheckStructureHits, saberCheckInteractableHits]);
 
   const handleSaberUp = useCallback(() => {
     if (!saberSwipingRef.current) return;
@@ -10587,6 +10841,130 @@ export default function App() {
       })}
 
       {/* (Mine traps removed — explosive obstacles are part of biome obstacles now) */}
+
+      {/* ─── COMPOSITE STRUCTURES ─── */}
+      {structures.map(struct => {
+        if (struct.allDestroyed && struct.segments.every(s => s.destroying && Date.now() - s.hitAnim > 800)) return null;
+        const _isI = isoModeRef.current;
+        const structLeft = poiLeft(struct.x, struct.y);
+        if (structLeft === null) return null;
+        return (
+          <div key={`struct-${struct.id}`} style={{
+            position: "absolute",
+            left: structLeft,
+            ...(_isI ? { top: poiTop(struct.x, struct.y), transform: "translateX(-50%) translateY(-100%)" }
+              : { bottom: `${struct.y}%`, transform: `translateX(-50%) scale(${scaleAtDepth(depthFromY(100 - struct.y))})` }),
+            zIndex: _isI ? poiZIndex(struct.x, struct.y) : 14 + zIndexAtDepth(depthFromY(100 - struct.y)),
+            width: struct.width,
+            height: struct.height,
+            pointerEvents: "none",
+          }}>
+            {struct.segments.map(seg => {
+              if (!seg.alive && !seg.destroying) return null;
+              const segStyle = struct.style?.[seg.id] || { bg: "linear-gradient(180deg,#666,#444)", radius: "3px", shadow: "0 2px 6px rgba(0,0,0,0.4)" };
+              const isSegHit = seg.hitAnim > 0 && (Date.now() - seg.hitAnim) < 300;
+              const hitAge = isSegHit ? (Date.now() - seg.hitAnim) : 300;
+              const shakeX = isSegHit ? Math.sin(hitAge * 0.06) * (3 - hitAge * 0.01) : 0;
+              const hpPct = seg.maxHp > 0 ? seg.hp / seg.maxHp : 1;
+              const damaged = seg.alive && hpPct < 1;
+              const dmgVis = getDamageVisuals(hpPct, seg.material);
+              const crackIntensity = dmgVis.crackOpacity;
+              const hpColor = hpPct > 0.5 ? `rgb(${Math.round(255 * (1 - hpPct) * 2)},200,40)` : `rgb(255,${Math.round(200 * hpPct * 2)},40)`;
+              const isDestroying = seg.destroying;
+              return (
+                <div key={`seg-${seg.id}`} style={{
+                  position: "absolute",
+                  left: seg.x,
+                  bottom: seg.y,
+                  width: seg.w,
+                  height: seg.h,
+                  transform: `translateX(${shakeX}px)${isDestroying ? " scale(1.2) translateY(10px)" : ""}`,
+                  transition: isDestroying ? "opacity 0.4s ease-out, transform 0.4s ease-out" : "none",
+                  opacity: isDestroying ? 0 : 1,
+                }}>
+                  <div style={{
+                    width: "100%",
+                    height: "100%",
+                    background: segStyle.bg,
+                    borderRadius: segStyle.radius,
+                    boxShadow: isSegHit
+                      ? `${segStyle.shadow}, 0 0 8px rgba(255,200,100,0.6)`
+                      : segStyle.shadow,
+                    position: "relative",
+                    overflow: "hidden",
+                    opacity: damaged ? 0.7 + hpPct * 0.3 : 1,
+                    border: `2px solid rgba(255,255,255,${damaged ? 0.35 + crackIntensity * 0.15 : 0.35})`,
+                  }}>
+                    {crackIntensity > 0 && (
+                      <div style={{
+                        position: "absolute", inset: 0,
+                        background: `repeating-linear-gradient(${45 + crackIntensity * 30}deg, transparent, transparent ${6 - crackIntensity * 3}px, rgba(0,0,0,${0.15 + crackIntensity * 0.25}) ${6 - crackIntensity * 3}px, transparent ${7 - crackIntensity * 3}px)`,
+                        borderRadius: segStyle.radius,
+                        pointerEvents: "none",
+                      }} />
+                    )}
+                    {dmgVis.darkenAmount > 0.1 && (
+                      <div style={{
+                        position: "absolute", inset: 0,
+                        background: `rgba(0,0,0,${dmgVis.darkenAmount * 0.5})`,
+                        borderRadius: segStyle.radius,
+                        pointerEvents: "none",
+                      }} />
+                    )}
+                    {isSegHit && hitAge < 100 && (
+                      <div style={{
+                        position: "absolute", inset: 0,
+                        background: "rgba(255,220,150,0.4)",
+                        borderRadius: segStyle.radius,
+                        pointerEvents: "none",
+                      }} />
+                    )}
+                    {seg.explosive && !isDestroying && (
+                      <div style={{
+                        position: "absolute", top: "50%", left: "50%",
+                        transform: "translate(-50%,-50%)",
+                        fontSize: 10, fontWeight: "bold",
+                        color: seg.explosionElement === "ice" ? "#80c0ff" : seg.explosionElement === "shadow" ? "#aa66ff" : "#ff4020",
+                        textShadow: "0 0 4px rgba(0,0,0,0.8)",
+                        animation: "resNode 1.5s ease-in-out infinite",
+                        pointerEvents: "none",
+                      }}>!</div>
+                    )}
+                  </div>
+                  {damaged && !isDestroying && (
+                    <div style={{
+                      position: "absolute", bottom: -5, left: "50%", transform: "translateX(-50%)",
+                      width: Math.max(seg.w * 0.8, 16), height: 3,
+                      background: "rgba(0,0,0,0.6)", borderRadius: 2, overflow: "hidden",
+                    }}>
+                      <div style={{
+                        width: `${hpPct * 100}%`, height: "100%",
+                        background: hpColor, borderRadius: 2, transition: "width 0.15s ease-out",
+                      }} />
+                    </div>
+                  )}
+                  {/* Segment name label on hover/damage */}
+                  {damaged && !isDestroying && (
+                    <div style={{
+                      position: "absolute", top: -14, left: "50%", transform: "translateX(-50%)",
+                      fontSize: 8, color: "#fff", whiteSpace: "nowrap",
+                      textShadow: "0 1px 3px rgba(0,0,0,0.8)", pointerEvents: "none",
+                    }}>{seg.name}</div>
+                  )}
+                </div>
+              );
+            })}
+            {/* Structure name label */}
+            {!struct.allDestroyed && (
+              <div style={{
+                position: "absolute", top: -18, left: "50%", transform: "translateX(-50%)",
+                fontSize: 10, fontWeight: "bold", color: "#ffd700", whiteSpace: "nowrap",
+                textShadow: "0 1px 4px rgba(0,0,0,0.9)", pointerEvents: "none",
+              }}>{struct.name}</div>
+            )}
+          </div>
+        );
+      })}
 
       {/* ─── BIOME INTERACTABLE ELEMENTS ─── */}
       {interactables.map((item, idx) => {
