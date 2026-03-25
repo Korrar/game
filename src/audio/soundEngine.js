@@ -261,9 +261,282 @@ const BIOME_AMBIENCE = {
     // Deep water drone
     rumble: { vol: 0.05, freq: 50, lfoRate: 0.01 },
   },
+  // ── Olympus: heavenly, open sky, divine ──
+  olympus: {
+    wind: { vol: 0.06, freq: 320, q: 0.3, lfoRate: 0.012 },
+    // Eagle cries — majestic
+    creatures: { type: "hawk", vol: 0.03, interval: [6000, 14000], chance: 0.35 },
+    // High altitude whistle
+    rustle: { vol: 0.03, freq: 1500, q: 0.3, lfoRate: 0.06 },
+    // Cloud rumble — gentle thunder
+    rumble: { vol: 0.04, freq: 55, lfoRate: 0.008 },
+  },
+  // ── Underworld: hellish, oppressive, dark ──
+  underworld: {
+    wind: { vol: 0.03, freq: 160, q: 0.3, lfoRate: 0.006 },
+    // Deep tectonic rumble
+    rumble: { vol: 0.08, freq: 30, lfoRate: 0.005 },
+    // Distant wailing / ghostly moans
+    creatures: { type: "spores", vol: 0.035, interval: [4000, 10000], chance: 0.4 },
+    // Lava bubbling
+    creatures2: { type: "lava_bubble", vol: 0.04, interval: [2000, 5000], chance: 0.5 },
+    // Fire crackle
+    fireCrackle: { vol: 0.03, freq: 2000, q: 0.4, lfoRate: 0.12 },
+  },
+  // ── Meteor: alien, cosmic, crackling energy ──
+  meteor: {
+    wind: { vol: 0.04, freq: 200, q: 0.3, lfoRate: 0.01 },
+    // Energy crackle — similar to ice crack but higher
+    creatures: { type: "ice_crack", vol: 0.04, interval: [3000, 8000], chance: 0.45 },
+    // Deep cosmic rumble
+    rumble: { vol: 0.07, freq: 35, lfoRate: 0.006 },
+    // Alien shimmer / crystalline resonance
+    creatures2: { type: "spores", vol: 0.03, interval: [5000, 12000], chance: 0.35 },
+    // High frequency hiss — radiation
+    rustle: { vol: 0.02, freq: 2500, q: 0.3, lfoRate: 0.08 },
+  },
 };
 
-// ─── HELPER: Create looping white noise buffer ───
+// ─── BIOME MUSIC PROFILES ───
+// Procedural melodic soundtrack definitions per biome
+// Each profile defines: scale, root note, BPM, chord progression, instrument voicings
+
+const MUSIC_SCALES = {
+  minor:      [0, 2, 3, 5, 7, 8, 10],
+  major:      [0, 2, 4, 5, 7, 9, 11],
+  dorian:     [0, 2, 3, 5, 7, 9, 10],
+  phrygian:   [0, 1, 3, 5, 7, 8, 10],
+  mixolydian: [0, 2, 4, 5, 7, 9, 10],
+  pentatonic: [0, 2, 4, 7, 9],
+  blues:      [0, 3, 5, 6, 7, 10],
+  arabian:    [0, 1, 4, 5, 7, 8, 11],
+  japanese:   [0, 1, 5, 7, 8],
+  wholetone:  [0, 2, 4, 6, 8, 10],
+  chromatic:  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+};
+
+function _noteFreq(root, semitones) {
+  return root * Math.pow(2, semitones / 12);
+}
+
+function _scaleNote(root, scale, degree) {
+  const octave = Math.floor(degree / scale.length);
+  const idx = ((degree % scale.length) + scale.length) % scale.length;
+  return _noteFreq(root, scale[idx] + octave * 12);
+}
+
+const BIOME_MUSIC = {
+  // ── Jungle: mysterious, tribal, warm ──
+  jungle: {
+    root: 110, // A2
+    scale: "minor",
+    bpm: 75,
+    chords: [[0, 2, 4], [3, 5, 7], [5, 7, 9], [4, 6, 8]], // Am - Dm - F - Em
+    drone: { vol: 0.04, octave: -1, type: "triangle" },
+    arp: { vol: 0.025, octave: 1, pattern: "up", speed: 2, chance: 0.6 },
+    melody: { vol: 0.02, octave: 2, noteLen: [0.4, 0.8], restChance: 0.35 },
+    perc: { vol: 0.03, pattern: "tribal" },
+    pad: { vol: 0.025, type: "triangle", detune: 5 },
+  },
+  // ── Island: shanty, carefree, sea-breeze ──
+  island: {
+    root: 130.81, // C3
+    scale: "major",
+    bpm: 95,
+    chords: [[0, 2, 4], [3, 5, 7], [4, 6, 8], [0, 2, 4]], // C - F - G - C
+    drone: { vol: 0.03, octave: -1, type: "sine" },
+    arp: { vol: 0.03, octave: 1, pattern: "updown", speed: 2, chance: 0.7 },
+    melody: { vol: 0.025, octave: 2, noteLen: [0.3, 0.5], restChance: 0.25 },
+    perc: { vol: 0.035, pattern: "shanty" },
+    pad: { vol: 0.02, type: "sine", detune: 3 },
+  },
+  // ── Desert: arabian, sparse, vast ──
+  desert: {
+    root: 146.83, // D3
+    scale: "arabian",
+    bpm: 65,
+    chords: [[0, 2, 4], [1, 3, 5], [4, 6, 8], [0, 2, 4]],
+    drone: { vol: 0.05, octave: -1, type: "sawtooth" },
+    arp: { vol: 0.02, octave: 1, pattern: "up", speed: 1.5, chance: 0.5 },
+    melody: { vol: 0.025, octave: 2, noteLen: [0.6, 1.2], restChance: 0.4 },
+    perc: null,
+    pad: { vol: 0.03, type: "sawtooth", detune: 8 },
+  },
+  // ── Winter: cold, sparse, eerie ──
+  winter: {
+    root: 123.47, // B2
+    scale: "phrygian",
+    bpm: 55,
+    chords: [[0, 2, 4], [1, 3, 5], [3, 5, 7], [0, 2, 4]],
+    drone: { vol: 0.04, octave: -1, type: "sine" },
+    arp: { vol: 0.02, octave: 2, pattern: "down", speed: 1, chance: 0.4 },
+    melody: { vol: 0.018, octave: 2, noteLen: [0.8, 1.5], restChance: 0.5 },
+    perc: null,
+    pad: { vol: 0.03, type: "sine", detune: 2 },
+  },
+  // ── City: tavern, bustling, jolly ──
+  city: {
+    root: 146.83, // D3
+    scale: "mixolydian",
+    bpm: 110,
+    chords: [[0, 2, 4], [4, 6, 8], [3, 5, 7], [1, 3, 5]], // D - A - G - Em
+    drone: { vol: 0.02, octave: -1, type: "triangle" },
+    arp: { vol: 0.03, octave: 1, pattern: "updown", speed: 3, chance: 0.75 },
+    melody: { vol: 0.025, octave: 2, noteLen: [0.2, 0.4], restChance: 0.2 },
+    perc: { vol: 0.04, pattern: "tavern" },
+    pad: { vol: 0.015, type: "triangle", detune: 4 },
+  },
+  // ── Volcano: menacing, heavy, ominous ──
+  volcano: {
+    root: 82.41, // E2
+    scale: "phrygian",
+    bpm: 50,
+    chords: [[0, 2, 4], [1, 3, 5], [0, 2, 4], [4, 6, 8]],
+    drone: { vol: 0.06, octave: -1, type: "sawtooth" },
+    arp: null,
+    melody: { vol: 0.02, octave: 1, noteLen: [1.0, 2.0], restChance: 0.5 },
+    perc: { vol: 0.04, pattern: "doom" },
+    pad: { vol: 0.035, type: "sawtooth", detune: 10 },
+  },
+  // ── Summer: bright, warm, pastoral ──
+  summer: {
+    root: 164.81, // E3
+    scale: "major",
+    bpm: 85,
+    chords: [[0, 2, 4], [3, 5, 7], [4, 6, 8], [2, 4, 6]],
+    drone: { vol: 0.025, octave: -1, type: "sine" },
+    arp: { vol: 0.025, octave: 2, pattern: "up", speed: 2, chance: 0.65 },
+    melody: { vol: 0.022, octave: 2, noteLen: [0.3, 0.6], restChance: 0.25 },
+    perc: null,
+    pad: { vol: 0.02, type: "sine", detune: 3 },
+  },
+  // ── Autumn: melancholic, wistful, folk ──
+  autumn: {
+    root: 110, // A2
+    scale: "dorian",
+    bpm: 70,
+    chords: [[0, 2, 4], [1, 3, 5], [3, 5, 7], [4, 6, 8]],
+    drone: { vol: 0.035, octave: -1, type: "triangle" },
+    arp: { vol: 0.022, octave: 1, pattern: "down", speed: 1.5, chance: 0.55 },
+    melody: { vol: 0.022, octave: 2, noteLen: [0.5, 0.9], restChance: 0.3 },
+    perc: { vol: 0.02, pattern: "folk" },
+    pad: { vol: 0.025, type: "triangle", detune: 4 },
+  },
+  // ── Spring: light, hopeful, dancing ──
+  spring: {
+    root: 174.61, // F3
+    scale: "major",
+    bpm: 90,
+    chords: [[0, 2, 4], [2, 4, 6], [3, 5, 7], [4, 6, 8]],
+    drone: { vol: 0.02, octave: -1, type: "sine" },
+    arp: { vol: 0.028, octave: 2, pattern: "updown", speed: 2.5, chance: 0.7 },
+    melody: { vol: 0.025, octave: 2, noteLen: [0.25, 0.5], restChance: 0.2 },
+    perc: null,
+    pad: { vol: 0.02, type: "sine", detune: 2 },
+  },
+  // ── Mushroom: psychedelic, eerie, enchanted ──
+  mushroom: {
+    root: 98, // G#2
+    scale: "wholetone",
+    bpm: 60,
+    chords: [[0, 2, 4], [1, 3, 5], [2, 4, 6], [3, 5, 7]],
+    drone: { vol: 0.04, octave: -1, type: "triangle" },
+    arp: { vol: 0.025, octave: 2, pattern: "random", speed: 1.5, chance: 0.5 },
+    melody: { vol: 0.02, octave: 2, noteLen: [0.6, 1.2], restChance: 0.4 },
+    perc: null,
+    pad: { vol: 0.03, type: "triangle", detune: 12 },
+  },
+  // ── Swamp: dark, oppressive, murky ──
+  swamp: {
+    root: 87.31, // F2
+    scale: "blues",
+    bpm: 55,
+    chords: [[0, 2, 4], [3, 5, 7], [0, 2, 4], [2, 4, 6]],
+    drone: { vol: 0.05, octave: -1, type: "sawtooth" },
+    arp: null,
+    melody: { vol: 0.018, octave: 1, noteLen: [0.8, 1.5], restChance: 0.5 },
+    perc: { vol: 0.02, pattern: "swamp" },
+    pad: { vol: 0.03, type: "sawtooth", detune: 7 },
+  },
+  // ── Blue Lagoon: serene, tropical, dreamy ──
+  blue_lagoon: {
+    root: 196, // G3
+    scale: "pentatonic",
+    bpm: 72,
+    chords: [[0, 2, 4], [1, 3, 5], [2, 4, 6], [0, 2, 4]],
+    drone: { vol: 0.025, octave: -1, type: "sine" },
+    arp: { vol: 0.028, octave: 2, pattern: "updown", speed: 2, chance: 0.65 },
+    melody: { vol: 0.022, octave: 2, noteLen: [0.4, 0.7], restChance: 0.3 },
+    perc: null,
+    pad: { vol: 0.022, type: "sine", detune: 3 },
+  },
+  // ── Sunset Beach: warm, nostalgic, golden hour ──
+  sunset_beach: {
+    root: 146.83, // D3
+    scale: "major",
+    bpm: 68,
+    chords: [[0, 2, 4], [2, 4, 6], [4, 6, 8], [3, 5, 7]],
+    drone: { vol: 0.03, octave: -1, type: "sine" },
+    arp: { vol: 0.025, octave: 1, pattern: "up", speed: 1.5, chance: 0.6 },
+    melody: { vol: 0.022, octave: 2, noteLen: [0.5, 1.0], restChance: 0.35 },
+    perc: null,
+    pad: { vol: 0.025, type: "sine", detune: 3 },
+  },
+  // ── Bamboo Falls: zen, flowing, meditative ──
+  bamboo_falls: {
+    root: 220, // A3
+    scale: "japanese",
+    bpm: 58,
+    chords: [[0, 1, 3], [1, 3, 4], [0, 1, 3], [3, 4, 6]],
+    drone: { vol: 0.03, octave: -1, type: "sine" },
+    arp: { vol: 0.025, octave: 2, pattern: "up", speed: 1, chance: 0.5 },
+    melody: { vol: 0.025, octave: 2, noteLen: [0.6, 1.4], restChance: 0.4 },
+    perc: { vol: 0.02, pattern: "zen" },
+    pad: { vol: 0.02, type: "sine", detune: 2 },
+  },
+  // ── Olympus: divine, grandiose, ethereal ──
+  olympus: {
+    root: 174.61, // F3
+    scale: "mixolydian",
+    bpm: 78,
+    chords: [[0, 2, 4], [4, 6, 8], [3, 5, 7], [0, 2, 4]],
+    drone: { vol: 0.035, octave: -1, type: "sine" },
+    arp: { vol: 0.03, octave: 2, pattern: "updown", speed: 2, chance: 0.65 },
+    melody: { vol: 0.025, octave: 2, noteLen: [0.4, 0.8], restChance: 0.25 },
+    perc: null,
+    pad: { vol: 0.03, type: "sine", detune: 3 },
+  },
+  // ── Underworld: dread, doom, hellish ──
+  underworld: {
+    root: 73.42, // D2
+    scale: "phrygian",
+    bpm: 45,
+    chords: [[0, 2, 4], [1, 3, 5], [0, 2, 4], [5, 7, 9]],
+    drone: { vol: 0.06, octave: -1, type: "sawtooth" },
+    arp: null,
+    melody: { vol: 0.015, octave: 1, noteLen: [1.2, 2.5], restChance: 0.6 },
+    perc: { vol: 0.035, pattern: "doom" },
+    pad: { vol: 0.04, type: "sawtooth", detune: 15 },
+  },
+  // ── Meteor: alien, dissonant, cosmic ──
+  meteor: {
+    root: 92.5, // F#2
+    scale: "chromatic",
+    bpm: 52,
+    chords: [[0, 3, 7], [1, 4, 8], [2, 6, 9], [0, 5, 10]],
+    drone: { vol: 0.05, octave: -1, type: "sawtooth" },
+    arp: { vol: 0.02, octave: 2, pattern: "random", speed: 1, chance: 0.4 },
+    melody: { vol: 0.018, octave: 2, noteLen: [0.8, 1.8], restChance: 0.5 },
+    perc: { vol: 0.025, pattern: "alien" },
+    pad: { vol: 0.035, type: "sawtooth", detune: 20 },
+  },
+};
+
+// ─── BIOME MUSIC LAYER STATE ───
+let biomeMusicNodes = []; // active music layer nodes
+let biomeMusicTimers = []; // scheduled timers for sequenced notes
+let currentChordIndex = 0;
+let chordChangeTimer = null;
 function _makeNoiseBuf(duration) {
   const c = getCtx();
   const len = Math.floor(c.sampleRate * duration);
@@ -1036,11 +1309,364 @@ function _addWeatherNodes(weatherId) {
   }
 }
 
+// ─── BIOME MUSIC LAYER FUNCTIONS ───
+
+function _stopBiomeMusic() {
+  biomeMusicTimers.forEach(t => clearTimeout(t));
+  biomeMusicTimers = [];
+  if (chordChangeTimer) { clearInterval(chordChangeTimer); chordChangeTimer = null; }
+  biomeMusicNodes.forEach(node => {
+    if (!node) return;
+    if (typeof node.stop === "function") try { node.stop(); } catch { /* ok */ }
+    if (typeof node.disconnect === "function") try { node.disconnect(); } catch { /* ok */ }
+    // Stop nested objects
+    if (typeof node === "object") {
+      Object.values(node).forEach(n => {
+        if (n && typeof n.stop === "function") try { n.stop(); } catch { /* ok */ }
+        if (n && typeof n.disconnect === "function") try { n.disconnect(); } catch { /* ok */ }
+      });
+    }
+  });
+  biomeMusicNodes = [];
+  currentChordIndex = 0;
+}
+
+// Drone layer — continuous low note establishing tonality
+function _createMusicDrone(c, profile) {
+  const cfg = profile.drone;
+  if (!cfg) return;
+  const scale = MUSIC_SCALES[profile.scale];
+  const freq = _scaleNote(profile.root, scale, cfg.octave < 0 ? -scale.length : 0);
+
+  const osc = c.createOscillator(); osc.type = cfg.type;
+  osc.frequency.value = freq;
+  const osc2 = c.createOscillator(); osc2.type = cfg.type;
+  osc2.frequency.value = freq * 1.002; // slight detune for warmth
+
+  const lp = c.createBiquadFilter(); lp.type = "lowpass";
+  lp.frequency.value = freq * 4; lp.Q.value = 0.7;
+  const g = c.createGain(); g.gain.value = cfg.vol;
+
+  // Slow breathing modulation
+  const lfo = c.createOscillator(); lfo.type = "sine";
+  lfo.frequency.value = 0.08 + Math.random() * 0.04;
+  const lfoG = c.createGain(); lfoG.gain.value = cfg.vol * 0.3;
+  lfo.connect(lfoG); lfoG.connect(g.gain);
+
+  osc.connect(lp); osc2.connect(lp); lp.connect(g); g.connect(musicGain);
+  osc.start(); osc2.start(); lfo.start();
+  biomeMusicNodes.push(osc, osc2, lp, g, lfo, lfoG);
+}
+
+// Pad layer — warm sustained chords that change with progression
+function _createMusicPad(c, profile) {
+  const cfg = profile.pad;
+  if (!cfg) return;
+  const scale = MUSIC_SCALES[profile.scale];
+  const chord = profile.chords[0];
+
+  const padOscs = [];
+  chord.forEach((degree, i) => {
+    const freq = _scaleNote(profile.root, scale, degree);
+    const osc = c.createOscillator(); osc.type = cfg.type;
+    osc.frequency.value = freq;
+    // Detuned copy for thickness
+    const osc2 = c.createOscillator(); osc2.type = cfg.type;
+    osc2.frequency.value = freq * (1 + cfg.detune * 0.001);
+
+    const lp = c.createBiquadFilter(); lp.type = "lowpass";
+    lp.frequency.value = freq * 3; lp.Q.value = 0.5;
+    const g = c.createGain(); g.gain.value = cfg.vol / chord.length;
+
+    const pan = c.createStereoPanner();
+    pan.pan.value = (i / (chord.length - 1 || 1) - 0.5) * 0.6;
+
+    osc.connect(lp); osc2.connect(lp); lp.connect(g); g.connect(pan); pan.connect(musicGain);
+    osc.start(); osc2.start();
+    padOscs.push({ osc, osc2, lp, g, pan, degree });
+    biomeMusicNodes.push(osc, osc2, lp, g, pan);
+  });
+
+  // Chord progression: change pad frequencies on each chord change
+  const barLen = (60 / profile.bpm) * 4 * 1000; // 4 beats per bar, 2 bars per chord
+  chordChangeTimer = setInterval(() => {
+    if (muted || !musicPlaying || !ctx) return;
+    currentChordIndex = (currentChordIndex + 1) % profile.chords.length;
+    const newChord = profile.chords[currentChordIndex];
+    const now = ctx.currentTime;
+    padOscs.forEach((p, i) => {
+      if (i < newChord.length) {
+        const newFreq = _scaleNote(profile.root, scale, newChord[i]);
+        p.osc.frequency.setTargetAtTime(newFreq, now, 0.3);
+        p.osc2.frequency.setTargetAtTime(newFreq * (1 + cfg.detune * 0.001), now, 0.3);
+        p.lp.frequency.setTargetAtTime(newFreq * 3, now, 0.3);
+      }
+    });
+  }, barLen * 2);
+}
+
+// Arpeggio layer — rhythmic note patterns based on current chord
+function _createMusicArp(c, profile) {
+  const cfg = profile.arp;
+  if (!cfg) return;
+  const scale = MUSIC_SCALES[profile.scale];
+  const beatLen = 60 / profile.bpm;
+  const noteInterval = beatLen / cfg.speed;
+  let stopped = false;
+  let arpIndex = 0;
+
+  const playArpNote = () => {
+    if (stopped || muted || !musicPlaying || !ctx) return;
+    if (Math.random() > cfg.chance) {
+      scheduleNextArp();
+      return;
+    }
+
+    const now = ctx.currentTime;
+    const chord = profile.chords[currentChordIndex];
+    let degree;
+    if (cfg.pattern === "random") {
+      degree = chord[Math.floor(Math.random() * chord.length)];
+    } else if (cfg.pattern === "down") {
+      degree = chord[(chord.length - 1) - (arpIndex % chord.length)];
+    } else if (cfg.pattern === "updown") {
+      const cycle = chord.length * 2 - 2;
+      const pos = arpIndex % (cycle || 1);
+      degree = pos < chord.length ? chord[pos] : chord[cycle - pos];
+    } else {
+      degree = chord[arpIndex % chord.length];
+    }
+    arpIndex++;
+
+    const freq = _scaleNote(profile.root, scale, degree + (cfg.octave || 1) * scale.length);
+    const osc = c.createOscillator(); osc.type = "sine";
+    osc.frequency.value = freq;
+    const g = c.createGain();
+    const dur = noteInterval * 0.8;
+    g.gain.setValueAtTime(cfg.vol, now);
+    g.gain.setValueAtTime(cfg.vol * 0.7, now + dur * 0.5);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+    const pan = c.createStereoPanner();
+    pan.pan.value = (Math.random() - 0.5) * 0.6;
+
+    osc.connect(g); g.connect(pan); pan.connect(musicGain);
+    osc.start(now); osc.stop(now + dur + 0.05);
+
+    scheduleNextArp();
+  };
+
+  const scheduleNextArp = () => {
+    if (stopped) return;
+    const jitter = noteInterval * 0.05 * (Math.random() - 0.5);
+    const timer = setTimeout(playArpNote, (noteInterval + jitter) * 1000);
+    biomeMusicTimers.push(timer);
+  };
+
+  scheduleNextArp();
+  biomeMusicNodes.push({ stop: () => { stopped = true; }, disconnect: () => { stopped = true; } });
+}
+
+// Melody layer — sparse procedural melody following scale + chord tones
+function _createMusicMelody(c, profile) {
+  const cfg = profile.melody;
+  if (!cfg) return;
+  const scale = MUSIC_SCALES[profile.scale];
+  let stopped = false;
+  let prevDegree = 0;
+
+  const playMelodyNote = () => {
+    if (stopped || muted || !musicPlaying || !ctx) return;
+    if (Math.random() < cfg.restChance) {
+      scheduleNextMelody();
+      return;
+    }
+
+    const now = ctx.currentTime;
+    const chord = profile.chords[currentChordIndex];
+
+    // Prefer chord tones (60%) over passing tones (40%)
+    let degree;
+    if (Math.random() < 0.6) {
+      degree = chord[Math.floor(Math.random() * chord.length)];
+    } else {
+      // Step motion from previous note
+      const step = Math.random() < 0.5 ? 1 : -1;
+      degree = prevDegree + step;
+      if (degree < 0) degree = 0;
+      if (degree >= scale.length * 2) degree = scale.length * 2 - 1;
+    }
+    prevDegree = degree;
+
+    const freq = _scaleNote(profile.root, scale, degree + (cfg.octave || 2) * scale.length);
+    const [minLen, maxLen] = cfg.noteLen;
+    const dur = minLen + Math.random() * (maxLen - minLen);
+    const beatLen = 60 / profile.bpm;
+
+    const osc = c.createOscillator(); osc.type = "sine";
+    osc.frequency.value = freq;
+    // Slight vibrato
+    const vib = c.createOscillator(); vib.type = "sine"; vib.frequency.value = 4 + Math.random() * 2;
+    const vibG = c.createGain(); vibG.gain.value = freq * 0.003;
+    vib.connect(vibG); vibG.connect(osc.frequency);
+
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(cfg.vol, now + 0.05);
+    g.gain.setValueAtTime(cfg.vol * 0.8, now + dur * 0.6);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+    const pan = c.createStereoPanner();
+    pan.pan.value = (Math.random() - 0.5) * 0.4;
+
+    osc.connect(g); g.connect(pan); pan.connect(musicGain);
+    osc.start(now); osc.stop(now + dur + 0.05);
+    vib.start(now); vib.stop(now + dur + 0.05);
+
+    scheduleNextMelody();
+  };
+
+  const scheduleNextMelody = () => {
+    if (stopped) return;
+    const [minLen, maxLen] = cfg.noteLen;
+    const delay = (minLen + Math.random() * (maxLen - minLen)) * 1000;
+    const timer = setTimeout(playMelodyNote, delay);
+    biomeMusicTimers.push(timer);
+  };
+
+  // Start with slight delay so drone/pad establish first
+  const initTimer = setTimeout(playMelodyNote, 2000 + Math.random() * 1000);
+  biomeMusicTimers.push(initTimer);
+  biomeMusicNodes.push({ stop: () => { stopped = true; }, disconnect: () => { stopped = true; } });
+}
+
+// Percussion layer — pattern-based rhythmic hits
+function _createMusicPerc(c, profile) {
+  const cfg = profile.perc;
+  if (!cfg) return;
+  const beatLen = 60 / profile.bpm;
+  let stopped = false;
+
+  const patterns = {
+    // [beat position (0-3), type: k=kick, s=snare, h=hihat, t=tom, r=rim, w=woodblock]
+    tribal:  [{ b: 0, t: "k" }, { b: 0.5, t: "t" }, { b: 1, t: "k" }, { b: 1.5, t: "h" }, { b: 2, t: "t" }, { b: 2.5, t: "t" }, { b: 3, t: "k" }, { b: 3.5, t: "h" }],
+    shanty:  [{ b: 0, t: "k" }, { b: 1, t: "s" }, { b: 2, t: "k" }, { b: 2.5, t: "k" }, { b: 3, t: "s" }],
+    tavern:  [{ b: 0, t: "k" }, { b: 0.5, t: "h" }, { b: 1, t: "s" }, { b: 1.5, t: "h" }, { b: 2, t: "k" }, { b: 2.5, t: "h" }, { b: 3, t: "s" }, { b: 3.5, t: "h" }],
+    doom:    [{ b: 0, t: "k" }, { b: 2, t: "k" }, { b: 3.5, t: "t" }],
+    folk:    [{ b: 0, t: "k" }, { b: 1, t: "r" }, { b: 2, t: "k" }, { b: 3, t: "r" }],
+    zen:     [{ b: 0, t: "w" }, { b: 2, t: "w" }, { b: 3, t: "w" }],
+    swamp:   [{ b: 0, t: "k" }, { b: 1.5, t: "t" }, { b: 3, t: "k" }, { b: 3.75, t: "h" }],
+    alien:   [{ b: 0, t: "k" }, { b: 0.75, t: "h" }, { b: 1.5, t: "r" }, { b: 2.25, t: "h" }, { b: 3, t: "t" }],
+  };
+
+  const pattern = patterns[cfg.pattern] || patterns.shanty;
+
+  const playBar = () => {
+    if (stopped || muted || !musicPlaying || !ctx) return;
+    const now = ctx.currentTime;
+
+    pattern.forEach(hit => {
+      const t = now + hit.b * beatLen;
+      switch (hit.t) {
+        case "k": { // kick
+          const o = c.createOscillator(); o.type = "sine";
+          o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(25, t + 0.08);
+          const g = c.createGain(); g.gain.setValueAtTime(cfg.vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+          o.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.12);
+          break;
+        }
+        case "s": { // snare
+          const len = Math.floor(c.sampleRate * 0.04);
+          const buf = c.createBuffer(1, len, c.sampleRate);
+          const d = buf.getChannelData(0);
+          for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+          const n = c.createBufferSource(); n.buffer = buf;
+          const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 2200; bp.Q.value = 1;
+          const g = c.createGain(); g.gain.setValueAtTime(cfg.vol * 0.7, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+          n.connect(bp); bp.connect(g); g.connect(musicGain); n.start(t);
+          break;
+        }
+        case "h": { // hihat
+          const len = Math.floor(c.sampleRate * 0.012);
+          const buf = c.createBuffer(1, len, c.sampleRate);
+          const d = buf.getChannelData(0);
+          for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+          const n = c.createBufferSource(); n.buffer = buf;
+          const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 6000;
+          const g = c.createGain(); g.gain.setValueAtTime(cfg.vol * 0.4, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
+          n.connect(hp); hp.connect(g); g.connect(musicGain); n.start(t);
+          break;
+        }
+        case "t": { // tom
+          const o = c.createOscillator(); o.type = "sine";
+          o.frequency.setValueAtTime(120 + Math.random() * 40, t); o.frequency.exponentialRampToValueAtTime(50, t + 0.1);
+          const g = c.createGain(); g.gain.setValueAtTime(cfg.vol * 0.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+          o.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.15);
+          break;
+        }
+        case "r": { // rim click
+          const o = c.createOscillator(); o.type = "square";
+          o.frequency.setValueAtTime(800, t); o.frequency.exponentialRampToValueAtTime(400, t + 0.02);
+          const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1200; bp.Q.value = 4;
+          const g = c.createGain(); g.gain.setValueAtTime(cfg.vol * 0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+          o.connect(bp); bp.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.04);
+          break;
+        }
+        case "w": { // woodblock
+          const o = c.createOscillator(); o.type = "triangle";
+          o.frequency.setValueAtTime(600 + Math.random() * 200, t);
+          o.frequency.exponentialRampToValueAtTime(300, t + 0.03);
+          const g = c.createGain(); g.gain.setValueAtTime(cfg.vol * 0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+          o.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.06);
+          break;
+        }
+      }
+    });
+
+    // Schedule next bar
+    const barDur = beatLen * 4 * 1000;
+    const timer = setTimeout(playBar, barDur);
+    biomeMusicTimers.push(timer);
+  };
+
+  // Start after 1 bar delay so harmonics establish first
+  const initTimer = setTimeout(playBar, beatLen * 4 * 1000);
+  biomeMusicTimers.push(initTimer);
+  biomeMusicNodes.push({ stop: () => { stopped = true; }, disconnect: () => { stopped = true; } });
+}
+
+// Master function: create all music layers for a biome
+function _createBiomeMusicLayers(biomeId, isNight) {
+  _stopBiomeMusic();
+  const profile = BIOME_MUSIC[biomeId];
+  if (!profile) return;
+  const c = getCtx();
+
+  // Night mode: slow BPM slightly, lower volumes
+  const nightProfile = isNight ? {
+    ...profile,
+    bpm: profile.bpm * 0.85,
+    drone: profile.drone ? { ...profile.drone, vol: profile.drone.vol * 0.7 } : null,
+    pad: profile.pad ? { ...profile.pad, vol: profile.pad.vol * 0.6 } : null,
+    arp: profile.arp ? { ...profile.arp, vol: profile.arp.vol * 0.5, chance: profile.arp.chance * 0.6 } : null,
+    melody: profile.melody ? { ...profile.melody, vol: profile.melody.vol * 0.6, restChance: Math.min(0.7, profile.melody.restChance + 0.15) } : null,
+    perc: profile.perc ? { ...profile.perc, vol: profile.perc.vol * 0.4 } : null,
+  } : profile;
+
+  currentChordIndex = 0;
+  _createMusicDrone(c, nightProfile);
+  _createMusicPad(c, nightProfile);
+  _createMusicArp(c, nightProfile);
+  _createMusicMelody(c, nightProfile);
+  _createMusicPerc(c, nightProfile);
+}
+
 // ─── CREATE ALL BIOME AMBIENT NODES (main orchestrator) ───
 function _createBiomeNodes(biomeId, isNight, weatherId) {
   const cfg = BIOME_AMBIENCE[biomeId];
-  if (!cfg) return;
 
+  // Ambient soundscape layers (if profile exists)
+  if (cfg) {
   // Wind — always present
   if (cfg.wind) {
     const node = createWindLayer(cfg.wind, isNight);
@@ -1082,8 +1708,13 @@ function _createBiomeNodes(biomeId, isNight, weatherId) {
   // Wood creaking
   if (cfg.creak) musicNodes.push(createCreakLayer(cfg.creak));
 
+  } // end if (cfg)
+
   // Weather overlay (rain, storm, gale, fog)
   _addWeatherNodes(weatherId);
+
+  // Melodic music layers (separate from ambient)
+  _createBiomeMusicLayers(biomeId, isNight);
 }
 
 // ─── STOP ALL AMBIENT NODES ───
@@ -1109,6 +1740,8 @@ function _stopAllNodes() {
     });
   });
   musicNodes = [];
+  // Clear biome music layers
+  _stopBiomeMusic();
   // Clear combat music layers
   _stopCombatDrums();
   _stopComboLayers();
@@ -1145,8 +1778,9 @@ function _crossfadeTo(createFn) {
   const c = getCtx();
   const now = c.currentTime;
 
-  if (musicNodes.length > 0) {
+  if (musicNodes.length > 0 || biomeMusicNodes.length > 0) {
     musicGain.gain.setTargetAtTime(0, now, 0.25);
+    _stopBiomeMusic();
     const oldNodes = [...musicNodes];
     musicNodes = [];
     if (chimeTimer) { clearTimeout(chimeTimer); chimeTimer = null; }
