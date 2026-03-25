@@ -51,6 +51,9 @@ import {
   sfxEventAppear, sfxMerchant, sfxAltar, sfxEventSuccess, sfxEventFail,
   sfxWaveHorn, sfxWaveComplete, sfxVictoryFanfare, sfxWeather, sfxCaravanHit,
   sfxEnemyStrike, sfxEnemyProjectile,
+  startCombatDrums, stopCombatDrums, updateCombatEnemyCount, updateComboLevel,
+  sfxBossKillDrama, sfxCriticalHit, sfxHeadshotConfirm,
+  startCaravanAlarm, stopCaravanAlarm, sfxWaveIncoming,
 } from "./audio/soundEngine";
 import TopBar from "./components/TopBar";
 import SidePanel from "./components/SidePanel";
@@ -1231,7 +1234,14 @@ export default function App() {
     setKillStreak(0);
     sfxCaravanHit();
     sfxEnemyStrike();
-    setCaravanHp(prev => Math.max(0, prev - actualDmg));
+    setCaravanHp(prev => {
+      const newHp = Math.max(0, prev - actualDmg);
+      const maxHp = CARAVAN_LEVELS[caravanLevelRef.current].hp;
+      // Start/stop alarm based on HP threshold (30%)
+      if (newHp > 0 && newHp / maxHp <= 0.3) startCaravanAlarm();
+      else stopCaravanAlarm();
+      return newHp;
+    });
     changeMorale("caravan_hit");
     // Screen shake on caravan hit
     setScreenShake(true);
@@ -4431,7 +4441,9 @@ export default function App() {
     setGroundLoot([]);
     meteorWaveRef.current = null;
     sfxWaveHorn();
+    sfxWaveIncoming(1);
     setMusicCombatIntensity(0.7);
+    startCombatDrums(dm?.totalWaves > 3 ? 6 : 4);
 
     // Kill all existing non-friendly walkers (clear the room for defense)
     setWalkers(prev => prev.filter(w => w.friendly));
@@ -4518,7 +4530,7 @@ export default function App() {
       setDefenseMode(prev => {
         if (!prev) return null;
         const t = prev.timer - 1;
-        if (t <= 0) { console.log("[DEFENSE] Phase → wave_active"); combatEngagedRef.current = true; return { ...prev, phase: "wave_active", timer: 0 }; }
+        if (t <= 0) { console.log("[DEFENSE] Phase → wave_active"); combatEngagedRef.current = true; sfxWaveIncoming(prev.currentWave); return { ...prev, phase: "wave_active", timer: 0 }; }
         return { ...prev, timer: t };
       });
     }, 1000);
@@ -4802,6 +4814,7 @@ export default function App() {
 
       // Update remaining count
       setDefenseMode(prev => prev ? { ...prev, enemiesRemaining: aliveEnemies.length } : null);
+      updateCombatEnemyCount(aliveEnemies.length);
 
       // Boss room: wave completes when boss is dead (minions get cleaned up)
       if (dm.isBossRoom) {
@@ -4810,8 +4823,10 @@ export default function App() {
           clearInterval(iv);
           setActiveBoss(null);
           setBossesDefeated(b => b + 1);
-          sfxVictoryFanfare();
+          sfxBossKillDrama();
+          setTimeout(() => sfxVictoryFanfare(), 1500); // fanfare after dramatic silence
           changeMorale("boss_kill");
+          stopCombatDrums();
           setMusicCombatIntensity(0); // calm down music after boss victory
           setDefenseMode(prev => prev ? { ...prev, phase: "complete" } : null);
           return;
@@ -4848,6 +4863,7 @@ export default function App() {
           if (dm.currentWave >= dm.totalWaves) {
             sfxVictoryFanfare();
             changeMorale("fast_victory");
+            stopCombatDrums();
             setMusicCombatIntensity(0); // calm down music after all waves cleared
             setDefenseMode(prev => prev ? { ...prev, phase: "complete" } : null);
             // Ghost ship completion reward
@@ -4888,6 +4904,7 @@ export default function App() {
       if (caravanHpRef.current <= 0) {
         clearInterval(iv);
         sfxEventFail();
+        stopCombatDrums(); stopCaravanAlarm();
         if (activeBossRef.current) setActiveBoss(null);
         setDefenseMode(null);
         // Collect stats and transition to game over screen
@@ -4933,6 +4950,7 @@ export default function App() {
   useEffect(() => {
     if (!defenseMode) return;
     if (defenseMode.phase === "complete" && defenseMode.roomNumber > 0) {
+      stopCaravanAlarm();
       const rn = defenseMode.roomNumber;
       const isBoss = defenseMode.isBossRoom;
 
@@ -5056,6 +5074,8 @@ export default function App() {
   const startGame = () => { setScreen("game"); enterRoom(1, []); startMusic(); };
 
   const restartGame = () => {
+    // Stop audio layers
+    stopCombatDrums(); stopCaravanAlarm(); updateComboLevel(0);
     // Reset all game state
     setRoom(0); setBiome(null); setDoors(0); setInitiative(MAX_INITIATIVE);
     setInventory([]); setHideoutItems([]); setMoney({ copper: 50, silver: 0, gold: 0 });
@@ -6213,10 +6233,10 @@ export default function App() {
           const streakBonus = Math.min(COMBO_STREAK_CAP, comboCounterRef.current * COMBO_STREAK_BONUS);
           dmg = Math.round(dmg * (combo.mult + streakBonus));
           comboText = combo;
-          setComboCounter(prev => prev + 1);
+          setComboCounter(prev => { const nc = prev + 1; updateComboLevel(nc); return nc; });
           setActiveCombo(combo);
           if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
-          comboTimerRef.current = setTimeout(() => { setComboCounter(0); setActiveCombo(null); }, COMBO_STREAK_TIMEOUT);
+          comboTimerRef.current = setTimeout(() => { setComboCounter(0); setActiveCombo(null); updateComboLevel(0); }, COMBO_STREAK_TIMEOUT);
           // Challenge: combo_master
           if (roomChallengeRef.current?.id === "combo_master" && !roomChallengeRef.current.completed) {
             setRoomChallenge(prev => {
@@ -6314,7 +6334,7 @@ export default function App() {
       // Show damage popup
       let dmgLabel = `${dmg}`;
       let dmgColor = spell.color;
-      if (isHeadshot) { dmgLabel = `HEADSHOT! ${dmg}`; dmgColor = "#ff4040"; }
+      if (isHeadshot) { dmgLabel = `HEADSHOT! ${dmg}`; dmgColor = "#ff4040"; sfxHeadshotConfirm(); }
       else if (comboText) { dmgLabel = `COMBO x${comboCounter}! ${dmg}`; dmgColor = comboText.color; }
       else if (resistant) { dmgLabel = `${dmg} BLOK`; dmgColor = "#6688aa"; }
       spawnDmgPopup(walkerId, dmgLabel, dmgColor);
@@ -7093,6 +7113,7 @@ export default function App() {
           spawnDmgPopup(w.id, `EGZEKUCJA ${dmg}`, "#cc2020");
         } else if (isCrit) {
           spawnDmgPopup(w.id, `KRYTYCZNY! ${dmg}`, "#ff4040");
+          sfxCriticalHit();
         } else {
           spawnDmgPopup(w.id, `${dmg}`, saberData.color);
         }
@@ -7702,10 +7723,10 @@ export default function App() {
           damage = Math.round(damage * (combo.mult + streakBonus));
           comboText = combo;
           // Update combo visual state
-          setComboCounter(prev => prev + 1);
+          setComboCounter(prev => { const nc = prev + 1; updateComboLevel(nc); return nc; });
           setActiveCombo(combo);
           if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
-          comboTimerRef.current = setTimeout(() => { setComboCounter(0); setActiveCombo(null); }, COMBO_STREAK_TIMEOUT);
+          comboTimerRef.current = setTimeout(() => { setComboCounter(0); setActiveCombo(null); updateComboLevel(0); }, COMBO_STREAK_TIMEOUT);
         }
       }
       if (spell.element) elementDebuffs.current[wid] = { element: spell.element, timestamp: Date.now() };
@@ -7951,10 +7972,10 @@ export default function App() {
             const streakBonus = Math.min(COMBO_STREAK_CAP, comboCounterRef.current * COMBO_STREAK_BONUS);
             damage = Math.round(damage * (combo.mult + streakBonus));
             comboText = combo;
-            setComboCounter(prev => prev + 1);
+            setComboCounter(prev => { const nc = prev + 1; updateComboLevel(nc); return nc; });
             setActiveCombo(combo);
             if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
-            comboTimerRef.current = setTimeout(() => { setComboCounter(0); setActiveCombo(null); }, COMBO_STREAK_TIMEOUT);
+            comboTimerRef.current = setTimeout(() => { setComboCounter(0); setActiveCombo(null); updateComboLevel(0); }, COMBO_STREAK_TIMEOUT);
           }
         }
         if (spell.element) elementDebuffs.current[w.id] = { element: spell.element, timestamp: Date.now() };
