@@ -18,6 +18,17 @@ let combatIntensity = 0; // 0 = exploration, 1 = full combat
 let combatFilterNode = null; // dynamic filter driven by combat state
 let combatGainNode = null; // extra gain layer for combat dynamics
 
+// ─── ADAPTIVE COMBAT MUSIC STATE ───
+let combatDrumNodes = null; // percussion layer activated during combat
+let combatDrumTimer = null;
+let combatBassNode = null; // tension bass drone during combat
+let combatEnemyCount = 0; // tracks enemy count for BPM scaling
+let combatBaseBpm = 90; // base BPM, scales with enemy count
+let comboSoundLevel = 0; // 0 = none, 1 = basic, 2 = intense (combo 5+), 3 = legendary (combo 10+)
+let comboLayerNodes = null; // extra instrument layers for high combos
+let comboLayerTimer = null;
+let bossKillSilenceTimer = null;
+
 function getCtx() {
   if (!ctx) {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1098,6 +1109,11 @@ function _stopAllNodes() {
     });
   });
   musicNodes = [];
+  // Clear combat music layers
+  _stopCombatDrums();
+  _stopComboLayers();
+  stopCaravanAlarm();
+  if (bossKillSilenceTimer) { clearTimeout(bossKillSilenceTimer); bossKillSilenceTimer = null; }
   // Clear all creature/drip/creak timers
   creatureTimers.forEach(t => clearTimeout(t));
   creatureTimers = [];
@@ -1215,6 +1231,298 @@ export function setMusicCombatIntensity(intensity) {
   // Slight volume boost during combat
   const targetGain = 1.0 + combatIntensity * 0.15;
   combatGainNode.gain.setTargetAtTime(targetGain, now, 0.3);
+}
+
+// ─── ADAPTIVE COMBAT MUSIC ───
+// Starts rhythmic percussion layer that scales BPM with enemy count
+
+function _stopCombatDrums() {
+  if (combatDrumTimer) { clearInterval(combatDrumTimer); combatDrumTimer = null; }
+  if (combatBassNode) {
+    try { combatBassNode.gain.gain.setTargetAtTime(0, ctx.currentTime, 0.3); } catch { /* ok */ }
+    setTimeout(() => {
+      try { combatBassNode.osc.stop(); combatBassNode.osc.disconnect(); } catch { /* ok */ }
+      combatBassNode = null;
+    }, 600);
+  }
+  combatDrumNodes = null;
+}
+
+function _stopComboLayers() {
+  if (comboLayerTimer) { clearInterval(comboLayerTimer); comboLayerTimer = null; }
+  if (comboLayerNodes) {
+    try { comboLayerNodes.gain.gain.setTargetAtTime(0, ctx.currentTime, 0.2); } catch { /* ok */ }
+    setTimeout(() => {
+      try { comboLayerNodes.osc.stop(); comboLayerNodes.osc.disconnect(); } catch { /* ok */ }
+      comboLayerNodes = null;
+    }, 400);
+  }
+  comboSoundLevel = 0;
+}
+
+function _scheduleCombatDrumHit(c, dest, bpm) {
+  const now = c.currentTime;
+  const beatLen = 60 / bpm;
+
+  // Kick drum on beat 1 and 3
+  [0, beatLen * 2].forEach(offset => {
+    const t = now + offset;
+    const kick = c.createOscillator(); kick.type = "sine";
+    kick.frequency.setValueAtTime(80, t);
+    kick.frequency.exponentialRampToValueAtTime(30, t + 0.08);
+    const kg = c.createGain();
+    kg.gain.setValueAtTime(0.12 * combatIntensity, t);
+    kg.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    kick.connect(kg); kg.connect(dest);
+    kick.start(t); kick.stop(t + 0.12);
+  });
+
+  // Snare-like hit on beat 2 and 4
+  [beatLen, beatLen * 3].forEach(offset => {
+    const t = now + offset;
+    const snrLen = Math.floor(c.sampleRate * 0.04);
+    const snrBuf = c.createBuffer(1, snrLen, c.sampleRate);
+    const snrD = snrBuf.getChannelData(0);
+    for (let i = 0; i < snrLen; i++) snrD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / snrLen, 2);
+    const snrN = c.createBufferSource(); snrN.buffer = snrBuf;
+    const snrBP = c.createBiquadFilter(); snrBP.type = "bandpass"; snrBP.frequency.value = 2500; snrBP.Q.value = 1;
+    const snrG = c.createGain();
+    snrG.gain.setValueAtTime(0.08 * combatIntensity, t);
+    snrG.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    snrN.connect(snrBP); snrBP.connect(snrG); snrG.connect(dest);
+    snrN.start(t);
+  });
+
+  // Hi-hat on every 8th note (higher intensity = more subdivisions)
+  const subdivisions = combatIntensity > 0.6 ? 8 : 4;
+  const subBeat = (beatLen * 4) / subdivisions;
+  for (let i = 0; i < subdivisions; i++) {
+    const t = now + i * subBeat;
+    const hhLen = Math.floor(c.sampleRate * 0.015);
+    const hhBuf = c.createBuffer(1, hhLen, c.sampleRate);
+    const hhD = hhBuf.getChannelData(0);
+    for (let j = 0; j < hhLen; j++) hhD[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / hhLen, 3);
+    const hhN = c.createBufferSource(); hhN.buffer = hhBuf;
+    const hhHP = c.createBiquadFilter(); hhHP.type = "highpass"; hhHP.frequency.value = 6000;
+    const hhG = c.createGain();
+    hhG.gain.setValueAtTime(0.04 * combatIntensity, t);
+    hhG.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
+    hhN.connect(hhHP); hhHP.connect(hhG); hhG.connect(dest);
+    hhN.start(t);
+  }
+}
+
+// Start adaptive combat percussion — call when combat begins
+export function startCombatDrums(enemyCount) {
+  if (muted || !musicPlaying) return;
+  const c = getCtx();
+  combatEnemyCount = enemyCount || 1;
+
+  // BPM scales: base 80, +8 per enemy, capped at 160
+  const bpm = Math.min(160, 80 + combatEnemyCount * 8);
+  combatBaseBpm = bpm;
+  const barDuration = (60 / bpm) * 4; // 4 beats per bar
+
+  // Stop previous drums if any
+  _stopCombatDrums();
+
+  // Tension bass drone — low oscillator that rumbles during combat
+  const bassOsc = c.createOscillator(); bassOsc.type = "sawtooth";
+  bassOsc.frequency.value = 40 + combatEnemyCount * 2;
+  const bassLP = c.createBiquadFilter(); bassLP.type = "lowpass"; bassLP.frequency.value = 120; bassLP.Q.value = 2;
+  const bassG = c.createGain(); bassG.gain.value = 0;
+  bassG.gain.setTargetAtTime(0.06 * combatIntensity, c.currentTime, 0.5);
+  // LFO for pulsing
+  const bassLfo = c.createOscillator(); bassLfo.type = "sine";
+  bassLfo.frequency.value = bpm / 60 / 2; // pulse at half-note rate
+  const bassLfoG = c.createGain(); bassLfoG.gain.value = 0.03;
+  bassLfo.connect(bassLfoG); bassLfoG.connect(bassG.gain);
+
+  bassOsc.connect(bassLP); bassLP.connect(bassG); bassG.connect(sfxGain);
+  bassOsc.start(); bassLfo.start();
+  combatBassNode = { osc: bassOsc, lp: bassLP, gain: bassG, lfo: bassLfo, lfoG: bassLfoG };
+
+  // Schedule drum hits on interval
+  _scheduleCombatDrumHit(c, sfxGain, bpm);
+  combatDrumTimer = setInterval(() => {
+    if (muted || !ctx) { _stopCombatDrums(); return; }
+    _scheduleCombatDrumHit(c, sfxGain, combatBaseBpm);
+  }, barDuration * 1000);
+
+  combatDrumNodes = { timer: combatDrumTimer };
+}
+
+// Update enemy count — adjusts BPM dynamically
+export function updateCombatEnemyCount(count) {
+  combatEnemyCount = count;
+  const newBpm = Math.min(160, 80 + count * 8);
+  combatBaseBpm = newBpm;
+  // Update bass drone frequency
+  if (combatBassNode && ctx) {
+    combatBassNode.osc.frequency.setTargetAtTime(40 + count * 2, ctx.currentTime, 0.3);
+    combatBassNode.lfo.frequency.setTargetAtTime(newBpm / 60 / 2, ctx.currentTime, 0.2);
+    combatBassNode.gain.gain.setTargetAtTime(0.06 * combatIntensity, ctx.currentTime, 0.3);
+  }
+  // Restart drum timer with new BPM
+  if (combatDrumTimer) {
+    clearInterval(combatDrumTimer);
+    const barDuration = (60 / newBpm) * 4;
+    combatDrumTimer = setInterval(() => {
+      if (muted || !ctx) { _stopCombatDrums(); return; }
+      _scheduleCombatDrumHit(ctx, sfxGain, combatBaseBpm);
+    }, barDuration * 1000);
+  }
+}
+
+// Stop combat percussion — call when combat ends
+export function stopCombatDrums() {
+  _stopCombatDrums();
+  _stopComboLayers();
+}
+
+// ─── COMBO ESCALATION SOUNDS ───
+// Adds instrument layers at combo thresholds: 5+ = war drums intensify, 10+ = battle pipes
+
+export function updateComboLevel(comboCount) {
+  if (muted || !ctx) return;
+  const c = ctx;
+  const now = c.currentTime;
+
+  let newLevel = 0;
+  if (comboCount >= 10) newLevel = 3;
+  else if (comboCount >= 5) newLevel = 2;
+  else if (comboCount >= 3) newLevel = 1;
+
+  if (newLevel === comboSoundLevel) return;
+
+  // Level up — play escalation stinger
+  if (newLevel > comboSoundLevel) {
+    _playComboStinger(c, sfxGain, newLevel);
+  }
+
+  comboSoundLevel = newLevel;
+
+  // Manage combo instrument layers
+  if (newLevel >= 2 && !comboLayerNodes) {
+    // Start battle pipe / string drone layer
+    const freq = newLevel >= 3 ? 330 : 220; // E4 for legendary, A3 for intense
+    const osc = c.createOscillator(); osc.type = "sawtooth";
+    osc.frequency.value = freq;
+    const bp = c.createBiquadFilter(); bp.type = "bandpass";
+    bp.frequency.value = freq * 2; bp.Q.value = 3;
+    const g = c.createGain(); g.gain.value = 0;
+    g.gain.setTargetAtTime(0.04, now, 0.3);
+    // Vibrato
+    const vib = c.createOscillator(); vib.type = "sine"; vib.frequency.value = 5;
+    const vibG = c.createGain(); vibG.gain.value = 3;
+    vib.connect(vibG); vibG.connect(osc.frequency);
+
+    osc.connect(bp); bp.connect(g); g.connect(sfxGain);
+    osc.start(); vib.start();
+    comboLayerNodes = { osc, bp, gain: g, vib, vibG };
+  } else if (newLevel >= 3 && comboLayerNodes) {
+    // Intensify existing layer
+    comboLayerNodes.osc.frequency.setTargetAtTime(330, now, 0.2);
+    comboLayerNodes.gain.gain.setTargetAtTime(0.06, now, 0.2);
+    comboLayerNodes.bp.frequency.setTargetAtTime(660, now, 0.2);
+  } else if (newLevel < 2) {
+    _stopComboLayers();
+  }
+}
+
+function _playComboStinger(c, dest, level) {
+  const now = c.currentTime;
+  if (level === 1) {
+    // Combo x3: short ascending 2-note ping
+    [440, 554].forEach((freq, i) => {
+      const osc = c.createOscillator(); osc.type = "triangle"; osc.frequency.value = freq;
+      const g = c.createGain(); g.gain.setValueAtTime(0.12, now + i * 0.06);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.15);
+      osc.connect(g); g.connect(dest);
+      osc.start(now + i * 0.06); osc.stop(now + i * 0.06 + 0.18);
+    });
+  } else if (level === 2) {
+    // Combo x5: war drum hit + brass stab
+    const kick = c.createOscillator(); kick.type = "sine";
+    kick.frequency.setValueAtTime(100, now); kick.frequency.exponentialRampToValueAtTime(30, now + 0.12);
+    const kg = c.createGain(); kg.gain.setValueAtTime(0.25, now); kg.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    kick.connect(kg); kg.connect(dest); kick.start(now); kick.stop(now + 0.18);
+    // Brass stab
+    const brass = c.createOscillator(); brass.type = "sawtooth"; brass.frequency.value = 220;
+    const bf = c.createBiquadFilter(); bf.type = "lowpass"; bf.frequency.value = 600;
+    const bg = c.createGain(); bg.gain.setValueAtTime(0.1, now + 0.02); bg.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    brass.connect(bf); bf.connect(bg); bg.connect(dest); brass.start(now + 0.02); brass.stop(now + 0.25);
+  } else if (level === 3) {
+    // Combo x10: powerful chord + cymbal crash
+    [262, 330, 392, 523].forEach((freq, i) => {
+      const osc = c.createOscillator(); osc.type = "sawtooth"; osc.frequency.value = freq;
+      const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 800;
+      const g = c.createGain(); g.gain.setValueAtTime(0.08, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.connect(f); f.connect(g); g.connect(dest); osc.start(now); osc.stop(now + 0.45);
+    });
+    // Cymbal
+    const cymLen = Math.floor(c.sampleRate * 0.3);
+    const cymBuf = c.createBuffer(1, cymLen, c.sampleRate);
+    const cymD = cymBuf.getChannelData(0);
+    for (let i = 0; i < cymLen; i++) cymD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / cymLen, 2);
+    const cymN = c.createBufferSource(); cymN.buffer = cymBuf;
+    const cymHP = c.createBiquadFilter(); cymHP.type = "highpass"; cymHP.frequency.value = 5000;
+    const cymG = c.createGain(); cymG.gain.setValueAtTime(0.12, now); cymG.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    cymN.connect(cymHP); cymHP.connect(cymG); cymG.connect(dest); cymN.start(now);
+  }
+}
+
+// ─── BOSS KILL: DRAMATIC SILENCE + SINGLE CHORD ───
+export function sfxBossKillDrama() {
+  if (muted) return;
+  const c = getCtx();
+  const now = c.currentTime;
+
+  // Stop combat drums immediately
+  _stopCombatDrums();
+  _stopComboLayers();
+
+  // Dramatically duck all audio for 1.5 seconds
+  if (masterGain) {
+    masterGain.gain.setTargetAtTime(0.05, now, 0.1); // near-silence
+  }
+
+  // After 1.2s of silence, play a single resonant chord
+  bossKillSilenceTimer = setTimeout(() => {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+
+    // Restore master volume slowly
+    if (masterGain) {
+      masterGain.gain.setTargetAtTime(0.7, t + 0.5, 0.8);
+    }
+
+    // Single majestic open chord — pirate victory moment
+    const chordFreqs = [130.81, 164.81, 196, 261.63]; // C major spread
+    chordFreqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator(); osc.type = "triangle";
+      osc.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.15, t + 0.3);
+      g.gain.setValueAtTime(0.15, t + 1.5);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 3.0);
+      osc.connect(g); g.connect(sfxGain);
+      osc.start(t + i * 0.04); osc.stop(t + 3.1);
+    });
+
+    // Deep reverberant bell tone
+    const bell = ctx.createOscillator(); bell.type = "sine";
+    bell.frequency.value = 523.25; // C5
+    const bellG = ctx.createGain();
+    bellG.gain.setValueAtTime(0, t + 0.1);
+    bellG.gain.linearRampToValueAtTime(0.1, t + 0.4);
+    bellG.gain.exponentialRampToValueAtTime(0.001, t + 2.5);
+    bell.connect(bellG); bellG.connect(sfxGain);
+    bell.start(t + 0.1); bell.stop(t + 2.6);
+
+    bossKillSilenceTimer = null;
+  }, 1200);
 }
 
 export function toggleMusic() {
@@ -2541,6 +2849,202 @@ export function sfxCaravanHit() {
     const subG = c.createGain(); subG.gain.setValueAtTime(0.15, now);
     subG.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
     sub.connect(subG); subG.connect(dest); sub.start(now); sub.stop(now + 0.2);
+  });
+}
+
+// ─── CRITICAL HIT SFX — high metallic ping with harmonic overtones ───
+export function sfxCriticalHit() {
+  playSfx((c, now, dest) => {
+    // Primary metallic ping — bright bell-like tone
+    const ping = c.createOscillator(); ping.type = "sine";
+    ping.frequency.value = 2200;
+    const pingG = c.createGain();
+    pingG.gain.setValueAtTime(0.25, now);
+    pingG.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    ping.connect(pingG); pingG.connect(dest);
+    ping.start(now); ping.stop(now + 0.4);
+
+    // Second harmonic — adds metallic shimmer
+    const h2 = c.createOscillator(); h2.type = "sine"; h2.frequency.value = 3520;
+    const h2g = c.createGain();
+    h2g.gain.setValueAtTime(0.12, now);
+    h2g.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    h2.connect(h2g); h2g.connect(dest);
+    h2.start(now); h2.stop(now + 0.3);
+
+    // Third harmonic for richness
+    const h3 = c.createOscillator(); h3.type = "sine"; h3.frequency.value = 5280;
+    const h3g = c.createGain();
+    h3g.gain.setValueAtTime(0.06, now + 0.01);
+    h3g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    h3.connect(h3g); h3g.connect(dest);
+    h3.start(now + 0.01); h3.stop(now + 0.2);
+
+    // Short metallic transient — impact crack
+    const crkLen = Math.floor(c.sampleRate * 0.008);
+    const crkBuf = c.createBuffer(1, crkLen, c.sampleRate);
+    const crkD = crkBuf.getChannelData(0);
+    for (let i = 0; i < crkLen; i++) crkD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / crkLen, 0.3);
+    const crkN = c.createBufferSource(); crkN.buffer = crkBuf;
+    const crkHP = c.createBiquadFilter(); crkHP.type = "highpass"; crkHP.frequency.value = 4000;
+    const crkG = c.createGain(); crkG.gain.setValueAtTime(0.18, now);
+    crkG.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
+    crkN.connect(crkHP); crkHP.connect(crkG); crkG.connect(dest); crkN.start(now);
+
+    // Descending shimmer tail — pitched sparkle
+    const shim = c.createOscillator(); shim.type = "triangle";
+    shim.frequency.setValueAtTime(4400, now + 0.05);
+    shim.frequency.exponentialRampToValueAtTime(1100, now + 0.3);
+    const shimG = c.createGain();
+    shimG.gain.setValueAtTime(0.05, now + 0.05);
+    shimG.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    shim.connect(shimG); shimG.connect(dest);
+    shim.start(now + 0.05); shim.stop(now + 0.35);
+  });
+}
+
+// ─── CARAVAN LOW HP WARNING — urgent repeating alarm ───
+let caravanAlarmTimer = null;
+let caravanAlarmActive = false;
+
+export function startCaravanAlarm() {
+  if (caravanAlarmActive || muted) return;
+  caravanAlarmActive = true;
+  _playCaravanAlarmPulse();
+  caravanAlarmTimer = setInterval(_playCaravanAlarmPulse, 2000);
+}
+
+export function stopCaravanAlarm() {
+  caravanAlarmActive = false;
+  if (caravanAlarmTimer) { clearInterval(caravanAlarmTimer); caravanAlarmTimer = null; }
+}
+
+function _playCaravanAlarmPulse() {
+  if (muted || !caravanAlarmActive) { stopCaravanAlarm(); return; }
+  playSfx((c, now, dest) => {
+    // Two-tone warning horn: low-high-low
+    const freqs = [180, 240, 180];
+    freqs.forEach((freq, i) => {
+      const t = now + i * 0.15;
+      const osc = c.createOscillator(); osc.type = "sawtooth";
+      osc.frequency.value = freq;
+      const bp = c.createBiquadFilter(); bp.type = "lowpass"; bp.frequency.value = 500; bp.Q.value = 1;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.15, t);
+      g.gain.setValueAtTime(0.15, t + 0.1);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+      osc.connect(bp); bp.connect(g); g.connect(dest);
+      osc.start(t); osc.stop(t + 0.16);
+    });
+
+    // Sub bass pulse — felt more than heard
+    const sub = c.createOscillator(); sub.type = "sine";
+    sub.frequency.value = 55;
+    const subG = c.createGain();
+    subG.gain.setValueAtTime(0.15, now);
+    subG.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    sub.connect(subG); subG.connect(dest);
+    sub.start(now); sub.stop(now + 0.55);
+
+    // Crackling urgency noise
+    const urgLen = Math.floor(c.sampleRate * 0.05);
+    const urgBuf = c.createBuffer(1, urgLen, c.sampleRate);
+    const urgD = urgBuf.getChannelData(0);
+    for (let i = 0; i < urgLen; i++) urgD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / urgLen, 1.5);
+    const urgN = c.createBufferSource(); urgN.buffer = urgBuf;
+    const urgHP = c.createBiquadFilter(); urgHP.type = "bandpass"; urgHP.frequency.value = 1500; urgHP.Q.value = 2;
+    const urgG = c.createGain(); urgG.gain.setValueAtTime(0.08, now + 0.45);
+    urgG.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    urgN.connect(urgHP); urgHP.connect(urgG); urgG.connect(dest); urgN.start(now + 0.45);
+  });
+}
+
+// ─── WAVE INCOMING WARNING HORN — deeper, more urgent than sfxWaveHorn ───
+export function sfxWaveIncoming(waveNumber) {
+  playSfx((c, now, dest) => {
+    // Escalating urgency based on wave number
+    const urgency = Math.min(1, (waveNumber || 1) / 5);
+
+    // Deep war drum intro — rumbling approach
+    for (let i = 0; i < 3; i++) {
+      const t = now + i * 0.12;
+      const drum = c.createOscillator(); drum.type = "sine";
+      drum.frequency.setValueAtTime(70 + i * 10, t);
+      drum.frequency.exponentialRampToValueAtTime(25, t + 0.1);
+      const dg = c.createGain();
+      dg.gain.setValueAtTime(0.15 + i * 0.05, t);
+      dg.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      drum.connect(dg); dg.connect(dest);
+      drum.start(t); drum.stop(t + 0.15);
+    }
+
+    // Main horn blast — pitch rises with wave urgency
+    const baseFreq = 90 + urgency * 30;
+    const horn = c.createOscillator(); horn.type = "sawtooth";
+    horn.frequency.setValueAtTime(baseFreq, now + 0.4);
+    horn.frequency.linearRampToValueAtTime(baseFreq * 1.15, now + 0.7);
+    horn.frequency.linearRampToValueAtTime(baseFreq * 1.05, now + 1.2);
+    const hf = c.createBiquadFilter(); hf.type = "lowpass";
+    hf.frequency.value = 400 + urgency * 200; hf.Q.value = 1.5;
+    const hg = c.createGain();
+    hg.gain.setValueAtTime(0, now + 0.4);
+    hg.gain.linearRampToValueAtTime(0.22, now + 0.55);
+    hg.gain.setValueAtTime(0.22, now + 0.9);
+    hg.gain.exponentialRampToValueAtTime(0.01, now + 1.3);
+    horn.connect(hf); hf.connect(hg); hg.connect(dest);
+    horn.start(now + 0.4); horn.stop(now + 1.35);
+
+    // Second harmonic for brass richness
+    const h2 = c.createOscillator(); h2.type = "sawtooth";
+    h2.frequency.value = baseFreq * 1.5;
+    const h2g = c.createGain();
+    h2g.gain.setValueAtTime(0, now + 0.42);
+    h2g.gain.linearRampToValueAtTime(0.08, now + 0.6);
+    h2g.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+    h2.connect(hf); h2.start(now + 0.42); h2.stop(now + 1.25);
+
+    // Reverberant tail — ghostly echo
+    const revLen = Math.floor(c.sampleRate * 1.0);
+    const revBuf = c.createBuffer(1, revLen, c.sampleRate);
+    const revD = revBuf.getChannelData(0);
+    for (let i = 0; i < revLen; i++) revD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / revLen, 3);
+    const revN = c.createBufferSource(); revN.buffer = revBuf;
+    const revF = c.createBiquadFilter(); revF.type = "bandpass"; revF.frequency.value = 200; revF.Q.value = 0.5;
+    const revG = c.createGain();
+    revG.gain.setValueAtTime(0.06, now + 1.2);
+    revG.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+    revN.connect(revF); revF.connect(revG); revG.connect(dest); revN.start(now + 1.2);
+  });
+}
+
+// ─── HEADSHOT CONFIRMATION SFX — satisfying skull-crack ping ───
+export function sfxHeadshotConfirm() {
+  playSfx((c, now, dest) => {
+    // Sharp crack — bone/skull impact
+    const crkLen = Math.floor(c.sampleRate * 0.012);
+    const crkBuf = c.createBuffer(1, crkLen, c.sampleRate);
+    const crkD = crkBuf.getChannelData(0);
+    for (let i = 0; i < crkLen; i++) crkD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / crkLen, 0.5);
+    const crkN = c.createBufferSource(); crkN.buffer = crkBuf;
+    const crkG = c.createGain(); crkG.gain.setValueAtTime(0.3, now);
+    crkG.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
+    crkN.connect(crkG); crkG.connect(dest); crkN.start(now);
+
+    // Rising ping — rewarding feedback tone
+    const ping = c.createOscillator(); ping.type = "sine";
+    ping.frequency.setValueAtTime(1200, now + 0.01);
+    ping.frequency.exponentialRampToValueAtTime(1800, now + 0.08);
+    const pg = c.createGain();
+    pg.gain.setValueAtTime(0.15, now + 0.01);
+    pg.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    ping.connect(pg); pg.connect(dest);
+    ping.start(now + 0.01); ping.stop(now + 0.25);
+
+    // Low satisfying thud
+    const thud = c.createOscillator(); thud.type = "sine";
+    thud.frequency.setValueAtTime(120, now); thud.frequency.exponentialRampToValueAtTime(40, now + 0.08);
+    const tg = c.createGain(); tg.gain.setValueAtTime(0.2, now); tg.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    thud.connect(tg); tg.connect(dest); thud.start(now); thud.stop(now + 0.12);
   });
 }
 
