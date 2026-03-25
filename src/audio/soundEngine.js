@@ -3770,77 +3770,73 @@ export function sfxEnemyProjectile() {
 
 // Single segment collapse: deep rumble + cracking
 export function sfxStructureCollapse() {
-  const c = getCtx(); if (!c) return;
-  const now = c.currentTime;
-  const dest = sfxGain || masterGain;
+  playSfx((c, now, dest) => {
+    // Low rumble
+    const rumble = c.createOscillator();
+    rumble.type = "sawtooth";
+    rumble.frequency.setValueAtTime(60, now);
+    rumble.frequency.exponentialRampToValueAtTime(30, now + 0.6);
+    const rf = c.createBiquadFilter(); rf.type = "lowpass"; rf.frequency.value = 120;
+    const rg = c.createGain();
+    rg.gain.setValueAtTime(0.2, now);
+    rg.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+    rumble.connect(rf); rf.connect(rg); rg.connect(dest);
+    rumble.start(now); rumble.stop(now + 0.75);
 
-  // Low rumble
-  const rumble = c.createOscillator();
-  rumble.type = "sawtooth";
-  rumble.frequency.setValueAtTime(60, now);
-  rumble.frequency.exponentialRampToValueAtTime(30, now + 0.6);
-  const rf = c.createBiquadFilter(); rf.type = "lowpass"; rf.frequency.value = 120;
-  const rg = c.createGain();
-  rg.gain.setValueAtTime(0.2, now);
-  rg.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
-  rumble.connect(rf); rf.connect(rg); rg.connect(dest);
-  rumble.start(now); rumble.stop(now + 0.75);
-
-  // Crack noise burst
-  const nLen = Math.floor(c.sampleRate * 0.3);
-  const nBuf = c.createBuffer(1, nLen, c.sampleRate);
-  const nD = nBuf.getChannelData(0);
-  for (let i = 0; i < nLen; i++) nD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / nLen, 2);
-  const nN = c.createBufferSource(); nN.buffer = nBuf;
-  const nF = c.createBiquadFilter(); nF.type = "bandpass"; nF.frequency.value = 800; nF.Q.value = 1;
-  const ng = c.createGain();
-  ng.gain.setValueAtTime(0.15, now);
-  ng.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-  nN.connect(nF); nF.connect(ng); ng.connect(dest);
-  nN.start(now);
+    // Crack noise burst
+    const nLen = Math.floor(c.sampleRate * 0.3);
+    const nBuf = c.createBuffer(1, nLen, c.sampleRate);
+    const nD = nBuf.getChannelData(0);
+    for (let i = 0; i < nLen; i++) nD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / nLen, 2);
+    const nN = c.createBufferSource(); nN.buffer = nBuf;
+    const nF = c.createBiquadFilter(); nF.type = "bandpass"; nF.frequency.value = 800; nF.Q.value = 1;
+    const ng = c.createGain();
+    ng.gain.setValueAtTime(0.15, now);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    nN.connect(nF); nF.connect(ng); ng.connect(dest);
+    nN.start(now);
+  });
 }
 
 // Full structure destruction: dramatic crash + reverb tail
 export function sfxStructureFullDestroy() {
-  const c = getCtx(); if (!c) return;
-  const now = c.currentTime;
-  const dest = sfxGain || masterGain;
+  playSfx((c, now, dest) => {
+    // Deep impact boom
+    const boom = c.createOscillator();
+    boom.type = "sine";
+    boom.frequency.setValueAtTime(80, now);
+    boom.frequency.exponentialRampToValueAtTime(20, now + 1.0);
+    const bf = c.createBiquadFilter(); bf.type = "lowpass"; bf.frequency.value = 150;
+    const bg = c.createGain();
+    bg.gain.setValueAtTime(0.3, now);
+    bg.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
+    boom.connect(bf); bf.connect(bg); bg.connect(dest);
+    boom.start(now); boom.stop(now + 1.15);
 
-  // Deep impact boom
-  const boom = c.createOscillator();
-  boom.type = "sine";
-  boom.frequency.setValueAtTime(80, now);
-  boom.frequency.exponentialRampToValueAtTime(20, now + 1.0);
-  const bf = c.createBiquadFilter(); bf.type = "lowpass"; bf.frequency.value = 150;
-  const bg = c.createGain();
-  bg.gain.setValueAtTime(0.3, now);
-  bg.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
-  boom.connect(bf); bf.connect(bg); bg.connect(dest);
-  boom.start(now); boom.stop(now + 1.15);
+    // Crash noise: long decay debris sound
+    const crLen = Math.floor(c.sampleRate * 1.2);
+    const crBuf = c.createBuffer(1, crLen, c.sampleRate);
+    const crD = crBuf.getChannelData(0);
+    for (let i = 0; i < crLen; i++) crD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / crLen, 1.5) * 0.6;
+    const crN = c.createBufferSource(); crN.buffer = crBuf;
+    const crF = c.createBiquadFilter(); crF.type = "bandpass"; crF.frequency.value = 500; crF.Q.value = 0.5;
+    const cg = c.createGain();
+    cg.gain.setValueAtTime(0.2, now + 0.05);
+    cg.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+    crN.connect(crF); crF.connect(cg); cg.connect(dest);
+    crN.start(now + 0.05);
 
-  // Crash noise: long decay debris sound
-  const crLen = Math.floor(c.sampleRate * 1.2);
-  const crBuf = c.createBuffer(1, crLen, c.sampleRate);
-  const crD = crBuf.getChannelData(0);
-  for (let i = 0; i < crLen; i++) crD[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / crLen, 1.5) * 0.6;
-  const crN = c.createBufferSource(); crN.buffer = crBuf;
-  const crF = c.createBiquadFilter(); crF.type = "bandpass"; crF.frequency.value = 500; crF.Q.value = 0.5;
-  const cg = c.createGain();
-  cg.gain.setValueAtTime(0.2, now + 0.05);
-  cg.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
-  crN.connect(crF); crF.connect(cg); cg.connect(dest);
-  crN.start(now + 0.05);
-
-  // Victory chime: brief high note
-  const chime = c.createOscillator();
-  chime.type = "triangle";
-  chime.frequency.value = 880;
-  const chg = c.createGain();
+    // Victory chime: brief high note
+    const chime = c.createOscillator();
+    chime.type = "triangle";
+    chime.frequency.value = 880;
+    const chg = c.createGain();
   chg.gain.setValueAtTime(0, now + 0.3);
   chg.gain.linearRampToValueAtTime(0.08, now + 0.4);
   chg.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
   chime.connect(chg); chg.connect(dest);
-  chime.start(now + 0.3); chime.stop(now + 0.95);
+    chime.start(now + 0.3); chime.stop(now + 0.95);
+  });
 }
 
 export function sfxWeather(weatherId) {

@@ -3911,6 +3911,7 @@ export default function App() {
         });
       }
       setObstacles(fallbackObs);
+      setStructures([]);
       console.log(`[OBSTACLE FALLBACK] Created ${fallbackObs.length} fallback obstacles`);
     }
 
