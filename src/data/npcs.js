@@ -121,6 +121,36 @@ export const BIOME_NPCS = {
     { icon: "skull", name: "Kościany Strażnik", hp: 60, resist: null, loot: { silver: 1, copper: 20 }, rarity: "rare", bodyColor: "#2a2040", armorColor: "#6040a0", bodyType: "humanoid", ability: { type: "shadowBolt", damage: 10, cooldown: 4000, element: "shadow", range: 28 } },
     { icon: "kraken", name: "Morska Bestia", hp: 100, resist: null, loot: { silver: 3 }, rarity: "legendary", bodyColor: "#303060", armorColor: "#202048", bodyType: "tentacle", ability: { type: "charge", damage: 20, cooldown: 5000, element: null, range: 35 } },
   ],
+
+  // ─── DUNGEON ENEMY POOLS ───
+  dungeon_mine: [
+    { icon: "pickaxe", name: "Gobliński Górnik", hp: 25, resist: null, loot: { copper: 8 }, rarity: "common", bodyColor: "#5a6a30", armorColor: "#3a4a18", bodyType: "humanoid", ability: { type: "charge", damage: 7, cooldown: 4500, element: null, range: 18 } },
+    { icon: "skull", name: "Jaskiniowy Nietoperz", hp: 15, resist: null, loot: { copper: 4 }, rarity: "common", bodyColor: "#4a3a30", armorColor: "#2a1a10", bodyType: "bird", ability: { type: "charge", damage: 5, cooldown: 3000, element: null, range: 20 } },
+    { icon: "rock", name: "Skalny Golem", hp: 80, resist: "fire", loot: { copper: 22, silver: 1 }, rarity: "rare", bodyColor: "#7a7060", armorColor: "#4a4030", bodyType: "humanoid", ability: { type: "charge", damage: 18, cooldown: 6000, element: null, range: 15 } },
+    { icon: "skull", name: "Kopalniana Tarantula", hp: 30, resist: null, loot: { copper: 10 }, rarity: "uncommon", bodyColor: "#3a2a20", armorColor: "#1a1008", bodyType: "spider", ability: { type: "poisonSpit", damage: 6, cooldown: 4000, element: "shadow", range: 20 } },
+    { icon: "skull", name: "Tunelowy Szczur", hp: 18, resist: null, loot: { copper: 5 }, rarity: "common", bodyColor: "#6a5a40", armorColor: "#4a3a28", bodyType: "quadruped", ability: { type: "charge", damage: 6, cooldown: 3500, element: null, range: 16 } },
+  ],
+  dungeon_crypt: [
+    { icon: "skull", name: "Szkieletowy Wojownik", hp: 35, resist: null, loot: { copper: 12 }, rarity: "common", bodyColor: "#d0c8a0", armorColor: "#504030", bodyType: "humanoid", ability: { type: "charge", damage: 10, cooldown: 5000, element: null, range: 22 } },
+    { icon: "ghost", name: "Duch Pirata", hp: 40, resist: "ice", loot: { copper: 14 }, rarity: "uncommon", bodyColor: "#6080a0", armorColor: "#405070", bodyType: "floating", ability: { type: "shadowBolt", damage: 8, cooldown: 4000, element: "shadow", range: 24 } },
+    { icon: "skull", name: "Grobowy Skarabeusz", hp: 20, resist: null, loot: { copper: 6 }, rarity: "common", bodyColor: "#2a4a1a", armorColor: "#1a3008", bodyType: "spider", ability: { type: "poisonSpit", damage: 5, cooldown: 3500, element: "shadow", range: 18 } },
+    { icon: "swords", name: "Kościany Łucznik", hp: 30, resist: null, loot: { copper: 11 }, rarity: "uncommon", bodyColor: "#c8c090", armorColor: "#605838", bodyType: "humanoid", ability: { type: "shadowBolt", damage: 8, cooldown: 4500, element: "shadow", range: 26 } },
+    { icon: "ghost", name: "Upiór", hp: 55, resist: "ice", loot: { copper: 18, silver: 1 }, rarity: "rare", bodyColor: "#4a4070", armorColor: "#2a2050", bodyType: "floating", ability: { type: "shadowBolt", damage: 12, cooldown: 3500, element: "shadow", range: 28 } },
+  ],
+  dungeon_cave: [
+    { icon: "skull", name: "Jaskiniowy Krab", hp: 35, resist: null, loot: { copper: 10 }, rarity: "common", bodyColor: "#6a5040", armorColor: "#4a3028", bodyType: "crab", ability: { type: "charge", damage: 10, cooldown: 5000, element: null, range: 18 } },
+    { icon: "water", name: "Ślepy Rybo-Potwór", hp: 28, resist: "ice", loot: { copper: 8 }, rarity: "common", bodyColor: "#4a6a80", armorColor: "#2a4a60", bodyType: "serpent", ability: { type: "charge", damage: 8, cooldown: 4000, element: null, range: 20 } },
+    { icon: "skull", name: "Stalaktytowy Nietoperz", hp: 22, resist: null, loot: { copper: 7 }, rarity: "common", bodyColor: "#5a5048", armorColor: "#3a3028", bodyType: "bird", ability: { type: "charge", damage: 6, cooldown: 3000, element: null, range: 22 } },
+    { icon: "crystal", name: "Kryształowy Golem", hp: 70, resist: "ice", loot: { copper: 20, silver: 1 }, rarity: "rare", bodyColor: "#60a0c0", armorColor: "#307090", bodyType: "humanoid", ability: { type: "iceShot", damage: 14, cooldown: 5000, element: "ice", range: 22 } },
+    { icon: "skull", name: "Głębinowy Węgorz", hp: 45, resist: "ice", loot: { copper: 15 }, rarity: "uncommon", bodyColor: "#305060", armorColor: "#183040", bodyType: "serpent", ability: { type: "shadowBolt", damage: 10, cooldown: 4500, element: "lightning", range: 24 } },
+  ],
+  dungeon_ruins: [
+    { icon: "rock", name: "Kamienny Strażnik", hp: 60, resist: "fire", loot: { copper: 16 }, rarity: "uncommon", bodyColor: "#808070", armorColor: "#505040", bodyType: "humanoid", ability: { type: "charge", damage: 14, cooldown: 5500, element: null, range: 20 } },
+    { icon: "skull", name: "Ruinowy Szczur", hp: 20, resist: null, loot: { copper: 6 }, rarity: "common", bodyColor: "#5a4a38", armorColor: "#3a2a18", bodyType: "quadruped", ability: { type: "charge", damage: 6, cooldown: 3500, element: null, range: 16 } },
+    { icon: "swords", name: "Przeklęty Rycerz", hp: 55, resist: null, loot: { copper: 18, silver: 1 }, rarity: "rare", bodyColor: "#4a4a5a", armorColor: "#2a2a3a", bodyType: "humanoid", ability: { type: "charge", damage: 14, cooldown: 4500, element: "shadow", range: 24 } },
+    { icon: "skull", name: "Starożytny Pająk", hp: 38, resist: null, loot: { copper: 12 }, rarity: "uncommon", bodyColor: "#3a3028", armorColor: "#1a1810", bodyType: "spider", ability: { type: "poisonSpit", damage: 8, cooldown: 4000, element: "shadow", range: 22 } },
+    { icon: "rock", name: "Pułapkowy Golem", hp: 75, resist: "fire", loot: { copper: 20, silver: 1 }, rarity: "rare", bodyColor: "#6a6860", armorColor: "#3a3830", bodyType: "humanoid", ability: { type: "fireBreath", damage: 12, cooldown: 5000, element: "fire", range: 20 } },
+  ],
 };
 
 // Actions the player can perform – each has ammo cost, cooldown (ms), damage, element
