@@ -3156,8 +3156,8 @@ export default function App() {
               // Compute segment center in pixel coords
               const sPx = isoModeRef.current ? (struct.x / ISO_CONFIG.MAP_COLS) * GAME_W : (struct.x / 100) * GAME_W;
               const sPy = isoModeRef.current ? (struct.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (struct.y / 100) * GAME_H;
-              const scx = sPx + (seg.x + seg.w / 2) / struct.width * 60;
-              const scy = sPy - (seg.y + seg.h / 2) / struct.height * 100;
+              const scx = sPx + (seg.x + seg.w / 2) - struct.width / 2;
+              const scy = sPy - (seg.y + seg.h / 2);
               const shw = seg.w * 0.5 + 4;
               const shh = seg.h * 0.5 + 4;
               const pr = proj.hitRadius || 8;
@@ -7916,8 +7916,8 @@ export default function App() {
         const px = isoModeRef.current ? (struct.x / ISO_CONFIG.MAP_COLS) * GAME_W : (struct.x / 100) * GAME_W;
         const py = isoModeRef.current ? (struct.y / ISO_CONFIG.MAP_ROWS) * GAME_H : GAME_H - (struct.y / 100) * GAME_H;
         // Offset by segment position within structure
-        const segPxX = px + (seg.x / struct.width) * 60;
-        const segPxY = py - (seg.y / struct.height) * 100;
+        const segPxX = px + seg.x + seg.w / 2 - struct.width / 2;
+        const segPxY = py - seg.y - seg.h / 2;
 
         if (pixiRef.current) {
           pixiRef.current.spawnObstacleHitSpark(segPxX, segPxY, matDef.color);
@@ -7979,6 +7979,7 @@ export default function App() {
                     if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, blastEl, Math.sign(ddx) || 1);
                     addMoneyFn(ww.npcData.loot);
                     setKills(k => k + 1);
+                    processKillStreak();
                     showMessage(`${ww.npcData.name} pokonany!`, "#ff6020");
                     setTimeout(() => setWalkers(pp2 => pp2.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
                     return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
@@ -8085,8 +8086,11 @@ export default function App() {
         const segKey = `struct_${struct.id}_${seg.id}`;
         if (saberHitIdsRef.current.has(segKey)) continue;
         // Hit check against segment
-        const segCx = struct.x + (seg.x + seg.w / 2) / struct.width * hitRadius;
-        const segCy = struct.y + (seg.y + seg.h / 2) / struct.height * hitRadius;
+        // Saber coordinates are in game units (% or tiles), approximate segment center
+        const segOffX = ((seg.x + seg.w / 2) / struct.width - 0.5) * (isoModeRef.current ? 3 : 6);
+        const segOffY = (seg.y + seg.h / 2) / struct.height * (isoModeRef.current ? 3 : 6);
+        const segCx = struct.x + segOffX;
+        const segCy = struct.y - segOffY;
         const sdx = segCx - x, sdy = segCy - (isoModeRef.current ? y : (100 - y));
         if (sdx * sdx + sdy * sdy < hitRadius * hitRadius) {
           saberHitIdsRef.current.add(segKey);
