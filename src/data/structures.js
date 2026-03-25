@@ -655,6 +655,7 @@ export const STRUCTURE_DEFS = {
         material: "organic",
         hp: 60,
         x: 0, y: 55, w: 70, h: 40,
+        supports: ["spores"],
         dependsOn: ["stem"],
         collapseDelay: 400,
         explosive: true,
