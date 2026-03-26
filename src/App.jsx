@@ -2438,10 +2438,13 @@ export default function App() {
           const oel = obsElsRef.current[obs.id];
           _positionPoiEl(oel, obs.x, obs.y);
         }
-        // Sync structure DOM positions
+        // Sync structure DOM positions + fog visibility
         for (const struct of structuresRef.current) {
           const sEl = structElsRef.current[struct.id];
-          if (sEl) _positionPoiEl(sEl, struct.x, struct.y);
+          if (sEl) {
+            _positionPoiEl(sEl, struct.x, struct.y);
+            sEl.style.visibility = (_isoActive && !struct._fogDiscovered) ? "hidden" : "visible";
+          }
         }
 
         // Sync all other POI positions (iso mode only — panoramic handled by React)
@@ -3234,7 +3237,7 @@ export default function App() {
           if (obs._fogDiscovered) continue;
           const ocol = Math.floor(obs.x), orow = Math.floor(obs.y);
           if (ocol >= 0 && ocol < ISO_CONFIG.MAP_COLS && orow >= 0 && orow < ISO_CONFIG.MAP_ROWS) {
-            if (terrainDataRef.current.fogGrid[orow * ISO_CONFIG.MAP_COLS + ocol] >= 0.3) {
+            if (terrainDataRef.current.fogGrid[orow * ISO_CONFIG.MAP_COLS + ocol] > 0.01) {
               obs._fogDiscovered = true;
               obsAnyDiscovered = true;
             }
@@ -3242,17 +3245,23 @@ export default function App() {
         }
         if (obsAnyDiscovered) setObstacles([...obstaclesRef.current]);
 
-        // Fog discovery for structures (once discovered, stay visible forever)
+        // Fog discovery for structures — check 3x3 area around center (structures are large)
         let structAnyDiscovered = false;
         for (const struct of structuresRef.current) {
           if (struct._fogDiscovered) continue;
           const scol = Math.floor(struct.x), srow = Math.floor(struct.y);
-          if (scol >= 0 && scol < ISO_CONFIG.MAP_COLS && srow >= 0 && srow < ISO_CONFIG.MAP_ROWS) {
-            if (terrainDataRef.current.fogGrid[srow * ISO_CONFIG.MAP_COLS + scol] >= 0.3) {
-              struct._fogDiscovered = true;
-              structAnyDiscovered = true;
+          let found = false;
+          for (let dy = -1; dy <= 1 && !found; dy++) {
+            for (let dx = -1; dx <= 1 && !found; dx++) {
+              const nc = scol + dx, nr = srow + dy;
+              if (nc >= 0 && nc < ISO_CONFIG.MAP_COLS && nr >= 0 && nr < ISO_CONFIG.MAP_ROWS) {
+                if (terrainDataRef.current.fogGrid[nr * ISO_CONFIG.MAP_COLS + nc] > 0.01) {
+                  found = true;
+                }
+              }
             }
           }
+          if (found) { struct._fogDiscovered = true; structAnyDiscovered = true; }
         }
         if (structAnyDiscovered) setStructures([...structuresRef.current]);
 
@@ -3263,7 +3272,7 @@ export default function App() {
             if (entry.friendly) { entry._fogHidden = false; continue; }
             const nwx = Math.floor(entry._wx ?? 0), nwy = Math.floor(entry._wy ?? 0);
             if (nwx >= 0 && nwx < ISO_CONFIG.MAP_COLS && nwy >= 0 && nwy < ISO_CONFIG.MAP_ROWS) {
-              if (_fg[nwy * ISO_CONFIG.MAP_COLS + nwx] >= 0.3) entry._fogDiscovered = true;
+              if (_fg[nwy * ISO_CONFIG.MAP_COLS + nwx] > 0.01) entry._fogDiscovered = true;
               entry._fogHidden = !entry._fogDiscovered;
             }
           }
@@ -4506,15 +4515,20 @@ export default function App() {
   }
 
   // Check stairs proximity in game loop (called per frame when in dungeon)
+  const stairsDismissedRef = useRef(false); // prevent re-show after cancel
   const checkDungeonStairs = useCallback(() => {
     const dState = dungeonStateRef.current;
     if (!dState || dungeonTransitioning) return;
 
     const interaction = checkStairsProximity(caravanPosRef.current, dState, 2.0);
     if (interaction && !stairsPrompt) {
-      setStairsPrompt(interaction);
-    } else if (!interaction && stairsPrompt) {
-      setStairsPrompt(null);
+      if (!stairsDismissedRef.current) {
+        setStairsPrompt(interaction);
+      }
+    } else if (!interaction) {
+      // Player moved away from stairs — reset dismiss flag
+      stairsDismissedRef.current = false;
+      if (stairsPrompt) setStairsPrompt(null);
     }
   }, [stairsPrompt, dungeonTransitioning]);
 
@@ -4538,7 +4552,18 @@ export default function App() {
           setStairsPrompt({ type: "exit_dungeon", position: currentLevelData.exitPos || { col: dState.mapSize / 2, row: dState.mapSize / 2 } });
         }, 2000);
       } else {
-        showMessage(`Piętro ${dState.currentLevel + 1} oczyszczone!`, "#44ff44");
+        showMessage(`Piętro ${dState.currentLevel + 1} oczyszczone! Znajdź schody.`, "#44ff44");
+        // Auto-show stairs prompt after short delay if stairs down exist
+        if (currentLevelData.stairs.down) {
+          setTimeout(() => {
+            stairsDismissedRef.current = false;
+            setStairsPrompt({
+              type: "descend",
+              targetLevel: dState.currentLevel + 1,
+              position: currentLevelData.stairs.down,
+            });
+          }, 2000);
+        }
       }
     }
   }, []);
@@ -7243,13 +7268,25 @@ export default function App() {
     }
   }, []);
 
-  // ─── CARAVAN MOVEMENT: Click to select, click map to move ───
+  // ─── CARAVAN MOVEMENT: Click to select, click map to move, right-click/Esc to deselect ───
   const handleCaravanClick = useCallback((e) => {
     e.stopPropagation();
     if (!isoModeRef.current) return;
-    setCaravanSelected(prev => !prev);
-    // Cancel any active movement when toggling selection
+    if (!caravanSelectedRef.current) {
+      setCaravanSelected(true);
+    } else {
+      // Deselect + cancel movement
+      setCaravanSelected(false);
+      caravanMoveRef.current.active = false;
+    }
+  }, []);
+
+  // Right-click deselects caravan
+  const handleCaravanRightClick = useCallback((e) => {
     if (caravanSelectedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      setCaravanSelected(false);
       caravanMoveRef.current.active = false;
     }
   }, []);
@@ -7293,7 +7330,7 @@ export default function App() {
     }
 
     caravanMoveRef.current = { active: true, targetX: tx, targetY: ty, speed: 2.5 };
-    setCaravanSelected(false);
+    // Keep caravan selected so player can issue multiple movement orders
     return true;
   }, [gameScale, selectedSpell, skillshotMode]);
 
@@ -9298,6 +9335,7 @@ export default function App() {
       {/* Scaled game container – fills entire screen on mobile */}
       <div ref={gameContainerRef}
         onClick={placingFort ? handleFortPlaceClick : placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode && !isSalvaMode) ? handleSkillshotClick : (e) => { handleCaravanMoveClick(e); }}
+        onContextMenu={handleCaravanRightClick}
         onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
         onMouseMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; const _wsx = (cx - gr.left) / gameScale; const _wsy = (cy - gr.top) / gameScale; wandOrbsRef.current.screenX = _wsx; wandOrbsRef.current.screenY = _wsy; if (isoModeRef.current) { const cam = isoCameraRef.current; const iw = _isoScreenToWorld(_wsx, _wsy, cam.x, cam.y); wandOrbsRef.current.cursorX = iw.x; wandOrbsRef.current.cursorY = iw.y; } else { wandOrbsRef.current.cursorX = (_wsx / GAME_W) * 100; wandOrbsRef.current.cursorY = (_wsy / GAME_H) * 100; } } }}
         onMouseUp={(e) => { if (panRef.current.dragging) { handlePanEnd(); return; } if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
@@ -9807,7 +9845,7 @@ export default function App() {
             changeDungeonLevel(stairsPrompt.targetLevel);
           }
         }}
-        onCancel={() => setStairsPrompt(null)}
+        onCancel={() => { stairsDismissedRef.current = true; setStairsPrompt(null); }}
       />
 
       {/* Dungeon cross-section overlay */}
@@ -11027,12 +11065,12 @@ export default function App() {
 
       {/* ─── COMPOSITE STRUCTURES (advanced visual models) ─── */}
       {structures.map(struct => {
-        // Fog of war: hide undiscovered structures in iso mode
-        if (isoModeRef.current && !struct._fogDiscovered) return null;
         if (struct.allDestroyed && struct.segments.every(s => s.destroying && Date.now() - s.hitAnim > 800)) return null;
         const _isI = isoModeRef.current;
+        // Fog of war: hide undiscovered (use visibility so ref/DOM sync still works)
+        const fogHidden = _isI && !struct._fogDiscovered;
         const structLeft = poiLeft(struct.x, struct.y);
-        // Always render div (even if off-screen) so ref is set for DOM sync
+        // Always render div (even if off-screen/fog-hidden) so ref is set for DOM sync
         const structDef = STRUCTURE_DEFS[struct.defId];
         const decorations = structDef?.decorations || [];
         const _now = Date.now();
@@ -11041,6 +11079,7 @@ export default function App() {
             position: "absolute",
             left: structLeft || "0px",
             display: structLeft === null && !_isI ? "none" : "",
+            visibility: fogHidden ? "hidden" : "visible",
             ...(_isI ? { top: poiTop(struct.x, struct.y), transform: "translateX(-50%) translateY(-100%)" }
               : { bottom: `${struct.y}%`, transform: `translateX(-50%) scale(${scaleAtDepth(depthFromY(100 - struct.y))})` }),
             zIndex: _isI ? poiZIndex(struct.x, struct.y) : 14 + zIndexAtDepth(depthFromY(100 - struct.y)),
@@ -11369,7 +11408,7 @@ export default function App() {
             const ncol = Math.floor(wd_pos.x), nrow = Math.floor(wd_pos.y ?? ISO_CONFIG.MAP_ROWS / 2);
             if (ncol >= 0 && ncol < ISO_CONFIG.MAP_COLS && nrow >= 0 && nrow < ISO_CONFIG.MAP_ROWS) {
               const npcFogVal = terrainDataRef.current.fogGrid[nrow * ISO_CONFIG.MAP_COLS + ncol];
-              if (npcFogVal >= 0.3) { w._fogDiscovered = true; }
+              if (npcFogVal > 0.01) { w._fogDiscovered = true; }
               if (!w._fogDiscovered) return null; // hidden in fog
             }
           }
