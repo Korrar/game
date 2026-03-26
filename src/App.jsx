@@ -311,6 +311,7 @@ export default function App() {
   const waterfallElRef = useRef(null);
   const fruitTreeElRef = useRef(null);
   const obsElsRef = useRef({});
+  const structElsRef = useRef({});
   const chestElRef = useRef(null);
   const mercCampElRef = useRef(null);
   const wizardElRef = useRef(null);
@@ -2456,6 +2457,11 @@ export default function App() {
           if (defensePoiElRef.current && _dp && !_dp.activated) _positionPoiEl(defensePoiElRef.current, _dp.x, _dp.y);
           if (shopElRef.current) _positionPoiEl(shopElRef.current, 10, 15);
           if (hideoutElRef.current) _positionPoiEl(hideoutElRef.current, 30, 25);
+          // Sync structure DOM positions
+          for (const struct of structuresRef.current) {
+            const sEl = structElsRef.current[struct.id];
+            if (sEl) _positionPoiEl(sEl, struct.x, struct.y);
+          }
           // Caravan movement (terrain-aware: roads +30%, water -40%, cliffs block)
           {
             const mv = caravanMoveRef.current;
@@ -3204,23 +3210,18 @@ export default function App() {
           mapResourcesRef.current.updateDiscovery(terrainDataRef.current.fogGrid, ISO_CONFIG.MAP_COLS);
         }
 
-        // Update interactable discovery (hidden in fog until revealed)
+        // Fog of war disabled — mark all interactables as discovered
         const _interacts = interactablesRef.current;
         if (_interacts.length > 0) {
           let anyDiscovered = false;
           for (const item of _interacts) {
-            if (item._fogHidden === undefined) { item._fogHidden = true; item._discovered = false; }
-            if (item._discovered) continue;
-            // Convert item viewport% to world tile
-            const iwx = (item.x / 100) * ISO_CONFIG.MAP_COLS;
-            const iwy = (item.y / 100) * ISO_CONFIG.MAP_ROWS;
-            const icol = Math.floor(iwx), irow = Math.floor(iwy);
-            if (icol >= 0 && icol < ISO_CONFIG.MAP_COLS && irow >= 0 && irow < ISO_CONFIG.MAP_ROWS) {
-              const fogVal = terrainDataRef.current.fogGrid[irow * ISO_CONFIG.MAP_COLS + icol];
-              if (fogVal >= 0.5) { item._discovered = true; item._fogHidden = false; anyDiscovered = true; }
+            if (!item._discovered) {
+              item._fogHidden = false;
+              item._discovered = true;
+              anyDiscovered = true;
             }
           }
-          if (anyDiscovered) setInteractables([..._interacts]); // trigger re-render
+          if (anyDiscovered) setInteractables([..._interacts]);
         }
       }
 
@@ -3541,10 +3542,10 @@ export default function App() {
     // Biome interactive terrain elements
     if (!isDefenseRoom) {
       const roomInteractables = rollInteractables(b.id);
-      // In iso mode, interactables start hidden until fog reveals them
+      // Fog of war disabled — all interactables visible immediately
       if (isoModeRef.current) {
         for (const item of roomInteractables) {
-          item._fogHidden = true;
+          item._fogHidden = false;
           item._discovered = false;
         }
       }
@@ -4100,6 +4101,7 @@ export default function App() {
     walkDataRef.current = { ...preservedData, ...newWalkData };
     npcElsRef.current = {};
     obsElsRef.current = {};
+    structElsRef.current = {};
     setSelectedSpell(null);
     setDragHighlight(null);
     setDmgPopups([]);
@@ -10983,7 +10985,7 @@ export default function App() {
         const decorations = structDef?.decorations || [];
         const _now = Date.now();
         return (
-          <div key={`struct-${struct.id}`} style={{
+          <div key={`struct-${struct.id}`} ref={el => { if (el) structElsRef.current[struct.id] = el; }} style={{
             position: "absolute",
             left: structLeft,
             ...(_isI ? { top: poiTop(struct.x, struct.y), transform: "translateX(-50%) translateY(-100%)" }
