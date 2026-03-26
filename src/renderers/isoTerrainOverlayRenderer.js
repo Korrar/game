@@ -4,6 +4,7 @@
 import { ISO_CONFIG, worldToScreen, getHeightAt } from "../utils/isometricUtils.js";
 import { ROAD_STYLES, WATER_FEATURES, VEGETATION, FOG_OF_WAR } from "../data/terrainFeatures.js";
 import { getIconImage } from "../rendering/icons.js";
+import { getTileSpeedMod } from "../systems/TerrainMovement.js";
 
 const { TILE_W, TILE_H, HEIGHT_PX, MAP_COLS, MAP_ROWS, GAME_W, GAME_H } = ISO_CONFIG;
 
@@ -542,6 +543,159 @@ function renderChokepoints(ctx, chokepoints, cameraX, cameraY) {
   ctx.globalAlpha = 1;
 }
 
+// ─── TERRAIN DIFFICULTY INDICATORS ───
+// Visual overlay showing tiles that slow or speed up movement
+
+function renderTerrainDifficulty(ctx, terrainData, cameraX, cameraY, time) {
+  if (!terrainData) return;
+  const { heightMap, overlays } = terrainData;
+  if (!heightMap || !overlays) return;
+
+  // Calculate visible tile range
+  const corners = [
+    { sx: -TILE_W, sy: -TILE_H },
+    { sx: GAME_W + TILE_W, sy: -TILE_H },
+    { sx: -TILE_W, sy: GAME_H + TILE_H },
+    { sx: GAME_W + TILE_W, sy: GAME_H + TILE_H },
+  ];
+  let minCol = MAP_COLS, maxCol = 0, minRow = MAP_ROWS, maxRow = 0;
+  for (const c of corners) {
+    const adjX = c.sx - GAME_W / 2 + cameraX;
+    const adjY = c.sy - GAME_H / 2 + cameraY;
+    const wx = (adjX / (TILE_W / 2) + adjY / (TILE_H / 2)) / 2;
+    const wy = (adjY / (TILE_H / 2) - adjX / (TILE_W / 2)) / 2;
+    minCol = Math.min(minCol, Math.floor(wx));
+    maxCol = Math.max(maxCol, Math.ceil(wx));
+    minRow = Math.min(minRow, Math.floor(wy));
+    maxRow = Math.max(maxRow, Math.ceil(wy));
+  }
+  minCol = Math.max(0, minCol - 1);
+  maxCol = Math.min(MAP_COLS - 1, maxCol + 1);
+  minRow = Math.max(0, minRow - 1);
+  maxRow = Math.min(MAP_ROWS - 1, maxRow + 1);
+
+  const t = time * 0.8;
+
+  for (let row = minRow; row <= maxRow; row++) {
+    for (let col = minCol; col <= maxCol; col++) {
+      const speedMod = getTileSpeedMod(col, row, terrainData);
+      // Skip normal/fast terrain and impassable (already shown as cliffs/water)
+      if (speedMod >= 0.85 || speedMod <= 0) continue;
+
+      const h = getHeightAt(heightMap, col, row);
+      const screen = worldToScreen(col, row, cameraX, cameraY);
+      if (screen.x < -TILE_W || screen.x > GAME_W + TILE_W ||
+          screen.y < -TILE_H * 2 || screen.y > GAME_H + TILE_H) continue;
+
+      const heightPx = Math.round(h * HEIGHT_PX);
+      const sx = screen.x;
+      const sy = screen.y - heightPx;
+
+      // Difficulty levels
+      if (speedMod < 0.45) {
+        // Very slow terrain (swamp, lava) — thick red-brown hazard stripes
+        const pulse = 0.5 + Math.sin(t + col * 0.7 + row * 0.5) * 0.15;
+        ctx.globalAlpha = 0.35 * pulse;
+        ctx.fillStyle = speedMod < 0.42 ? "#802010" : "#604020";
+        diamondPath(ctx, sx, sy);
+        ctx.fill();
+
+        // Warning hash marks
+        ctx.globalAlpha = 0.3 * pulse;
+        ctx.strokeStyle = "#c04020";
+        ctx.lineWidth = 1;
+        const cx = sx, cy = sy + TILE_H / 2;
+        for (let i = -1; i <= 1; i++) {
+          ctx.beginPath();
+          ctx.moveTo(cx + i * 6 - 3, cy - 4);
+          ctx.lineTo(cx + i * 6 + 3, cy + 4);
+          ctx.stroke();
+        }
+      } else if (speedMod < 0.65) {
+        // Slow terrain (water wading, poison) — amber diagonal lines
+        const pulse = 0.4 + Math.sin(t * 1.2 + col * 0.5 + row * 0.3) * 0.1;
+        ctx.globalAlpha = 0.25 * pulse;
+        ctx.fillStyle = "#806020";
+        diamondPath(ctx, sx, sy);
+        ctx.fill();
+
+        // Diagonal warning stripes
+        ctx.globalAlpha = 0.2 * pulse;
+        ctx.strokeStyle = "#c0a040";
+        ctx.lineWidth = 0.8;
+        const cx = sx, cy = sy + TILE_H / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx - 6, cy - 3);
+        ctx.lineTo(cx + 6, cy + 3);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx - 6, cy + 3);
+        ctx.lineTo(cx + 6, cy - 3);
+        ctx.stroke();
+      } else {
+        // Slightly slow terrain (vegetation, sand) — subtle dots
+        const pulse = 0.3 + Math.sin(t * 0.6 + col * 0.4 + row * 0.6) * 0.08;
+        ctx.globalAlpha = 0.15 * pulse;
+        ctx.fillStyle = "#a09060";
+        diamondPath(ctx, sx, sy);
+        ctx.fill();
+
+        // Small dots pattern
+        ctx.globalAlpha = 0.18 * pulse;
+        ctx.fillStyle = "#c0a060";
+        const cx = sx, cy = sy + TILE_H / 2;
+        ctx.beginPath();
+        ctx.arc(cx - 4, cy, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 4, cy, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx, cy - 2, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // ─── Speed boost indicators (roads/bridges/ice) ───
+  for (let row = minRow; row <= maxRow; row++) {
+    for (let col = minCol; col <= maxCol; col++) {
+      const speedMod = getTileSpeedMod(col, row, terrainData);
+      // Only show for significantly fast terrain (roads already have visual, but add subtle boost marker)
+      if (speedMod <= 1.1 || speedMod > 1.35) continue;
+
+      const h = getHeightAt(heightMap, col, row);
+      const screen = worldToScreen(col, row, cameraX, cameraY);
+      if (screen.x < -TILE_W || screen.x > GAME_W + TILE_W ||
+          screen.y < -TILE_H * 2 || screen.y > GAME_H + TILE_H) continue;
+
+      const heightPx = Math.round(h * HEIGHT_PX);
+      const sx = screen.x;
+      const sy = screen.y - heightPx;
+
+      // Subtle green shimmer for speed boost tiles
+      const pulse = 0.25 + Math.sin(t * 1.5 + col * 0.3 + row * 0.7) * 0.1;
+      ctx.globalAlpha = 0.08 * pulse;
+      ctx.fillStyle = "#40c060";
+      diamondPath(ctx, sx, sy);
+      ctx.fill();
+
+      // Small arrow chevrons indicating "fast lane"
+      ctx.globalAlpha = 0.12 * pulse;
+      ctx.strokeStyle = "#60e080";
+      ctx.lineWidth = 0.8;
+      const cx = sx, cy = sy + TILE_H / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - 3, cy + 2);
+      ctx.lineTo(cx, cy - 1);
+      ctx.lineTo(cx + 3, cy + 2);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 // ─── MAIN RENDER FUNCTION ───
 // Call after renderIsoBiome to overlay terrain features
 
@@ -573,6 +727,9 @@ export function renderTerrainOverlays(ctx, terrainData, cameraX, cameraY, enable
   }
 
   renderVegetation(ctx, terrainData, cameraX, cameraY, time);
+
+  // Terrain difficulty indicators (slow/fast zones)
+  renderTerrainDifficulty(ctx, terrainData, cameraX, cameraY, time);
 
   // Chokepoint indicators (subtle)
   if (chokepoints && chokepoints.length > 0) {
