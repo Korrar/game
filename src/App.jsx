@@ -1087,20 +1087,31 @@ export default function App() {
           meteorWaveRef.current = null;
           setMeteorite(null);
         } else {
-          addMoneyFn(w.npcData.loot || {});
-          // golden_reaper: double loot
-          if (hasRelic("golden_reaper")) addMoneyFn(w.npcData.loot || {});
+          // Drop loot on the ground instead of giving directly
+          const wd_kill = walkDataRef.current[w.id];
+          const lootData = { ...(w.npcData.loot || {}) };
+          if (hasRelic("golden_reaper")) {
+            lootData.copper = (lootData.copper || 0) * 2;
+            lootData.silver = (lootData.silver || 0) * 2;
+          }
+          spawnEnemyLoot(wd_kill, { ...w.npcData, loot: lootData }, w.isBoss);
         }
         // piracki_monopol synergy
         if (hasSynergy("piracki_monopol") && Math.random() < 0.20) {
           const bt = pickTreasure(roomRef.current);
           bt.biome = "Monopol"; bt.room = roomRef.current;
-          setInventory(prev2 => [...prev2, bt]);
-          showMessage("Piracki Monopol! Bonus skarb!", "#d4a030");
+          const wd_kill = walkDataRef.current[w.id];
+          if (wd_kill) {
+            setGroundLoot(prev => [...prev, {
+              id: `gl_${Date.now()}_monopol`, type: "treasure", treasure: bt,
+              x: wd_kill.wx ?? wd_kill.x ?? 15, y: wd_kill.wy ?? wd_kill.y ?? 15,
+              icon: bt.icon || "chest", label: bt.name, collected: false, spawnTime: Date.now(),
+            }]);
+          }
         }
         setKills(k => k + 1);
         handleCardDrop(w.npcData);
-        rollAmmoDrop(); rollSaberDrop();
+        // Ammo and saber drops now handled by spawnEnemyLoot ground system
         // Archer passive: ammo_drop — 15% chance for bonus ammo on kill
         if (fw && fw.mercType === "archer" && Math.random() < 0.15) {
           const ammoTypes = ["dynamite", "harpoon", "cannonball", "rum", "chain"];
@@ -6262,6 +6273,141 @@ export default function App() {
     }
   };
 
+  // ─── UNIVERSAL GROUND LOOT DROP SYSTEM ───
+  // Spawns clickable items on the ground from enemy kills and obstacle destruction
+  const _glId = useRef(0);
+  const spawnGroundLootItems = (worldX, worldY, lootConfig) => {
+    const items = [];
+    const scatter = (range) => (Math.random() - 0.5) * range;
+    const now = Date.now();
+    const mkId = () => `gl_${now}_${++_glId.current}`;
+
+    // 1. Currency drops (always from loot config)
+    if (lootConfig.copper) {
+      const coinCount = Math.min(5, Math.max(1, Math.ceil(lootConfig.copper / 8)));
+      const perCoin = Math.floor(lootConfig.copper / coinCount);
+      for (let i = 0; i < coinCount; i++) {
+        items.push({
+          id: mkId(), type: "coin",
+          value: { copper: perCoin + (i === 0 ? lootConfig.copper % coinCount : 0) },
+          x: worldX + scatter(3), y: worldY + scatter(2),
+          icon: "coin", label: `${perCoin} Cu`, collected: false, spawnTime: now,
+        });
+      }
+    }
+    if (lootConfig.silver) {
+      for (let i = 0; i < lootConfig.silver; i++) {
+        items.push({
+          id: mkId(), type: "coin", value: { silver: 1 },
+          x: worldX + scatter(2.5), y: worldY + scatter(1.5),
+          icon: "gem", label: "1 Ag", collected: false, spawnTime: now,
+        });
+      }
+    }
+    if (lootConfig.gold) {
+      items.push({
+        id: mkId(), type: "coin", value: { gold: lootConfig.gold },
+        x: worldX + scatter(2), y: worldY + scatter(1),
+        icon: "crown", label: `${lootConfig.gold} Au`, collected: false, spawnTime: now,
+      });
+    }
+
+    // 2. Ammo drops (% chance per type)
+    const ammoDrops = [
+      { type: "dynamite", chance: 0.10, min: 1, max: 2, icon: "dynamite", label: "Dynamit" },
+      { type: "harpoon", chance: 0.08, min: 1, max: 2, icon: "harpoon", label: "Harpun" },
+      { type: "cannonball", chance: 0.05, min: 1, max: 1, icon: "cannon", label: "Kula" },
+      { type: "rum", chance: 0.06, min: 1, max: 2, icon: "pirateRaid", label: "Rum" },
+      { type: "chain", chance: 0.05, min: 1, max: 2, icon: "ricochet", label: "Łańcuch" },
+    ];
+    for (const ad of ammoDrops) {
+      if (Math.random() < ad.chance * (lootConfig.ammoMult || 1)) {
+        const amt = ad.min + Math.floor(Math.random() * (ad.max - ad.min + 1));
+        items.push({
+          id: mkId(), type: "ammo", value: { [ad.type]: amt },
+          x: worldX + scatter(3), y: worldY + scatter(2),
+          icon: ad.icon, label: `${ad.label} x${amt}`, collected: false, spawnTime: now,
+        });
+      }
+    }
+
+    // 3. Saber drop (3% from enemies, uses existing saber pool)
+    if (lootConfig.canDropSaber && Math.random() < 0.03) {
+      const unowned = (typeof SABERS !== "undefined" ? SABERS : []).filter(
+        s => !s.starter && !s.dropOnly && !ownedSabersRef.current.includes(s.id)
+      );
+      if (unowned.length > 0) {
+        const saber = unowned[Math.floor(Math.random() * unowned.length)];
+        items.push({
+          id: mkId(), type: "saber_drop", saberId: saber.id,
+          x: worldX + scatter(2), y: worldY + scatter(1),
+          icon: saber.icon || "swords", label: saber.name,
+          collected: false, spawnTime: now, rarity: saber.rarity || "common",
+        });
+      }
+    }
+
+    // 4. Treasure drop (5% from enemies, 8% from obstacles)
+    if (Math.random() < (lootConfig.treasureChance || 0)) {
+      const treasure = typeof pickTreasure === "function" ? pickTreasure() : null;
+      if (treasure) {
+        items.push({
+          id: mkId(), type: "treasure", treasure,
+          x: worldX + scatter(2), y: worldY + scatter(1),
+          icon: treasure.icon || "chest", label: treasure.name,
+          collected: false, spawnTime: now, rarity: treasure.rarity || "common",
+        });
+      }
+    }
+
+    // 5. Relic drop (1% from elite/boss enemies)
+    if (lootConfig.canDropRelic && Math.random() < 0.01) {
+      const ownedRelicIds = (activeRelicsRef.current || []).map(r => r.id);
+      const available = RELICS.filter(r => !ownedRelicIds.includes(r.id));
+      if (available.length > 0) {
+        const relic = available[Math.floor(Math.random() * available.length)];
+        items.push({
+          id: mkId(), type: "relic_drop", relic,
+          x: worldX + scatter(1.5), y: worldY + scatter(1),
+          icon: relic.icon || "star", label: relic.name,
+          collected: false, spawnTime: now, rarity: relic.rarity || "rare",
+        });
+      }
+    }
+
+    if (items.length > 0) {
+      setGroundLoot(prev => [...prev, ...items]);
+    }
+  };
+
+  // Helper: spawn loot from killed enemy at their world position
+  const spawnEnemyLoot = (walkData, npcData, isBoss) => {
+    if (!walkData || !npcData) return;
+    const wx = walkData.wx ?? walkData.x ?? 15;
+    const wy = walkData.wy ?? walkData.y ?? 15;
+    const loot = npcData.loot || {};
+    spawnGroundLootItems(wx, wy, {
+      ...loot,
+      ammoMult: isBoss ? 3 : 1,
+      canDropSaber: true,
+      treasureChance: isBoss ? 0.40 : 0.05,
+      canDropRelic: isBoss || (npcData.rarity === "rare" || npcData.rarity === "elite"),
+    });
+  };
+
+  // Helper: spawn loot from destroyed obstacle
+  const spawnObstacleLoot = (obs) => {
+    if (!obs) return;
+    const loot = obs.loot || {};
+    spawnGroundLootItems(obs.x, obs.y, {
+      ...loot,
+      ammoMult: 0.5,
+      canDropSaber: false,
+      treasureChance: 0.08,
+      canDropRelic: false,
+    });
+  };
+
   // Spawn ground loot when meteor is destroyed
   const spawnMeteorGroundLoot = (meteorX, meteorY) => {
     const items = [];
@@ -6357,12 +6503,29 @@ export default function App() {
       showMessage(`${item.treasure.name}!`, "#d4a030");
     } else if (item.type === "moonblade_saber") {
       setOwnedSabers(prev => prev.includes("moonblade") ? prev : [...prev, "moonblade"]);
-      showMessage("Zdobyto: Miecz Pełni Księżyca! Załóż w ekwipunku.", "#d4a030");
+      showMessage("Zdobyto: Miecz Pełni Księżyca! Załóż w ekwipunku.", "#ffd700");
+    } else if (item.type === "saber_drop") {
+      setOwnedSabers(prev => prev.includes(item.saberId) ? prev : [...prev, item.saberId]);
+      showMessage(`Zdobyto szablę: ${item.label}!`, item.rarity === "epic" ? "#a050e0" : "#40a8b8");
+    } else if (item.type === "relic_drop") {
+      setActiveRelics(prev => {
+        if (prev.find(r => r.id === item.relic.id)) return prev;
+        return [...prev, item.relic];
+      });
+      showMessage(`Znaleziono relikt: ${item.relic.name}!`, "#ffd700");
     }
-    // Small coin particle on pickup
+    // Coin particle on pickup
     if (pixiRef.current) {
-      const px = GAME_W * item.x / 100;
-      const py = GAME_H * item.y / 100;
+      const isoMode = isoModeRef.current;
+      let px, py;
+      if (isoMode) {
+        const cam = isoCameraRef.current;
+        const screen = _isoWorldToScreen(item.x, item.y, cam.x, cam.y);
+        px = screen.x; py = screen.y;
+      } else {
+        px = GAME_W * item.x / 100;
+        py = GAME_H * item.y / 100;
+      }
       pixiRef.current.spawnGoldCoins(px, py, 0.3);
     }
   };
@@ -7982,17 +8145,18 @@ export default function App() {
           envHazardsRef.current._createHazard(obs.hazardOnDestroy, obs.x, obs.y, 1.0);
         }
 
-        // Drop loot (with combo bonus)
+        // Drop loot on ground (with combo bonus)
         if (obs.loot && Object.keys(obs.loot).length > 0) {
           const boostedLoot = destructionComboRef.current.applyLootBonus(obs.loot);
-          addMoneyFn(boostedLoot);
-          // Biome modifier: bonus_loot (city "Czarny Rynek" — 30% chance extra loot from obstacles)
+          // Biome modifier: bonus_loot
           const bMod = biomeModifierRef.current;
           if (bMod?.effect?.type === "bonus_loot" && Math.random() < (bMod.effect.bonusLootChance || 0)) {
-            addMoneyFn(bMod.effect.bonusLoot || obs.loot);
+            for (const [k, v] of Object.entries(bMod.effect.bonusLoot || obs.loot)) {
+              boostedLoot[k] = (boostedLoot[k] || 0) + (v || 0);
+            }
             showMessage(`${bMod.name}: bonus łup!`, "#e0c040");
           }
-          if (pixiRef.current) pixiRef.current.spawnGoldCoins(px, py, 0.4 + comboResult.level * 0.05);
+          spawnObstacleLoot({ ...obs, loot: boostedLoot });
         }
 
         // Display combo messages
@@ -10145,31 +10309,39 @@ export default function App() {
       })()}
 
       {/* Ground loot — clickable coins and items dropped by meteor */}
-      {groundLoot.filter(i => !i.collected).map(item => (
-        <div key={item.id} ref={el => { if (el) groundLootElsRef.current[item.id] = el; }} data-wx={item.x} data-wy={item.y} onClick={() => collectGroundLoot(item.id)} style={{
-          position: "absolute", left: `${wrapPctToScreen(item.x) ?? item.x}%`, top: `${item.y}%`, zIndex: 15,
-          cursor: "pointer", userSelect: "none",
-          animation: "meteorPulse 2s ease-in-out infinite",
-          transform: "translate(-50%, -50%)",
-        }}>
-          <div style={{
-            width: (item.type === "treasure" || item.type === "moonblade_saber") ? 32 : 24,
-            height: (item.type === "treasure" || item.type === "moonblade_saber") ? 32 : 24,
-            filter: (item.type === "treasure" || item.type === "moonblade_saber")
-              ? "drop-shadow(0 0 8px rgba(255,200,0,0.8))"
-              : "drop-shadow(0 0 4px rgba(255,180,0,0.5))",
+      {groundLoot.filter(i => !i.collected).map(item => {
+        const isRare = item.type === "treasure" || item.type === "moonblade_saber" || item.type === "saber_drop" || item.type === "relic_drop";
+        const rarityColors = { common: "#888", uncommon: "#40a060", rare: "#40a8b8", epic: "#a050e0", legendary: "#ffd700" };
+        const glowColor = isRare ? (rarityColors[item.rarity] || "#ffd700") : "rgba(255,180,0,0.5)";
+        const itemSize = isRare ? 30 : (item.type === "ammo" ? 22 : 18);
+        return (
+          <div key={item.id} ref={el => { if (el) groundLootElsRef.current[item.id] = el; }} data-wx={item.x} data-wy={item.y} onClick={() => collectGroundLoot(item.id)} style={{
+            position: "absolute", left: `${wrapPctToScreen(item.x) ?? item.x}%`, top: `${item.y}%`, zIndex: 15,
+            cursor: "pointer", userSelect: "none",
+            animation: isRare ? "doorGlow 1.5s ease-in-out infinite" : "meteorPulse 2s ease-in-out infinite",
+            transform: "translate(-50%, -50%)",
           }}>
-            <Icon name={item.icon} size={(item.type === "treasure" || item.type === "moonblade_saber") ? 28 : 20} />
+            <div style={{
+              width: itemSize, height: itemSize,
+              filter: `drop-shadow(0 0 ${isRare ? 10 : 4}px ${glowColor})`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: isRare ? `radial-gradient(circle, ${glowColor}20, transparent)` : "none",
+              borderRadius: isRare ? "50%" : "0",
+            }}>
+              <Icon name={item.icon} size={isRare ? 24 : (item.type === "ammo" ? 18 : 14)} />
+            </div>
+            <div style={{
+              fontSize: isRare ? 9 : 7,
+              color: isRare ? glowColor : "#e0c080",
+              textAlign: "center", textShadow: "0 1px 3px #000",
+              marginTop: -1, fontWeight: isRare ? "bold" : "normal",
+              maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {item.label}
+            </div>
           </div>
-          <div style={{
-            fontSize: 8, color: (item.type === "treasure" || item.type === "moonblade_saber") ? "#ffd700" : "#e0c080",
-            textAlign: "center", textShadow: "0 1px 2px #000",
-            marginTop: -2,
-          }}>
-            {item.label}
-          </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Resource node – hold to mine */}
       {showResource && resourceNode && (() => {
