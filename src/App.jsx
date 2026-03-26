@@ -2438,6 +2438,11 @@ export default function App() {
           const oel = obsElsRef.current[obs.id];
           _positionPoiEl(oel, obs.x, obs.y);
         }
+        // Sync structure DOM positions
+        for (const struct of structuresRef.current) {
+          const sEl = structElsRef.current[struct.id];
+          if (sEl) _positionPoiEl(sEl, struct.x, struct.y);
+        }
 
         // Sync all other POI positions (iso mode only — panoramic handled by React)
         if (_isoActive) {
@@ -2457,11 +2462,6 @@ export default function App() {
           if (defensePoiElRef.current && _dp && !_dp.activated) _positionPoiEl(defensePoiElRef.current, _dp.x, _dp.y);
           if (shopElRef.current) _positionPoiEl(shopElRef.current, 10, 15);
           if (hideoutElRef.current) _positionPoiEl(hideoutElRef.current, 30, 25);
-          // Sync structure DOM positions
-          for (const struct of structuresRef.current) {
-            const sEl = structElsRef.current[struct.id];
-            if (sEl) _positionPoiEl(sEl, struct.x, struct.y);
-          }
           // Caravan movement (terrain-aware: roads +30%, water -40%, cliffs block)
           {
             const mv = caravanMoveRef.current;
@@ -10980,14 +10980,15 @@ export default function App() {
         if (struct.allDestroyed && struct.segments.every(s => s.destroying && Date.now() - s.hitAnim > 800)) return null;
         const _isI = isoModeRef.current;
         const structLeft = poiLeft(struct.x, struct.y);
-        if (structLeft === null) return null;
+        // Always render div (even if off-screen) so ref is set for DOM sync
         const structDef = STRUCTURE_DEFS[struct.defId];
         const decorations = structDef?.decorations || [];
         const _now = Date.now();
         return (
           <div key={`struct-${struct.id}`} ref={el => { if (el) structElsRef.current[struct.id] = el; }} style={{
             position: "absolute",
-            left: structLeft,
+            left: structLeft || "0px",
+            display: structLeft === null && !_isI ? "none" : "",
             ...(_isI ? { top: poiTop(struct.x, struct.y), transform: "translateX(-50%) translateY(-100%)" }
               : { bottom: `${struct.y}%`, transform: `translateX(-50%) scale(${scaleAtDepth(depthFromY(100 - struct.y))})` }),
             zIndex: _isI ? poiZIndex(struct.x, struct.y) : 14 + zIndexAtDepth(depthFromY(100 - struct.y)),
