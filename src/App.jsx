@@ -2438,12 +2438,12 @@ export default function App() {
           const oel = obsElsRef.current[obs.id];
           _positionPoiEl(oel, obs.x, obs.y);
         }
-        // Sync structure DOM positions + fog visibility
+        // Sync structure DOM positions (always visible — large landmarks)
         for (const struct of structuresRef.current) {
           const sEl = structElsRef.current[struct.id];
           if (sEl) {
             _positionPoiEl(sEl, struct.x, struct.y);
-            sEl.style.visibility = (_isoActive && !struct._fogDiscovered) ? "hidden" : "visible";
+            sEl.style.visibility = "visible";
           }
         }
 
@@ -4402,17 +4402,22 @@ export default function App() {
 
       // Apply rewards
       if (rewards) {
+        const copperReward = rewards.copper || 0;
+        const silverReward = rewards.silver || 0;
         setMoney(prev => ({
           ...prev,
-          copper: prev.copper + (rewards.copper || 0),
-          silver: prev.silver + (rewards.silver || 0),
+          copper: (prev.copper || 0) + copperReward,
+          silver: (prev.silver || 0) + silverReward,
         }));
-        const msgs = [`+${rewards.copper} miedzi`];
-        if (rewards.silver) msgs.push(`+${rewards.silver} srebra`);
-        showMessage(`Dungeon ukończony! ${msgs.join(", ")}`, "#ffd700");
+        const msgs = [];
+        if (copperReward > 0) msgs.push(`+${copperReward} miedzi`);
+        if (silverReward > 0) msgs.push(`+${silverReward} srebra`);
+        if (rewards.relic) msgs.push("Znaleziono relikt!");
+        showMessage(`Dungeon ukończony! ${msgs.length > 0 ? msgs.join(", ") : ""}`, "#ffd700");
       }
 
-      // Clear dungeon state
+      // Clear dungeon state + boss
+      setActiveBoss(null);
       setDungeonState(null);
       dungeonStateRef.current = null;
       setDungeonTransitioning(false);
@@ -4450,6 +4455,18 @@ export default function App() {
           ability: { type: boss.ability, damage: boss.damage, cooldown: boss.abilityCd, element: null, range: 25 },
           aggroState: "idle", windupTimer: 0,
         };
+        // Set activeBoss so BossHpBar renders
+        const roomScale = 1 + Math.min((dState.surfaceRoom || 1) / 25, 1.5);
+        setActiveBoss({
+          ...boss,
+          id: wid,
+          currentHp: boss.hp,
+          maxHp: boss.hp,
+          phase: 1,
+          manaShieldHp: 0,
+          manaShieldMaxHp: 0,
+          roomScale,
+        });
       }
     } else {
       // Spawn regular enemies
@@ -5804,15 +5821,23 @@ export default function App() {
     setTimeout(() => { setWorldMap(true); }, 300);
   };
 
-  // World map dock handler — player chose a biome island
+  // World map dock handler — player chose a biome island, teleport directly
   const handleWorldMapDock = useCallback((chosenBiome, newShipPos) => {
     setWorldMap(false);
     setShipMapPos(newShipPos);
     setTransitioning(true);
-    pendingDestBiomeRef.current = chosenBiome; // persist chosen biome through events
-    // Show river path map for player to choose route
-    setTimeout(() => { setRiverMapOpen(true); setTransitioning(false); }, 400);
-  }, [room]);
+    pendingDestBiomeRef.current = chosenBiome;
+    // Skip sailing segment — teleport directly to chosen island
+    const baseCopper = 10 + room * 2;
+    addMoneyFn({ copper: baseCopper });
+    showMessage(`Podróż na ${chosenBiome?.name || "wyspę"}! +${baseCopper} miedzi`, "#a09080");
+    setCaravanHp(prev => Math.min(CARAVAN_LEVELS[caravanLevelRef.current].hp, prev + 5));
+    const nextRoom = room + 1;
+    setTimeout(() => {
+      setTransitioning(false);
+      enterRoom(nextRoom, ownedTools, pendingDestBiomeRef.current);
+    }, 600);
+  }, [room, ownedTools]);
 
   // River map confirm handler — player chose a path, start sailing
   const handleRiverMapConfirm = useCallback((pathData) => {
@@ -7272,13 +7297,11 @@ export default function App() {
   const handleCaravanClick = useCallback((e) => {
     e.stopPropagation();
     if (!isoModeRef.current) return;
+    // Always select caravan on click (deselect only via right-click)
     if (!caravanSelectedRef.current) {
       setCaravanSelected(true);
-    } else {
-      // Deselect + cancel movement
-      setCaravanSelected(false);
-      caravanMoveRef.current.active = false;
     }
+    // If already selected, click does nothing (use right-click to deselect)
   }, []);
 
   // Right-click deselects caravan
@@ -11067,8 +11090,8 @@ export default function App() {
       {structures.map(struct => {
         if (struct.allDestroyed && struct.segments.every(s => s.destroying && Date.now() - s.hitAnim > 800)) return null;
         const _isI = isoModeRef.current;
-        // Fog of war: hide undiscovered (use visibility so ref/DOM sync still works)
-        const fogHidden = _isI && !struct._fogDiscovered;
+        // Structures always visible (no fog dependency — they're large landmarks)
+        const fogHidden = false;
         const structLeft = poiLeft(struct.x, struct.y);
         // Always render div (even if off-screen/fog-hidden) so ref is set for DOM sync
         const structDef = STRUCTURE_DEFS[struct.defId];
