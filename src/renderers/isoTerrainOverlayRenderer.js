@@ -579,7 +579,8 @@ export function renderTerrainOverlays(ctx, terrainData, cameraX, cameraY, enable
     renderChokepoints(ctx, chokepoints, cameraX, cameraY);
   }
 
-  if (enableFog) {
-    renderFogOfWar(ctx, terrainData, cameraX, cameraY);
-  }
+  // Fog of war disabled
+  // if (enableFog) {
+  //   renderFogOfWar(ctx, terrainData, cameraX, cameraY);
+  // }
 }
