@@ -10891,8 +10891,8 @@ export default function App() {
             ...(_isI ? { top: poiTop(struct.x, struct.y), transform: "translateX(-50%) translateY(-100%)" }
               : { bottom: `${struct.y}%`, transform: `translateX(-50%) scale(${scaleAtDepth(depthFromY(100 - struct.y))})` }),
             zIndex: _isI ? poiZIndex(struct.x, struct.y) : 14 + zIndexAtDepth(depthFromY(100 - struct.y)),
-            width: struct.width,
-            height: struct.height,
+            width: `${struct.width}px`,
+            height: `${struct.height}px`,
             pointerEvents: "none",
           }}>
             {/* Decorations layer (behind segments for some, in front for others) */}
@@ -10927,10 +10927,10 @@ export default function App() {
               return (
                 <div key={`dec-${di}`} style={{
                   position: "absolute",
-                  left: dec.x,
-                  bottom: dec.y,
-                  width: dec.w,
-                  height: dec.h,
+                  left: `${dec.x}px`,
+                  bottom: `${dec.y}px`,
+                  width: `${dec.w}px`,
+                  height: `${dec.h}px`,
                   background: dec.bg,
                   borderRadius: dec.radius || "2px",
                   boxShadow: dec.shadow || "none",
@@ -10967,10 +10967,10 @@ export default function App() {
               return (
                 <div key={`seg-${seg.id}`} style={{
                   position: "absolute",
-                  left: seg.x,
-                  bottom: seg.y,
-                  width: seg.w,
-                  height: seg.h,
+                  left: `${seg.x}px`,
+                  bottom: `${seg.y}px`,
+                  width: `${seg.w}px`,
+                  height: `${seg.h}px`,
                   transform: `translateX(${shakeX}px)${isDestroying ? " scale(1.2) translateY(10px)" : ""}`,
                   transition: isDestroying ? "opacity 0.4s ease-out, transform 0.4s ease-out" : "none",
                   opacity: isDestroying ? 0 : 1,
