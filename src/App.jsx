@@ -2438,10 +2438,13 @@ export default function App() {
           const oel = obsElsRef.current[obs.id];
           _positionPoiEl(oel, obs.x, obs.y);
         }
-        // Sync structure DOM positions
+        // Sync structure DOM positions + fog visibility
         for (const struct of structuresRef.current) {
           const sEl = structElsRef.current[struct.id];
-          if (sEl) _positionPoiEl(sEl, struct.x, struct.y);
+          if (sEl) {
+            _positionPoiEl(sEl, struct.x, struct.y);
+            sEl.style.visibility = (_isoActive && !struct._fogDiscovered) ? "hidden" : "visible";
+          }
         }
 
         // Sync all other POI positions (iso mode only — panoramic handled by React)
@@ -7265,13 +7268,25 @@ export default function App() {
     }
   }, []);
 
-  // ─── CARAVAN MOVEMENT: Click to select, click map to move ───
+  // ─── CARAVAN MOVEMENT: Click to select, click map to move, right-click/Esc to deselect ───
   const handleCaravanClick = useCallback((e) => {
     e.stopPropagation();
     if (!isoModeRef.current) return;
-    setCaravanSelected(prev => !prev);
-    // Cancel any active movement when toggling selection
+    if (!caravanSelectedRef.current) {
+      setCaravanSelected(true);
+    } else {
+      // Deselect + cancel movement
+      setCaravanSelected(false);
+      caravanMoveRef.current.active = false;
+    }
+  }, []);
+
+  // Right-click deselects caravan
+  const handleCaravanRightClick = useCallback((e) => {
     if (caravanSelectedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      setCaravanSelected(false);
       caravanMoveRef.current.active = false;
     }
   }, []);
@@ -7315,7 +7330,7 @@ export default function App() {
     }
 
     caravanMoveRef.current = { active: true, targetX: tx, targetY: ty, speed: 2.5 };
-    setCaravanSelected(false);
+    // Keep caravan selected so player can issue multiple movement orders
     return true;
   }, [gameScale, selectedSpell, skillshotMode]);
 
@@ -9320,6 +9335,7 @@ export default function App() {
       {/* Scaled game container – fills entire screen on mobile */}
       <div ref={gameContainerRef}
         onClick={placingFort ? handleFortPlaceClick : placingTrap ? handleTrapPlaceClick : (skillshotMode && !isSaberMode && !isRapidFireMode && !isWandMode && !isSalvaMode) ? handleSkillshotClick : (e) => { handleCaravanMoveClick(e); }}
+        onContextMenu={handleCaravanRightClick}
         onMouseDown={isSaberMode ? handleSaberDown : isRapidFireMode ? startRapidFire : isWandMode ? startWand : isSalvaMode ? startSalva : canPanScroll ? handlePanStart : undefined}
         onMouseMove={(e) => { if (panRef.current.dragging) { handlePanMove(e); return; } if (isSaberMode) handleSaberMove(e); else if (isRapidFireMode) moveRapidFire(e); if (salvaRef.current.active) moveSalva(e); if (wandOrbsRef.current.active && gameContainerRef.current) { const gr = gameContainerRef.current.getBoundingClientRect(); const cx = e.clientX; const cy = e.clientY; const _wsx = (cx - gr.left) / gameScale; const _wsy = (cy - gr.top) / gameScale; wandOrbsRef.current.screenX = _wsx; wandOrbsRef.current.screenY = _wsy; if (isoModeRef.current) { const cam = isoCameraRef.current; const iw = _isoScreenToWorld(_wsx, _wsy, cam.x, cam.y); wandOrbsRef.current.cursorX = iw.x; wandOrbsRef.current.cursorY = iw.y; } else { wandOrbsRef.current.cursorX = (_wsx / GAME_W) * 100; wandOrbsRef.current.cursorY = (_wsy / GAME_H) * 100; } } }}
         onMouseUp={(e) => { if (panRef.current.dragging) { handlePanEnd(); return; } if (isSaberMode) handleSaberUp(e); else if (isRapidFireMode) stopRapidFire(e); else if (isWandMode) stopWand(e); else if (isSalvaMode) stopSalva(e); }}
@@ -11049,12 +11065,12 @@ export default function App() {
 
       {/* ─── COMPOSITE STRUCTURES (advanced visual models) ─── */}
       {structures.map(struct => {
-        // Fog of war: hide undiscovered structures in iso mode
-        if (isoModeRef.current && !struct._fogDiscovered) return null;
         if (struct.allDestroyed && struct.segments.every(s => s.destroying && Date.now() - s.hitAnim > 800)) return null;
         const _isI = isoModeRef.current;
+        // Fog of war: hide undiscovered (use visibility so ref/DOM sync still works)
+        const fogHidden = _isI && !struct._fogDiscovered;
         const structLeft = poiLeft(struct.x, struct.y);
-        // Always render div (even if off-screen) so ref is set for DOM sync
+        // Always render div (even if off-screen/fog-hidden) so ref is set for DOM sync
         const structDef = STRUCTURE_DEFS[struct.defId];
         const decorations = structDef?.decorations || [];
         const _now = Date.now();
@@ -11063,6 +11079,7 @@ export default function App() {
             position: "absolute",
             left: structLeft || "0px",
             display: structLeft === null && !_isI ? "none" : "",
+            visibility: fogHidden ? "hidden" : "visible",
             ...(_isI ? { top: poiTop(struct.x, struct.y), transform: "translateX(-50%) translateY(-100%)" }
               : { bottom: `${struct.y}%`, transform: `translateX(-50%) scale(${scaleAtDepth(depthFromY(100 - struct.y))})` }),
             zIndex: _isI ? poiZIndex(struct.x, struct.y) : 14 + zIndexAtDepth(depthFromY(100 - struct.y)),
