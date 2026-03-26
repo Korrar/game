@@ -3736,7 +3736,7 @@ export default function App() {
     }
 
     // ─── BIOME-SPECIFIC POI (unique interaction per biome) ───
-    if (poiCount() < MAX_POIS && Math.random() < 0.30) {
+    if (poiCount() < MAX_POIS) {
       const bpx = pickX(15, 280);
       if (bpx !== null) {
         // Each biome has its own POI type with unique mechanic
@@ -3764,7 +3764,7 @@ export default function App() {
           bamboo_falls: "ruins", blue_lagoon: "cave", olympus: "ruins",
           underworld: "crypt", meteor: "mine",
         };
-        const dungeonChance = newRoom >= 5 ? 0.18 : 0;
+        const dungeonChance = 1.0; // Always spawn dungeon entrance
         let poiDef;
         if (dungeonChance > 0 && Math.random() < dungeonChance && !dungeonStateRef.current) {
           const dType = DUNGEON_BIOME_MAP[bid] || "mine";
@@ -3887,8 +3887,8 @@ export default function App() {
       const newStructures = [];
       const structCandidates = BIOME_STRUCTURES[bid];
       if (structCandidates && structCandidates.length > 0 && !isDefenseRoom) {
-        // Try to spawn 1-2 structures per room
-        const maxStructs = Math.random() < 0.3 ? 2 : 1;
+        // Always spawn 2-3 structures per room
+        const maxStructs = Math.random() < 0.5 ? 3 : 2;
         for (let si = 0; si < maxStructs; si++) {
           const def = getRandomStructure(bid);
           if (!def) continue;
@@ -10875,12 +10875,15 @@ export default function App() {
 
       {/* (Mine traps removed — explosive obstacles are part of biome obstacles now) */}
 
-      {/* ─── COMPOSITE STRUCTURES ─── */}
+      {/* ─── COMPOSITE STRUCTURES (advanced visual models) ─── */}
       {structures.map(struct => {
         if (struct.allDestroyed && struct.segments.every(s => s.destroying && Date.now() - s.hitAnim > 800)) return null;
         const _isI = isoModeRef.current;
         const structLeft = poiLeft(struct.x, struct.y);
         if (structLeft === null) return null;
+        const structDef = STRUCTURE_DEFS[struct.defId];
+        const decorations = structDef?.decorations || [];
+        const _now = Date.now();
         return (
           <div key={`struct-${struct.id}`} style={{
             position: "absolute",
@@ -10892,11 +10895,55 @@ export default function App() {
             height: struct.height,
             pointerEvents: "none",
           }}>
+            {/* Decorations layer (behind segments for some, in front for others) */}
+            {!struct.allDestroyed && decorations.map((dec, di) => {
+              const animStyle = {};
+              if (dec.anim === "pulse") {
+                animStyle.animation = "resNode 2.5s ease-in-out infinite";
+              } else if (dec.anim === "flicker") {
+                animStyle.animation = "resNode 0.8s ease-in-out infinite alternate";
+              } else if (dec.anim === "sway") {
+                animStyle.animation = "resNode 3s ease-in-out infinite alternate";
+                animStyle.transformOrigin = "top center";
+              } else if (dec.anim === "float") {
+                animStyle.animation = `resNode ${2 + di * 0.3}s ease-in-out infinite alternate`;
+              } else if (dec.anim === "glow") {
+                animStyle.animation = "resNode 2s ease-in-out infinite";
+              } else if (dec.anim === "rise") {
+                animStyle.animation = `resNode ${3 + di * 0.5}s ease-in-out infinite`;
+              } else if (dec.anim === "shimmer") {
+                animStyle.animation = "resNode 1.8s ease-in-out infinite alternate";
+              } else if (dec.anim === "drip") {
+                animStyle.animation = `resNode ${1.5 + di * 0.4}s ease-in infinite`;
+              } else if (dec.anim === "rotate_slow") {
+                const angle = ((_now / 60000) * 360) % 360;
+                animStyle.transform = `rotate(${angle}deg)`;
+                animStyle.transformOrigin = "bottom center";
+              } else if (dec.anim === "rotate_fast") {
+                const angle = ((_now / 3600) * 360) % 360;
+                animStyle.transform = `rotate(${angle}deg)`;
+                animStyle.transformOrigin = "bottom center";
+              }
+              return (
+                <div key={`dec-${di}`} style={{
+                  position: "absolute",
+                  left: dec.x,
+                  bottom: dec.y,
+                  width: dec.w,
+                  height: dec.h,
+                  background: dec.bg,
+                  borderRadius: dec.radius || "2px",
+                  boxShadow: dec.shadow || "none",
+                  pointerEvents: "none",
+                  ...animStyle,
+                }} />
+              );
+            })}
             {struct.segments.map(seg => {
               if (!seg.alive && !seg.destroying) return null;
               const segStyle = struct.style?.[seg.id] || { bg: "linear-gradient(180deg,#666,#444)", radius: "3px", shadow: "0 2px 6px rgba(0,0,0,0.4)" };
-              const isSegHit = seg.hitAnim > 0 && (Date.now() - seg.hitAnim) < 300;
-              const hitAge = isSegHit ? (Date.now() - seg.hitAnim) : 300;
+              const isSegHit = seg.hitAnim > 0 && (_now - seg.hitAnim) < 300;
+              const hitAge = isSegHit ? (_now - seg.hitAnim) : 300;
               const shakeX = isSegHit ? Math.sin(hitAge * 0.06) * (3 - hitAge * 0.01) : 0;
               const hpPct = seg.maxHp > 0 ? seg.hp / seg.maxHp : 1;
               const damaged = seg.alive && hpPct < 1;
@@ -10904,6 +10951,19 @@ export default function App() {
               const crackIntensity = dmgVis.crackOpacity;
               const hpColor = hpPct > 0.5 ? `rgb(${Math.round(255 * (1 - hpPct) * 2)},200,40)` : `rgb(255,${Math.round(200 * hpPct * 2)},40)`;
               const isDestroying = seg.destroying;
+              // Animation style for segments with anim property
+              const segAnim = {};
+              if (segStyle.anim === "glow") {
+                segAnim.animation = "resNode 2s ease-in-out infinite";
+              } else if (segStyle.anim === "shimmer") {
+                segAnim.animation = "resNode 1.5s ease-in-out infinite alternate";
+              } else if (segStyle.anim === "rotate_slow") {
+                segAnim.animation = "spin 20s linear infinite";
+              } else if (segStyle.anim === "float") {
+                segAnim.animation = "resNode 3s ease-in-out infinite alternate";
+              } else if (segStyle.anim === "pulse") {
+                segAnim.animation = "resNode 2.5s ease-in-out infinite";
+              }
               return (
                 <div key={`seg-${seg.id}`} style={{
                   position: "absolute",
@@ -10914,6 +10974,7 @@ export default function App() {
                   transform: `translateX(${shakeX}px)${isDestroying ? " scale(1.2) translateY(10px)" : ""}`,
                   transition: isDestroying ? "opacity 0.4s ease-out, transform 0.4s ease-out" : "none",
                   opacity: isDestroying ? 0 : 1,
+                  ...segAnim,
                 }}>
                   <div style={{
                     width: "100%",
@@ -10921,17 +10982,43 @@ export default function App() {
                     background: segStyle.bg,
                     borderRadius: segStyle.radius,
                     boxShadow: isSegHit
-                      ? `${segStyle.shadow}, 0 0 8px rgba(255,200,100,0.6)`
+                      ? `${segStyle.shadow}, 0 0 12px rgba(255,200,100,0.7)`
                       : segStyle.shadow,
                     position: "relative",
                     overflow: "hidden",
                     opacity: damaged ? 0.7 + hpPct * 0.3 : 1,
                     border: `2px solid rgba(255,255,255,${damaged ? 0.35 + crackIntensity * 0.15 : 0.35})`,
                   }}>
+                    {/* Texture overlay for materials */}
+                    {segStyle.texture && (
+                      <div style={{
+                        position: "absolute", inset: 0,
+                        background: segStyle.texture,
+                        borderRadius: segStyle.radius,
+                        pointerEvents: "none",
+                        opacity: 0.7,
+                      }} />
+                    )}
+                    {/* Highlight edge (top light) */}
+                    <div style={{
+                      position: "absolute", top: 0, left: 0, right: 0, height: "30%",
+                      background: "linear-gradient(180deg,rgba(255,255,255,0.08),transparent)",
+                      borderRadius: segStyle.radius,
+                      pointerEvents: "none",
+                    }} />
                     {crackIntensity > 0 && (
                       <div style={{
                         position: "absolute", inset: 0,
                         background: `repeating-linear-gradient(${45 + crackIntensity * 30}deg, transparent, transparent ${6 - crackIntensity * 3}px, rgba(0,0,0,${0.15 + crackIntensity * 0.25}) ${6 - crackIntensity * 3}px, transparent ${7 - crackIntensity * 3}px)`,
+                        borderRadius: segStyle.radius,
+                        pointerEvents: "none",
+                      }} />
+                    )}
+                    {/* Secondary crack pattern for heavy damage */}
+                    {crackIntensity > 0.5 && (
+                      <div style={{
+                        position: "absolute", inset: 0,
+                        background: `repeating-linear-gradient(${135 - crackIntensity * 20}deg, transparent, transparent ${8 - crackIntensity * 2}px, rgba(40,20,0,${crackIntensity * 0.2}) ${8 - crackIntensity * 2}px, transparent ${9 - crackIntensity * 2}px)`,
                         borderRadius: segStyle.radius,
                         pointerEvents: "none",
                       }} />
@@ -10944,10 +11031,22 @@ export default function App() {
                         pointerEvents: "none",
                       }} />
                     )}
+                    {/* Ember/smoke from damaged segments */}
+                    {damaged && hpPct < 0.4 && !isDestroying && (
+                      <div style={{
+                        position: "absolute", top: -8, left: "30%", width: "40%", height: 12,
+                        background: seg.material === "wood"
+                          ? "radial-gradient(ellipse,rgba(255,120,40,0.4),rgba(200,80,20,0.15),transparent)"
+                          : "radial-gradient(ellipse,rgba(100,100,100,0.3),rgba(80,80,80,0.1),transparent)",
+                        borderRadius: "50%",
+                        pointerEvents: "none",
+                        animation: "resNode 1.5s ease-in-out infinite",
+                      }} />
+                    )}
                     {isSegHit && hitAge < 100 && (
                       <div style={{
                         position: "absolute", inset: 0,
-                        background: "rgba(255,220,150,0.4)",
+                        background: "rgba(255,220,150,0.45)",
                         borderRadius: segStyle.radius,
                         pointerEvents: "none",
                       }} />
@@ -10958,21 +11057,31 @@ export default function App() {
                         transform: "translate(-50%,-50%)",
                         fontSize: 10, fontWeight: "bold",
                         color: seg.explosionElement === "ice" ? "#80c0ff" : seg.explosionElement === "shadow" ? "#aa66ff" : "#ff4020",
-                        textShadow: "0 0 4px rgba(0,0,0,0.8)",
+                        textShadow: "0 0 6px rgba(0,0,0,0.9)",
                         animation: "resNode 1.5s ease-in-out infinite",
                         pointerEvents: "none",
                       }}>!</div>
                     )}
+                    {/* Material-specific bottom shadow */}
+                    <div style={{
+                      position: "absolute", bottom: 0, left: 0, right: 0, height: "25%",
+                      background: "linear-gradient(0deg,rgba(0,0,0,0.12),transparent)",
+                      borderRadius: segStyle.radius,
+                      pointerEvents: "none",
+                    }} />
                   </div>
                   {damaged && !isDestroying && (
                     <div style={{
-                      position: "absolute", bottom: -5, left: "50%", transform: "translateX(-50%)",
-                      width: Math.max(seg.w * 0.8, 16), height: 3,
-                      background: "rgba(0,0,0,0.6)", borderRadius: 2, overflow: "hidden",
+                      position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%)",
+                      width: Math.max(seg.w * 0.8, 16), height: 4,
+                      background: "rgba(0,0,0,0.7)", borderRadius: 2, overflow: "hidden",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
                     }}>
                       <div style={{
                         width: `${hpPct * 100}%`, height: "100%",
-                        background: hpColor, borderRadius: 2, transition: "width 0.15s ease-out",
+                        background: `linear-gradient(90deg,${hpColor},${hpColor})`,
+                        borderRadius: 2, transition: "width 0.15s ease-out",
+                        boxShadow: `0 0 4px ${hpColor}40`,
                       }} />
                     </div>
                   )}
@@ -10990,9 +11099,10 @@ export default function App() {
             {/* Structure name label */}
             {!struct.allDestroyed && (
               <div style={{
-                position: "absolute", top: -18, left: "50%", transform: "translateX(-50%)",
-                fontSize: 10, fontWeight: "bold", color: "#ffd700", whiteSpace: "nowrap",
-                textShadow: "0 1px 4px rgba(0,0,0,0.9)", pointerEvents: "none",
+                position: "absolute", top: -22, left: "50%", transform: "translateX(-50%)",
+                fontSize: 11, fontWeight: "bold", color: "#ffd700", whiteSpace: "nowrap",
+                textShadow: "0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(255,200,60,0.3)", pointerEvents: "none",
+                letterSpacing: "0.5px",
               }}>{struct.name}</div>
             )}
           </div>

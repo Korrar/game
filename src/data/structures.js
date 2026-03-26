@@ -55,11 +55,18 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 1, message: "Latarnia zniszczona!" },
-    // Visual style for the composite container
+    decorations: [
+      { type: "window", x: 18, y: 50, w: 8, h: 10, bg: "radial-gradient(circle,#ffe8a0,#e0c060)", shadow: "0 0 8px rgba(255,220,100,0.7)", radius: "2px 2px 6px 6px" },
+      { type: "window", x: 18, y: 70, w: 8, h: 10, bg: "radial-gradient(circle,#ffe8a0,#e0c060)", shadow: "0 0 8px rgba(255,220,100,0.7)", radius: "2px 2px 6px 6px" },
+      { type: "door", x: 15, y: 5, w: 14, h: 20, bg: "linear-gradient(180deg,#5a4030,#4a3020,#3a2010)", shadow: "inset 0 0 4px rgba(0,0,0,0.6)", radius: "6px 6px 0 0" },
+      { type: "stone_line", x: 0, y: 38, w: 60, h: 2, bg: "#4a4a4a", radius: "0" },
+      { type: "light_beam", x: 10, y: 105, w: 40, h: 60, bg: "linear-gradient(180deg,rgba(255,220,80,0.4),rgba(255,200,60,0.15),transparent)", radius: "50%", anim: "pulse" },
+      { type: "railing", x: -4, y: 96, w: 68, h: 3, bg: "linear-gradient(90deg,#6a6a6a,#8a8a8a,#6a6a6a)", radius: "1px", shadow: "0 1px 3px rgba(0,0,0,0.5)" },
+    ],
     style: {
-      base: { bg: "linear-gradient(180deg,#7a7a7a,#6a6a6a,#5a5a5a)", radius: "4px", shadow: "0 3px 8px rgba(0,0,0,0.6)" },
-      tower: { bg: "linear-gradient(180deg,#8a8a8a,#7a7a7a,#6a6a6a)", radius: "3px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
-      lantern: { bg: "radial-gradient(circle,#ffe080,#ffc040,#e0a020)", radius: "50%", shadow: "0 0 16px rgba(255,200,60,0.6), 0 0 8px rgba(255,160,40,0.4)" },
+      base: { bg: "linear-gradient(180deg,#8a8a8a,#7a7a7a,#6a6a6a,#5a5a5a)", radius: "4px", shadow: "0 4px 12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.15)", texture: "repeating-linear-gradient(0deg,transparent,transparent 8px,rgba(0,0,0,0.08) 8px,rgba(0,0,0,0.08) 9px)" },
+      tower: { bg: "linear-gradient(180deg,#9a9a9a,#8a8a8a,#7a7a7a,#6a6a6a)", radius: "3px", shadow: "0 2px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)", texture: "repeating-linear-gradient(90deg,transparent,transparent 12px,rgba(0,0,0,0.06) 12px,rgba(0,0,0,0.06) 13px)" },
+      lantern: { bg: "radial-gradient(circle at 35% 35%,#fff8e0,#ffe080,#ffc040,#e0a020)", radius: "50%", shadow: "0 0 24px rgba(255,200,60,0.8), 0 0 12px rgba(255,160,40,0.6), 0 0 48px rgba(255,180,40,0.3)", anim: "glow" },
     },
   },
 
@@ -120,11 +127,22 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 2, message: "Wieża Zegarowa zrównana z ziemią!" },
+    decorations: [
+      { type: "window", x: 12, y: 10, w: 10, h: 14, bg: "radial-gradient(circle,#ffe0a0,#d0a040)", shadow: "0 0 6px rgba(255,200,80,0.5)", radius: "4px 4px 8px 8px" },
+      { type: "window", x: 32, y: 10, w: 10, h: 14, bg: "radial-gradient(circle,#ffe0a0,#d0a040)", shadow: "0 0 6px rgba(255,200,80,0.5)", radius: "4px 4px 8px 8px" },
+      { type: "door", x: 16, y: 2, w: 18, h: 24, bg: "linear-gradient(180deg,#5a4030,#4a3020,#3a2010)", shadow: "inset 0 0 6px rgba(0,0,0,0.7)", radius: "8px 8px 0 0" },
+      { type: "door_handle", x: 28, y: 12, w: 3, h: 3, bg: "radial-gradient(circle,#c0a060,#a08040)", radius: "50%", shadow: "0 0 2px rgba(0,0,0,0.6)" },
+      { type: "clock_face", x: 15, y: 92, w: 24, h: 24, bg: "radial-gradient(circle,#f8f0e0,#e8d8c0,#d0c0a0)", radius: "50%", shadow: "0 0 12px rgba(200,180,140,0.5)" },
+      { type: "clock_hand_h", x: 25, y: 102, w: 2, h: 8, bg: "#2a1a0a", radius: "1px", shadow: "none", anim: "rotate_slow" },
+      { type: "clock_hand_m", x: 26, y: 100, w: 1, h: 10, bg: "#4a3020", radius: "1px", shadow: "none", anim: "rotate_fast" },
+      { type: "banner", x: -6, y: 55, w: 10, h: 22, bg: "linear-gradient(180deg,#8a2020,#6a1010,#8a2020)", radius: "0 0 2px 2px", shadow: "0 2px 4px rgba(0,0,0,0.4)", anim: "sway" },
+      { type: "brick_line", x: 0, y: 38, w: 55, h: 2, bg: "#5a4a30", radius: "0" },
+    ],
     style: {
-      base: { bg: "linear-gradient(180deg,#8a7a60,#7a6a50,#6a5a40)", radius: "4px 4px 2px 2px", shadow: "0 4px 12px rgba(0,0,0,0.6)" },
-      middle: { bg: "linear-gradient(180deg,#9a8a70,#8a7a60,#7a6a50)", radius: "3px", shadow: "0 2px 8px rgba(0,0,0,0.5)" },
-      clock: { bg: "radial-gradient(circle,#f0e0c0,#d0c0a0,#b0a080)", radius: "50%", shadow: "0 0 10px rgba(200,180,140,0.4), 0 2px 6px rgba(0,0,0,0.4)" },
-      spire: { bg: "linear-gradient(180deg,#6a6a7a,#5a5a6a,#4a4a5a)", radius: "2px 2px 50% 50%", shadow: "0 0 6px rgba(140,140,160,0.3)" },
+      base: { bg: "linear-gradient(180deg,#9a8a68,#8a7a58,#7a6a48,#6a5a38)", radius: "4px 4px 2px 2px", shadow: "0 4px 14px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12)", texture: "repeating-linear-gradient(0deg,transparent,transparent 6px,rgba(0,0,0,0.06) 6px,rgba(0,0,0,0.06) 7px)" },
+      middle: { bg: "linear-gradient(180deg,#a89878,#9a8a68,#8a7a58,#7a6a48)", radius: "3px", shadow: "0 2px 10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)", texture: "repeating-linear-gradient(90deg,transparent,transparent 10px,rgba(0,0,0,0.05) 10px,rgba(0,0,0,0.05) 11px)" },
+      clock: { bg: "radial-gradient(circle at 40% 40%,#f8f0d8,#f0e0c0,#d0c0a0,#b0a080)", radius: "50%", shadow: "0 0 14px rgba(200,180,140,0.5), 0 0 6px rgba(255,220,160,0.3), 0 3px 8px rgba(0,0,0,0.5)" },
+      spire: { bg: "linear-gradient(180deg,#7a7a8a,#6a6a7a,#5a5a6a,#4a4a5a)", radius: "2px 2px 50% 50%", shadow: "0 0 8px rgba(140,140,180,0.4), 0 -2px 6px rgba(200,200,220,0.2)" },
     },
   },
 
@@ -184,11 +202,19 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 1, silver: 3, message: "Starożytna świątynia obrócona w pył!" },
+    decorations: [
+      { type: "vine", x: 2, y: 30, w: 6, h: 40, bg: "linear-gradient(180deg,#3a6a20,#2a5a10,#3a6a20,#2a5a10)", radius: "2px", shadow: "0 0 4px rgba(60,120,30,0.4)" },
+      { type: "vine", x: 72, y: 35, w: 5, h: 35, bg: "linear-gradient(180deg,#2a5a10,#3a6a20,#2a5a10)", radius: "2px", shadow: "0 0 4px rgba(60,120,30,0.4)" },
+      { type: "rune", x: 38, y: 36, w: 14, h: 14, bg: "radial-gradient(circle,rgba(160,80,255,0.6),rgba(120,40,200,0.2),transparent)", radius: "50%", shadow: "0 0 12px rgba(140,60,220,0.5)", anim: "pulse" },
+      { type: "skull", x: 5, y: 2, w: 8, h: 8, bg: "radial-gradient(circle,#e0d8c0,#c0b8a0)", radius: "40%", shadow: "0 1px 3px rgba(0,0,0,0.5)" },
+      { type: "moss", x: 0, y: 20, w: 40, h: 4, bg: "linear-gradient(90deg,rgba(60,100,30,0.6),rgba(80,120,40,0.4),transparent)", radius: "2px" },
+      { type: "altar_glow", x: 32, y: 28, w: 26, h: 30, bg: "radial-gradient(circle,rgba(140,60,220,0.25),rgba(100,30,180,0.1),transparent)", radius: "50%", anim: "pulse" },
+    ],
     style: {
-      platform: { bg: "linear-gradient(180deg,#5a6a50,#4a5a40,#3a4a30)", radius: "4px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
-      pillar_l: { bg: "linear-gradient(180deg,#7a7a6a,#6a6a5a,#5a5a4a)", radius: "3px 3px 2px 2px", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
-      pillar_r: { bg: "linear-gradient(180deg,#7a7a6a,#6a6a5a,#5a5a4a)", radius: "3px 3px 2px 2px", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
-      altar: { bg: "radial-gradient(ellipse,#8040c0,#6030a0,#402080)", radius: "4px", shadow: "0 0 12px rgba(120,50,200,0.5), 0 2px 6px rgba(0,0,0,0.4)" },
+      platform: { bg: "linear-gradient(180deg,#6a7a58,#5a6a48,#4a5a38,#3a4a28)", radius: "4px", shadow: "0 4px 12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)", texture: "repeating-linear-gradient(90deg,transparent,transparent 14px,rgba(0,0,0,0.08) 14px,rgba(0,0,0,0.08) 15px)" },
+      pillar_l: { bg: "linear-gradient(180deg,#8a8a78,#7a7a68,#6a6a58,#5a5a48)", radius: "3px 3px 2px 2px", shadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)", texture: "repeating-linear-gradient(0deg,transparent,transparent 10px,rgba(0,0,0,0.06) 10px,rgba(0,0,0,0.06) 11px)" },
+      pillar_r: { bg: "linear-gradient(180deg,#8a8a78,#7a7a68,#6a6a58,#5a5a48)", radius: "3px 3px 2px 2px", shadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)", texture: "repeating-linear-gradient(0deg,transparent,transparent 10px,rgba(0,0,0,0.06) 10px,rgba(0,0,0,0.06) 11px)" },
+      altar: { bg: "radial-gradient(ellipse at 40% 40%,#a060e0,#8040c0,#6030a0,#402080)", radius: "4px", shadow: "0 0 18px rgba(120,50,200,0.6), 0 0 8px rgba(160,80,255,0.3), 0 3px 8px rgba(0,0,0,0.5)", anim: "glow" },
     },
   },
 
@@ -239,10 +265,21 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 2, message: "Obsydianowa Brama rozpadła się!" },
+    decorations: [
+      { type: "rune", x: 5, y: 20, w: 10, h: 10, bg: "radial-gradient(circle,rgba(255,80,30,0.7),rgba(200,40,10,0.3),transparent)", radius: "50%", shadow: "0 0 8px rgba(255,60,20,0.6)", anim: "pulse" },
+      { type: "rune", x: 70, y: 20, w: 10, h: 10, bg: "radial-gradient(circle,rgba(255,80,30,0.7),rgba(200,40,10,0.3),transparent)", radius: "50%", shadow: "0 0 8px rgba(255,60,20,0.6)", anim: "pulse" },
+      { type: "rune", x: 5, y: 50, w: 10, h: 10, bg: "radial-gradient(circle,rgba(255,60,20,0.6),rgba(200,30,10,0.2),transparent)", radius: "50%", shadow: "0 0 6px rgba(255,40,20,0.5)", anim: "pulse" },
+      { type: "rune", x: 70, y: 50, w: 10, h: 10, bg: "radial-gradient(circle,rgba(255,60,20,0.6),rgba(200,30,10,0.2),transparent)", radius: "50%", shadow: "0 0 6px rgba(255,40,20,0.5)", anim: "pulse" },
+      { type: "fire_glow", x: 20, y: 85, w: 45, h: 20, bg: "radial-gradient(ellipse,rgba(255,80,20,0.3),rgba(200,40,10,0.1),transparent)", radius: "50%", anim: "flicker" },
+      { type: "lava_drip", x: 8, y: 75, w: 4, h: 12, bg: "linear-gradient(180deg,rgba(255,120,40,0.8),rgba(255,60,20,0.4),transparent)", radius: "0 0 50% 50%", anim: "drip" },
+      { type: "lava_drip", x: 73, y: 70, w: 4, h: 14, bg: "linear-gradient(180deg,rgba(255,120,40,0.8),rgba(255,60,20,0.4),transparent)", radius: "0 0 50% 50%", anim: "drip" },
+      { type: "obsidian_vein", x: 2, y: 40, w: 16, h: 2, bg: "linear-gradient(90deg,transparent,rgba(100,40,160,0.5),transparent)", radius: "1px" },
+      { type: "obsidian_vein", x: 67, y: 35, w: 16, h: 2, bg: "linear-gradient(90deg,transparent,rgba(100,40,160,0.5),transparent)", radius: "1px" },
+    ],
     style: {
-      pillar_l: { bg: "linear-gradient(180deg,#2a2030,#1a1020,#0a0810)", radius: "3px", shadow: "0 0 8px rgba(60,20,80,0.3), 0 3px 8px rgba(0,0,0,0.6)" },
-      pillar_r: { bg: "linear-gradient(180deg,#2a2030,#1a1020,#0a0810)", radius: "3px", shadow: "0 0 8px rgba(60,20,80,0.3), 0 3px 8px rgba(0,0,0,0.6)" },
-      arch: { bg: "linear-gradient(180deg,#3a1040,#2a0830,#1a0420)", radius: "50% 50% 0 0", shadow: "0 0 14px rgba(255,60,20,0.4), 0 0 6px rgba(200,40,200,0.3)" },
+      pillar_l: { bg: "linear-gradient(180deg,#3a2840,#2a1830,#1a1020,#0a0810)", radius: "3px", shadow: "0 0 12px rgba(80,20,100,0.4), 0 0 6px rgba(255,60,20,0.2), 0 4px 10px rgba(0,0,0,0.7)", texture: "repeating-linear-gradient(0deg,transparent,transparent 12px,rgba(100,40,160,0.1) 12px,rgba(100,40,160,0.1) 13px)" },
+      pillar_r: { bg: "linear-gradient(180deg,#3a2840,#2a1830,#1a1020,#0a0810)", radius: "3px", shadow: "0 0 12px rgba(80,20,100,0.4), 0 0 6px rgba(255,60,20,0.2), 0 4px 10px rgba(0,0,0,0.7)", texture: "repeating-linear-gradient(0deg,transparent,transparent 12px,rgba(100,40,160,0.1) 12px,rgba(100,40,160,0.1) 13px)" },
+      arch: { bg: "linear-gradient(180deg,#4a1850,#3a1040,#2a0830,#1a0420)", radius: "50% 50% 0 0", shadow: "0 0 20px rgba(255,60,20,0.5), 0 0 10px rgba(200,40,200,0.4), 0 0 40px rgba(255,80,30,0.2)", anim: "glow" },
     },
   },
 
@@ -301,11 +338,22 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 1, message: "Lodowa Twierdza roztrzaskana!" },
+    decorations: [
+      { type: "icicle", x: 22, y: 32, w: 3, h: 10, bg: "linear-gradient(180deg,rgba(180,220,255,0.8),rgba(140,200,255,0.3))", radius: "1px 1px 50% 50%" },
+      { type: "icicle", x: 32, y: 33, w: 4, h: 12, bg: "linear-gradient(180deg,rgba(180,220,255,0.8),rgba(140,200,255,0.3))", radius: "1px 1px 50% 50%" },
+      { type: "icicle", x: 45, y: 31, w: 3, h: 9, bg: "linear-gradient(180deg,rgba(180,220,255,0.8),rgba(140,200,255,0.3))", radius: "1px 1px 50% 50%" },
+      { type: "icicle", x: 55, y: 33, w: 4, h: 11, bg: "linear-gradient(180deg,rgba(180,220,255,0.8),rgba(140,200,255,0.3))", radius: "1px 1px 50% 50%" },
+      { type: "frost_window", x: 28, y: 8, w: 14, h: 18, bg: "radial-gradient(circle,rgba(200,240,255,0.5),rgba(160,220,255,0.2))", radius: "2px 2px 8px 8px", shadow: "0 0 6px rgba(160,220,255,0.4)" },
+      { type: "ice_crystal", x: 35, y: 62, w: 8, h: 12, bg: "linear-gradient(135deg,rgba(200,240,255,0.7),rgba(160,220,255,0.3),rgba(200,240,255,0.5))", radius: "2px", shadow: "0 0 10px rgba(160,220,255,0.5)", anim: "shimmer" },
+      { type: "snow_pile", x: -2, y: -2, w: 24, h: 6, bg: "radial-gradient(ellipse,rgba(240,248,255,0.9),rgba(220,238,255,0.5),transparent)", radius: "50%" },
+      { type: "snow_pile", x: 68, y: -2, w: 24, h: 6, bg: "radial-gradient(ellipse,rgba(240,248,255,0.9),rgba(220,238,255,0.5),transparent)", radius: "50%" },
+      { type: "frost_glow", x: 10, y: 55, w: 70, h: 50, bg: "radial-gradient(ellipse,rgba(160,220,255,0.15),transparent)", radius: "50%" },
+    ],
     style: {
-      wall_l: { bg: "linear-gradient(180deg,#b0d8f0,#90b8e0,#70a0d0)", radius: "3px", shadow: "0 0 8px rgba(160,200,255,0.3), 0 2px 6px rgba(0,0,0,0.4)" },
-      wall_r: { bg: "linear-gradient(180deg,#b0d8f0,#90b8e0,#70a0d0)", radius: "3px", shadow: "0 0 8px rgba(160,200,255,0.3), 0 2px 6px rgba(0,0,0,0.4)" },
-      gate: { bg: "linear-gradient(180deg,#c0e0ff,#a0c8f0,#80b0e0)", radius: "8px 8px 2px 2px", shadow: "0 0 12px rgba(160,200,255,0.4), 0 3px 8px rgba(0,0,0,0.5)" },
-      turret: { bg: "radial-gradient(ellipse,#d0f0ff,#a0d0f0,#80b8e0)", radius: "4px 4px 2px 2px", shadow: "0 0 14px rgba(160,200,255,0.5), 0 2px 8px rgba(0,0,0,0.4)" },
+      wall_l: { bg: "linear-gradient(180deg,#c0e8f8,#b0d8f0,#90b8e0,#70a0d0)", radius: "3px", shadow: "0 0 12px rgba(160,200,255,0.4), 0 3px 8px rgba(0,0,0,0.5), inset 0 0 8px rgba(200,240,255,0.2)", texture: "repeating-linear-gradient(0deg,transparent,transparent 8px,rgba(200,240,255,0.1) 8px,rgba(200,240,255,0.1) 9px)" },
+      wall_r: { bg: "linear-gradient(180deg,#c0e8f8,#b0d8f0,#90b8e0,#70a0d0)", radius: "3px", shadow: "0 0 12px rgba(160,200,255,0.4), 0 3px 8px rgba(0,0,0,0.5), inset 0 0 8px rgba(200,240,255,0.2)", texture: "repeating-linear-gradient(0deg,transparent,transparent 8px,rgba(200,240,255,0.1) 8px,rgba(200,240,255,0.1) 9px)" },
+      gate: { bg: "linear-gradient(180deg,#d0f0ff,#c0e0ff,#a0c8f0,#80b0e0)", radius: "8px 8px 2px 2px", shadow: "0 0 16px rgba(160,200,255,0.5), 0 4px 10px rgba(0,0,0,0.5), inset 0 0 12px rgba(200,240,255,0.15)" },
+      turret: { bg: "radial-gradient(ellipse at 40% 40%,#e0f8ff,#d0f0ff,#a0d0f0,#80b8e0)", radius: "4px 4px 2px 2px", shadow: "0 0 20px rgba(160,200,255,0.6), 0 3px 10px rgba(0,0,0,0.5)", anim: "shimmer" },
     },
   },
 
@@ -362,11 +410,20 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 2, silver: 2, message: "Piramida Przemytników zburzona!" },
+    decorations: [
+      { type: "hieroglyph", x: 20, y: 8, w: 8, h: 8, bg: "radial-gradient(circle,rgba(180,140,60,0.6),rgba(140,100,30,0.2))", radius: "1px", shadow: "0 0 3px rgba(180,140,60,0.4)" },
+      { type: "hieroglyph", x: 50, y: 8, w: 8, h: 8, bg: "radial-gradient(circle,rgba(180,140,60,0.6),rgba(140,100,30,0.2))", radius: "1px", shadow: "0 0 3px rgba(180,140,60,0.4)" },
+      { type: "hieroglyph", x: 70, y: 12, w: 6, h: 6, bg: "radial-gradient(circle,rgba(180,140,60,0.5),rgba(140,100,30,0.15))", radius: "1px" },
+      { type: "eye_of_ra", x: 33, y: 68, w: 14, h: 10, bg: "radial-gradient(circle,rgba(255,200,40,0.7),rgba(200,160,20,0.3),transparent)", radius: "50%", shadow: "0 0 12px rgba(255,200,40,0.5)", anim: "pulse" },
+      { type: "sand_drift", x: -5, y: -3, w: 100, h: 8, bg: "linear-gradient(90deg,transparent,rgba(210,190,140,0.4),rgba(200,180,130,0.6),rgba(210,190,140,0.4),transparent)", radius: "50%" },
+      { type: "torch", x: 32, y: 12, w: 4, h: 10, bg: "linear-gradient(180deg,rgba(255,160,40,0.8),rgba(200,100,20,0.4),#6a4a20)", radius: "1px 1px 2px 2px", shadow: "0 0 8px rgba(255,140,40,0.5)", anim: "flicker" },
+      { type: "torch", x: 54, y: 12, w: 4, h: 10, bg: "linear-gradient(180deg,rgba(255,160,40,0.8),rgba(200,100,20,0.4),#6a4a20)", radius: "1px 1px 2px 2px", shadow: "0 0 8px rgba(255,140,40,0.5)", anim: "flicker" },
+    ],
     style: {
-      layer_bottom: { bg: "linear-gradient(180deg,#c4a860,#b09850,#9a8840)", radius: "2px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
-      layer_mid: { bg: "linear-gradient(180deg,#d0b870,#c0a860,#b09850)", radius: "2px", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
-      layer_top: { bg: "linear-gradient(180deg,#e0c880,#d0b870,#c0a860)", radius: "2px 2px 50% 50%", shadow: "0 2px 8px rgba(0,0,0,0.4)" },
-      entrance: { bg: "linear-gradient(180deg,#2a1a0a,#1a1008,#0a0804)", radius: "8px 8px 2px 2px", shadow: "inset 0 0 6px rgba(0,0,0,0.6)" },
+      layer_bottom: { bg: "linear-gradient(180deg,#d0b868,#c4a860,#b09850,#9a8840)", radius: "2px", shadow: "0 4px 12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)", texture: "repeating-linear-gradient(90deg,transparent,transparent 18px,rgba(0,0,0,0.06) 18px,rgba(0,0,0,0.06) 19px)" },
+      layer_mid: { bg: "linear-gradient(180deg,#d8c078,#d0b870,#c0a860,#b09850)", radius: "2px", shadow: "0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)" },
+      layer_top: { bg: "linear-gradient(180deg,#e8d888,#e0c880,#d0b870,#c0a860)", radius: "2px 2px 50% 50%", shadow: "0 0 14px rgba(255,200,60,0.3), 0 3px 10px rgba(0,0,0,0.5)" },
+      entrance: { bg: "linear-gradient(180deg,#2a1a0a,#1a1008,#0a0804)", radius: "8px 8px 2px 2px", shadow: "inset 0 0 10px rgba(0,0,0,0.8), 0 0 6px rgba(0,0,0,0.4)" },
     },
   },
 
@@ -426,11 +483,22 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 1, silver: 2, message: "Karczma zrównana z ziemią!" },
+    decorations: [
+      { type: "window", x: 8, y: 18, w: 12, h: 16, bg: "radial-gradient(circle,rgba(255,200,80,0.7),rgba(200,140,40,0.3))", shadow: "0 0 8px rgba(255,180,60,0.5)", radius: "3px 3px 6px 6px" },
+      { type: "window", x: 38, y: 18, w: 12, h: 16, bg: "radial-gradient(circle,rgba(255,200,80,0.7),rgba(200,140,40,0.3))", shadow: "0 0 8px rgba(255,180,60,0.5)", radius: "3px 3px 6px 6px" },
+      { type: "door", x: 22, y: 3, w: 16, h: 28, bg: "linear-gradient(180deg,#5a3a18,#4a2a10,#3a1a08)", shadow: "inset 0 0 6px rgba(0,0,0,0.7)", radius: "6px 6px 0 0" },
+      { type: "door_handle", x: 32, y: 15, w: 3, h: 3, bg: "radial-gradient(circle,#d0a050,#a08030)", radius: "50%", shadow: "0 0 3px rgba(200,160,60,0.5)" },
+      { type: "chimney_smoke", x: 62, y: 82, w: 16, h: 30, bg: "radial-gradient(ellipse,rgba(120,120,120,0.3),rgba(100,100,100,0.1),transparent)", radius: "50%", anim: "rise" },
+      { type: "barrel", x: -6, y: 2, w: 10, h: 12, bg: "radial-gradient(ellipse,#8a6a40,#6a4a20,#5a3a10)", radius: "3px", shadow: "0 2px 4px rgba(0,0,0,0.5)" },
+      { type: "barrel", x: -4, y: 14, w: 9, h: 11, bg: "radial-gradient(ellipse,#7a5a30,#5a3a10)", radius: "3px", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
+      { type: "lantern", x: 55, y: 42, w: 6, h: 8, bg: "radial-gradient(circle,#ffe080,#ffc040)", radius: "2px", shadow: "0 0 10px rgba(255,200,60,0.6)", anim: "flicker" },
+      { type: "plank", x: 0, y: 55, w: 80, h: 2, bg: "linear-gradient(90deg,#6a4a20,#7a5a30,#6a4a20)", radius: "0" },
+    ],
     style: {
-      walls: { bg: "linear-gradient(180deg,#8a6a40,#7a5a30,#6a4a20)", radius: "3px", shadow: "0 3px 10px rgba(0,0,0,0.6)" },
-      roof: { bg: "linear-gradient(180deg,#7a3a18,#6a3018,#5a2810)", radius: "6px 6px 0 0", shadow: "0 -2px 6px rgba(0,0,0,0.3), 0 3px 8px rgba(0,0,0,0.5)" },
-      balcony: { bg: "linear-gradient(180deg,#9a7a50,#8a6a40,#7a5a30)", radius: "2px", shadow: "0 3px 6px rgba(0,0,0,0.4)" },
-      sign: { bg: "linear-gradient(180deg,#c0a060,#a08840,#806830)", radius: "3px", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
+      walls: { bg: "linear-gradient(180deg,#9a7a48,#8a6a40,#7a5a30,#6a4a20)", radius: "3px", shadow: "0 4px 14px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.1)", texture: "repeating-linear-gradient(90deg,transparent,transparent 14px,rgba(0,0,0,0.06) 14px,rgba(0,0,0,0.06) 15px)" },
+      roof: { bg: "linear-gradient(180deg,#8a4820,#7a3a18,#6a3018,#5a2810)", radius: "6px 6px 0 0", shadow: "0 -2px 8px rgba(0,0,0,0.3), 0 4px 10px rgba(0,0,0,0.6)", texture: "repeating-linear-gradient(30deg,transparent,transparent 6px,rgba(0,0,0,0.08) 6px,rgba(0,0,0,0.08) 7px)" },
+      balcony: { bg: "linear-gradient(180deg,#a88a58,#9a7a50,#8a6a40,#7a5a30)", radius: "2px", shadow: "0 4px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)" },
+      sign: { bg: "linear-gradient(180deg,#d0b068,#c0a060,#a08840,#806830)", radius: "3px", shadow: "0 3px 6px rgba(0,0,0,0.5), 0 0 4px rgba(200,160,60,0.3)" },
     },
   },
   // ═══════════════════════════════════════════════════
@@ -495,11 +563,18 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 1, message: "Wiatrak zmiażdżony!" },
+    decorations: [
+      { type: "window", x: 18, y: 45, w: 10, h: 12, bg: "radial-gradient(circle,rgba(255,220,120,0.6),rgba(200,160,60,0.2))", radius: "3px 3px 6px 6px", shadow: "0 0 6px rgba(255,200,80,0.4)" },
+      { type: "door", x: 16, y: 3, w: 14, h: 22, bg: "linear-gradient(180deg,#5a4020,#4a3010,#3a2008)", radius: "6px 6px 0 0", shadow: "inset 0 0 5px rgba(0,0,0,0.6)" },
+      { type: "wheat_pile", x: -8, y: -2, w: 20, h: 8, bg: "radial-gradient(ellipse,rgba(200,180,80,0.6),rgba(180,160,60,0.3),transparent)", radius: "50%" },
+      { type: "sack", x: 52, y: 3, w: 10, h: 12, bg: "radial-gradient(ellipse,#c0a060,#a08840,#806830)", radius: "3px 3px 50% 50%", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
+      { type: "blade_hub", x: 22, y: 88, w: 16, h: 16, bg: "radial-gradient(circle,#8a8a9a,#6a6a7a,#5a5a6a)", radius: "50%", shadow: "0 0 8px rgba(0,0,0,0.4)" },
+    ],
     style: {
-      base: { bg: "linear-gradient(180deg,#8a8a7a,#7a7a6a,#6a6a5a)", radius: "4px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
-      tower: { bg: "linear-gradient(180deg,#9a8060,#8a7050,#7a6040)", radius: "3px", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
-      blades: { bg: "linear-gradient(45deg,#8a7050 20%,transparent 20%,transparent 80%,#8a7050 80%),linear-gradient(-45deg,#8a7050 20%,transparent 20%,transparent 80%,#8a7050 80%)", radius: "2px", shadow: "0 0 4px rgba(0,0,0,0.3)" },
-      mechanism: { bg: "radial-gradient(circle,#7a7a8a,#5a5a6a,#4a4a5a)", radius: "50%", shadow: "0 0 6px rgba(140,140,160,0.3)" },
+      base: { bg: "linear-gradient(180deg,#9a9a88,#8a8a7a,#7a7a6a,#6a6a5a)", radius: "4px", shadow: "0 4px 12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)", texture: "repeating-linear-gradient(0deg,transparent,transparent 6px,rgba(0,0,0,0.06) 6px,rgba(0,0,0,0.06) 7px)" },
+      tower: { bg: "linear-gradient(180deg,#a88e68,#9a8060,#8a7050,#7a6040)", radius: "3px", shadow: "0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)", texture: "repeating-linear-gradient(90deg,transparent,transparent 10px,rgba(0,0,0,0.05) 10px,rgba(0,0,0,0.05) 11px)" },
+      blades: { bg: "linear-gradient(45deg,#9a8058 20%,transparent 20%,transparent 80%,#9a8058 80%),linear-gradient(-45deg,#9a8058 20%,transparent 20%,transparent 80%,#9a8058 80%)", radius: "2px", shadow: "0 0 6px rgba(0,0,0,0.4)", anim: "rotate_slow" },
+      mechanism: { bg: "radial-gradient(circle at 35% 35%,#8a8a9a,#7a7a8a,#5a5a6a,#4a4a5a)", radius: "50%", shadow: "0 0 10px rgba(140,140,180,0.4), 0 2px 6px rgba(0,0,0,0.4)" },
     },
   },
 
@@ -564,12 +639,22 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 1, message: "Stary Most zawalony!" },
+    decorations: [
+      { type: "moss", x: 8, y: 20, w: 14, h: 4, bg: "linear-gradient(90deg,rgba(60,100,30,0.5),rgba(80,120,40,0.3),transparent)", radius: "2px" },
+      { type: "moss", x: 48, y: 25, w: 12, h: 4, bg: "linear-gradient(90deg,transparent,rgba(70,110,35,0.4),rgba(60,100,30,0.5))", radius: "2px" },
+      { type: "moss", x: 88, y: 18, w: 16, h: 4, bg: "linear-gradient(90deg,rgba(60,100,30,0.5),rgba(80,120,40,0.3),transparent)", radius: "2px" },
+      { type: "rope", x: 5, y: 48, w: 110, h: 2, bg: "linear-gradient(90deg,#6a5030,#7a6040,#6a5030,#7a6040,#6a5030)", radius: "1px", shadow: "0 1px 2px rgba(0,0,0,0.3)" },
+      { type: "lantern_hanging", x: 28, y: 50, w: 5, h: 7, bg: "radial-gradient(circle,#ffe080,#c0a040)", radius: "50%", shadow: "0 0 8px rgba(255,200,60,0.5)", anim: "sway" },
+      { type: "lantern_hanging", x: 82, y: 50, w: 5, h: 7, bg: "radial-gradient(circle,#ffe080,#c0a040)", radius: "50%", shadow: "0 0 8px rgba(255,200,60,0.5)", anim: "sway" },
+      { type: "fallen_leaf", x: 15, y: 47, w: 5, h: 3, bg: "#c07020", radius: "50%", shadow: "0 1px 2px rgba(0,0,0,0.3)" },
+      { type: "fallen_leaf", x: 70, y: 48, w: 4, h: 3, bg: "#d08030", radius: "50%", shadow: "0 1px 2px rgba(0,0,0,0.3)" },
+    ],
     style: {
-      pillar_l: { bg: "linear-gradient(180deg,#7a6a5a,#6a5a4a,#5a4a3a)", radius: "3px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
-      pillar_m: { bg: "linear-gradient(180deg,#7a6a5a,#6a5a4a,#5a4a3a)", radius: "3px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
-      pillar_r: { bg: "linear-gradient(180deg,#7a6a5a,#6a5a4a,#5a4a3a)", radius: "3px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
-      span_l: { bg: "linear-gradient(180deg,#8a6a40,#7a5a30,#6a4a20)", radius: "2px", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
-      span_r: { bg: "linear-gradient(180deg,#8a6a40,#7a5a30,#6a4a20)", radius: "2px", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
+      pillar_l: { bg: "linear-gradient(180deg,#8a7a68,#7a6a5a,#6a5a4a,#5a4a3a)", radius: "3px", shadow: "0 3px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)", texture: "repeating-linear-gradient(0deg,transparent,transparent 8px,rgba(0,0,0,0.06) 8px,rgba(0,0,0,0.06) 9px)" },
+      pillar_m: { bg: "linear-gradient(180deg,#8a7a68,#7a6a5a,#6a5a4a,#5a4a3a)", radius: "3px", shadow: "0 4px 10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)", texture: "repeating-linear-gradient(0deg,transparent,transparent 8px,rgba(0,0,0,0.06) 8px,rgba(0,0,0,0.06) 9px)" },
+      pillar_r: { bg: "linear-gradient(180deg,#8a7a68,#7a6a5a,#6a5a4a,#5a4a3a)", radius: "3px", shadow: "0 3px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)", texture: "repeating-linear-gradient(0deg,transparent,transparent 8px,rgba(0,0,0,0.06) 8px,rgba(0,0,0,0.06) 9px)" },
+      span_l: { bg: "linear-gradient(180deg,#9a7a48,#8a6a40,#7a5a30,#6a4a20)", radius: "2px", shadow: "0 3px 6px rgba(0,0,0,0.5)", texture: "repeating-linear-gradient(90deg,transparent,transparent 8px,rgba(0,0,0,0.06) 8px,rgba(0,0,0,0.06) 9px)" },
+      span_r: { bg: "linear-gradient(180deg,#9a7a48,#8a6a40,#7a5a30,#6a4a20)", radius: "2px", shadow: "0 3px 6px rgba(0,0,0,0.5)", texture: "repeating-linear-gradient(90deg,transparent,transparent 8px,rgba(0,0,0,0.06) 8px,rgba(0,0,0,0.06) 9px)" },
     },
   },
 
@@ -622,11 +707,20 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 1, message: "Altana zniszczona!" },
+    decorations: [
+      { type: "flower_bush", x: -8, y: -2, w: 14, h: 10, bg: "radial-gradient(circle,rgba(255,100,180,0.6),rgba(200,60,120,0.3),transparent)", radius: "50%", shadow: "0 0 6px rgba(200,80,140,0.3)" },
+      { type: "flower_bush", x: 64, y: -2, w: 14, h: 10, bg: "radial-gradient(circle,rgba(255,200,80,0.6),rgba(200,160,40,0.3),transparent)", radius: "50%", shadow: "0 0 6px rgba(200,180,60,0.3)" },
+      { type: "butterfly", x: 50, y: 55, w: 5, h: 4, bg: "radial-gradient(circle,rgba(200,100,255,0.7),rgba(160,60,220,0.3))", radius: "50%", shadow: "0 0 4px rgba(180,80,240,0.4)", anim: "float" },
+      { type: "butterfly", x: 20, y: 65, w: 4, h: 3, bg: "radial-gradient(circle,rgba(100,200,255,0.7),rgba(60,160,220,0.3))", radius: "50%", shadow: "0 0 4px rgba(80,180,240,0.4)", anim: "float" },
+      { type: "water_spray", x: 25, y: 20, w: 20, h: 20, bg: "radial-gradient(ellipse,rgba(120,200,240,0.3),rgba(80,160,220,0.1),transparent)", radius: "50%", anim: "pulse" },
+      { type: "vine_hang", x: 2, y: 50, w: 4, h: 18, bg: "linear-gradient(180deg,rgba(60,120,30,0.6),rgba(80,140,40,0.4),transparent)", radius: "1px", anim: "sway" },
+      { type: "vine_hang", x: 64, y: 48, w: 4, h: 20, bg: "linear-gradient(180deg,rgba(60,120,30,0.6),rgba(80,140,40,0.4),transparent)", radius: "1px", anim: "sway" },
+    ],
     style: {
-      columns: { bg: "linear-gradient(180deg,#c0c0b0,#a0a090,#808070)", radius: "3px", shadow: "0 2px 8px rgba(0,0,0,0.4)" },
-      fountain: { bg: "radial-gradient(circle,#80c0e0,#60a0c0,#4080a0)", radius: "50%", shadow: "0 0 10px rgba(100,180,220,0.4), 0 2px 6px rgba(0,0,0,0.3)" },
-      roof: { bg: "linear-gradient(180deg,#6a8a4a,#5a7a3a,#4a6a2a)", radius: "4px 4px 0 0", shadow: "0 -1px 4px rgba(0,0,0,0.2), 0 2px 6px rgba(0,0,0,0.4)" },
-      flowers: { bg: "radial-gradient(ellipse,#e060a0,#c04080,#a02060)", radius: "50%", shadow: "0 0 8px rgba(200,60,120,0.3)" },
+      columns: { bg: "linear-gradient(180deg,#d0d0c0,#c0c0b0,#a0a090,#808070)", radius: "3px", shadow: "0 3px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)" },
+      fountain: { bg: "radial-gradient(circle at 35% 35%,#a0e0f8,#80c0e0,#60a0c0,#4080a0)", radius: "50%", shadow: "0 0 14px rgba(100,180,220,0.5), 0 0 6px rgba(140,200,240,0.3), 0 3px 8px rgba(0,0,0,0.4)", anim: "shimmer" },
+      roof: { bg: "linear-gradient(180deg,#7a9a58,#6a8a4a,#5a7a3a,#4a6a2a)", radius: "4px 4px 0 0", shadow: "0 -2px 6px rgba(0,0,0,0.3), 0 3px 8px rgba(0,0,0,0.5)" },
+      flowers: { bg: "radial-gradient(ellipse at 40% 40%,#f080b8,#e060a0,#c04080,#a02060)", radius: "50%", shadow: "0 0 12px rgba(200,60,120,0.4), 0 0 6px rgba(240,100,160,0.3)" },
     },
   },
 
@@ -681,10 +775,22 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 1, message: "Gigantyczny Grzyb rozpadł się!" },
+    decorations: [
+      { type: "small_shroom", x: -6, y: 2, w: 8, h: 10, bg: "radial-gradient(ellipse at 50% 30%,#c080e0,#a060c0,#8040a0)", radius: "50% 50% 20% 20%", shadow: "0 0 6px rgba(160,80,200,0.3)" },
+      { type: "small_shroom", x: 58, y: 4, w: 6, h: 8, bg: "radial-gradient(ellipse at 50% 30%,#b070d0,#9050b0,#7030a0)", radius: "50% 50% 20% 20%", shadow: "0 0 5px rgba(140,60,180,0.3)" },
+      { type: "glow_spot", x: 10, y: 60, w: 14, h: 10, bg: "radial-gradient(circle,rgba(160,100,220,0.5),rgba(120,60,180,0.2),transparent)", radius: "50%", anim: "pulse" },
+      { type: "glow_spot", x: 46, y: 62, w: 12, h: 8, bg: "radial-gradient(circle,rgba(140,80,200,0.5),rgba(100,40,160,0.2),transparent)", radius: "50%", anim: "pulse" },
+      { type: "spore_particle", x: 15, y: 75, w: 3, h: 3, bg: "radial-gradient(circle,rgba(180,120,240,0.8),rgba(140,80,200,0.3))", radius: "50%", shadow: "0 0 4px rgba(160,100,220,0.5)", anim: "float" },
+      { type: "spore_particle", x: 40, y: 80, w: 2, h: 2, bg: "radial-gradient(circle,rgba(160,100,220,0.8),rgba(120,60,180,0.3))", radius: "50%", shadow: "0 0 3px rgba(140,80,200,0.5)", anim: "float" },
+      { type: "spore_particle", x: 55, y: 72, w: 3, h: 3, bg: "radial-gradient(circle,rgba(200,140,255,0.8),rgba(160,100,220,0.3))", radius: "50%", shadow: "0 0 4px rgba(180,120,240,0.5)", anim: "float" },
+      { type: "ring_pattern", x: 22, y: 10, w: 26, h: 3, bg: "linear-gradient(90deg,transparent,rgba(160,120,100,0.3),transparent)", radius: "1px" },
+      { type: "ring_pattern", x: 22, y: 25, w: 26, h: 3, bg: "linear-gradient(90deg,transparent,rgba(160,120,100,0.25),transparent)", radius: "1px" },
+      { type: "ring_pattern", x: 22, y: 40, w: 26, h: 3, bg: "linear-gradient(90deg,transparent,rgba(160,120,100,0.2),transparent)", radius: "1px" },
+    ],
     style: {
-      stem: { bg: "linear-gradient(180deg,#b0a080,#9a8a70,#8a7a60)", radius: "8px", shadow: "0 2px 8px rgba(0,0,0,0.4)" },
-      cap: { bg: "radial-gradient(ellipse at 40% 60%,#a060c0,#8040a0,#602080)", radius: "50% 50% 10% 10%", shadow: "0 0 12px rgba(140,60,180,0.4), 0 3px 8px rgba(0,0,0,0.5)" },
-      spores: { bg: "radial-gradient(ellipse,rgba(160,100,200,0.6),rgba(120,60,160,0.3))", radius: "50%", shadow: "0 0 10px rgba(160,100,200,0.4)" },
+      stem: { bg: "linear-gradient(180deg,#c0b090,#b0a080,#9a8a70,#8a7a60)", radius: "8px", shadow: "0 3px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)" },
+      cap: { bg: "radial-gradient(ellipse at 35% 55%,#b878d8,#a060c0,#8040a0,#602080)", radius: "50% 50% 10% 10%", shadow: "0 0 18px rgba(140,60,180,0.5), 0 0 8px rgba(180,100,220,0.3), 0 4px 10px rgba(0,0,0,0.6)", anim: "glow" },
+      spores: { bg: "radial-gradient(ellipse,rgba(180,120,220,0.7),rgba(140,80,180,0.4),rgba(120,60,160,0.15))", radius: "50%", shadow: "0 0 14px rgba(160,100,200,0.5), 0 0 6px rgba(200,140,255,0.3)", anim: "pulse" },
     },
   },
 
@@ -745,11 +851,21 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 1, message: "Chata zatonęła w bagnie!" },
+    decorations: [
+      { type: "window", x: 15, y: 38, w: 10, h: 10, bg: "radial-gradient(circle,rgba(80,200,60,0.5),rgba(40,120,30,0.2))", radius: "2px", shadow: "0 0 6px rgba(60,180,40,0.4)" },
+      { type: "window", x: 40, y: 38, w: 10, h: 10, bg: "radial-gradient(circle,rgba(80,200,60,0.5),rgba(40,120,30,0.2))", radius: "2px", shadow: "0 0 6px rgba(60,180,40,0.4)" },
+      { type: "skull", x: 8, y: 50, w: 6, h: 6, bg: "radial-gradient(circle,#d0c8b0,#b0a890)", radius: "40%", shadow: "0 1px 2px rgba(0,0,0,0.5)" },
+      { type: "herbs", x: -4, y: 68, w: 12, h: 8, bg: "radial-gradient(ellipse,rgba(60,140,40,0.6),rgba(40,100,20,0.3),transparent)", radius: "50%" },
+      { type: "smoke", x: 48, y: 85, w: 14, h: 25, bg: "radial-gradient(ellipse,rgba(80,120,60,0.3),rgba(60,100,40,0.1),transparent)", radius: "50%", anim: "rise" },
+      { type: "mud_splash", x: 5, y: -3, w: 16, h: 5, bg: "radial-gradient(ellipse,rgba(80,60,30,0.5),rgba(60,40,20,0.2),transparent)", radius: "50%" },
+      { type: "mud_splash", x: 40, y: -2, w: 20, h: 5, bg: "radial-gradient(ellipse,rgba(80,60,30,0.5),rgba(60,40,20,0.2),transparent)", radius: "50%" },
+      { type: "hanging_potion", x: 62, y: 50, w: 4, h: 6, bg: "radial-gradient(circle,rgba(120,255,80,0.6),rgba(60,180,40,0.3))", radius: "50%", shadow: "0 0 4px rgba(80,220,40,0.4)", anim: "sway" },
+    ],
     style: {
-      legs: { bg: "linear-gradient(180deg,#6a5030 30%,transparent 30%,transparent 70%,#6a5030 70%)", radius: "2px", shadow: "0 2px 4px rgba(0,0,0,0.4)" },
-      hut: { bg: "linear-gradient(180deg,#7a6040,#6a5030,#5a4020)", radius: "3px", shadow: "0 3px 8px rgba(0,0,0,0.5)" },
-      roof: { bg: "linear-gradient(180deg,#4a6030,#3a5020,#2a4010)", radius: "50% 50% 0 0", shadow: "0 -1px 4px rgba(0,0,0,0.3)" },
-      chimney: { bg: "linear-gradient(180deg,#5a5a5a,#4a4a4a,#3a3a3a)", radius: "2px", shadow: "0 -4px 8px rgba(80,120,40,0.3)" },
+      legs: { bg: "linear-gradient(180deg,#7a6038 30%,transparent 30%,transparent 70%,#7a6038 70%)", radius: "2px", shadow: "0 3px 6px rgba(0,0,0,0.5)" },
+      hut: { bg: "linear-gradient(180deg,#8a7048,#7a6040,#6a5030,#5a4020)", radius: "3px", shadow: "0 4px 10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)", texture: "repeating-linear-gradient(90deg,transparent,transparent 10px,rgba(0,0,0,0.06) 10px,rgba(0,0,0,0.06) 11px)" },
+      roof: { bg: "linear-gradient(180deg,#5a7038,#4a6030,#3a5020,#2a4010)", radius: "50% 50% 0 0", shadow: "0 -2px 6px rgba(0,0,0,0.3), 0 3px 8px rgba(0,0,0,0.5)" },
+      chimney: { bg: "linear-gradient(180deg,#6a6a6a,#5a5a5a,#4a4a4a,#3a3a3a)", radius: "2px", shadow: "0 -6px 12px rgba(80,120,40,0.4), 0 2px 4px rgba(0,0,0,0.4)" },
     },
   },
 
@@ -811,11 +927,22 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 2, message: "Podwodna Świątynia pochłonięta przez fale!" },
+    decorations: [
+      { type: "coral_branch", x: -6, y: 5, w: 10, h: 18, bg: "linear-gradient(180deg,#e08090,#c06070,#a04050)", radius: "3px 3px 1px 1px", shadow: "0 0 4px rgba(200,80,100,0.3)" },
+      { type: "coral_branch", x: 76, y: 3, w: 8, h: 15, bg: "linear-gradient(180deg,#e09080,#c07060,#a05040)", radius: "3px 3px 1px 1px", shadow: "0 0 4px rgba(200,100,80,0.3)" },
+      { type: "seaweed", x: 2, y: 10, w: 4, h: 22, bg: "linear-gradient(180deg,#40a060,#308050,#206040)", radius: "2px", anim: "sway" },
+      { type: "seaweed", x: 74, y: 8, w: 3, h: 20, bg: "linear-gradient(180deg,#40a060,#308050,#206040)", radius: "2px", anim: "sway" },
+      { type: "bubble", x: 20, y: 50, w: 4, h: 4, bg: "radial-gradient(circle at 30% 30%,rgba(200,240,255,0.7),rgba(100,180,220,0.2))", radius: "50%", anim: "float" },
+      { type: "bubble", x: 55, y: 60, w: 3, h: 3, bg: "radial-gradient(circle at 30% 30%,rgba(200,240,255,0.7),rgba(100,180,220,0.2))", radius: "50%", anim: "float" },
+      { type: "bubble", x: 35, y: 70, w: 2, h: 2, bg: "radial-gradient(circle at 30% 30%,rgba(200,240,255,0.7),rgba(100,180,220,0.2))", radius: "50%", anim: "float" },
+      { type: "shell", x: 12, y: 2, w: 6, h: 5, bg: "radial-gradient(circle,#f0d0c0,#e0b0a0)", radius: "50% 50% 10% 10%", shadow: "0 1px 3px rgba(0,0,0,0.4)" },
+      { type: "water_glow", x: 5, y: 55, w: 70, h: 40, bg: "radial-gradient(ellipse,rgba(80,180,240,0.15),rgba(40,120,200,0.05),transparent)", radius: "50%" },
+    ],
     style: {
-      coral_base: { bg: "radial-gradient(ellipse,#e06080,#c04060,#a03050)", radius: "6px", shadow: "0 2px 8px rgba(0,0,0,0.4)" },
-      pillars: { bg: "linear-gradient(180deg,#70a0b0,#5090a0,#408090)", radius: "3px", shadow: "0 2px 6px rgba(0,0,0,0.4)" },
-      dome: { bg: "radial-gradient(ellipse,#80d0f0,#60b0e0,#4090c0)", radius: "50% 50% 10% 10%", shadow: "0 0 14px rgba(100,180,240,0.5)" },
-      jewel: { bg: "radial-gradient(circle,#60f0ff,#40d0e0,#20b0c0)", radius: "50%", shadow: "0 0 16px rgba(80,220,255,0.6), 0 0 8px rgba(40,180,220,0.4)" },
+      coral_base: { bg: "radial-gradient(ellipse at 40% 60%,#f07090,#e06080,#c04060,#a03050)", radius: "6px", shadow: "0 3px 10px rgba(0,0,0,0.5), 0 0 8px rgba(200,80,100,0.3)" },
+      pillars: { bg: "linear-gradient(180deg,#80b0c0,#70a0b0,#5090a0,#408090)", radius: "3px", shadow: "0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)", texture: "repeating-linear-gradient(0deg,transparent,transparent 10px,rgba(0,0,0,0.06) 10px,rgba(0,0,0,0.06) 11px)" },
+      dome: { bg: "radial-gradient(ellipse at 35% 35%,#a0e8ff,#80d0f0,#60b0e0,#4090c0)", radius: "50% 50% 10% 10%", shadow: "0 0 20px rgba(100,180,240,0.6), 0 0 8px rgba(140,210,255,0.3), 0 3px 10px rgba(0,0,0,0.5)", anim: "shimmer" },
+      jewel: { bg: "radial-gradient(circle at 35% 35%,#80ffff,#60f0ff,#40d0e0,#20b0c0)", radius: "50%", shadow: "0 0 24px rgba(80,220,255,0.7), 0 0 12px rgba(40,180,220,0.5), 0 0 48px rgba(60,200,240,0.2)", anim: "glow" },
     },
   },
 
@@ -889,12 +1016,23 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 3, message: "Panteon Olimpijski obrócony w ruiny!" },
+    decorations: [
+      { type: "column_detail", x: 10, y: 30, w: 10, h: 3, bg: "linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.05))", radius: "1px" },
+      { type: "column_detail", x: 10, y: 50, w: 10, h: 3, bg: "linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.05))", radius: "1px" },
+      { type: "column_detail", x: 80, y: 30, w: 10, h: 3, bg: "linear-gradient(90deg,rgba(255,255,255,0.05),rgba(255,255,255,0.15))", radius: "1px" },
+      { type: "column_detail", x: 80, y: 50, w: 10, h: 3, bg: "linear-gradient(90deg,rgba(255,255,255,0.05),rgba(255,255,255,0.15))", radius: "1px" },
+      { type: "divine_glow", x: 25, y: 95, w: 50, h: 40, bg: "radial-gradient(ellipse,rgba(255,220,80,0.25),rgba(255,200,40,0.1),transparent)", radius: "50%", anim: "pulse" },
+      { type: "lightning_bolt", x: 38, y: 110, w: 8, h: 18, bg: "linear-gradient(180deg,rgba(255,240,100,0.8),rgba(255,200,40,0.4),transparent)", radius: "1px", shadow: "0 0 8px rgba(255,220,60,0.5)", anim: "flicker" },
+      { type: "olive_branch", x: -4, y: 78, w: 12, h: 6, bg: "linear-gradient(90deg,rgba(80,120,40,0.6),rgba(100,140,50,0.4),transparent)", radius: "50%", shadow: "0 1px 3px rgba(0,0,0,0.3)" },
+      { type: "olive_branch", x: 92, y: 78, w: 12, h: 6, bg: "linear-gradient(90deg,transparent,rgba(100,140,50,0.4),rgba(80,120,40,0.6))", radius: "50%", shadow: "0 1px 3px rgba(0,0,0,0.3)" },
+      { type: "pediment_relief", x: 25, y: 83, w: 50, h: 14, bg: "linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03),transparent)", radius: "2px" },
+    ],
     style: {
-      foundation: { bg: "linear-gradient(180deg,#e0d8c8,#d0c8b8,#c0b8a8)", radius: "3px", shadow: "0 3px 10px rgba(0,0,0,0.5)" },
-      columns_l: { bg: "linear-gradient(180deg,#f0e8d8,#e0d8c8,#d0c8b8)", radius: "4px", shadow: "0 2px 8px rgba(0,0,0,0.4)" },
-      columns_r: { bg: "linear-gradient(180deg,#f0e8d8,#e0d8c8,#d0c8b8)", radius: "4px", shadow: "0 2px 8px rgba(0,0,0,0.4)" },
-      pediment: { bg: "linear-gradient(180deg,#f0e8d0,#e0d8c0,#d0c8b0)", radius: "50% 50% 0 0", shadow: "0 -2px 6px rgba(0,0,0,0.2), 0 3px 8px rgba(0,0,0,0.5)" },
-      statue: { bg: "radial-gradient(ellipse,#ffe080,#ffc040,#e0a020)", radius: "30%", shadow: "0 0 16px rgba(255,200,60,0.5), 0 0 8px rgba(255,240,100,0.3)" },
+      foundation: { bg: "linear-gradient(180deg,#e8e0d0,#e0d8c8,#d0c8b8,#c0b8a8)", radius: "3px", shadow: "0 4px 14px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.2)", texture: "repeating-linear-gradient(90deg,transparent,transparent 16px,rgba(0,0,0,0.04) 16px,rgba(0,0,0,0.04) 17px)" },
+      columns_l: { bg: "linear-gradient(180deg,#f8f0e0,#f0e8d8,#e0d8c8,#d0c8b8)", radius: "4px", shadow: "0 3px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.2)", texture: "repeating-linear-gradient(0deg,transparent,transparent 12px,rgba(0,0,0,0.04) 12px,rgba(0,0,0,0.04) 13px)" },
+      columns_r: { bg: "linear-gradient(180deg,#f8f0e0,#f0e8d8,#e0d8c8,#d0c8b8)", radius: "4px", shadow: "0 3px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.2)", texture: "repeating-linear-gradient(0deg,transparent,transparent 12px,rgba(0,0,0,0.04) 12px,rgba(0,0,0,0.04) 13px)" },
+      pediment: { bg: "linear-gradient(180deg,#f8f0d8,#f0e8d0,#e0d8c0,#d0c8b0)", radius: "50% 50% 0 0", shadow: "0 -3px 8px rgba(0,0,0,0.3), 0 4px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)" },
+      statue: { bg: "radial-gradient(ellipse at 35% 35%,#fff0a0,#ffe080,#ffc040,#e0a020)", radius: "30%", shadow: "0 0 24px rgba(255,200,60,0.6), 0 0 12px rgba(255,240,100,0.4), 0 0 48px rgba(255,200,60,0.2)", anim: "glow" },
     },
   },
 
@@ -977,12 +1115,24 @@ export const STRUCTURE_DEFS = {
       },
     ],
     fullDestroyBonus: { gold: 3, message: "Kryształ Mocy implodował!" },
+    decorations: [
+      { type: "energy_beam", x: 25, y: 35, w: 2, h: 40, bg: "linear-gradient(180deg,rgba(180,100,255,0.6),rgba(140,60,220,0.2),transparent)", radius: "1px", shadow: "0 0 6px rgba(160,80,240,0.4)", anim: "pulse" },
+      { type: "energy_beam", x: 43, y: 35, w: 2, h: 40, bg: "linear-gradient(180deg,rgba(180,100,255,0.6),rgba(140,60,220,0.2),transparent)", radius: "1px", shadow: "0 0 6px rgba(160,80,240,0.4)", anim: "pulse" },
+      { type: "energy_beam", x: 5, y: 35, w: 2, h: 20, bg: "linear-gradient(0deg,rgba(180,100,255,0.5),rgba(140,60,220,0.15),transparent)", radius: "1px", shadow: "0 0 4px rgba(160,80,240,0.3)", anim: "pulse" },
+      { type: "energy_beam", x: 55, y: 35, w: 2, h: 20, bg: "linear-gradient(0deg,rgba(180,100,255,0.5),rgba(140,60,220,0.15),transparent)", radius: "1px", shadow: "0 0 4px rgba(160,80,240,0.3)", anim: "pulse" },
+      { type: "lightning_arc", x: 12, y: 28, w: 8, h: 2, bg: "linear-gradient(90deg,transparent,rgba(200,140,255,0.6),transparent)", radius: "1px", shadow: "0 0 4px rgba(180,120,240,0.4)", anim: "flicker" },
+      { type: "lightning_arc", x: 48, y: 28, w: 8, h: 2, bg: "linear-gradient(90deg,transparent,rgba(200,140,255,0.6),transparent)", radius: "1px", shadow: "0 0 4px rgba(180,120,240,0.4)", anim: "flicker" },
+      { type: "ground_glow", x: 5, y: -5, w: 60, h: 15, bg: "radial-gradient(ellipse,rgba(140,60,220,0.2),rgba(100,30,180,0.08),transparent)", radius: "50%" },
+      { type: "spark", x: 30, y: 50, w: 3, h: 3, bg: "radial-gradient(circle,rgba(255,220,255,0.9),rgba(200,140,255,0.4))", radius: "50%", shadow: "0 0 6px rgba(220,160,255,0.6)", anim: "float" },
+      { type: "spark", x: 18, y: 45, w: 2, h: 2, bg: "radial-gradient(circle,rgba(255,220,255,0.9),rgba(200,140,255,0.4))", radius: "50%", shadow: "0 0 4px rgba(220,160,255,0.5)", anim: "float" },
+      { type: "spark", x: 48, y: 48, w: 2, h: 2, bg: "radial-gradient(circle,rgba(255,220,255,0.9),rgba(200,140,255,0.4))", radius: "50%", shadow: "0 0 4px rgba(220,160,255,0.5)", anim: "float" },
+    ],
     style: {
-      force_field: { bg: "radial-gradient(circle,rgba(100,180,255,0.15),rgba(60,120,200,0.08),transparent)", radius: "50%", shadow: "0 0 20px rgba(80,160,255,0.3), inset 0 0 10px rgba(80,160,255,0.2)" },
-      core: { bg: "radial-gradient(circle,#e0c0ff,#c080ff,#a040e0,#8020c0)", radius: "20%", shadow: "0 0 24px rgba(180,80,255,0.7), 0 0 12px rgba(140,40,220,0.5)" },
-      orbital_top: { bg: "radial-gradient(circle,#c0a0ff,#a070e0,#8050c0)", radius: "40%", shadow: "0 0 10px rgba(160,80,240,0.5)" },
-      orbital_l: { bg: "radial-gradient(circle,#c0a0ff,#a070e0,#8050c0)", radius: "40%", shadow: "0 0 10px rgba(160,80,240,0.5)" },
-      orbital_r: { bg: "radial-gradient(circle,#c0a0ff,#a070e0,#8050c0)", radius: "40%", shadow: "0 0 10px rgba(160,80,240,0.5)" },
+      force_field: { bg: "radial-gradient(circle,rgba(120,200,255,0.2),rgba(80,160,255,0.1),rgba(60,120,200,0.05),transparent)", radius: "50%", shadow: "0 0 30px rgba(80,160,255,0.4), 0 0 15px rgba(120,200,255,0.2), inset 0 0 15px rgba(80,160,255,0.25)", anim: "pulse" },
+      core: { bg: "radial-gradient(circle at 35% 35%,#f0d8ff,#e0c0ff,#c080ff,#a040e0,#8020c0)", radius: "20%", shadow: "0 0 32px rgba(180,80,255,0.8), 0 0 16px rgba(140,40,220,0.6), 0 0 64px rgba(160,60,240,0.3)", anim: "glow" },
+      orbital_top: { bg: "radial-gradient(circle at 35% 35%,#d8c0ff,#c0a0ff,#a070e0,#8050c0)", radius: "40%", shadow: "0 0 14px rgba(160,80,240,0.6), 0 0 6px rgba(200,120,255,0.3)", anim: "float" },
+      orbital_l: { bg: "radial-gradient(circle at 35% 35%,#d8c0ff,#c0a0ff,#a070e0,#8050c0)", radius: "40%", shadow: "0 0 14px rgba(160,80,240,0.6), 0 0 6px rgba(200,120,255,0.3)", anim: "float" },
+      orbital_r: { bg: "radial-gradient(circle at 35% 35%,#d8c0ff,#c0a0ff,#a070e0,#8050c0)", radius: "40%", shadow: "0 0 14px rgba(160,80,240,0.6), 0 0 6px rgba(200,120,255,0.3)", anim: "float" },
     },
   },
 };
@@ -996,17 +1146,13 @@ for (const [key, def] of Object.entries(STRUCTURE_DEFS)) {
   }
 }
 
-// Get a random structure for a biome (respects rarity as spawn chance)
+// Get a random structure for a biome (always returns one if available)
 export function getRandomStructure(biomeId) {
   const candidates = BIOME_STRUCTURES[biomeId];
   if (!candidates || candidates.length === 0) return null;
-  // Pick a random candidate, then check rarity
+  // Always pick a random candidate — 100% spawn rate
   const shuffled = [...candidates].sort(() => Math.random() - 0.5);
-  for (const structId of shuffled) {
-    const def = STRUCTURE_DEFS[structId];
-    if (Math.random() < def.rarity) return def;
-  }
-  return null;
+  return STRUCTURE_DEFS[shuffled[0]] || null;
 }
 
 // Create a runtime structure instance from a definition
