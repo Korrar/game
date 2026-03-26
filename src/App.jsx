@@ -10597,6 +10597,14 @@ export default function App() {
           dungeon_entrance: "#c08040",
         };
         const col = poiColors[biomePoi.type] || "#c0a060";
+        const isDungeonEntrance = biomePoi.type === "dungeon_entrance";
+        const dungeonTypeColors = {
+          mine: { stone: "#6a5a3a", dark: "#2a1a08", accent: "#c08040", frame: "#8a7040" },
+          crypt: { stone: "#4a3a50", dark: "#1a0a20", accent: "#9060b0", frame: "#6a4a7a" },
+          cave: { stone: "#3a5a4a", dark: "#0a2a1a", accent: "#40b090", frame: "#2a6a4a" },
+          ruins: { stone: "#5a5040", dark: "#1a1808", accent: "#c0a060", frame: "#7a6a4a" },
+        };
+        const dColors = isDungeonEntrance ? (dungeonTypeColors[biomePoi.dungeonType] || dungeonTypeColors.mine) : null;
         return (
           <div ref={biomePoiElRef} style={{
             position: "absolute", left: _bpLeft,
@@ -10604,20 +10612,110 @@ export default function App() {
             zIndex: poiZIndex(biomePoi.x, biomePoi.y),
             transform: isoModeRef.current ? "translateX(-50%) translateY(-100%)" : "translateX(-50%)", userSelect: "none", textAlign: "center",
           }}>
-            <div onClick={activateBiomePoi} style={{
-              width: 44, height: 44, borderRadius: "50%",
-              background: `radial-gradient(circle, ${col}40, ${col}15)`,
-              border: `2px solid ${col}80`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", position: "relative",
-              boxShadow: `0 0 12px ${col}40, inset 0 0 8px ${col}20`,
-              animation: "doorGlow 2.5s ease-in-out infinite",
-            }}>
-              <Icon name={biomePoi.icon || "sparkle"} size={20} />
-            </div>
+            {isDungeonEntrance ? (
+              /* ─── Dungeon Entrance: stone archway with dark opening ─── */
+              <div onClick={activateBiomePoi} style={{
+                width: 56, height: 64, cursor: "pointer", position: "relative",
+              }}>
+                {/* Stone frame / archway */}
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: `linear-gradient(180deg, ${dColors.frame}, ${dColors.stone}, ${dColors.frame})`,
+                  borderRadius: "16px 16px 4px 4px",
+                  boxShadow: `0 4px 12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.15), 0 0 16px ${dColors.accent}30`,
+                  border: `2px solid ${dColors.stone}`,
+                }}>
+                  {/* Stone texture lines */}
+                  <div style={{ position: "absolute", inset: 0, borderRadius: "16px 16px 4px 4px", overflow: "hidden", pointerEvents: "none" }}>
+                    <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(0deg,transparent,transparent 8px,rgba(0,0,0,0.08) 8px,rgba(0,0,0,0.08) 9px)" }} />
+                    <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(90deg,transparent,transparent 12px,rgba(0,0,0,0.05) 12px,rgba(0,0,0,0.05) 13px)" }} />
+                  </div>
+                </div>
+                {/* Dark opening (cave/mine/crypt hole) */}
+                <div style={{
+                  position: "absolute", left: 8, right: 8, top: 8, bottom: 6,
+                  background: `radial-gradient(ellipse at 50% 30%, ${dColors.dark}, #000)`,
+                  borderRadius: "12px 12px 2px 2px",
+                  boxShadow: `inset 0 0 12px rgba(0,0,0,0.9), inset 0 -3px 8px ${dColors.accent}20`,
+                }}>
+                  {/* Accent glow from inside */}
+                  <div style={{
+                    position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)",
+                    width: 24, height: 12,
+                    background: `radial-gradient(ellipse, ${dColors.accent}50, ${dColors.accent}15, transparent)`,
+                    borderRadius: "50%",
+                    animation: "resNode 2.5s ease-in-out infinite",
+                  }} />
+                  {/* Icon centered in the darkness */}
+                  <div style={{
+                    position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)",
+                    opacity: 0.9,
+                  }}>
+                    <Icon name={biomePoi.icon || "skull"} size={18} />
+                  </div>
+                </div>
+                {/* Keystone at top of arch */}
+                <div style={{
+                  position: "absolute", top: -3, left: "50%", transform: "translateX(-50%)",
+                  width: 12, height: 8,
+                  background: `linear-gradient(180deg, ${dColors.frame}, ${dColors.stone})`,
+                  borderRadius: "3px 3px 1px 1px",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.5)",
+                }} />
+                {/* Side torch left */}
+                <div style={{
+                  position: "absolute", left: -6, top: 12, width: 5, height: 14,
+                  background: `linear-gradient(180deg, ${dColors.accent}cc, ${dColors.stone})`,
+                  borderRadius: "1px",
+                  boxShadow: `0 0 8px ${dColors.accent}40`,
+                }}>
+                  <div style={{
+                    position: "absolute", top: -4, left: "50%", transform: "translateX(-50%)",
+                    width: 6, height: 6,
+                    background: `radial-gradient(circle, #ffe080, ${dColors.accent}, transparent)`,
+                    borderRadius: "50%",
+                    animation: "resNode 0.8s ease-in-out infinite alternate",
+                  }} />
+                </div>
+                {/* Side torch right */}
+                <div style={{
+                  position: "absolute", right: -6, top: 12, width: 5, height: 14,
+                  background: `linear-gradient(180deg, ${dColors.accent}cc, ${dColors.stone})`,
+                  borderRadius: "1px",
+                  boxShadow: `0 0 8px ${dColors.accent}40`,
+                }}>
+                  <div style={{
+                    position: "absolute", top: -4, left: "50%", transform: "translateX(-50%)",
+                    width: 6, height: 6,
+                    background: `radial-gradient(circle, #ffe080, ${dColors.accent}, transparent)`,
+                    borderRadius: "50%",
+                    animation: "resNode 0.8s ease-in-out infinite alternate",
+                  }} />
+                </div>
+                {/* Ground rubble */}
+                <div style={{
+                  position: "absolute", bottom: -4, left: -4, right: -4, height: 8,
+                  background: `radial-gradient(ellipse, ${dColors.stone}80, ${dColors.stone}30, transparent)`,
+                  borderRadius: "50%",
+                  pointerEvents: "none",
+                }} />
+              </div>
+            ) : (
+              <div onClick={activateBiomePoi} style={{
+                width: 44, height: 44, borderRadius: "50%",
+                background: `radial-gradient(circle, ${col}40, ${col}15)`,
+                border: `2px solid ${col}80`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", position: "relative",
+                boxShadow: `0 0 12px ${col}40, inset 0 0 8px ${col}20`,
+                animation: "doorGlow 2.5s ease-in-out infinite",
+              }}>
+                <Icon name={biomePoi.icon || "sparkle"} size={20} />
+              </div>
+            )}
             <div style={{
-              fontSize: 9, color: col, fontWeight: "bold", marginTop: 3,
-              textShadow: "1px 1px 0 #000", whiteSpace: "nowrap",
+              fontSize: 9, color: isDungeonEntrance ? dColors.accent : col, fontWeight: "bold", marginTop: isDungeonEntrance ? 6 : 3,
+              textShadow: "1px 1px 0 #000, 0 0 4px rgba(0,0,0,0.8)", whiteSpace: "nowrap",
             }}>
               {biomePoi.label}
             </div>
@@ -10891,8 +10989,8 @@ export default function App() {
             ...(_isI ? { top: poiTop(struct.x, struct.y), transform: "translateX(-50%) translateY(-100%)" }
               : { bottom: `${struct.y}%`, transform: `translateX(-50%) scale(${scaleAtDepth(depthFromY(100 - struct.y))})` }),
             zIndex: _isI ? poiZIndex(struct.x, struct.y) : 14 + zIndexAtDepth(depthFromY(100 - struct.y)),
-            width: struct.width,
-            height: struct.height,
+            width: `${struct.width}px`,
+            height: `${struct.height}px`,
             pointerEvents: "none",
           }}>
             {/* Decorations layer (behind segments for some, in front for others) */}
@@ -10927,10 +11025,10 @@ export default function App() {
               return (
                 <div key={`dec-${di}`} style={{
                   position: "absolute",
-                  left: dec.x,
-                  bottom: dec.y,
-                  width: dec.w,
-                  height: dec.h,
+                  left: `${dec.x}px`,
+                  bottom: `${dec.y}px`,
+                  width: `${dec.w}px`,
+                  height: `${dec.h}px`,
                   background: dec.bg,
                   borderRadius: dec.radius || "2px",
                   boxShadow: dec.shadow || "none",
@@ -10967,10 +11065,10 @@ export default function App() {
               return (
                 <div key={`seg-${seg.id}`} style={{
                   position: "absolute",
-                  left: seg.x,
-                  bottom: seg.y,
-                  width: seg.w,
-                  height: seg.h,
+                  left: `${seg.x}px`,
+                  bottom: `${seg.y}px`,
+                  width: `${seg.w}px`,
+                  height: `${seg.h}px`,
                   transform: `translateX(${shakeX}px)${isDestroying ? " scale(1.2) translateY(10px)" : ""}`,
                   transition: isDestroying ? "opacity 0.4s ease-out, transform 0.4s ease-out" : "none",
                   opacity: isDestroying ? 0 : 1,

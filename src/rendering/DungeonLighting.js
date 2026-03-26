@@ -188,59 +188,289 @@ export function renderDungeonLighting(ctx, W, H, options) {
   ctx.globalCompositeOperation = "source-over";
 }
 
-// ─── RENDER STAIRS GLOW ───
-// Visual indicator for stairs/exits on the dungeon map
+// ─── RENDER STAIRS / DUNGEON ENTRANCE TERRAIN TEXTURES ───
+// Draws biome-integrated isometric tile textures for stairs/exits
+
+// Stair visual config per type — colors blend with dungeon ground
+const STAIR_VISUALS = {
+  down: {
+    // Stone stairway descending into darkness
+    baseFill: "#3a2a1a",
+    stepLight: "#6a5a4a",
+    stepDark: "#2a1a0a",
+    edgeColor: "#4a3a2a",
+    accentGlow: "rgba(255,100,60,0.35)",
+    accentColor: "#ff6644",
+    rimLight: "rgba(255,140,80,0.25)",
+    icon: "\u25BC",
+    label: "Schody w dół",
+    steps: 4,
+  },
+  up: {
+    // Stone stairway going up toward lighter area
+    baseFill: "#2a3a4a",
+    stepLight: "#5a7a9a",
+    stepDark: "#1a2a3a",
+    edgeColor: "#3a4a5a",
+    accentGlow: "rgba(80,160,255,0.35)",
+    accentColor: "#44aaff",
+    rimLight: "rgba(100,180,255,0.25)",
+    icon: "\u25B2",
+    label: "Schody w górę",
+    steps: 4,
+  },
+  exit: {
+    // Arched stone doorway with daylight spilling through
+    baseFill: "#3a4a30",
+    stepLight: "#7a9a60",
+    stepDark: "#2a3a1a",
+    edgeColor: "#4a5a3a",
+    accentGlow: "rgba(80,255,140,0.4)",
+    accentColor: "#44ff88",
+    rimLight: "rgba(120,255,160,0.3)",
+    icon: "\u2605",
+    label: "Wyjście",
+    steps: 2,
+  },
+};
 
 export function renderStairsMarkers(ctx, dungeonFeatures, cameraX, cameraY, heightMap, time) {
   if (!dungeonFeatures?.stairs) return;
 
+  const TW = ISO_CONFIG.TILE_W;
+  const TH = ISO_CONFIG.TILE_H;
+  const pulse = 0.6 + Math.sin(time * 0.003) * 0.3;
+  const slowPulse = 0.5 + Math.sin(time * 0.0015) * 0.5;
+
   for (const stair of dungeonFeatures.stairs) {
+    const vis = STAIR_VISUALS[stair.type] || STAIR_VISUALS.down;
     const height = heightMap ? getHeightAt(heightMap, stair.col, stair.row) : 0;
     const screen = worldToScreen(stair.wx, stair.wy, cameraX, cameraY, height);
+    const cx = screen.x;
+    const cy = screen.y;
 
-    // Pulsing glow
-    const pulse = 0.6 + Math.sin(time * 0.003) * 0.3;
-    const r = ISO_CONFIG.TILE_W * 1.5;
-
-    // Color based on stair type
-    let color, icon;
-    if (stair.type === "down") {
-      color = "#ff6644";
-      icon = "\u25BC"; // down arrow
-    } else if (stair.type === "up") {
-      color = "#44aaff";
-      icon = "\u25B2"; // up arrow
-    } else {
-      color = "#44ff88";
-      icon = "\u2605"; // star (exit)
-    }
-
-    // Glow ring
     ctx.save();
-    ctx.globalAlpha = pulse * 0.4;
-    const grad = ctx.createRadialGradient(screen.x, screen.y, 0, screen.x, screen.y, r);
-    grad.addColorStop(0, color);
-    grad.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = grad;
+
+    // ─── 1. Base isometric tile (dark ground pad, 3x3 area) ───
+    // Draw a recessed diamond-shaped platform that looks carved into terrain
+    const padW = TW * 1.4;
+    const padH = TH * 1.4;
+
+    // Outer worn stone border
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = vis.edgeColor;
     ctx.beginPath();
-    ctx.arc(screen.x, screen.y, r, 0, Math.PI * 2);
+    ctx.moveTo(cx, cy - padH / 2 - 2);
+    ctx.lineTo(cx + padW / 2 + 2, cy);
+    ctx.lineTo(cx, cy + padH / 2 + 2);
+    ctx.lineTo(cx - padW / 2 - 2, cy);
+    ctx.closePath();
     ctx.fill();
 
-    // Icon
-    ctx.globalAlpha = pulse;
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 18px monospace";
+    // Inner recessed pad
+    ctx.fillStyle = vis.baseFill;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - padH / 2);
+    ctx.lineTo(cx + padW / 2, cy);
+    ctx.lineTo(cx, cy + padH / 2);
+    ctx.lineTo(cx - padW / 2, cy);
+    ctx.closePath();
+    ctx.fill();
+
+    // Stone texture lines across the pad
+    ctx.globalAlpha = 0.2;
+    ctx.strokeStyle = vis.stepLight;
+    ctx.lineWidth = 0.5;
+    for (let i = 1; i < vis.steps; i++) {
+      const t = i / vis.steps;
+      // Horizontal stone lines (isometric)
+      const ly = cy - padH / 2 + padH * t;
+      const lxSpread = (padW / 2) * (1 - Math.abs(t * 2 - 1));
+      ctx.beginPath();
+      ctx.moveTo(cx - lxSpread, ly);
+      ctx.lineTo(cx + lxSpread, ly);
+      ctx.stroke();
+    }
+
+    // ─── 2. Steps texture (descending/ascending illusion) ───
+    ctx.globalAlpha = 0.9;
+    const stepW = padW * 0.55;
+    const stepH = padH * 0.14;
+    const stepStartY = stair.type === "down" ? cy - padH * 0.15 : cy + padH * 0.15;
+    const stepDir = stair.type === "down" ? 1 : -1;
+
+    for (let s = 0; s < vis.steps; s++) {
+      const t = s / vis.steps;
+      const sy = stepStartY + stepDir * s * stepH * 1.3;
+      const shrink = 1 - t * 0.15;
+      const sw = stepW * shrink;
+      const depthDark = t * 0.3;
+
+      // Step top face (lighter)
+      ctx.fillStyle = vis.stepLight;
+      ctx.globalAlpha = 0.7 - depthDark;
+      ctx.beginPath();
+      ctx.moveTo(cx, sy - stepH * 0.3);
+      ctx.lineTo(cx + sw / 2, sy);
+      ctx.lineTo(cx, sy + stepH * 0.3);
+      ctx.lineTo(cx - sw / 2, sy);
+      ctx.closePath();
+      ctx.fill();
+
+      // Step front face (darker, gives 3D depth)
+      ctx.fillStyle = vis.stepDark;
+      ctx.globalAlpha = 0.6 - depthDark * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - sw / 2, sy);
+      ctx.lineTo(cx, sy + stepH * 0.3);
+      ctx.lineTo(cx, sy + stepH * 0.3 + 3);
+      ctx.lineTo(cx - sw / 2, sy + 3);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(cx + sw / 2, sy);
+      ctx.lineTo(cx, sy + stepH * 0.3);
+      ctx.lineTo(cx, sy + stepH * 0.3 + 3);
+      ctx.lineTo(cx + sw / 2, sy + 3);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // ─── 3. Darkness hole for "down" stairs ───
+    if (stair.type === "down") {
+      const holeGrad = ctx.createRadialGradient(cx, cy + padH * 0.2, 0, cx, cy + padH * 0.2, padW * 0.3);
+      holeGrad.addColorStop(0, "rgba(0,0,0,0.8)");
+      holeGrad.addColorStop(0.6, "rgba(0,0,0,0.4)");
+      holeGrad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = holeGrad;
+      ctx.beginPath();
+      // Isometric ellipse for the hole
+      ctx.ellipse(cx, cy + padH * 0.2, padW * 0.25, padH * 0.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ─── 4. Archway for exit ───
+    if (stair.type === "exit") {
+      // Stone archway frame
+      const archW = padW * 0.4;
+      const archH = padH * 0.8;
+      ctx.globalAlpha = 0.8;
+
+      // Left pillar
+      ctx.fillStyle = vis.edgeColor;
+      ctx.fillRect(cx - archW / 2 - 4, cy - archH * 0.4, 5, archH * 0.5);
+      // Right pillar
+      ctx.fillRect(cx + archW / 2 - 1, cy - archH * 0.4, 5, archH * 0.5);
+      // Arch top
+      ctx.beginPath();
+      ctx.arc(cx, cy - archH * 0.4, archW / 2 + 2, Math.PI, 0, false);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = vis.edgeColor;
+      ctx.stroke();
+
+      // Light spill through archway
+      const exitGrad = ctx.createRadialGradient(cx, cy - padH * 0.15, 2, cx, cy - padH * 0.15, padW * 0.35);
+      exitGrad.addColorStop(0, "rgba(200,255,200,0.4)");
+      exitGrad.addColorStop(0.5, "rgba(140,220,140,0.15)");
+      exitGrad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = pulse * 0.6;
+      ctx.fillStyle = exitGrad;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - padH * 0.15, padW * 0.3, padH * 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ─── 5. Ambient glow around the feature (subtle) ───
+    const glowR = TW * 1.8;
+    const glowGrad = ctx.createRadialGradient(cx, cy, TW * 0.2, cx, cy, glowR);
+    glowGrad.addColorStop(0, vis.accentGlow);
+    glowGrad.addColorStop(0.5, vis.rimLight);
+    glowGrad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalAlpha = pulse * 0.45;
+    ctx.fillStyle = glowGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ─── 6. Corner stone pillars / torch posts ───
+    ctx.globalAlpha = 0.75;
+    const postOffsets = [
+      { dx: -padW / 2 - 1, dy: 0 },
+      { dx: padW / 2 + 1, dy: 0 },
+    ];
+    for (const off of postOffsets) {
+      const px = cx + off.dx;
+      const py = cy + off.dy;
+
+      // Stone post
+      ctx.fillStyle = vis.edgeColor;
+      ctx.fillRect(px - 2, py - 8, 4, 10);
+
+      // Tiny flame/crystal on top
+      const flicker = 0.7 + Math.sin(time * 0.008 + off.dx) * 0.3;
+      ctx.globalAlpha = flicker * 0.7;
+      const flameGrad = ctx.createRadialGradient(px, py - 10, 0, px, py - 10, 5);
+      flameGrad.addColorStop(0, vis.accentColor);
+      flameGrad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = flameGrad;
+      ctx.beginPath();
+      ctx.arc(px, py - 10, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ─── 7. Rune / carved symbols on the stone ───
+    ctx.globalAlpha = slowPulse * 0.5;
+    ctx.strokeStyle = vis.accentColor;
+    ctx.lineWidth = 1;
+    // Small rune marks around the perimeter
+    const runeCount = 4;
+    for (let r = 0; r < runeCount; r++) {
+      const angle = (r / runeCount) * Math.PI * 2 + time * 0.0005;
+      const rx = cx + Math.cos(angle) * padW * 0.38;
+      const ry = cy + Math.sin(angle) * padH * 0.38;
+      ctx.beginPath();
+      ctx.arc(rx, ry, 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // ─── 8. Particles rising/falling (dust/embers) ───
+    ctx.globalAlpha = pulse * 0.5;
+    const particleCount = 5;
+    for (let p = 0; p < particleCount; p++) {
+      const seed = stair.col * 17 + stair.row * 31 + p * 7;
+      const phase = (time * 0.001 + seed) % 3;
+      const pProgress = phase / 3; // 0..1 cycle
+      const pDir = stair.type === "down" ? 1 : -1;
+      const px = cx + Math.sin(seed * 1.3 + time * 0.002) * padW * 0.25;
+      const py = cy + pDir * pProgress * padH * 0.5;
+      const pAlpha = (1 - pProgress) * 0.6;
+      const pSize = 1.5 + Math.sin(seed) * 0.5;
+      ctx.globalAlpha = pAlpha * pulse;
+      ctx.fillStyle = vis.accentColor;
+      ctx.beginPath();
+      ctx.arc(px, py, pSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ─── 9. Label (subtle, below the feature) ───
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = "#000";
+    ctx.font = "bold 10px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(icon, screen.x, screen.y - 8);
+    ctx.fillText(vis.label, cx + 1, cy + padH / 2 + 14);
+    ctx.fillText(vis.label, cx - 1, cy + padH / 2 + 14);
+    ctx.fillStyle = vis.accentColor;
+    ctx.fillText(vis.label, cx, cy + padH / 2 + 13);
 
-    // Label
-    ctx.font = "10px monospace";
-    ctx.fillStyle = color;
-    const label = stair.type === "down" ? "Schody w dół"
-      : stair.type === "up" ? "Schody w górę"
-      : "Wyjście";
-    ctx.fillText(label, screen.x, screen.y + 12);
+    // Small icon above the label
+    ctx.font = "bold 14px monospace";
+    ctx.fillStyle = "#fff";
+    ctx.globalAlpha = pulse * 0.9;
+    ctx.fillText(vis.icon, cx, cy - padH / 2 - 8);
+
     ctx.restore();
   }
 }
