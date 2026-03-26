@@ -68,9 +68,8 @@ export function generateTerrainData(room, biome) {
   // Vegetation placement
   const vegetation = generateVegetation(rng, profile, heightMap, overlays, MAP_COLS, MAP_ROWS);
 
-  // Fog of war disabled — initialize fully revealed
+  // Fog of war visibility grid (0 = hidden, 0.5 = explored, 1.0 = visible)
   const fogGrid = new Float32Array(MAP_COLS * MAP_ROWS);
-  fogGrid.fill(1.0);
 
   return {
     heightMap,

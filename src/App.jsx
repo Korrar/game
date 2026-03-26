@@ -3210,18 +3210,63 @@ export default function App() {
           mapResourcesRef.current.updateDiscovery(terrainDataRef.current.fogGrid, ISO_CONFIG.MAP_COLS);
         }
 
-        // Fog of war disabled — mark all interactables as discovered
+        // Update interactable discovery (hidden in fog until revealed, then stay visible forever)
         const _interacts = interactablesRef.current;
         if (_interacts.length > 0) {
           let anyDiscovered = false;
           for (const item of _interacts) {
-            if (!item._discovered) {
-              item._fogHidden = false;
-              item._discovered = true;
-              anyDiscovered = true;
+            if (item._fogHidden === undefined) { item._fogHidden = true; item._discovered = false; }
+            if (item._discovered) continue;
+            const iwx = (item.x / 100) * ISO_CONFIG.MAP_COLS;
+            const iwy = (item.y / 100) * ISO_CONFIG.MAP_ROWS;
+            const icol = Math.floor(iwx), irow = Math.floor(iwy);
+            if (icol >= 0 && icol < ISO_CONFIG.MAP_COLS && irow >= 0 && irow < ISO_CONFIG.MAP_ROWS) {
+              const fogVal = terrainDataRef.current.fogGrid[irow * ISO_CONFIG.MAP_COLS + icol];
+              if (fogVal >= 0.5) { item._discovered = true; item._fogHidden = false; anyDiscovered = true; }
             }
           }
           if (anyDiscovered) setInteractables([..._interacts]);
+        }
+
+        // Fog discovery for obstacles (once discovered, stay visible forever)
+        let obsAnyDiscovered = false;
+        for (const obs of obstaclesRef.current) {
+          if (obs._fogDiscovered) continue;
+          const ocol = Math.floor(obs.x), orow = Math.floor(obs.y);
+          if (ocol >= 0 && ocol < ISO_CONFIG.MAP_COLS && orow >= 0 && orow < ISO_CONFIG.MAP_ROWS) {
+            if (terrainDataRef.current.fogGrid[orow * ISO_CONFIG.MAP_COLS + ocol] >= 0.3) {
+              obs._fogDiscovered = true;
+              obsAnyDiscovered = true;
+            }
+          }
+        }
+        if (obsAnyDiscovered) setObstacles([...obstaclesRef.current]);
+
+        // Fog discovery for structures (once discovered, stay visible forever)
+        let structAnyDiscovered = false;
+        for (const struct of structuresRef.current) {
+          if (struct._fogDiscovered) continue;
+          const scol = Math.floor(struct.x), srow = Math.floor(struct.y);
+          if (scol >= 0 && scol < ISO_CONFIG.MAP_COLS && srow >= 0 && srow < ISO_CONFIG.MAP_ROWS) {
+            if (terrainDataRef.current.fogGrid[srow * ISO_CONFIG.MAP_COLS + scol] >= 0.3) {
+              struct._fogDiscovered = true;
+              structAnyDiscovered = true;
+            }
+          }
+        }
+        if (structAnyDiscovered) setStructures([...structuresRef.current]);
+
+        // Sync NPC fog visibility to physics entries (for PixiJS sprite hiding)
+        if (physicsRef.current?.bodies && terrainDataRef.current?.fogGrid) {
+          const _fg = terrainDataRef.current.fogGrid;
+          for (const [nid, entry] of Object.entries(physicsRef.current.bodies)) {
+            if (entry.friendly) { entry._fogHidden = false; continue; }
+            const nwx = Math.floor(entry._wx ?? 0), nwy = Math.floor(entry._wy ?? 0);
+            if (nwx >= 0 && nwx < ISO_CONFIG.MAP_COLS && nwy >= 0 && nwy < ISO_CONFIG.MAP_ROWS) {
+              if (_fg[nwy * ISO_CONFIG.MAP_COLS + nwx] >= 0.3) entry._fogDiscovered = true;
+              entry._fogHidden = !entry._fogDiscovered;
+            }
+          }
         }
       }
 
@@ -3542,10 +3587,10 @@ export default function App() {
     // Biome interactive terrain elements
     if (!isDefenseRoom) {
       const roomInteractables = rollInteractables(b.id);
-      // Fog of war disabled — all interactables visible immediately
+      // In iso mode, interactables start hidden until fog reveals them
       if (isoModeRef.current) {
         for (const item of roomInteractables) {
-          item._fogHidden = false;
+          item._fogHidden = true;
           item._discovered = false;
         }
       }
@@ -3879,6 +3924,7 @@ export default function App() {
         explosionElement: def.element || "fire",
         hitAnim: 0,        // shake animation timer
         destroying: false,  // destruction animation in progress
+        _fogDiscovered: !isoModeRef.current, // fog: hidden until revealed in iso mode
       });
     }
     setObstacles(newObstacles);
@@ -3911,7 +3957,9 @@ export default function App() {
             newStructures.some(s => { const dx = sx - s.x, dy = sy - s.y; return dx*dx+dy*dy < (sMinDist*2)*(sMinDist*2); })
           ));
           if (sAttempts < 30) {
-            newStructures.push(createStructureInstance(def, sx, sy, newRoom));
+            const inst = createStructureInstance(def, sx, sy, newRoom);
+            inst._fogDiscovered = !isoModeRef.current; // fog: hidden until revealed
+            newStructures.push(inst);
           }
         }
       }
@@ -10759,6 +10807,8 @@ export default function App() {
 
       {/* ─── DESTRUCTIBLE OBSTACLES ─── */}
       {obstacles.map(obs => {
+        // Fog of war: hide undiscovered obstacles in iso mode
+        if (isoModeRef.current && !obs._fogDiscovered) return null;
         const obsStyles = {
           fallen_log: { w: 50, h: 14, bg: "linear-gradient(90deg,#5a3a18,#6a4a20,#4a3010)", radius: "4px", shadow: "0 2px 6px rgba(0,0,0,0.5)" },
           vine_wall: { w: 30, h: 40, bg: "linear-gradient(180deg,#2a6a10,#1a4a08,#0e3004)", radius: "6px 6px 2px 2px", shadow: "0 2px 8px rgba(0,0,0,0.4)" },
@@ -10977,6 +11027,8 @@ export default function App() {
 
       {/* ─── COMPOSITE STRUCTURES (advanced visual models) ─── */}
       {structures.map(struct => {
+        // Fog of war: hide undiscovered structures in iso mode
+        if (isoModeRef.current && !struct._fogDiscovered) return null;
         if (struct.allDestroyed && struct.segments.every(s => s.destroying && Date.now() - s.hitAnim > 800)) return null;
         const _isI = isoModeRef.current;
         const structLeft = poiLeft(struct.x, struct.y);
@@ -11310,6 +11362,18 @@ export default function App() {
         const isFriendly = w.friendly;
         const isBossWalker = w.isBoss;
         const bossScale = isBossWalker ? 1.6 : 1;
+        // Terrain fog of war: hide enemies in undiscovered areas (once discovered, stay visible)
+        if (isoModeRef.current && !isFriendly && terrainDataRef.current?.fogGrid) {
+          const wd_pos = walkDataRef.current[w.id];
+          if (wd_pos) {
+            const ncol = Math.floor(wd_pos.x), nrow = Math.floor(wd_pos.y ?? ISO_CONFIG.MAP_ROWS / 2);
+            if (ncol >= 0 && ncol < ISO_CONFIG.MAP_COLS && nrow >= 0 && nrow < ISO_CONFIG.MAP_ROWS) {
+              const npcFogVal = terrainDataRef.current.fogGrid[nrow * ISO_CONFIG.MAP_COLS + ncol];
+              if (npcFogVal >= 0.3) { w._fogDiscovered = true; }
+              if (!w._fogDiscovered) return null; // hidden in fog
+            }
+          }
+        }
         // Fog: reduce enemy DOM div opacity based on walkData position
         let fogAlpha = 1;
         if (weather?.fogVisibility && !isFriendly) {
