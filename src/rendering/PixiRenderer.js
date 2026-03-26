@@ -346,7 +346,7 @@ export class PixiRenderer {
         char.container.visible = (
           screen.x > -100 && screen.x < this.W + 100 &&
           screen.y > -100 && screen.y < this.H + 100
-        );
+        ) && !entry._fogHidden;
       } else {
         // Legacy 2.5D panoramic mode
         const yPct = entry._yPct ?? 65;
