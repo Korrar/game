@@ -3234,7 +3234,7 @@ export default function App() {
           if (obs._fogDiscovered) continue;
           const ocol = Math.floor(obs.x), orow = Math.floor(obs.y);
           if (ocol >= 0 && ocol < ISO_CONFIG.MAP_COLS && orow >= 0 && orow < ISO_CONFIG.MAP_ROWS) {
-            if (terrainDataRef.current.fogGrid[orow * ISO_CONFIG.MAP_COLS + ocol] >= 0.3) {
+            if (terrainDataRef.current.fogGrid[orow * ISO_CONFIG.MAP_COLS + ocol] > 0.01) {
               obs._fogDiscovered = true;
               obsAnyDiscovered = true;
             }
@@ -3242,17 +3242,23 @@ export default function App() {
         }
         if (obsAnyDiscovered) setObstacles([...obstaclesRef.current]);
 
-        // Fog discovery for structures (once discovered, stay visible forever)
+        // Fog discovery for structures — check 3x3 area around center (structures are large)
         let structAnyDiscovered = false;
         for (const struct of structuresRef.current) {
           if (struct._fogDiscovered) continue;
           const scol = Math.floor(struct.x), srow = Math.floor(struct.y);
-          if (scol >= 0 && scol < ISO_CONFIG.MAP_COLS && srow >= 0 && srow < ISO_CONFIG.MAP_ROWS) {
-            if (terrainDataRef.current.fogGrid[srow * ISO_CONFIG.MAP_COLS + scol] >= 0.3) {
-              struct._fogDiscovered = true;
-              structAnyDiscovered = true;
+          let found = false;
+          for (let dy = -1; dy <= 1 && !found; dy++) {
+            for (let dx = -1; dx <= 1 && !found; dx++) {
+              const nc = scol + dx, nr = srow + dy;
+              if (nc >= 0 && nc < ISO_CONFIG.MAP_COLS && nr >= 0 && nr < ISO_CONFIG.MAP_ROWS) {
+                if (terrainDataRef.current.fogGrid[nr * ISO_CONFIG.MAP_COLS + nc] > 0.01) {
+                  found = true;
+                }
+              }
             }
           }
+          if (found) { struct._fogDiscovered = true; structAnyDiscovered = true; }
         }
         if (structAnyDiscovered) setStructures([...structuresRef.current]);
 
@@ -3263,7 +3269,7 @@ export default function App() {
             if (entry.friendly) { entry._fogHidden = false; continue; }
             const nwx = Math.floor(entry._wx ?? 0), nwy = Math.floor(entry._wy ?? 0);
             if (nwx >= 0 && nwx < ISO_CONFIG.MAP_COLS && nwy >= 0 && nwy < ISO_CONFIG.MAP_ROWS) {
-              if (_fg[nwy * ISO_CONFIG.MAP_COLS + nwx] >= 0.3) entry._fogDiscovered = true;
+              if (_fg[nwy * ISO_CONFIG.MAP_COLS + nwx] > 0.01) entry._fogDiscovered = true;
               entry._fogHidden = !entry._fogDiscovered;
             }
           }
@@ -4506,15 +4512,20 @@ export default function App() {
   }
 
   // Check stairs proximity in game loop (called per frame when in dungeon)
+  const stairsDismissedRef = useRef(false); // prevent re-show after cancel
   const checkDungeonStairs = useCallback(() => {
     const dState = dungeonStateRef.current;
     if (!dState || dungeonTransitioning) return;
 
     const interaction = checkStairsProximity(caravanPosRef.current, dState, 2.0);
     if (interaction && !stairsPrompt) {
-      setStairsPrompt(interaction);
-    } else if (!interaction && stairsPrompt) {
-      setStairsPrompt(null);
+      if (!stairsDismissedRef.current) {
+        setStairsPrompt(interaction);
+      }
+    } else if (!interaction) {
+      // Player moved away from stairs — reset dismiss flag
+      stairsDismissedRef.current = false;
+      if (stairsPrompt) setStairsPrompt(null);
     }
   }, [stairsPrompt, dungeonTransitioning]);
 
@@ -4538,7 +4549,18 @@ export default function App() {
           setStairsPrompt({ type: "exit_dungeon", position: currentLevelData.exitPos || { col: dState.mapSize / 2, row: dState.mapSize / 2 } });
         }, 2000);
       } else {
-        showMessage(`Piętro ${dState.currentLevel + 1} oczyszczone!`, "#44ff44");
+        showMessage(`Piętro ${dState.currentLevel + 1} oczyszczone! Znajdź schody.`, "#44ff44");
+        // Auto-show stairs prompt after short delay if stairs down exist
+        if (currentLevelData.stairs.down) {
+          setTimeout(() => {
+            stairsDismissedRef.current = false;
+            setStairsPrompt({
+              type: "descend",
+              targetLevel: dState.currentLevel + 1,
+              position: currentLevelData.stairs.down,
+            });
+          }, 2000);
+        }
       }
     }
   }, []);
@@ -9807,7 +9829,7 @@ export default function App() {
             changeDungeonLevel(stairsPrompt.targetLevel);
           }
         }}
-        onCancel={() => setStairsPrompt(null)}
+        onCancel={() => { stairsDismissedRef.current = true; setStairsPrompt(null); }}
       />
 
       {/* Dungeon cross-section overlay */}
@@ -11369,7 +11391,7 @@ export default function App() {
             const ncol = Math.floor(wd_pos.x), nrow = Math.floor(wd_pos.y ?? ISO_CONFIG.MAP_ROWS / 2);
             if (ncol >= 0 && ncol < ISO_CONFIG.MAP_COLS && nrow >= 0 && nrow < ISO_CONFIG.MAP_ROWS) {
               const npcFogVal = terrainDataRef.current.fogGrid[nrow * ISO_CONFIG.MAP_COLS + ncol];
-              if (npcFogVal >= 0.3) { w._fogDiscovered = true; }
+              if (npcFogVal > 0.01) { w._fogDiscovered = true; }
               if (!w._fogDiscovered) return null; // hidden in fog
             }
           }
