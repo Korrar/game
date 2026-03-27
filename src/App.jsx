@@ -7956,13 +7956,15 @@ export default function App() {
             if (eff?.type === "summon_skeleton") {
               setTimeout(() => {
                 const nid = ++walkerIdCounter;
+                const _iso = isoModeRef.current;
                 const sx = d.x;
+                const _sy = d.y ?? (_iso ? ISO_CONFIG.MAP_ROWS / 2 : 50);
                 const nHp = 40;
                 const nDmg = 8;
                 const nd = { icon: "skull", name: "Szkielet", hp: nHp, resist: null, loot: {}, bodyColor: "#c0b8a0", armorColor: "#8a7a60", bodyType: "humanoid", weapon: "sword" };
                 setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
-                walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: 0.3, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: 2000, lungeFrames: 0, lungeOffset: 0, combatStyle: "melee", mercType: "skeleton", range: 35 };
-                if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
+                walkDataRef.current[nid] = { x: sx, y: _sy, dir: 1, yDir: 1, speed: _iso ? 0.06 : 0.3, ySpeed: 0.01, minX: _iso ? 1 : 5, maxX: _iso ? ISO_CONFIG.MAP_COLS - 1 : 90, minY: _iso ? 1 : 25, maxY: _iso ? ISO_CONFIG.MAP_ROWS - 1 : 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: 2000, lungeFrames: 0, lungeOffset: 0, combatStyle: "melee", mercType: "skeleton", range: 35 };
+                if (physicsRef.current) physicsRef.current.spawnNpc(nid, _toPhysPct(sx, _iso, ISO_CONFIG.MAP_COLS), nd, true, _toPhysPct(_sy, _iso, ISO_CONFIG.MAP_ROWS));
                 showMessage("Szkielet przywołany!", "#8844cc");
                 setTimeout(() => {
                   if (walkDataRef.current[nid]) walkDataRef.current[nid].alive = false;
@@ -8748,13 +8750,15 @@ export default function App() {
             const mt = MERCENARY_TYPES[Math.floor(Math.random() * MERCENARY_TYPES.length)];
             setTimeout(() => {
               const nid = ++walkerIdCounter;
-              const sx = walkDataRef.current[wid]?.x || 50;
+              const _iso = isoModeRef.current;
+              const sx = walkDataRef.current[wid]?.x || (_iso ? ISO_CONFIG.MAP_COLS / 2 : 50);
+              const _sy = walkDataRef.current[wid]?.y || (_iso ? ISO_CONFIG.MAP_ROWS / 2 : 50);
               const nHp = Math.round(mt.hp * 0.7);
               const nDmg = Math.round(mt.damage * 0.7);
               const nd = { icon: mt.icon, name: `${mt.name}`, hp: nHp, resist: null, loot: {}, bodyColor: mt.bodyColor, armorColor: mt.armorColor, weapon: mt.weapon };
               setWalkers(pr => [...pr, { id: nid, npcData: nd, alive: true, dying: false, hp: nHp, maxHp: nHp, friendly: true }]);
-              walkDataRef.current[nid] = { x: sx, y: 25 + Math.random() * 65, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: 5, maxX: 90, minY: 25, maxY: 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
-              if (physicsRef.current) physicsRef.current.spawnNpc(nid, sx, nd, true);
+              walkDataRef.current[nid] = { x: sx, y: _sy, dir: 1, yDir: 1, speed: mt.speed, ySpeed: 0.01, minX: _iso ? 1 : 5, maxX: _iso ? ISO_CONFIG.MAP_COLS - 1 : 90, minY: _iso ? 1 : 25, maxY: _iso ? ISO_CONFIG.MAP_ROWS - 1 : 90, bouncePhase: 0, alive: true, friendly: true, damage: nDmg, attackCd: mt.attackCd || 2500, lungeFrames: 0, lungeOffset: 0, combatStyle: mt.combatStyle || "melee", mercType: mt.id, range: mt.range || 35 };
+              if (physicsRef.current) physicsRef.current.spawnNpc(nid, _toPhysPct(sx, _iso, ISO_CONFIG.MAP_COLS), nd, true, _toPhysPct(_sy, _iso, ISO_CONFIG.MAP_ROWS));
               showMessage(`Nekromancja! ${mt.name} przywołany!`, "#a050e0");
               setTimeout(() => {
                 if (walkDataRef.current[nid]) walkDataRef.current[nid].alive = false;
