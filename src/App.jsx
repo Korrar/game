@@ -5660,6 +5660,10 @@ export default function App() {
     if (pixiRef.current) { pixiRef.current.clearNpcs(); pixiRef.current.clearDestruction(); }
     if (physicsRef.current) physicsRef.current.clear();
     setGameOverStats(null);
+    // Reset dungeon state
+    setDungeonState(null); dungeonStateRef.current = null;
+    setStairsPrompt(null); stairsDismissedRef.current = false;
+    setGroundLoot([]);
     localStorage.removeItem("wrota_save");
     setScreen("game"); enterRoom(1, []); startMusic();
   };
@@ -6516,6 +6520,15 @@ export default function App() {
         return [...prev, item.relic];
       });
       showMessage(`Znaleziono relikt: ${item.relic.name}!`, "#ffd700");
+    } else if (item.type === "health_potion") {
+      const maxHp = CARAVAN_LEVELS[caravanLevelRef.current].hp;
+      const healAmt = Math.round(maxHp * 0.25);
+      setCaravanHp(prev => {
+        const newHp = Math.min(maxHp, prev + healAmt);
+        if (newHp / maxHp > 0.3) stopCaravanAlarm();
+        return newHp;
+      });
+      showMessage(`+${healAmt} HP! Eliksir życia!`, "#44ff88");
     }
     // Coin particle on pickup
     if (pixiRef.current) {
@@ -9031,9 +9044,20 @@ export default function App() {
       if (el && gameContainerRef.current) {
         const gr = gameContainerRef.current.getBoundingClientRect();
         const r = el.getBoundingClientRect();
-        const tx = ((r.left + r.width / 2) - gr.left) / gameScale;
-        const ty = ((r.top + r.height / 2) - gr.top) / gameScale;
-        castSkillshot(spell, tx, ty);
+        const screenX = ((r.left + r.width / 2) - gr.left) / gameScale;
+        const screenY = ((r.top + r.height / 2) - gr.top) / gameScale;
+        if (isoModeRef.current) {
+          // Convert screen-space to ISO world tile coords, then to physics pixels
+          const cam = isoCameraRef.current;
+          const isoWorld = _isoScreenToWorld(screenX, screenY, cam.x, cam.y);
+          const targetPx = (isoWorld.x / ISO_CONFIG.MAP_COLS) * GAME_W;
+          const targetPy = (isoWorld.y / ISO_CONFIG.MAP_ROWS) * GAME_H;
+          castSkillshot(spell, targetPx, targetPy);
+        } else {
+          // Panoramic: convert screen x to world x by adding pan offset
+          const worldX = _screenToWorld(screenX, panOffsetRef.current, GAME_W);
+          castSkillshot(spell, worldX, screenY);
+        }
       }
       return;
     }
@@ -9277,6 +9301,24 @@ export default function App() {
   const rollAmmoDrop = (killWx, killWy) => {
     const ammoIcons = { dynamite: "dynamite", harpoon: "harpoon", cannonball: "cannon", rum: "pirateRaid", chain: "ricochet" };
     const ammoLabels = { dynamite: "Dynamit", harpoon: "Harpun", cannonball: "Kula", rum: "Rum", chain: "Łańcuch" };
+    // 8% chance to drop a health elixir
+    if (Math.random() < 0.08) {
+      if (killWx != null && killWy != null) {
+        const scatter = (r) => (Math.random() - 0.5) * r;
+        setGroundLoot(prev => [...prev, {
+          id: `gl_potion_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+          type: "health_potion",
+          x: killWx + scatter(2), y: killWy + scatter(1.5),
+          icon: "flask", label: "Eliksir życia",
+          collected: false, spawnTime: Date.now(),
+        }]);
+      } else {
+        const maxHp = CARAVAN_LEVELS[caravanLevelRef.current].hp;
+        setCaravanHp(prev => Math.min(maxHp, prev + Math.round(maxHp * 0.25)));
+        showMessage("+25% HP! Eliksir życia!", "#44ff88");
+      }
+      return;
+    }
     for (const drop of AMMO_DROP_TABLE) {
       if (Math.random() < drop.chance) {
         if (killWx != null && killWy != null) {
@@ -10049,6 +10091,59 @@ export default function App() {
         onShowCrossSection={() => setShowCrossSection(true)}
       />
 
+      {/* Dungeon stairs/exit — persistent visible markers on the ISO map */}
+      {dungeonState && isoModeRef.current && (() => {
+        const dState = dungeonState;
+        const lvl = dState.levels[dState.currentLevel];
+        const markers = [];
+        // Stairs down marker
+        if (lvl?.stairs?.down) {
+          const sd = lvl.stairs.down;
+          const sdLeft = poiLeft(sd.col, sd.row);
+          const sdTop = poiTop(sd.col, sd.row);
+          if (sdLeft !== null) {
+            markers.push(
+              <div key="stairs-down" onClick={() => { stairsDismissedRef.current = false; setStairsPrompt({ type: "descend", targetLevel: dState.currentLevel + 1, position: sd }); }}
+                style={{ position: "absolute", left: sdLeft, top: sdTop, transform: "translate(-50%, -100%)", zIndex: poiZIndex(sd.col, sd.row) + 5, cursor: "pointer", userSelect: "none", pointerEvents: "all" }}>
+                <div style={{ fontSize: 26, filter: "drop-shadow(0 0 8px #60a0ff)", animation: "doorGlow 1.5s ease-in-out infinite", textAlign: "center", lineHeight: 1 }}>🪜</div>
+                <div style={{ fontSize: 8, color: "#88bbff", textAlign: "center", textShadow: "0 1px 3px #000", fontWeight: "bold", whiteSpace: "nowrap" }}>Schody niżej</div>
+              </div>
+            );
+          }
+        }
+        // Stairs up marker (if not on top level)
+        if (lvl?.stairs?.up && dState.currentLevel > 0) {
+          const su = lvl.stairs.up;
+          const suLeft = poiLeft(su.col, su.row);
+          const suTop = poiTop(su.col, su.row);
+          if (suLeft !== null) {
+            markers.push(
+              <div key="stairs-up" onClick={() => { stairsDismissedRef.current = false; setStairsPrompt({ type: "ascend", targetLevel: dState.currentLevel - 1, position: su }); }}
+                style={{ position: "absolute", left: suLeft, top: suTop, transform: "translate(-50%, -100%)", zIndex: poiZIndex(su.col, su.row) + 5, cursor: "pointer", userSelect: "none", pointerEvents: "all" }}>
+                <div style={{ fontSize: 26, filter: "drop-shadow(0 0 8px #ffd700)", animation: "doorGlow 1.8s ease-in-out infinite", textAlign: "center", lineHeight: 1 }}>🪜</div>
+                <div style={{ fontSize: 8, color: "#ffd700", textAlign: "center", textShadow: "0 1px 3px #000", fontWeight: "bold", whiteSpace: "nowrap" }}>Schody wyżej</div>
+              </div>
+            );
+          }
+        }
+        // Exit marker
+        const exitP = lvl?.exitPos || (dState.currentLevel === 0 ? (dState.levels[0]?.exitPos) : null);
+        if (exitP) {
+          const exLeft = poiLeft(exitP.col, exitP.row);
+          const exTop = poiTop(exitP.col, exitP.row);
+          if (exLeft !== null) {
+            markers.push(
+              <div key="dungeon-exit" onClick={() => { stairsDismissedRef.current = false; setStairsPrompt({ type: "exit_dungeon", position: exitP }); }}
+                style={{ position: "absolute", left: exLeft, top: exTop, transform: "translate(-50%, -100%)", zIndex: poiZIndex(exitP.col, exitP.row) + 5, cursor: "pointer", userSelect: "none", pointerEvents: "all" }}>
+                <div style={{ fontSize: 28, filter: "drop-shadow(0 0 10px #44ff88)", animation: "doorGlow 1.3s ease-in-out infinite", textAlign: "center", lineHeight: 1 }}>🚪</div>
+                <div style={{ fontSize: 8, color: "#44ff88", textAlign: "center", textShadow: "0 1px 3px #000", fontWeight: "bold", whiteSpace: "nowrap" }}>Wyjście</div>
+              </div>
+            );
+          }
+        }
+        return markers;
+      })()}
+
       {/* Dungeon stairs interaction prompt */}
       <StairsPrompt
         interaction={stairsPrompt}
@@ -10340,30 +10435,31 @@ export default function App() {
       {/* Ground loot — clickable coins and items dropped by meteor */}
       {groundLoot.filter(i => !i.collected).map(item => {
         const isRare = item.type === "treasure" || item.type === "moonblade_saber" || item.type === "saber_drop" || item.type === "relic_drop";
+        const isPotion = item.type === "health_potion";
         const rarityColors = { common: "#888", uncommon: "#40a060", rare: "#40a8b8", epic: "#a050e0", legendary: "#ffd700" };
-        const glowColor = isRare ? (rarityColors[item.rarity] || "#ffd700") : "rgba(255,180,0,0.5)";
-        const itemSize = isRare ? 30 : (item.type === "ammo" ? 22 : 18);
+        const glowColor = isPotion ? "#44ff88" : isRare ? (rarityColors[item.rarity] || "#ffd700") : "rgba(255,180,0,0.5)";
+        const itemSize = isRare ? 30 : isPotion ? 26 : (item.type === "ammo" ? 22 : 18);
         return (
           <div key={item.id} ref={el => { if (el) groundLootElsRef.current[item.id] = el; }} data-wx={item.x} data-wy={item.y} onClick={() => collectGroundLoot(item.id)} style={{
             position: "absolute", left: `${wrapPctToScreen(item.x) ?? item.x}%`, top: `${item.y}%`, zIndex: 15,
             cursor: "pointer", userSelect: "none",
-            animation: isRare ? "doorGlow 1.5s ease-in-out infinite" : "meteorPulse 2s ease-in-out infinite",
+            animation: isRare ? "doorGlow 1.5s ease-in-out infinite" : isPotion ? "doorGlow 1.2s ease-in-out infinite" : "meteorPulse 2s ease-in-out infinite",
             transform: "translate(-50%, -50%)",
           }}>
             <div style={{
               width: itemSize, height: itemSize,
-              filter: `drop-shadow(0 0 ${isRare ? 10 : 4}px ${glowColor})`,
+              filter: `drop-shadow(0 0 ${isRare || isPotion ? 10 : 4}px ${glowColor})`,
               display: "flex", alignItems: "center", justifyContent: "center",
-              background: isRare ? `radial-gradient(circle, ${glowColor}20, transparent)` : "none",
-              borderRadius: isRare ? "50%" : "0",
+              background: isRare || isPotion ? `radial-gradient(circle, ${glowColor}20, transparent)` : "none",
+              borderRadius: isRare || isPotion ? "50%" : "0",
             }}>
-              <Icon name={item.icon} size={isRare ? 24 : (item.type === "ammo" ? 18 : 14)} />
+              <Icon name={item.icon} size={isRare ? 24 : isPotion ? 20 : (item.type === "ammo" ? 18 : 14)} />
             </div>
             <div style={{
-              fontSize: isRare ? 9 : 7,
-              color: isRare ? glowColor : "#e0c080",
+              fontSize: isRare || isPotion ? 9 : 7,
+              color: isRare || isPotion ? glowColor : "#e0c080",
               textAlign: "center", textShadow: "0 1px 3px #000",
-              marginTop: -1, fontWeight: isRare ? "bold" : "normal",
+              marginTop: -1, fontWeight: isRare || isPotion ? "bold" : "normal",
               maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             }}>
               {item.label}
