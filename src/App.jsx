@@ -2944,7 +2944,7 @@ export default function App() {
                   }
                   setKills(k => k + 1);
                   handleCardDrop(ww.npcData);
-                  rollAmmoDrop(); rollSaberDrop();
+                  { const _wd = walkDataRef.current[ww.id]; rollAmmoDrop(_wd?.wx ?? _wd?.x, _wd?.wy ?? _wd?.y); rollSaberDrop(_wd?.wx ?? _wd?.x, _wd?.wy ?? _wd?.y); }
                   grantXp(ww.isBoss ? 100 : ww.isElite ? 50 : 10 + roomRef.current * 2);
                   processKillStreak();
                   setTimeout(() => setWalkers(pr => pr.filter(www => www.id !== w.id)), 2500);
@@ -7125,7 +7125,7 @@ export default function App() {
         }
         setKills(k => k + 1);
         handleCardDrop(npcData);
-        rollAmmoDrop(); rollSaberDrop();
+        { const _wd = walkDataRef.current[w.id]; rollAmmoDrop(_wd?.wx ?? _wd?.x, _wd?.wy ?? _wd?.y); rollSaberDrop(_wd?.wx ?? _wd?.x, _wd?.wy ?? _wd?.y); }
         const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
         grantXp(xpAmt);
         processKillStreak();
@@ -7946,7 +7946,7 @@ export default function App() {
             }
             setKills(k => k + 1);
             handleCardDrop(ww.npcData);
-            rollAmmoDrop(); rollSaberDrop();
+            { const _wd = walkDataRef.current[w.id]; rollAmmoDrop(_wd?.wx ?? _wd?.x, _wd?.wy ?? _wd?.y); rollSaberDrop(_wd?.wx ?? _wd?.x, _wd?.wy ?? _wd?.y); }
             grantXp(ww.isBoss ? 100 : ww.isElite ? 50 : 10 + roomRef.current * 2);
             processKillStreak();
             // Shadow saber: summon skeleton on kill
@@ -8709,7 +8709,7 @@ export default function App() {
           }
           setKills(k => k + 1);
           handleCardDrop(npcData);
-          rollAmmoDrop(); rollSaberDrop();
+          { const _wd = walkDataRef.current[w.id]; rollAmmoDrop(_wd?.wx ?? _wd?.x, _wd?.wy ?? _wd?.y); rollSaberDrop(_wd?.wx ?? _wd?.x, _wd?.wy ?? _wd?.y); }
           // XP grant on kill
           const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
           grantXp(xpAmt);
@@ -8917,7 +8917,7 @@ export default function App() {
           }
           setKills(k => k + 1);
           handleCardDrop(npcData);
-          rollAmmoDrop(); rollSaberDrop();
+          { const _wd = walkDataRef.current[w.id]; rollAmmoDrop(_wd?.wx ?? _wd?.x, _wd?.wy ?? _wd?.y); rollSaberDrop(_wd?.wx ?? _wd?.x, _wd?.wy ?? _wd?.y); }
           const xpAmt = w.isBoss ? 100 : w.isElite ? 50 : 10 + roomRef.current * 2;
           grantXp(xpAmt);
           processKillStreak();
@@ -9267,28 +9267,50 @@ export default function App() {
     }
   };
 
-  const rollAmmoDrop = () => {
+  const rollAmmoDrop = (killWx, killWy) => {
+    const ammoIcons = { dynamite: "dynamite", harpoon: "harpoon", cannonball: "cannon", rum: "pirateRaid", chain: "ricochet" };
+    const ammoLabels = { dynamite: "Dynamit", harpoon: "Harpun", cannonball: "Kula", rum: "Rum", chain: "Łańcuch" };
     for (const drop of AMMO_DROP_TABLE) {
       if (Math.random() < drop.chance) {
-        setAmmo(prev => ({ ...prev, [drop.type]: (prev[drop.type] || 0) + drop.amount }));
-        const ammoLabels = { dynamite: "Dynamit", harpoon: "Harpun", cannonball: "Kula armatnia", rum: "Rum", chain: "Łańcuch" };
-        showMessage(`+${drop.amount} ${ammoLabels[drop.type]}!`, "#e0a040");
+        if (killWx != null && killWy != null) {
+          const scatter = (r) => (Math.random() - 0.5) * r;
+          setGroundLoot(prev => [...prev, {
+            id: `gl_ammo_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+            type: "ammo", value: { [drop.type]: drop.amount },
+            x: killWx + scatter(2.5), y: killWy + scatter(1.5),
+            icon: ammoIcons[drop.type] || "dynamite",
+            label: `${ammoLabels[drop.type]} x${drop.amount}`,
+            collected: false, spawnTime: Date.now(),
+          }]);
+        } else {
+          setAmmo(prev => ({ ...prev, [drop.type]: (prev[drop.type] || 0) + drop.amount }));
+          showMessage(`+${drop.amount} ${ammoLabels[drop.type]}!`, "#e0a040");
+        }
         return;
       }
     }
   };
 
-  // 8% chance to drop a saber from monster kills
-  const rollSaberDrop = () => {
+  // 8% chance to drop a saber on the ground from monster kills
+  const rollSaberDrop = (killWx, killWy) => {
     if (Math.random() > 0.08) return;
     const unowned = SABERS.filter(s => !s.starter && !s.dropOnly && !ownedSabersRef.current.includes(s.id));
     if (unowned.length === 0) return;
     const saber = unowned[Math.floor(Math.random() * unowned.length)];
-    setOwnedSabers(prev => {
-      if (prev.includes(saber.id)) return prev;
-      return [...prev, saber.id];
-    });
-    showMessage(`Zdobyto szabl\u0119: ${saber.name}! Załóż w ekwipunku.`, saber.color);
+    if (killWx != null && killWy != null) {
+      const scatter = (r) => (Math.random() - 0.5) * r;
+      setGroundLoot(prev => [...prev, {
+        id: `gl_saber_${Date.now()}_${saber.id}`,
+        type: "saber_drop", saberId: saber.id,
+        x: killWx + scatter(2), y: killWy + scatter(1),
+        icon: saber.icon || "swords", label: saber.name,
+        collected: false, spawnTime: Date.now(),
+        rarity: saber.rarity || "common",
+      }]);
+    } else {
+      setOwnedSabers(prev => prev.includes(saber.id) ? prev : [...prev, saber.id]);
+      showMessage(`Zdobyto szablę: ${saber.name}!`, saber.color);
+    }
   };
 
   const storeItem = (idx) => {
