@@ -22,6 +22,37 @@ export class BiomeAnimator {
     this.ctx = null;
     // Spell effects queue
     this.spellEffects = [];
+    // ISO camera (updated every frame from App.jsx)
+    this.camX = 0;
+    this.camY = 640;
+  }
+
+  // Called every frame from the game loop with current ISO camera position
+  setCameraInfo(camX, camY) {
+    this.camX = camX;
+    this.camY = camY;
+  }
+
+  // World tile → canvas screen pixel (ISO projection, TILE_W=64, TILE_H=32)
+  _w2s(wx, wy) {
+    return {
+      x: (wx - wy) * 32 - this.camX + this.W / 2,
+      y: (wx + wy) * 16 - this.camY,
+    };
+  }
+
+  // Random world position within map bounds
+  _randWorld(margin = 4) {
+    return {
+      wx: margin + Math.random() * (40 - margin * 2),
+      wy: margin + Math.random() * (40 - margin * 2),
+    };
+  }
+
+  // Is a world position currently on screen (with optional pixel margin)?
+  _onScreen(wx, wy, margin = 120) {
+    const { x, y } = this._w2s(wx, wy);
+    return x > -margin && x < this.W + margin && y > -margin && y < this.H + margin;
   }
 
   start(canvas, biome, isNight, weather) {
@@ -3373,36 +3404,41 @@ export class BiomeAnimator {
   }
 
   // ═══════════════════════════════════════════════════════
-  // LIVING MAP — per-biome ambient creatures
+  // LIVING MAP — per-biome ambient creatures (world-space)
+  // All ground/air creatures store wx/wy in ISO tile coords
+  // and project to screen each frame via _w2s().
   // ═══════════════════════════════════════════════════════
 
   // JUNGLE / SPRING / BAMBOO_FALLS: tiny buzzing insects (figure-8 orbit)
   _spawnInsects() {
     if (this.time % 18 !== 0) return;
     if (Math.random() > 0.55) return;
-    const { W, GY } = this;
+    const { wx, wy } = this._randWorld();
+    if (!this._onScreen(wx, wy, 60)) return;
     this._spawn("insect", {
-      x: Math.random() * W,
-      y: GY * (0.5 + Math.random() * 0.42),
+      wx, wy,
       phase: Math.random() * Math.PI * 2,
       speed: 0.07 + Math.random() * 0.06,
       hue: 40 + Math.random() * 90,
-      maxAge: 180 + Math.random() * 120,
+      maxAge: 200 + Math.random() * 120,
     });
   }
   _updateInsect(p) {
     p.phase += p.speed;
-    p.x += Math.sin(p.phase) * 1.3;
-    p.y += Math.sin(p.phase * 2) * 0.6;
-    const fade = p.age < 20 ? p.age / 20 : p.age > 240 ? (280 - p.age) / 40 : 1;
+    // move in world tile units (tiny orbit)
+    p.wx += Math.sin(p.phase) * 0.012;
+    p.wy += Math.sin(p.phase * 2) * 0.006;
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
+    const fade = p.age < 20 ? p.age / 20 : p.age > 160 ? (200 - p.age) / 40 : 1;
     const { ctx } = this;
     ctx.fillStyle = `hsla(${p.hue},80%,60%,${0.38 * fade})`;
-    ctx.beginPath(); ctx.arc(p.x, p.y, 1.1, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 1.1, 0, Math.PI * 2); ctx.fill();
     if (Math.floor(p.phase * 3) % 2 === 0) {
       ctx.strokeStyle = `hsla(${p.hue},50%,85%,${0.18 * fade})`;
       ctx.lineWidth = 0.5;
-      ctx.beginPath(); ctx.ellipse(p.x - 1.5, p.y - 0.5, 2.2, 0.9, -0.5, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(p.x + 1.5, p.y - 0.5, 2.2, 0.9, 0.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x - 1.5, y - 0.5, 2.2, 0.9, -0.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x + 1.5, y - 0.5, 2.2, 0.9, 0.5, 0, Math.PI * 2); ctx.stroke();
     }
   }
 
@@ -3410,10 +3446,10 @@ export class BiomeAnimator {
   _spawnBees() {
     if (this.time % 22 !== 0) return;
     if (Math.random() > 0.5) return;
-    const { W, GY } = this;
+    const { wx, wy } = this._randWorld();
+    if (!this._onScreen(wx, wy, 60)) return;
     this._spawn("bee", {
-      x: Math.random() * W,
-      y: GY * (0.58 + Math.random() * 0.33),
+      wx, wy,
       phase: Math.random() * Math.PI * 2,
       speed: 0.10 + Math.random() * 0.05,
       maxAge: 220 + Math.random() * 100,
@@ -3421,11 +3457,13 @@ export class BiomeAnimator {
   }
   _updateBee(p) {
     p.phase += p.speed;
-    p.x += Math.cos(p.phase) * 1.6;
-    p.y += Math.sin(p.phase * 2) * 0.75;
+    p.wx += Math.cos(p.phase) * 0.05;
+    p.wy += Math.sin(p.phase * 2) * 0.024;
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const fade = p.age < 15 ? p.age / 15 : p.age > 190 ? (220 - p.age) / 30 : 1;
     const { ctx } = this;
-    ctx.save(); ctx.translate(p.x, p.y);
+    ctx.save(); ctx.translate(x, y);
     ctx.fillStyle = `rgba(220,185,20,${0.52 * fade})`;
     ctx.beginPath(); ctx.ellipse(0, 0, 2.8, 1.6, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = `rgba(20,10,0,${0.4 * fade})`;
@@ -3443,13 +3481,13 @@ export class BiomeAnimator {
   _spawnDragonflies() {
     if (this.time % 55 !== 0) return;
     if (Math.random() > 0.48) return;
-    const { W, GY } = this;
     const hues = [160, 195, 275, 125];
+    const { wx, wy } = this._randWorld();
+    if (!this._onScreen(wx, wy, 60)) return;
     this._spawn("dragonfly", {
-      x: Math.random() * W,
-      y: GY * (0.38 + Math.random() * 0.48),
-      vx: (Math.random() - 0.5) * 1.3,
-      vy: (Math.random() - 0.5) * 0.5,
+      wx, wy,
+      vx: (Math.random() - 0.5) * 0.04,
+      vy: (Math.random() - 0.5) * 0.016,
       phase: Math.random() * Math.PI * 2,
       hue: hues[Math.floor(Math.random() * hues.length)],
       maxAge: 380 + Math.random() * 200,
@@ -3457,13 +3495,14 @@ export class BiomeAnimator {
   }
   _updateDragonfly(p) {
     p.phase += 0.055;
-    p.x += p.vx + Math.sin(p.phase * 2.8) * 0.85;
-    p.y += p.vy + Math.cos(p.phase * 3.2) * 0.45;
-    if (Math.random() < 0.007) { p.vx = (Math.random() - 0.5) * 1.3; p.vy = (Math.random() - 0.5) * 0.5; }
-    if (p.x < -20 || p.x > this.W + 20 || p.y < this.GY * 0.25 || p.y > this.H + 10) { p.alive = false; return; }
+    p.wx += p.vx + Math.sin(p.phase * 2.8) * 0.027;
+    p.wy += p.vy + Math.cos(p.phase * 3.2) * 0.014;
+    if (Math.random() < 0.007) { p.vx = (Math.random() - 0.5) * 0.04; p.vy = (Math.random() - 0.5) * 0.016; }
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
     const fade = p.age < 30 ? p.age / 30 : p.age > (p.maxAge - 50) ? (p.maxAge - p.age) / 50 : 1;
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
-    ctx.save(); ctx.translate(p.x, p.y);
+    ctx.save(); ctx.translate(x, y);
     if (p.vx < 0) ctx.scale(-1, 1);
     ctx.strokeStyle = `hsla(${p.hue},70%,65%,${0.42 * fade})`;
     ctx.lineWidth = 0.55;
@@ -3482,24 +3521,25 @@ export class BiomeAnimator {
   _spawnScorpions() {
     if (this.time % 190 !== 0) return;
     if (Math.random() > 0.42) return;
-    const { W, GY } = this;
+    const { wx, wy } = this._randWorld(3);
+    if (!this._onScreen(wx, wy, 60)) return;
     const dir = Math.random() > 0.5 ? 1 : -1;
     this._spawn("scorpion", {
-      x: dir > 0 ? -15 : W + 15,
-      y: GY * (0.66 + Math.random() * 0.24),
-      speed: (0.5 + Math.random() * 0.8) * dir,
+      wx, wy,
+      speed: (0.015 + Math.random() * 0.025) * dir,
       wobble: 0, size: 4 + Math.random() * 3,
       maxAge: 420 + Math.random() * 180,
     });
   }
   _updateScorpion(p) {
-    p.wobble += 0.18; p.x += p.speed;
-    if (p.x > this.W + 20 || p.x < -20) { p.alive = false; return; }
+    p.wobble += 0.18; p.wx += p.speed;
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
     const d = p.speed > 0 ? 1 : -1;
     const s = p.size;
-    const y = p.y + Math.sin(p.wobble * 2) * 0.7;
-    ctx.save(); ctx.translate(p.x, y);
+    const drawY = y + Math.sin(p.wobble * 2) * 0.7;
+    ctx.save(); ctx.translate(x, drawY);
     ctx.fillStyle = "rgba(165,132,52,0.46)";
     ctx.beginPath(); ctx.ellipse(0, 0, s * 1.4, s * 0.8, 0, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(-d * s * 1.8, 0, s * 0.9, s * 0.65, 0, 0, Math.PI * 2); ctx.fill();
@@ -3552,12 +3592,12 @@ export class BiomeAnimator {
   _spawnCats() {
     if (this.time % 210 !== 0) return;
     if (Math.random() > 0.38) return;
-    const { W, GY } = this;
+    const { wx, wy } = this._randWorld(3);
+    if (!this._onScreen(wx, wy, 60)) return;
     const dir = Math.random() > 0.5 ? 1 : -1;
     this._spawn("cat", {
-      x: dir > 0 ? -20 : W + 20,
-      y: GY * (0.73 + Math.random() * 0.18),
-      speed: (0.55 + Math.random() * 0.45) * dir,
+      wx, wy,
+      speed: (0.016 + Math.random() * 0.014) * dir,
       pauseTimer: 0, wobble: 0,
       size: 5 + Math.random() * 3,
       tailPhase: Math.random() * Math.PI * 2,
@@ -3568,15 +3608,16 @@ export class BiomeAnimator {
     p.wobble += 0.14; p.tailPhase += 0.038;
     if (p.pauseTimer > 0) { p.pauseTimer--; }
     else {
-      p.x += p.speed;
+      p.wx += p.speed;
       if (Math.random() < 0.005) p.pauseTimer = 60 + Math.random() * 130;
     }
-    if (p.x > this.W + 30 || p.x < -30) { p.alive = false; return; }
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
     const d = p.speed > 0 ? 1 : -1;
     const s = p.size;
     const bob = p.pauseTimer > 0 ? 0 : Math.sin(p.wobble) * 1.2;
-    ctx.save(); ctx.translate(p.x, p.y + bob);
+    ctx.save(); ctx.translate(x, y + bob);
     ctx.fillStyle = "rgba(48,44,54,0.52)";
     ctx.beginPath(); ctx.ellipse(0, 0, s * 1.3, s * 0.7, 0, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(s * 1.2 * d, -s * 0.3, s * 0.7, 0, Math.PI * 2); ctx.fill();
@@ -3596,31 +3637,34 @@ export class BiomeAnimator {
   _spawnBats() {
     if (this.time % 75 !== 0) return;
     if (Math.random() > 0.38) return;
-    const { W, GY } = this;
     const id = this.biome.id;
     const hue = id === "volcano" ? 18 : id === "underworld" ? 270 : 210;
+    const { wx, wy } = this._randWorld(2);
+    if (!this._onScreen(wx, wy, 60)) return;
     this._spawn("bat", {
-      x: Math.random() * W,
-      y: GY * (0.12 + Math.random() * 0.48),
-      vx: (Math.random() - 0.5) * 2.6,
-      vy: (Math.random() - 0.5) * 1.2,
+      wx, wy,
+      vx: (Math.random() - 0.5) * 0.08,
+      vy: (Math.random() - 0.5) * 0.038,
       wingPhase: Math.random() * Math.PI * 2,
       size: 4 + Math.random() * 4,
       hue, maxAge: 260 + Math.random() * 140,
     });
   }
   _updateBat(p) {
-    p.wingPhase += 0.22; p.x += p.vx; p.y += p.vy + Math.sin(p.wingPhase * 0.38) * 0.4;
+    p.wingPhase += 0.22;
+    p.wx += p.vx;
+    p.wy += p.vy + Math.sin(p.wingPhase * 0.38) * 0.012;
     if (Math.random() < 0.02) {
-      p.vx += (Math.random() - 0.5) * 1.6; p.vy += (Math.random() - 0.5) * 0.85;
+      p.vx += (Math.random() - 0.5) * 0.05; p.vy += (Math.random() - 0.5) * 0.026;
     }
-    p.vx = Math.max(-3.2, Math.min(3.2, p.vx)); p.vy = Math.max(-1.6, Math.min(1.6, p.vy));
-    if (p.x < -25 || p.x > this.W + 25 || p.y < 0 || p.y > this.GY + 5) { p.alive = false; return; }
+    p.vx = Math.max(-0.1, Math.min(0.1, p.vx)); p.vy = Math.max(-0.05, Math.min(0.05, p.vy));
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
     const fade = p.age < 20 ? p.age / 20 : p.age > (p.maxAge - 30) ? (p.maxAge - p.age) / 30 : 1;
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
     const wing = Math.abs(Math.sin(p.wingPhase));
     const s = p.size;
-    ctx.save(); ctx.translate(p.x, p.y);
+    ctx.save(); ctx.translate(x, y);
     ctx.fillStyle = `hsla(${p.hue},22%,12%,${0.46 * fade})`;
     ctx.beginPath(); ctx.ellipse(-s * 0.6 - s * wing * 0.65, 0, s * (0.6 + wing * 0.85), s * 0.42, -0.3, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(s * 0.6 + s * wing * 0.65, 0, s * (0.6 + wing * 0.85), s * 0.42, 0.3, 0, Math.PI * 2); ctx.fill();
@@ -3633,12 +3677,13 @@ export class BiomeAnimator {
   _spawnSquirrels() {
     if (this.time % 250 !== 0) return;
     if (Math.random() > 0.38) return;
-    const { W, GY } = this;
-    const sx = Math.random() * W;
+    const { wx, wy } = this._randWorld(3);
+    if (!this._onScreen(wx, wy, 60)) return;
     const dir = Math.random() > 0.5 ? 1 : -1;
     this._spawn("squirrel", {
-      x: sx, y: GY * 0.7, startX: sx,
-      jumpX: sx + dir * (42 + Math.random() * 60),
+      wx, wy,
+      startWx: wx,
+      jumpWx: wx + dir * (1.2 + Math.random() * 1.8),
       jumpDuration: 38 + Math.random() * 18,
       jumpTimer: 0, pauseTimer: Math.random() * 60,
       hopHeight: 26 + Math.random() * 18,
@@ -3648,26 +3693,27 @@ export class BiomeAnimator {
   }
   _updateSquirrel(p) {
     p.tailPhase += 0.1;
-    const groundY = this.GY * 0.7;
     if (p.pauseTimer > 0) {
       p.pauseTimer--;
     } else if (p.jumpTimer < p.jumpDuration) {
       p.jumpTimer++;
       const t = p.jumpTimer / p.jumpDuration;
-      p.x = p.startX + (p.jumpX - p.startX) * t;
-      p.y = groundY - Math.sin(t * Math.PI) * p.hopHeight;
+      p.wx = p.startWx + (p.jumpWx - p.startWx) * t;
       if (t >= 1) {
-        p.startX = p.jumpX;
-        const nd = (p.jumpX - p.startX) >= 0 ? 1 : -1;
-        p.jumpX = p.startX + nd * (42 + Math.random() * 60);
+        p.startWx = p.jumpWx;
+        const nd = (p.jumpWx - p.startWx) >= 0 ? 1 : -1;
+        p.jumpWx = p.startWx + nd * (1.2 + Math.random() * 1.8);
         p.jumpTimer = 0; p.pauseTimer = 35 + Math.random() * 85;
       }
     }
-    if (p.x < -25 || p.x > this.W + 25) { p.alive = false; return; }
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
     const s = p.size;
-    const d = (p.jumpX >= p.startX) ? 1 : -1;
-    ctx.save(); ctx.translate(p.x, p.y);
+    const d = (p.jumpWx >= p.startWx) ? 1 : -1;
+    const t = p.jumpDuration > 0 ? p.jumpTimer / p.jumpDuration : 0;
+    const hopOffset = p.jumpTimer > 0 ? -Math.sin(t * Math.PI) * p.hopHeight : 0;
+    ctx.save(); ctx.translate(x, y + hopOffset);
     ctx.fillStyle = "rgba(162,102,42,0.52)";
     ctx.beginPath(); ctx.ellipse(0, 0, s * 1.1, s * 0.7, 0, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(s * d, -s * 0.42, s * 0.65, 0, Math.PI * 2); ctx.fill();
@@ -3680,12 +3726,13 @@ export class BiomeAnimator {
   _spawnFrogs() {
     if (this.time % 155 !== 0) return;
     if (Math.random() > 0.38) return;
-    const { W, GY } = this;
-    const sx = 50 + Math.random() * (W - 100);
+    const { wx, wy } = this._randWorld(3);
+    if (!this._onScreen(wx, wy, 60)) return;
     const dir = Math.random() > 0.5 ? 1 : -1;
     this._spawn("frog", {
-      x: sx, y: GY * 0.76, startX: sx,
-      jumpX: sx + dir * (22 + Math.random() * 38),
+      wx, wy,
+      startWx: wx,
+      jumpWx: wx + dir * (0.7 + Math.random() * 1.2),
       jumpDuration: 18 + Math.random() * 14,
       jumpTimer: 0, pauseTimer: 45 + Math.random() * 120,
       hopHeight: 18 + Math.random() * 14,
@@ -3695,26 +3742,27 @@ export class BiomeAnimator {
     });
   }
   _updateFrog(p) {
-    const groundY = this.GY * 0.76;
     if (p.pauseTimer > 0) {
       p.pauseTimer--;
     } else if (p.jumpTimer < p.jumpDuration) {
       p.jumpTimer++;
       const t = p.jumpTimer / p.jumpDuration;
-      p.x = p.startX + (p.jumpX - p.startX) * t;
-      p.y = groundY - Math.sin(t * Math.PI) * p.hopHeight;
+      p.wx = p.startWx + (p.jumpWx - p.startWx) * t;
       if (t >= 1) {
-        p.startX = p.jumpX;
+        p.startWx = p.jumpWx;
         const nd = Math.random() > 0.5 ? 1 : -1;
-        p.jumpX = p.startX + nd * (22 + Math.random() * 38);
+        p.jumpWx = p.startWx + nd * (0.7 + Math.random() * 1.2);
         p.jumpTimer = 0; p.pauseTimer = 65 + Math.random() * 110;
       }
     }
-    if (p.x < 0 || p.x > this.W) { p.alive = false; return; }
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
     const s = p.size;
-    const squash = p.jumpTimer > 0 ? Math.sin(p.jumpTimer / p.jumpDuration * Math.PI) * 0.4 : 0;
-    ctx.save(); ctx.translate(p.x, p.y);
+    const t = p.jumpDuration > 0 ? p.jumpTimer / p.jumpDuration : 0;
+    const squash = p.jumpTimer > 0 ? Math.sin(t * Math.PI) * 0.4 : 0;
+    const hopOffset = p.jumpTimer > 0 ? -Math.sin(t * Math.PI) * p.hopHeight : 0;
+    ctx.save(); ctx.translate(x, y + hopOffset);
     ctx.fillStyle = `hsla(${p.hue},50%,32%,0.52)`;
     ctx.beginPath(); ctx.ellipse(0, 0, s * (1.1 + squash * 0.3), s * (0.7 - squash * 0.2), 0, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(s * 1.1, -s * 0.12, s * 0.75, s * 0.6, 0, 0, Math.PI * 2); ctx.fill();
@@ -3733,26 +3781,29 @@ export class BiomeAnimator {
   _spawnSeaTurtles() {
     if (this.time % 310 !== 0) return;
     if (Math.random() > 0.32) return;
-    const { W, GY } = this;
+    const { wx, wy } = this._randWorld(3);
+    if (!this._onScreen(wx, wy, 60)) return;
     const dir = Math.random() > 0.5 ? 1 : -1;
     this._spawn("seaTurtle", {
-      x: dir > 0 ? -30 : W + 30,
-      y: GY * (0.38 + Math.random() * 0.48),
-      vx: (0.38 + Math.random() * 0.38) * dir,
-      vy: (Math.random() - 0.5) * 0.18,
+      wx, wy,
+      vx: (0.012 + Math.random() * 0.012) * dir,
+      vy: (Math.random() - 0.5) * 0.006,
       phase: Math.random() * Math.PI * 2,
       size: 8 + Math.random() * 5,
       maxAge: 850,
     });
   }
   _updateSeaTurtle(p) {
-    p.phase += 0.022; p.x += p.vx; p.y += p.vy + Math.sin(p.phase) * 0.28;
-    if (p.x > this.W + 45 || p.x < -45) { p.alive = false; return; }
+    p.phase += 0.022;
+    p.wx += p.vx;
+    p.wy += p.vy + Math.sin(p.phase) * 0.009;
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
     const fade = p.age < 40 ? p.age / 40 : p.age > (p.maxAge - 60) ? (p.maxAge - p.age) / 60 : 1;
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
     const s = p.size;
     const fw = Math.sin(p.phase * 2) * 0.42;
-    ctx.save(); ctx.translate(p.x, p.y);
+    ctx.save(); ctx.translate(x, y);
     if (p.vx < 0) ctx.scale(-1, 1);
     ctx.fillStyle = `rgba(58,98,58,${0.46 * fade})`;
     ctx.beginPath(); ctx.ellipse(0, 0, s * 1.12, s * 0.76, 0, 0, Math.PI * 2); ctx.fill();
@@ -3805,13 +3856,19 @@ export class BiomeAnimator {
 
   // UNDERWORLD: skeleton hands rising and receding from the ground
   _drawSkeletonHands() {
-    const { ctx, W, GY, time } = this;
+    const { ctx, time } = this;
     const t = time * 0.008;
-    const seed = 113;
-    for (let i = 0; i < 4; i++) {
-      const x = ((seed + i * 79) % 80 + 10) * W / 100;
+    // Fixed world-space anchor positions for the 4 hands
+    const anchors = [
+      { wx: 17, wy: 20 }, { wx: 22, wy: 17 },
+      { wx: 20, wy: 24 }, { wx: 26, wy: 21 },
+    ];
+    for (let i = 0; i < anchors.length; i++) {
+      const { wx, wy } = anchors[i];
+      if (!this._onScreen(wx, wy, 80)) continue;
+      const { x, y } = this._w2s(wx, wy);
       const rise = Math.sin(t * 0.48 + i * 1.57) * 0.5 + 0.5;
-      const baseY = GY * 0.9;
+      const baseY = y;
       const tipY = baseY - rise * 28;
       const alpha = 0.1 + rise * 0.14;
       ctx.strokeStyle = `rgba(200,188,172,${alpha})`;
