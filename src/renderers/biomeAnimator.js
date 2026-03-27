@@ -1320,11 +1320,12 @@ export class BiomeAnimator {
 
   _spawnLeaves() {
     if (this.time % 20 !== 0) return;
+    const { wx, wy } = this._randWorld();
+    if (!this._onScreen(wx, wy, 60)) return;
     this._spawn("leaf", {
-      x: Math.random() * this.W,
-      y: this.GY * 0.3 + Math.random() * this.GY * 0.3,
+      wx, wy,
       size: 3 + Math.random() * 4,
-      speedY: 0.3 + Math.random() * 0.5,
+      speedWy: 0.02 + Math.random() * 0.03,
       rot: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 0.06,
       phase: Math.random() * Math.PI * 2,
@@ -1335,14 +1336,14 @@ export class BiomeAnimator {
   }
 
   _updateLeaf(p, wind) {
-    p.x += Math.sin(p.age * 0.015 + p.phase) * 1.2 + wind * 1.5;
-    p.y += p.speedY;
+    p.wx += Math.sin(p.age * 0.015 + p.phase) * 0.008 + (wind || 0) * 0.015;
+    p.wy += p.speedWy;
     p.rot += p.rotSpeed;
-    if (p.y > this.H || p.x > this.W + 20 || p.x < -20) { p.alive = false; return; }
-
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
     ctx.save();
-    ctx.translate(p.x, p.y);
+    ctx.translate(x, y);
     ctx.rotate(p.rot);
     ctx.fillStyle = `hsla(${p.hue},50%,30%,${p.opacity})`;
     ctx.beginPath();
@@ -1483,45 +1484,44 @@ export class BiomeAnimator {
 
   _spawnFireflies() {
     if (this.time % 30 !== 0) return;
+    const { wx, wy } = this._randWorld();
+    if (!this._onScreen(wx, wy, 60)) return;
     this._spawn("firefly", {
-      x: Math.random() * this.W,
-      y: this.GY - 30 + Math.random() * (this.H - this.GY + 30),
-      baseX: 0, baseY: 0,
+      wx, wy,
+      baseWx: wx, baseWy: wy,
       phase: Math.random() * Math.PI * 2,
       phaseY: Math.random() * Math.PI * 2,
       speed: 0.005 + Math.random() * 0.01,
-      radius: 20 + Math.random() * 40,
+      radius: 0.6 + Math.random() * 1.2,  // world tile radius
       opacity: 0,
       maxOpacity: 0.5 + Math.random() * 0.5,
       hue: 55 + Math.random() * 30,
       maxAge: 300 + Math.floor(Math.random() * 200),
     });
-    // Save initial position
-    const last = this.particles.find(p => p.alive && p.type === "firefly" && p.baseX === 0);
-    if (last) { last.baseX = last.x; last.baseY = last.y; }
   }
 
   _updateFirefly(p) {
     const lifeRatio = p.age / p.maxAge;
-    // Fade in and out
     if (lifeRatio < 0.15) p.opacity = p.maxOpacity * (lifeRatio / 0.15);
     else if (lifeRatio > 0.8) p.opacity = p.maxOpacity * (1 - (lifeRatio - 0.8) / 0.2);
     else p.opacity = p.maxOpacity * (0.7 + Math.sin(p.age * 0.1) * 0.3);
 
-    p.x = p.baseX + Math.sin(p.age * p.speed + p.phase) * p.radius;
-    p.y = p.baseY + Math.cos(p.age * p.speed * 0.7 + p.phaseY) * p.radius * 0.5;
+    p.wx = p.baseWx + Math.sin(p.age * p.speed + p.phase) * p.radius;
+    p.wy = p.baseWy + Math.cos(p.age * p.speed * 0.7 + p.phaseY) * p.radius * 0.5;
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
 
     if (p.opacity < 0.01) return;
+    const { x, y } = this._w2s(p.wx, p.wy);
 
     const { ctx } = this;
-    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 12);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, 12);
     g.addColorStop(0, `hsla(${p.hue},100%,70%,${p.opacity * 0.4})`);
     g.addColorStop(1, "transparent");
     ctx.fillStyle = g;
-    ctx.fillRect(p.x - 12, p.y - 12, 24, 24);
+    ctx.fillRect(x - 12, y - 12, 24, 24);
     ctx.fillStyle = `hsla(${p.hue},100%,85%,${p.opacity})`;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+    ctx.arc(x, y, 1.5, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -1973,11 +1973,12 @@ export class BiomeAnimator {
   _spawnPetals() {
     if (this.time % 25 !== 0) return;
     const colors = ["255,180,200", "255,200,220", "255,160,180", "240,200,210"];
+    const { wx, wy } = this._randWorld();
+    if (!this._onScreen(wx, wy, 60)) return;
     this._spawn("petal", {
-      x: -10 + Math.random() * (this.W + 20),
-      y: -10,
-      speed: 0.4 + Math.random() * 0.6,
-      drift: 0.3 + Math.random() * 0.5,
+      wx, wy,
+      speedWy: 0.014 + Math.random() * 0.02,
+      drift: 0.005 + Math.random() * 0.008,
       size: 2 + Math.random() * 3,
       opacity: 0.3 + Math.random() * 0.4,
       color: colors[Math.floor(Math.random() * colors.length)],
@@ -1989,15 +1990,15 @@ export class BiomeAnimator {
   }
 
   _updatePetal(p, wind) {
-    p.y += p.speed;
-    p.x += p.drift + wind * 0.4 + Math.sin(p.age * 0.015 + p.wobble) * 0.8;
+    p.wy += p.speedWy;
+    p.wx += p.drift + (wind || 0) * 0.014 + Math.sin(p.age * 0.015 + p.wobble) * 0.01;
     p.rot += p.spin;
     const fade = 1 - p.age / p.maxAge;
-    if (fade <= 0 || p.y > this.H) { p.alive = false; return; }
-
+    if (fade <= 0 || !this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
     ctx.save();
-    ctx.translate(p.x, p.y);
+    ctx.translate(x, y);
     ctx.rotate(p.rot);
     ctx.fillStyle = `rgba(${p.color},${p.opacity * fade})`;
     ctx.beginPath();
@@ -2432,15 +2433,16 @@ export class BiomeAnimator {
   _spawnAutumnLeaves() {
     if (this.time % 8 !== 0) return;
     const hues = [5, 15, 25, 35, 45, 355]; // reds, oranges, yellows
+    const { wx, wy } = this._randWorld(2);
+    if (!this._onScreen(wx, wy, 60)) return;
     this._spawn("autumnLeaf", {
-      x: Math.random() * this.W * 1.2 - this.W * 0.1,
-      y: -5 - Math.random() * 20,
+      wx, wy,
       size: 4 + Math.random() * 6,
-      speedY: 0.5 + Math.random() * 0.8,
+      speedWy: 0.025 + Math.random() * 0.04,
       rot: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 0.08,
       phase: Math.random() * Math.PI * 2,
-      swayAmp: 1.5 + Math.random() * 2,
+      swayAmp: 0.01 + Math.random() * 0.012,
       hue: hues[Math.floor(Math.random() * hues.length)],
       sat: 50 + Math.random() * 30,
       light: 30 + Math.random() * 25,
@@ -2450,15 +2452,15 @@ export class BiomeAnimator {
   }
 
   _updateAutumnLeaf(p, wind) {
-    p.x += Math.sin(p.age * 0.012 + p.phase) * p.swayAmp + (wind || 0) * 1.2;
-    p.y += p.speedY;
+    p.wx += Math.sin(p.age * 0.012 + p.phase) * p.swayAmp + (wind || 0) * 0.012;
+    p.wy += p.speedWy;
     p.rot += p.rotSpeed;
-    if (p.y > this.H + 10 || p.x > this.W + 30 || p.x < -30) { p.alive = false; return; }
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
     ctx.save();
-    ctx.translate(p.x, p.y);
+    ctx.translate(x, y);
     ctx.rotate(p.rot);
-    // Leaf shape (pointed oval with stem)
     ctx.fillStyle = `hsla(${p.hue},${p.sat}%,${p.light}%,${p.opacity})`;
     ctx.beginPath();
     ctx.moveTo(0, -p.size * 0.5);
@@ -2467,7 +2469,6 @@ export class BiomeAnimator {
     ctx.lineTo(-p.size * 0.3, p.size * 0.5);
     ctx.quadraticCurveTo(-p.size * 0.6, -p.size * 0.15, 0, -p.size * 0.5);
     ctx.fill();
-    // Leaf vein
     ctx.strokeStyle = `hsla(${p.hue},${p.sat - 10}%,${p.light - 10}%,${p.opacity * 0.5})`;
     ctx.lineWidth = 0.5;
     ctx.beginPath(); ctx.moveTo(0, -p.size * 0.4); ctx.lineTo(0, p.size * 0.35); ctx.stroke();
@@ -2571,17 +2572,15 @@ export class BiomeAnimator {
   // ─── ROLLING TUMBLEWEEDS ───
   _spawnTumbleweeds() {
     if (this.time % 200 !== 0 || Math.random() > 0.5) return;
-    const { W, H, GY } = this;
-    const fromLeft = Math.random() > 0.5;
-    const groundY = GY + 20 + Math.random() * 30;
+    const { wx, wy } = this._randWorld(3);
+    if (!this._onScreen(wx, wy, 60)) return;
+    const dir = Math.random() > 0.5 ? 1 : -1;
     this._spawn("tumbleweed", {
-      x: fromLeft ? -20 : W + 20,
-      y: groundY,
-      groundY: groundY,
-      speed: (fromLeft ? 1 : -1) * (1.5 + Math.random() * 2),
+      wx, wy,
+      speed: (0.04 + Math.random() * 0.055) * dir,
       size: 8 + Math.random() * 8,
       rot: 0,
-      rotSpeed: (fromLeft ? 1 : -1) * (0.04 + Math.random() * 0.04),
+      rotSpeed: dir * (0.04 + Math.random() * 0.04),
       bouncePhase: Math.random() * Math.PI * 2,
       opacity: 0.3 + Math.random() * 0.3,
       maxAge: 400,
@@ -2589,18 +2588,17 @@ export class BiomeAnimator {
   }
 
   _updateTumbleweed(p) {
-    p.x += p.speed;
+    p.wx += p.speed;
     p.rot += p.rotSpeed;
-    // Bouncing motion
     p.bouncePhase += 0.06;
-    p.y = p.groundY - Math.abs(Math.sin(p.bouncePhase)) * 12;
-    if (p.x < -40 || p.x > this.W + 40) { p.alive = false; return; }
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
+    const bounceOffY = -Math.abs(Math.sin(p.bouncePhase)) * 12;
     const { ctx } = this;
     ctx.save();
-    ctx.translate(p.x, p.y);
+    ctx.translate(x, y + bounceOffY);
     ctx.rotate(p.rot);
     ctx.globalAlpha = p.opacity;
-    // Dried tangled branches
     ctx.strokeStyle = "hsl(35,30%,38%)";
     ctx.lineWidth = 0.8;
     for (let i = 0; i < 10; i++) {
@@ -2617,32 +2615,30 @@ export class BiomeAnimator {
       );
       ctx.stroke();
     }
-    // Core fill
     ctx.fillStyle = `rgba(140,120,70,${p.opacity * 0.3})`;
     ctx.beginPath(); ctx.ellipse(0, 0, p.size * 0.6, p.size * 0.42, 0, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
     ctx.restore();
-    // Dust trail
     if (Math.abs(Math.sin(p.bouncePhase)) < 0.15) {
       ctx.fillStyle = `rgba(180,160,100,${0.06})`;
-      ctx.beginPath(); ctx.ellipse(p.x - p.speed * 3, p.groundY + 2, 6, 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x - p.speed * 96, y + 2, 6, 2, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
 
   // ─── BUTTERFLIES (summer, floating between flowers) ───
   _spawnButterflies() {
     if (this.time % 40 !== 0) return;
-    const { W, H, GY } = this;
     const hues = [320, 45, 280, 200, 0, 35];
+    const { wx, wy } = this._randWorld();
+    if (!this._onScreen(wx, wy, 60)) return;
     this._spawn("butterfly", {
-      x: Math.random() * W,
-      y: GY + 10 + Math.random() * (H - GY) * 0.5,
+      wx, wy,
       size: 3 + Math.random() * 3,
       hue: hues[Math.floor(Math.random() * hues.length)],
       phase: Math.random() * Math.PI * 2,
       wingPhase: Math.random() * Math.PI * 2,
-      speedX: (Math.random() - 0.5) * 0.8,
-      speedY: (Math.random() - 0.5) * 0.3,
+      speedX: (Math.random() - 0.5) * 0.025,
+      speedY: (Math.random() - 0.5) * 0.01,
       opacity: 0.4 + Math.random() * 0.4,
       maxAge: 300 + Math.random() * 200,
     });
@@ -2651,28 +2647,24 @@ export class BiomeAnimator {
   _updateButterfly(p) {
     p.wingPhase += 0.12;
     p.phase += 0.02;
-    p.x += p.speedX + Math.sin(p.phase) * 0.5;
-    p.y += p.speedY + Math.cos(p.phase * 0.7) * 0.3;
-    // Occasionally change direction
-    if (Math.random() < 0.01) { p.speedX = (Math.random() - 0.5) * 0.8; p.speedY = (Math.random() - 0.5) * 0.3; }
-    if (p.x < -20 || p.x > this.W + 20 || p.y < this.GY || p.y > this.H) { p.alive = false; return; }
+    p.wx += p.speedX + Math.sin(p.phase) * 0.016;
+    p.wy += p.speedY + Math.cos(p.phase * 0.7) * 0.01;
+    if (Math.random() < 0.01) { p.speedX = (Math.random() - 0.5) * 0.025; p.speedY = (Math.random() - 0.5) * 0.01; }
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
     const wingSpread = Math.abs(Math.sin(p.wingPhase));
     ctx.save();
-    ctx.translate(p.x, p.y);
-    // Left wing
+    ctx.translate(x, y);
     ctx.fillStyle = `hsla(${p.hue},60%,55%,${p.opacity * wingSpread})`;
     ctx.beginPath();
     ctx.ellipse(-p.size * 0.4, 0, p.size * wingSpread, p.size * 0.6, -0.3, 0, Math.PI * 2);
     ctx.fill();
-    // Right wing
     ctx.beginPath();
     ctx.ellipse(p.size * 0.4, 0, p.size * wingSpread, p.size * 0.6, 0.3, 0, Math.PI * 2);
     ctx.fill();
-    // Body
     ctx.fillStyle = `hsla(${p.hue},30%,25%,${p.opacity})`;
     ctx.beginPath(); ctx.ellipse(0, 0, 1, p.size * 0.4, 0, 0, Math.PI * 2); ctx.fill();
-    // Wing pattern dots
     if (wingSpread > 0.5) {
       ctx.fillStyle = `hsla(${p.hue + 30},80%,80%,${p.opacity * 0.5})`;
       ctx.beginPath(); ctx.arc(-p.size * 0.3, 0, p.size * 0.15, 0, Math.PI * 2); ctx.fill();
@@ -3045,11 +3037,12 @@ export class BiomeAnimator {
   // CITY: Scurrying rats
   _spawnRats() {
     if (this.time % 120 !== 0) return;
-    const { W, GY } = this;
+    const { wx, wy } = this._randWorld(3);
+    if (!this._onScreen(wx, wy, 60)) return;
     const dir = Math.random() > 0.5 ? 1 : -1;
     this._spawn("rat", {
-      x: dir > 0 ? -10 : W + 10, y: GY * (0.7 + Math.random() * 0.2),
-      speed: (2 + Math.random() * 2) * dir,
+      wx, wy,
+      speed: (0.06 + Math.random() * 0.06) * dir,
       size: 3 + Math.random() * 2,
       opacity: 0.5 + Math.random() * 0.3,
       wobble: Math.random() * Math.PI * 2,
@@ -3057,21 +3050,21 @@ export class BiomeAnimator {
     });
   }
   _updateRat(p) {
-    p.x += p.speed;
+    p.wx += p.speed;
     p.wobble += 0.3;
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const bobY = Math.sin(p.wobble) * 1.5;
     const { ctx } = this;
-    // Body
     ctx.fillStyle = `rgba(80,60,40,${p.opacity})`;
     ctx.beginPath();
-    ctx.ellipse(p.x, p.y + bobY, p.size * 1.5, p.size, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y + bobY, p.size * 1.5, p.size, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Tail
     ctx.strokeStyle = `rgba(100,75,50,${p.opacity * 0.7})`;
     ctx.lineWidth = 0.8;
     ctx.beginPath();
-    ctx.moveTo(p.x - p.speed * 2, p.y + bobY);
-    ctx.quadraticCurveTo(p.x - p.speed * 4, p.y + bobY - 3, p.x - p.speed * 6, p.y + bobY + 1);
+    ctx.moveTo(x - p.speed * 64, y + bobY);
+    ctx.quadraticCurveTo(x - p.speed * 128, y + bobY - 3, x - p.speed * 192, y + bobY + 1);
     ctx.stroke();
   }
 
@@ -3123,41 +3116,42 @@ export class BiomeAnimator {
   // AUTUMN: Falling acorns
   _spawnFallingAcorns() {
     if (this.time % 80 !== 0) return;
-    const { W, GY } = this;
+    const { wx, wy } = this._randWorld(2);
+    if (!this._onScreen(wx, wy, 60)) return;
     this._spawn("fallingAcorn", {
-      x: 20 + Math.random() * (W - 40), y: -5,
-      speed: 1.5 + Math.random() * 1.5,
+      wx, wy,
+      speedWy: 0.05 + Math.random() * 0.05,
       wobble: Math.random() * Math.PI * 2,
       size: 3 + Math.random() * 2,
       opacity: 0.6,
-      groundY: GY * (0.7 + Math.random() * 0.15),
       bounced: false,
+      bounceWy: wy + 1.5 + Math.random() * 0.5,
       maxAge: 200,
     });
   }
   _updateFallingAcorn(p) {
     if (!p.bounced) {
-      p.y += p.speed;
-      p.x += Math.sin(p.wobble + p.age * 0.1) * 0.5;
-      if (p.y >= p.groundY) {
+      p.wy += p.speedWy;
+      p.wx += Math.sin(p.wobble + p.age * 0.1) * 0.005;
+      if (p.wy >= p.bounceWy) {
         p.bounced = true;
-        p.speed *= -0.3;
+        p.speedWy *= -0.3;
       }
     } else {
-      p.speed += 0.15;
-      p.y += p.speed;
+      p.speedWy += 0.005;
+      p.wy += p.speedWy;
       p.opacity *= 0.98;
     }
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
-    // Acorn cap
     ctx.fillStyle = `rgba(100,70,30,${p.opacity})`;
     ctx.beginPath();
-    ctx.arc(p.x, p.y - p.size * 0.3, p.size * 0.8, Math.PI, 0);
+    ctx.arc(x, y - p.size * 0.3, p.size * 0.8, Math.PI, 0);
     ctx.fill();
-    // Acorn body
     ctx.fillStyle = `rgba(140,100,40,${p.opacity})`;
     ctx.beginPath();
-    ctx.ellipse(p.x, p.y + p.size * 0.2, p.size * 0.7, p.size, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y + p.size * 0.2, p.size * 0.7, p.size, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -3237,11 +3231,12 @@ export class BiomeAnimator {
   // SUNSET_BEACH: Hermit crabs scurrying
   _spawnHermitCrabs() {
     if (this.time % 150 !== 0) return;
-    const { W, GY } = this;
+    const { wx, wy } = this._randWorld(3);
+    if (!this._onScreen(wx, wy, 60)) return;
     const dir = Math.random() > 0.5 ? 1 : -1;
     this._spawn("hermitCrab", {
-      x: dir > 0 ? -5 : W + 5, y: GY * (0.75 + Math.random() * 0.1),
-      speed: (0.8 + Math.random() * 1.2) * dir,
+      wx, wy,
+      speed: (0.025 + Math.random() * 0.038) * dir,
       size: 3 + Math.random() * 2,
       wobble: 0,
       pauseTimer: 0,
@@ -3253,23 +3248,23 @@ export class BiomeAnimator {
     if (p.pauseTimer > 0) {
       p.pauseTimer--;
     } else {
-      p.x += p.speed;
+      p.wx += p.speed;
       if (Math.random() < 0.01) p.pauseTimer = 20 + Math.random() * 30;
     }
-    const { ctx } = this;
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
+    const { x, y } = this._w2s(p.wx, p.wy);
     const bobY = Math.sin(p.wobble) * 0.8;
-    // Shell
+    const { ctx } = this;
     ctx.fillStyle = `rgba(180,140,90,0.5)`;
     ctx.beginPath();
-    ctx.arc(p.x, p.y + bobY - p.size * 0.3, p.size, 0, Math.PI * 2);
+    ctx.arc(x, y + bobY - p.size * 0.3, p.size, 0, Math.PI * 2);
     ctx.fill();
-    // Legs
     ctx.strokeStyle = `rgba(160,100,60,0.4)`;
     ctx.lineWidth = 0.6;
     for (let i = -1; i <= 1; i += 2) {
       ctx.beginPath();
-      ctx.moveTo(p.x + i * p.size * 0.8, p.y + bobY);
-      ctx.lineTo(p.x + i * (p.size + 2), p.y + bobY + 2);
+      ctx.moveTo(x + i * p.size * 0.8, y + bobY);
+      ctx.lineTo(x + i * (p.size + 2), y + bobY + 2);
       ctx.stroke();
     }
   }
@@ -3342,11 +3337,12 @@ export class BiomeAnimator {
   // UNDERWORLD: Wandering translucent souls
   _spawnWanderingSouls() {
     if (this.time % 100 !== 0) return;
-    const { W, GY } = this;
+    const { wx, wy } = this._randWorld();
+    if (!this._onScreen(wx, wy, 60)) return;
     this._spawn("wanderingSoul", {
-      x: Math.random() * W, y: GY * (0.3 + Math.random() * 0.4),
-      vx: (Math.random() - 0.5) * 0.8,
-      vy: -0.3 - Math.random() * 0.3,
+      wx, wy,
+      vx: (Math.random() - 0.5) * 0.025,
+      vy: -(0.01 + Math.random() * 0.01),
       size: 6 + Math.random() * 4,
       wobble: Math.random() * Math.PI * 2,
       hue: 260 + Math.random() * 40,
@@ -3355,27 +3351,26 @@ export class BiomeAnimator {
   }
   _updateWanderingSoul(p) {
     p.wobble += 0.03;
-    p.x += p.vx + Math.sin(p.wobble) * 0.5;
-    p.y += p.vy;
+    p.wx += p.vx + Math.sin(p.wobble) * 0.016;
+    p.wy += p.vy;
+    if (!this._onScreen(p.wx, p.wy, 200)) { p.alive = false; return; }
     const fade = p.age < 30 ? p.age / 30 : p.age > 200 ? (250 - p.age) / 50 : 1;
+    const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
-    // Soul glow
-    const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2);
+    const grd = ctx.createRadialGradient(x, y, 0, x, y, p.size * 2);
     grd.addColorStop(0, `hsla(${p.hue}, 50%, 60%, ${0.12 * fade})`);
     grd.addColorStop(1, `hsla(${p.hue}, 40%, 40%, 0)`);
     ctx.fillStyle = grd;
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2); ctx.fill();
-    // Soul figure
+    ctx.beginPath(); ctx.arc(x, y, p.size * 2, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = `hsla(${p.hue}, 40%, 70%, ${0.2 * fade})`;
     ctx.beginPath();
-    ctx.ellipse(p.x, p.y, p.size * 0.6, p.size, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y, p.size * 0.6, p.size, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Wispy trail
     ctx.strokeStyle = `hsla(${p.hue}, 30%, 60%, ${0.08 * fade})`;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(p.x, p.y + p.size);
-    ctx.quadraticCurveTo(p.x + Math.sin(p.wobble * 2) * 5, p.y + p.size + 8, p.x, p.y + p.size + 15);
+    ctx.moveTo(x, y + p.size);
+    ctx.quadraticCurveTo(x + Math.sin(p.wobble * 2) * 5, y + p.size + 8, x, y + p.size + 15);
     ctx.stroke();
   }
 
