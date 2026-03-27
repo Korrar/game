@@ -2549,6 +2549,11 @@ export default function App() {
             const iEl = interactableElsRef.current[iId];
             if (iEl && iEl.dataset.wx) _positionPoiEl(iEl, parseFloat(iEl.dataset.wx), parseFloat(iEl.dataset.wy));
           }
+          // Pass current ISO camera to biome animator so living-map creatures stay in world-space
+          if (animatorRef.current) {
+            const cam = isoCameraRef.current;
+            animatorRef.current.setCameraInfo(cam.x, cam.y);
+          }
         }
       }
 
