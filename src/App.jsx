@@ -2373,7 +2373,7 @@ export default function App() {
             // Isometric: position DOM overlay via screen projection
             const cam = isoCameraRef.current;
             const screen = _isoWorldToScreen(w.wx, w.wy, cam.x, cam.y);
-            if (screen.x < -80 || screen.x > GAME_W + 80 || screen.y < -80 || screen.y > GAME_H + 80) {
+            if (screen.x < -200 || screen.x > GAME_W + 200 || screen.y < -200 || screen.y > GAME_H + 200) {
               el.style.display = "none";
             } else {
               el.style.display = "";
@@ -2420,7 +2420,7 @@ export default function App() {
           if (!el) return;
           if (_isoActive && _isoCam) {
             const screen = _isoWorldToScreen(poiX, poiY ?? ISO_CONFIG.MAP_ROWS / 2, _isoCam.x, _isoCam.y);
-            if (screen.x < -80 || screen.x > GAME_W + 80 || screen.y < -80 || screen.y > GAME_H + 80) {
+            if (screen.x < -200 || screen.x > GAME_W + 200 || screen.y < -200 || screen.y > GAME_H + 200) {
               el.style.display = "none";
             } else {
               el.style.display = "";
@@ -3962,7 +3962,10 @@ export default function App() {
           // Find a position that doesn't overlap existing obstacles or structures
           let sx, sy, sAttempts = 0;
           const sBounds = getStructureBounds(0, 0, def);
-          const sMinDist = sBounds.radius;
+          // In ISO mode positions are tile coords (0-40), not pixels/percentages.
+          // Using pixel-based radius as tile distance would require 16+ tile spacing,
+          // making placement impossible in a 40x40 map. Use 4-tile spacing instead.
+          const sMinDist = useIso ? 4 : sBounds.radius;
           do {
             if (useIso) {
               sx = 3 + Math.random() * (ISO_CONFIG.MAP_COLS - 6);

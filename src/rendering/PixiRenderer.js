@@ -344,8 +344,8 @@ export class PixiRenderer {
         char.container.x = screen.x - npcWorldPx;
         char.container.y = screen.y - npcWorldPy;
         char.container.visible = (
-          screen.x > -100 && screen.x < this.W + 100 &&
-          screen.y > -100 && screen.y < this.H + 100
+          screen.x > -300 && screen.x < this.W + 300 &&
+          screen.y > -300 && screen.y < this.H + 300
         ) && !entry._fogHidden;
       } else {
         // Legacy 2.5D panoramic mode
