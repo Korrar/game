@@ -132,6 +132,20 @@ export class BiomeAnimator {
     if (fx.cosmicRays) this._drawCosmicRays();
     if (fx.tidePools) this._drawTidePools();
 
+    // ─── LIVING MAP: per-biome creature effects ───
+    if (fx.insects) this._spawnInsects();
+    if (fx.bees) this._spawnBees();
+    if (fx.dragonflies) this._spawnDragonflies();
+    if (fx.scorpions) this._spawnScorpions();
+    if (fx.vultures) this._drawVultures();
+    if (fx.cats) this._spawnCats();
+    if (fx.bats) this._spawnBats();
+    if (fx.squirrels) this._spawnSquirrels();
+    if (fx.frogs) this._spawnFrogs();
+    if (fx.seaTurtles) this._spawnSeaTurtles();
+    if (fx.eagles) this._drawEagles();
+    if (fx.skeletonHands) this._drawSkeletonHands();
+
     // Weather-specific visuals
     if (this.weather) {
       if (this.weather.id === "storm" && Math.random() < 0.003) {
@@ -208,6 +222,15 @@ export class BiomeAnimator {
         case "fallingAcorn": this._updateFallingAcorn(p); break;
         case "hermitCrab": this._updateHermitCrab(p); break;
         case "wanderingSoul": this._updateWanderingSoul(p); break;
+        case "insect": this._updateInsect(p); break;
+        case "bee": this._updateBee(p); break;
+        case "dragonfly": this._updateDragonfly(p); break;
+        case "scorpion": this._updateScorpion(p); break;
+        case "cat": this._updateCat(p); break;
+        case "bat": this._updateBat(p); break;
+        case "squirrel": this._updateSquirrel(p); break;
+        case "frog": this._updateFrog(p); break;
+        case "seaTurtle": this._updateSeaTurtle(p); break;
       }
     }
 
@@ -3347,6 +3370,463 @@ export class BiomeAnimator {
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx, y + dy); ctx.stroke();
     }
     ctx.restore();
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // LIVING MAP — per-biome ambient creatures
+  // ═══════════════════════════════════════════════════════
+
+  // JUNGLE / SPRING / BAMBOO_FALLS: tiny buzzing insects (figure-8 orbit)
+  _spawnInsects() {
+    if (this.time % 18 !== 0) return;
+    if (Math.random() > 0.55) return;
+    const { W, GY } = this;
+    this._spawn("insect", {
+      x: Math.random() * W,
+      y: GY * (0.5 + Math.random() * 0.42),
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.07 + Math.random() * 0.06,
+      hue: 40 + Math.random() * 90,
+      maxAge: 180 + Math.random() * 120,
+    });
+  }
+  _updateInsect(p) {
+    p.phase += p.speed;
+    p.x += Math.sin(p.phase) * 1.3;
+    p.y += Math.sin(p.phase * 2) * 0.6;
+    const fade = p.age < 20 ? p.age / 20 : p.age > 240 ? (280 - p.age) / 40 : 1;
+    const { ctx } = this;
+    ctx.fillStyle = `hsla(${p.hue},80%,60%,${0.38 * fade})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 1.1, 0, Math.PI * 2); ctx.fill();
+    if (Math.floor(p.phase * 3) % 2 === 0) {
+      ctx.strokeStyle = `hsla(${p.hue},50%,85%,${0.18 * fade})`;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.ellipse(p.x - 1.5, p.y - 0.5, 2.2, 0.9, -0.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(p.x + 1.5, p.y - 0.5, 2.2, 0.9, 0.5, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
+  // SUMMER: bees orbiting flowers (yellow-black striped, rapid wing-blur)
+  _spawnBees() {
+    if (this.time % 22 !== 0) return;
+    if (Math.random() > 0.5) return;
+    const { W, GY } = this;
+    this._spawn("bee", {
+      x: Math.random() * W,
+      y: GY * (0.58 + Math.random() * 0.33),
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.10 + Math.random() * 0.05,
+      maxAge: 220 + Math.random() * 100,
+    });
+  }
+  _updateBee(p) {
+    p.phase += p.speed;
+    p.x += Math.cos(p.phase) * 1.6;
+    p.y += Math.sin(p.phase * 2) * 0.75;
+    const fade = p.age < 15 ? p.age / 15 : p.age > 190 ? (220 - p.age) / 30 : 1;
+    const { ctx } = this;
+    ctx.save(); ctx.translate(p.x, p.y);
+    ctx.fillStyle = `rgba(220,185,20,${0.52 * fade})`;
+    ctx.beginPath(); ctx.ellipse(0, 0, 2.8, 1.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(20,10,0,${0.4 * fade})`;
+    ctx.fillRect(-1.8, -0.5, 1.1, 1); ctx.fillRect(0.6, -0.5, 1.1, 1);
+    if (Math.floor(p.phase * 4) % 2 === 0) {
+      ctx.strokeStyle = `rgba(210,230,255,${0.3 * fade})`;
+      ctx.lineWidth = 0.6;
+      ctx.beginPath(); ctx.ellipse(-1, -2.2, 3.2, 1.3, -0.4, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(1, -2.2, 3.2, 1.3, 0.4, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // SPRING / SWAMP / BAMBOO_FALLS: dragonflies — iridescent 4-winged hoverers
+  _spawnDragonflies() {
+    if (this.time % 55 !== 0) return;
+    if (Math.random() > 0.48) return;
+    const { W, GY } = this;
+    const hues = [160, 195, 275, 125];
+    this._spawn("dragonfly", {
+      x: Math.random() * W,
+      y: GY * (0.38 + Math.random() * 0.48),
+      vx: (Math.random() - 0.5) * 1.3,
+      vy: (Math.random() - 0.5) * 0.5,
+      phase: Math.random() * Math.PI * 2,
+      hue: hues[Math.floor(Math.random() * hues.length)],
+      maxAge: 380 + Math.random() * 200,
+    });
+  }
+  _updateDragonfly(p) {
+    p.phase += 0.055;
+    p.x += p.vx + Math.sin(p.phase * 2.8) * 0.85;
+    p.y += p.vy + Math.cos(p.phase * 3.2) * 0.45;
+    if (Math.random() < 0.007) { p.vx = (Math.random() - 0.5) * 1.3; p.vy = (Math.random() - 0.5) * 0.5; }
+    if (p.x < -20 || p.x > this.W + 20 || p.y < this.GY * 0.25 || p.y > this.H + 10) { p.alive = false; return; }
+    const fade = p.age < 30 ? p.age / 30 : p.age > (p.maxAge - 50) ? (p.maxAge - p.age) / 50 : 1;
+    const { ctx } = this;
+    ctx.save(); ctx.translate(p.x, p.y);
+    if (p.vx < 0) ctx.scale(-1, 1);
+    ctx.strokeStyle = `hsla(${p.hue},70%,65%,${0.42 * fade})`;
+    ctx.lineWidth = 0.55;
+    ctx.beginPath(); ctx.ellipse(-3.2, -2, 6.2, 2.2, -0.3, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(-3.2, 2, 6.2, 2.2, 0.3, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(1, -1.6, 4.2, 1.6, -0.2, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(1, 1.6, 4.2, 1.6, 0.2, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = `hsla(${p.hue},60%,38%,${0.55 * fade})`;
+    ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `hsla(${p.hue + 20},80%,62%,${0.5 * fade})`;
+    ctx.beginPath(); ctx.arc(-4.8, 0, 1.6, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // DESERT: scorpions — armored crawlers with arched tail
+  _spawnScorpions() {
+    if (this.time % 190 !== 0) return;
+    if (Math.random() > 0.42) return;
+    const { W, GY } = this;
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    this._spawn("scorpion", {
+      x: dir > 0 ? -15 : W + 15,
+      y: GY * (0.66 + Math.random() * 0.24),
+      speed: (0.5 + Math.random() * 0.8) * dir,
+      wobble: 0, size: 4 + Math.random() * 3,
+      maxAge: 420 + Math.random() * 180,
+    });
+  }
+  _updateScorpion(p) {
+    p.wobble += 0.18; p.x += p.speed;
+    if (p.x > this.W + 20 || p.x < -20) { p.alive = false; return; }
+    const { ctx } = this;
+    const d = p.speed > 0 ? 1 : -1;
+    const s = p.size;
+    const y = p.y + Math.sin(p.wobble * 2) * 0.7;
+    ctx.save(); ctx.translate(p.x, y);
+    ctx.fillStyle = "rgba(165,132,52,0.46)";
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 1.4, s * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-d * s * 1.8, 0, s * 0.9, s * 0.65, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(185,148,55,0.5)";
+    ctx.lineWidth = s * 0.36;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(d * s * 1.2, 0);
+    ctx.quadraticCurveTo(d * s * 2.6, -s * 2, d * s * 1.0, -s * 2.9);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(210,165,42,0.55)";
+    ctx.beginPath(); ctx.arc(d * s * 0.9, -s * 2.75, s * 0.32, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(145,112,42,0.38)"; ctx.lineWidth = 0.8;
+    for (let i = -1; i <= 1; i += 2) {
+      ctx.beginPath();
+      ctx.moveTo(d * s * 1.1, i * s * 0.4); ctx.lineTo(d * s * 2.2, i * s * 0.9); ctx.lineTo(d * s * 2.9, i * s * 0.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // DESERT: vultures — lazy high-altitude circles
+  _drawVultures() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.003;
+    for (let i = 0; i < 3; i++) {
+      const cx = W * (0.2 + i * 0.3) + Math.sin(t * 0.5 + i * 2) * W * 0.07;
+      const cy = GY * (0.08 + i * 0.06) + Math.sin(t * 0.3 + i) * 7;
+      const angle = t * 0.45 + i * 2.09;
+      const rx = 28 + i * 9, ry = 10 + i * 3;
+      const vx = cx + Math.cos(angle) * rx;
+      const vy = cy + Math.sin(angle) * ry * 0.38;
+      const ws = 7 + i * 1.5;
+      const wb = Math.sin(t * 2 + i) * 0.28;
+      ctx.save(); ctx.translate(vx, vy);
+      ctx.strokeStyle = "rgba(28,18,8,0.45)"; ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-ws, wb * 4); ctx.quadraticCurveTo(-ws * 0.4, wb * 2, 0, 0);
+      ctx.quadraticCurveTo(ws * 0.4, wb * 2, ws, wb * 4); ctx.stroke();
+      ctx.fillStyle = "rgba(22,13,5,0.5)";
+      ctx.beginPath(); ctx.ellipse(0, 0, 3, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(185,100,78,0.4)";
+      const hd = Math.cos(angle) > 0 ? -1 : 1;
+      ctx.beginPath(); ctx.arc(hd * 3.5, 0, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // CITY: cats — slow stalkers with curling tails and pauses
+  _spawnCats() {
+    if (this.time % 210 !== 0) return;
+    if (Math.random() > 0.38) return;
+    const { W, GY } = this;
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    this._spawn("cat", {
+      x: dir > 0 ? -20 : W + 20,
+      y: GY * (0.73 + Math.random() * 0.18),
+      speed: (0.55 + Math.random() * 0.45) * dir,
+      pauseTimer: 0, wobble: 0,
+      size: 5 + Math.random() * 3,
+      tailPhase: Math.random() * Math.PI * 2,
+      maxAge: 650,
+    });
+  }
+  _updateCat(p) {
+    p.wobble += 0.14; p.tailPhase += 0.038;
+    if (p.pauseTimer > 0) { p.pauseTimer--; }
+    else {
+      p.x += p.speed;
+      if (Math.random() < 0.005) p.pauseTimer = 60 + Math.random() * 130;
+    }
+    if (p.x > this.W + 30 || p.x < -30) { p.alive = false; return; }
+    const { ctx } = this;
+    const d = p.speed > 0 ? 1 : -1;
+    const s = p.size;
+    const bob = p.pauseTimer > 0 ? 0 : Math.sin(p.wobble) * 1.2;
+    ctx.save(); ctx.translate(p.x, p.y + bob);
+    ctx.fillStyle = "rgba(48,44,54,0.52)";
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 1.3, s * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s * 1.2 * d, -s * 0.3, s * 0.7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo((s * 1.5) * d, -s * 1.05);
+    ctx.lineTo((s * 1.1) * d, -s * 0.92); ctx.lineTo((s * 1.8) * d, -s * 0.82);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(58,54,65,0.5)"; ctx.lineWidth = s * 0.26; ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-s * 1.2 * d, 0);
+    ctx.quadraticCurveTo(-s * 2.3 * d, -s * (0.5 + Math.sin(p.tailPhase) * 0.85), -s * 1.8 * d, -s * 1.55);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // VOLCANO / MUSHROOM / UNDERWORLD: bats — erratic dark flappers
+  _spawnBats() {
+    if (this.time % 75 !== 0) return;
+    if (Math.random() > 0.38) return;
+    const { W, GY } = this;
+    const id = this.biome.id;
+    const hue = id === "volcano" ? 18 : id === "underworld" ? 270 : 210;
+    this._spawn("bat", {
+      x: Math.random() * W,
+      y: GY * (0.12 + Math.random() * 0.48),
+      vx: (Math.random() - 0.5) * 2.6,
+      vy: (Math.random() - 0.5) * 1.2,
+      wingPhase: Math.random() * Math.PI * 2,
+      size: 4 + Math.random() * 4,
+      hue, maxAge: 260 + Math.random() * 140,
+    });
+  }
+  _updateBat(p) {
+    p.wingPhase += 0.22; p.x += p.vx; p.y += p.vy + Math.sin(p.wingPhase * 0.38) * 0.4;
+    if (Math.random() < 0.02) {
+      p.vx += (Math.random() - 0.5) * 1.6; p.vy += (Math.random() - 0.5) * 0.85;
+    }
+    p.vx = Math.max(-3.2, Math.min(3.2, p.vx)); p.vy = Math.max(-1.6, Math.min(1.6, p.vy));
+    if (p.x < -25 || p.x > this.W + 25 || p.y < 0 || p.y > this.GY + 5) { p.alive = false; return; }
+    const fade = p.age < 20 ? p.age / 20 : p.age > (p.maxAge - 30) ? (p.maxAge - p.age) / 30 : 1;
+    const { ctx } = this;
+    const wing = Math.abs(Math.sin(p.wingPhase));
+    const s = p.size;
+    ctx.save(); ctx.translate(p.x, p.y);
+    ctx.fillStyle = `hsla(${p.hue},22%,12%,${0.46 * fade})`;
+    ctx.beginPath(); ctx.ellipse(-s * 0.6 - s * wing * 0.65, 0, s * (0.6 + wing * 0.85), s * 0.42, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s * 0.6 + s * wing * 0.65, 0, s * (0.6 + wing * 0.85), s * 0.42, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `hsla(${p.hue},18%,8%,${0.56 * fade})`;
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.5, s * 0.82, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // AUTUMN: squirrels — bouncy arc-hoppers
+  _spawnSquirrels() {
+    if (this.time % 250 !== 0) return;
+    if (Math.random() > 0.38) return;
+    const { W, GY } = this;
+    const sx = Math.random() * W;
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    this._spawn("squirrel", {
+      x: sx, y: GY * 0.7, startX: sx,
+      jumpX: sx + dir * (42 + Math.random() * 60),
+      jumpDuration: 38 + Math.random() * 18,
+      jumpTimer: 0, pauseTimer: Math.random() * 60,
+      hopHeight: 26 + Math.random() * 18,
+      size: 4 + Math.random() * 2, tailPhase: 0,
+      maxAge: 520,
+    });
+  }
+  _updateSquirrel(p) {
+    p.tailPhase += 0.1;
+    const groundY = this.GY * 0.7;
+    if (p.pauseTimer > 0) {
+      p.pauseTimer--;
+    } else if (p.jumpTimer < p.jumpDuration) {
+      p.jumpTimer++;
+      const t = p.jumpTimer / p.jumpDuration;
+      p.x = p.startX + (p.jumpX - p.startX) * t;
+      p.y = groundY - Math.sin(t * Math.PI) * p.hopHeight;
+      if (t >= 1) {
+        p.startX = p.jumpX;
+        const nd = (p.jumpX - p.startX) >= 0 ? 1 : -1;
+        p.jumpX = p.startX + nd * (42 + Math.random() * 60);
+        p.jumpTimer = 0; p.pauseTimer = 35 + Math.random() * 85;
+      }
+    }
+    if (p.x < -25 || p.x > this.W + 25) { p.alive = false; return; }
+    const { ctx } = this;
+    const s = p.size;
+    const d = (p.jumpX >= p.startX) ? 1 : -1;
+    ctx.save(); ctx.translate(p.x, p.y);
+    ctx.fillStyle = "rgba(162,102,42,0.52)";
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 1.1, s * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s * d, -s * 0.42, s * 0.65, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(188,122,52,0.4)";
+    ctx.beginPath(); ctx.ellipse(-d * s * 0.85, -s * 0.8 + Math.sin(p.tailPhase) * s * 0.32, s * 0.62, s * 1.25, 0.4 * d, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // SPRING / SWAMP: frogs — parabolic jumpers with squash
+  _spawnFrogs() {
+    if (this.time % 155 !== 0) return;
+    if (Math.random() > 0.38) return;
+    const { W, GY } = this;
+    const sx = 50 + Math.random() * (W - 100);
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    this._spawn("frog", {
+      x: sx, y: GY * 0.76, startX: sx,
+      jumpX: sx + dir * (22 + Math.random() * 38),
+      jumpDuration: 18 + Math.random() * 14,
+      jumpTimer: 0, pauseTimer: 45 + Math.random() * 120,
+      hopHeight: 18 + Math.random() * 14,
+      size: 4 + Math.random() * 2,
+      hue: this.biome.id === "swamp" ? 92 : 122,
+      maxAge: 640,
+    });
+  }
+  _updateFrog(p) {
+    const groundY = this.GY * 0.76;
+    if (p.pauseTimer > 0) {
+      p.pauseTimer--;
+    } else if (p.jumpTimer < p.jumpDuration) {
+      p.jumpTimer++;
+      const t = p.jumpTimer / p.jumpDuration;
+      p.x = p.startX + (p.jumpX - p.startX) * t;
+      p.y = groundY - Math.sin(t * Math.PI) * p.hopHeight;
+      if (t >= 1) {
+        p.startX = p.jumpX;
+        const nd = Math.random() > 0.5 ? 1 : -1;
+        p.jumpX = p.startX + nd * (22 + Math.random() * 38);
+        p.jumpTimer = 0; p.pauseTimer = 65 + Math.random() * 110;
+      }
+    }
+    if (p.x < 0 || p.x > this.W) { p.alive = false; return; }
+    const { ctx } = this;
+    const s = p.size;
+    const squash = p.jumpTimer > 0 ? Math.sin(p.jumpTimer / p.jumpDuration * Math.PI) * 0.4 : 0;
+    ctx.save(); ctx.translate(p.x, p.y);
+    ctx.fillStyle = `hsla(${p.hue},50%,32%,0.52)`;
+    ctx.beginPath(); ctx.ellipse(0, 0, s * (1.1 + squash * 0.3), s * (0.7 - squash * 0.2), 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s * 1.1, -s * 0.12, s * 0.75, s * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `hsla(${p.hue + 30},70%,68%,0.58)`;
+    ctx.beginPath(); ctx.arc(s * 1.42, -s * 0.56, s * 0.23, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s * 0.84, -s * 0.56, s * 0.23, 0, Math.PI * 2); ctx.fill();
+    if (squash > 0.28) {
+      ctx.strokeStyle = `hsla(${p.hue},44%,28%,0.4)`; ctx.lineWidth = s * 0.32; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(-s * 0.8, s * 0.32); ctx.lineTo(-s * 1.9, s * 0.85 + squash * s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-s * 0.15, s * 0.32); ctx.lineTo(-s * 1.2, s * 0.85 + squash * s); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // BLUE_LAGOON: sea turtles — slow gliders with flipper animation
+  _spawnSeaTurtles() {
+    if (this.time % 310 !== 0) return;
+    if (Math.random() > 0.32) return;
+    const { W, GY } = this;
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    this._spawn("seaTurtle", {
+      x: dir > 0 ? -30 : W + 30,
+      y: GY * (0.38 + Math.random() * 0.48),
+      vx: (0.38 + Math.random() * 0.38) * dir,
+      vy: (Math.random() - 0.5) * 0.18,
+      phase: Math.random() * Math.PI * 2,
+      size: 8 + Math.random() * 5,
+      maxAge: 850,
+    });
+  }
+  _updateSeaTurtle(p) {
+    p.phase += 0.022; p.x += p.vx; p.y += p.vy + Math.sin(p.phase) * 0.28;
+    if (p.x > this.W + 45 || p.x < -45) { p.alive = false; return; }
+    const fade = p.age < 40 ? p.age / 40 : p.age > (p.maxAge - 60) ? (p.maxAge - p.age) / 60 : 1;
+    const { ctx } = this;
+    const s = p.size;
+    const fw = Math.sin(p.phase * 2) * 0.42;
+    ctx.save(); ctx.translate(p.x, p.y);
+    if (p.vx < 0) ctx.scale(-1, 1);
+    ctx.fillStyle = `rgba(58,98,58,${0.46 * fade})`;
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 1.12, s * 0.76, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(38,72,38,${0.3 * fade})`; ctx.lineWidth = 0.55;
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.62, s * 0.46, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = `rgba(78,108,58,${0.5 * fade})`;
+    ctx.beginPath(); ctx.ellipse(s * 1.02, 0, s * 0.46, s * 0.36, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(68,98,52,${0.42 * fade})`;
+    ctx.beginPath(); ctx.ellipse(-s * 0.28, -s * 0.82 - fw * s * 0.5, s * 0.72, s * 0.26, -0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-s * 0.28, s * 0.82 + fw * s * 0.5, s * 0.72, s * 0.26, 0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s * 0.52, -s * 0.7 + fw * s * 0.3, s * 0.52, s * 0.21, 0.38, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s * 0.52, s * 0.7 - fw * s * 0.3, s * 0.52, s * 0.21, -0.38, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // OLYMPUS: eagles — majestic high-altitude soaring circles
+  _drawEagles() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.004;
+    for (let i = 0; i < 2; i++) {
+      const cx = W * (0.28 + i * 0.44);
+      const cy = GY * (0.07 + i * 0.09);
+      const angle = t * 0.58 + i * Math.PI;
+      const ex = cx + Math.cos(angle) * W * 0.14;
+      const ey = cy + Math.sin(angle) * GY * 0.1;
+      const ws = 10 + i * 3;
+      const sb = Math.sin(t * 1.4 + i) * 0.18;
+      ctx.save(); ctx.translate(ex, ey);
+      ctx.strokeStyle = "rgba(185,162,105,0.55)"; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-ws, sb * 5); ctx.quadraticCurveTo(-ws * 0.5, sb * 2.2, 0, 0);
+      ctx.quadraticCurveTo(ws * 0.5, sb * 2.2, ws, sb * 5); ctx.stroke();
+      ctx.lineWidth = 0.8;
+      for (let f = -1; f <= 1; f += 2) {
+        for (let k = 0; k < 3; k++) {
+          ctx.beginPath();
+          ctx.moveTo(f * ws + f * (-k * 2), sb * 5 + 1);
+          ctx.lineTo(f * ws + f * (-k * 2 + 1), sb * 5 + 4 + k);
+          ctx.stroke();
+        }
+      }
+      ctx.fillStyle = "rgba(165,132,62,0.56)";
+      ctx.beginPath(); ctx.ellipse(0, 0, 4.2, 2.1, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(238,232,218,0.62)";
+      const hd = Math.cos(angle) > 0 ? -1 : 1;
+      ctx.beginPath(); ctx.arc(hd * 4.5, 0, 2.1, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // UNDERWORLD: skeleton hands rising and receding from the ground
+  _drawSkeletonHands() {
+    const { ctx, W, GY, time } = this;
+    const t = time * 0.008;
+    const seed = 113;
+    for (let i = 0; i < 4; i++) {
+      const x = ((seed + i * 79) % 80 + 10) * W / 100;
+      const rise = Math.sin(t * 0.48 + i * 1.57) * 0.5 + 0.5;
+      const baseY = GY * 0.9;
+      const tipY = baseY - rise * 28;
+      const alpha = 0.1 + rise * 0.14;
+      ctx.strokeStyle = `rgba(200,188,172,${alpha})`;
+      ctx.lineWidth = 1.3; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(x, baseY); ctx.lineTo(x, tipY + 8); ctx.stroke();
+      for (let f = -1; f <= 1; f++) {
+        const fx = x + f * 3.5;
+        ctx.beginPath(); ctx.moveTo(fx, tipY + 8); ctx.lineTo(fx + f * 1.8, tipY); ctx.stroke();
+      }
+      if (rise > 0.68) {
+        ctx.strokeStyle = `rgba(178,162,142,${alpha * 0.7})`;
+        ctx.beginPath(); ctx.moveTo(x - 8, tipY + 13); ctx.lineTo(x - 11, tipY + 5); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x + 8, tipY + 13); ctx.lineTo(x + 11, tipY + 5); ctx.stroke();
+      }
+    }
   }
 
   // ISLAND: Tide pools with small creatures

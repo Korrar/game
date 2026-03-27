@@ -713,6 +713,18 @@ export default function App() {
     return bonus;
   };
 
+  // Bestiary kill bonus: +10% per tier (5/20/50 kills) against a specific enemy type
+  const BESTIARY_KILL_TIERS = [5, 20, 50];
+  const getBestiaryKillBonus = (npcName) => {
+    if (!npcName) return 1.0;
+    const kills = killsByTypeRef.current[npcName] || 0;
+    let bonus = 0;
+    for (const threshold of BESTIARY_KILL_TIERS) {
+      if (kills >= threshold) bonus += 0.10;
+    }
+    return 1.0 + bonus;
+  };
+
   const showMessage = useCallback((text, color) => {
     setMsg({ text, color });
     setTimeout(() => setMsg(null), 1500);
@@ -6903,7 +6915,7 @@ export default function App() {
       dmg = applyModifierDamage(dmg, element, biomeModifierRef.current);
       if (hasRelic("chaos_blade")) dmg = Math.round(dmg * 1.40);
       if (hasRelic("mermaid_tear") && element === "ice") dmg = Math.round(dmg * 1.25);
-      dmg = Math.round(dmg * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
+      dmg = Math.round(dmg * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus() * getBestiaryKillBonus(npcData.name));
       dmg = Math.round(dmg * perkSpellDmgMult);
       // Moonblade: bonus spell/skill damage (0-60%)
       if (equippedSaberRef.current === "moonblade" && moonbladeBonusRef.current) {
@@ -8615,8 +8627,8 @@ export default function App() {
       // chaos_blade: +40% spell damage
       if (hasRelic("chaos_blade")) damage = Math.round(damage * 1.40);
       if (hasRelic("mermaid_tear") && spell.element === "ice") damage = Math.round(damage * 1.25);
-      // Knowledge bonus: extra damage for discovered NPCs + milestone bonus
-      damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
+      // Knowledge bonus: extra damage for discovered NPCs + milestone bonus + bestiary kill bonus
+      damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus() * getBestiaryKillBonus(npcData.name));
       // Perk: spell damage multiplier
       damage = Math.round(damage * perkSpellDmgMult);
       // Risk event: player double damage
@@ -8871,7 +8883,7 @@ export default function App() {
         damage = applyModifierDamage(damage, spell.element, biomeModifierRef.current);
         if (hasRelic("chaos_blade")) damage = Math.round(damage * 1.40);
       if (hasRelic("mermaid_tear") && spell.element === "ice") damage = Math.round(damage * 1.25);
-        damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus());
+        damage = Math.round(damage * getKnowledgeBonus(npcData.id) * getKnowledgeMilestoneBonus() * getBestiaryKillBonus(npcData.name));
         damage = Math.round(damage * perkSpellDmgMult);
         if (playerDoubleDmgRoomsRef.current > 0) damage = Math.round(damage * 2);
         if (secretPermDmgBuffRef.current > 0) damage = Math.round(damage * (1 + secretPermDmgBuffRef.current));
@@ -12608,6 +12620,9 @@ export default function App() {
           <div style={{ opacity: knowledge >= 50 ? 1 : 0.4 }}><Icon name="star" size={12} /> 50 Sławy: <span style={{ color: knowledge >= 50 ? "#40c040" : "#666" }}>+5% do wszystkich obrażeń</span> {knowledge >= 50 ? "✓" : `(${knowledge}/50)`}</div>
           <div style={{ opacity: knowledge >= 100 ? 1 : 0.4 }}><Icon name="star" size={12} /> 100 Sławy: <span style={{ color: knowledge >= 100 ? "#40c040" : "#666" }}>+10% do wszystkich obrażeń</span> {knowledge >= 100 ? "✓" : `(${knowledge}/100)`}</div>
           <div style={{ opacity: knowledge >= 200 ? 1 : 0.4 }}><Icon name="star" size={12} /> 200 Sławy: <span style={{ color: knowledge >= 200 ? "#40c040" : "#666" }}>+15% do wszystkich obrażeń</span> {knowledge >= 200 ? "✓" : `(${knowledge}/200)`}</div>
+          <div style={{ marginTop: 6, borderTop: "1px solid #2a2018", paddingTop: 6, color: "#c0a040", fontWeight: "bold" }}>Bonusy Łowcy:</div>
+          <div style={{ color: "#aaa" }}><span style={{ color: "#60c040" }}>☠ 5 zabić</span> → +10% DMG | <span style={{ color: "#60c040" }}>20 zabić</span> → +20% | <span style={{ color: "#60c040" }}>50 zabić</span> → +30%</div>
+          <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>Bonus działa wyłącznie na dany typ wroga.</div>
         </div>
 
         {/* Knowledge Shop */}
@@ -12658,39 +12673,83 @@ export default function App() {
             {npcs.map(npc => {
               const entry = bestiary[npc.id];
               const discovered = entry?.discovered;
+              const npcKills = killsByType[npc.name] || 0;
+              const tiers = [5, 20, 50];
+              const unlockedTiers = tiers.filter(t => npcKills >= t).length;
+              const nextTier = tiers.find(t => npcKills < t);
+              const killBonusPct = unlockedTiers * 10;
               return (
                 <div key={npc.id} style={{
-                  display: "flex", alignItems: "center", gap: 10,
+                  display: "flex", alignItems: "flex-start", gap: 10,
                   padding: "8px 10px", marginBottom: 4,
-                  border: `2px solid ${discovered ? "#3a2818" : "#1a1210"}`,
-                  background: discovered ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.3)",
+                  border: `2px solid ${unlockedTiers > 0 ? "#3a4818" : discovered ? "#3a2818" : "#1a1210"}`,
+                  background: unlockedTiers > 0 ? "rgba(80,160,40,0.05)" : discovered ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.3)",
                   opacity: discovered ? 1 : 0.4,
                   filter: discovered ? "none" : "grayscale(100%)",
                 }}>
-                  <span>{discovered ? <NpcIcon bodyType={npc.bodyType} bodyColor={npc.bodyColor} armorColor={npc.armorColor} size={28} /> : <Icon name="question" size={28} />}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontWeight: "bold", fontSize: 14,
-                      color: discovered ? "#d8c8a8" : "#444",
-                    }}>
-                      {discovered ? npc.name : "???"}
+                  <span style={{ flexShrink: 0, marginTop: 2 }}>{discovered ? <NpcIcon bodyType={npc.bodyType} bodyColor={npc.bodyColor} armorColor={npc.armorColor} size={28} /> : <Icon name="question" size={28} />}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: "bold", fontSize: 13, color: discovered ? "#d8c8a8" : "#444" }}>
+                        {discovered ? npc.name : "???"}
+                      </span>
+                      <span style={{
+                        fontSize: 10, fontWeight: "bold",
+                        color: discovered ? RARITY_C[npc.rarity] : "#444",
+                        border: `1px solid ${discovered ? RARITY_C[npc.rarity] + "40" : "#222"}`,
+                        padding: "1px 5px",
+                      }}>
+                        {discovered ? RARITY_L[npc.rarity] : "???"}
+                      </span>
+                      {discovered && npcKills > 0 && (
+                        <span style={{ fontSize: 10, color: "#aaa" }}>☠ {npcKills}</span>
+                      )}
                     </div>
                     {discovered && (
-                      <div style={{ fontSize: 11, color: "#888" }}>
+                      <div style={{ fontSize: 10, color: "#666", marginTop: 1 }}>
                         HP: {npc.hp}
-                        {npc.resist && <> | Odporność: <Icon name={npc.resist === "fire" ? "fire" : "ice"} size={11} /></>}
-                        {npc.loot && <> | Łup: {formatLootText(npc.loot)}</>}
+                        {npc.resist && <> | <Icon name={npc.resist === "fire" ? "fire" : "ice"} size={10} /></>}
+                        {npc.loot && <> | {formatLootText(npc.loot)}</>}
+                      </div>
+                    )}
+                    {/* Kill tiers progress */}
+                    {discovered && (
+                      <div style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 4 }}>
+                        {tiers.map((t, i) => {
+                          const done = npcKills >= t;
+                          return (
+                            <div key={t} title={`${t} zabić → +${(i+1)*10}% DMG`} style={{
+                              display: "flex", alignItems: "center", gap: 2,
+                              padding: "1px 5px", fontSize: 10, fontWeight: "bold",
+                              border: `1px solid ${done ? "#40a030" : "#2a2a2a"}`,
+                              background: done ? "rgba(64,160,48,0.15)" : "rgba(0,0,0,0.2)",
+                              color: done ? "#60c040" : "#444",
+                            }}>
+                              {done ? "✓" : t}
+                            </div>
+                          );
+                        })}
+                        {killBonusPct > 0 && (
+                          <span style={{ fontSize: 10, color: "#60c040", fontWeight: "bold", marginLeft: 2 }}>
+                            +{killBonusPct}% DMG
+                          </span>
+                        )}
+                        {nextTier && npcKills > 0 && (
+                          <div style={{ flex: 1, marginLeft: 2 }}>
+                            <div style={{ height: 3, background: "#1a1a1a", borderRadius: 2, overflow: "hidden" }}>
+                              <div style={{
+                                height: "100%", borderRadius: 2,
+                                background: "#40a030",
+                                width: `${Math.min(100, (npcKills / nextTier) * 100)}%`,
+                                transition: "width 0.3s ease",
+                              }} />
+                            </div>
+                            <div style={{ fontSize: 9, color: "#555", marginTop: 1 }}>{npcKills}/{nextTier}</div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                  <span style={{
-                    fontSize: 11, fontWeight: "bold",
-                    color: discovered ? RARITY_C[npc.rarity] : "#444",
-                    border: `1px solid ${discovered ? RARITY_C[npc.rarity] + "40" : "#222"}`,
-                    padding: "2px 6px",
-                  }}>
-                    {discovered ? RARITY_L[npc.rarity] : "???"}
-                  </span>
                 </div>
               );
             })}
