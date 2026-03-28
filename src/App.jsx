@@ -429,7 +429,10 @@ export default function App() {
   meteoriteRef.current = meteorite;
   // Ground loot dropped by destroyed meteor — clickable items
   const [groundLoot, setGroundLoot] = useState([]);
-  // Track meteor wave spawn thresholds: { walkerId, nextThreshold, waveCount }
+  // Map secrets: hidden ISO world-space POIs revealed by proximity
+  const [mapSecrets, setMapSecrets] = useState([]);
+  const mapSecretsRef = useRef([]);
+  mapSecretsRef.current = mapSecrets;  // Track meteor wave spawn thresholds: { walkerId, nextThreshold, waveCount }
   const meteorWaveRef = useRef(null);
   const [screenShake, setScreenShake] = useState(false);
   // Enemy attack visual feedback: slash overlay on caravan hit
@@ -2554,6 +2557,22 @@ export default function App() {
             const cam = isoCameraRef.current;
             animatorRef.current.setCameraInfo(cam.x, cam.y);
           }
+          // Reveal map secrets when caravan is within 5 tiles
+          if (mapSecretsRef.current.length > 0) {
+            const cp = caravanPosRef.current;
+            const anyNewlyDiscovered = mapSecretsRef.current.some(
+              s => !s.discovered && !s.collected &&
+              Math.abs(s.wx - cp.x) + Math.abs(s.wy - cp.y) < 5
+            );
+            if (anyNewlyDiscovered) {
+              setMapSecrets(prev => prev.map(s =>
+                !s.discovered && !s.collected &&
+                Math.abs(s.wx - cp.x) + Math.abs(s.wy - cp.y) < 5
+                  ? { ...s, discovered: true }
+                  : s
+              ));
+            }
+          }
         }
       }
 
@@ -3632,6 +3651,39 @@ export default function App() {
         }
       }
       setInteractables(roomInteractables);
+      // Generate ISO map secrets (hidden, revealed by proximity)
+      if (isoModeRef.current) {
+        const SECRET_TYPES = [
+          { type: "buried_treasure", icon: "💰", label: "Zakopany skarb",  weight: 35 },
+          { type: "forgotten_cache",  icon: "📦", label: "Zapomniana skrytka", weight: 30 },
+          { type: "ancient_rune",     icon: "🔮", label: "Starożytna runa",    weight: 20 },
+          { type: "mysterious_altar", icon: "⛩️", label: "Tajemniczy ołtarz",  weight: 10 },
+          { type: "old_bones",        icon: "💀", label: "Stare kości",        weight: 5  },
+        ];
+        const totalW = SECRET_TYPES.reduce((s, t) => s + t.weight, 0);
+        const pickType = () => {
+          let r = Math.random() * totalW;
+          for (const t of SECRET_TYPES) { r -= t.weight; if (r <= 0) return t; }
+          return SECRET_TYPES[0];
+        };
+        const MAP_C = ISO_CONFIG.MAP_COLS, MAP_R = ISO_CONFIG.MAP_ROWS;
+        const count = 2 + Math.floor(Math.random() * 2); // 2-3 secrets per room
+        const generated = [];
+        for (let i = 0; i < count; i++) {
+          const t = pickType();
+          // Place in mid-map avoiding edges and other secrets
+          let wx, wy, attempts = 0;
+          do {
+            wx = 6 + Math.random() * (MAP_C - 12);
+            wy = 6 + Math.random() * (MAP_R - 12);
+            attempts++;
+          } while (attempts < 20 && generated.some(s => Math.abs(s.wx - wx) + Math.abs(s.wy - wy) < 5));
+          generated.push({ id: `secret_${Date.now()}_${i}`, wx, wy, ...t, discovered: false, collected: false });
+        }
+        setMapSecrets(generated);
+      } else {
+        setMapSecrets([]);
+      }
     } else {
       setInteractables([]);
       // Spawn defense POI — player must click it to trigger defense
@@ -5681,6 +5733,7 @@ export default function App() {
     setDungeonState(null); dungeonStateRef.current = null;
     setStairsPrompt(null); stairsDismissedRef.current = false;
     setGroundLoot([]);
+    setMapSecrets([]);
     localStorage.removeItem("wrota_save");
     setScreen("game"); enterRoom(1, []); startMusic();
   };
@@ -6501,6 +6554,67 @@ export default function App() {
     }
     showMessage("Meteoryt zniszczony! Zbierz łupy!", "#ffd700");
   };
+
+  // Collect a map secret
+  const collectMapSecret = useCallback((secretId) => {
+    const secret = mapSecretsRef.current.find(s => s.id === secretId && s.discovered && !s.collected);
+    if (!secret) return;
+    setMapSecrets(prev => prev.map(s => s.id === secretId ? { ...s, collected: true } : s));
+    const maxHp = CARAVAN_LEVELS[caravanLevelRef.current].hp;
+    switch (secret.type) {
+      case "buried_treasure": {
+        const copper = 15 + Math.floor(Math.random() * 25) + roomNumberRef.current * 2;
+        const silver = Math.random() < 0.3 ? 1 : 0;
+        addMoneyFn({ copper, silver });
+        showMessage(`💰 Zakopany skarb! +${copper} miedzi${silver ? " +1 srebro" : ""}`, "#ffd700");
+        break;
+      }
+      case "forgotten_cache": {
+        const ammoTypes = ["dynamite", "harpoon", "cannonball", "rum", "chain"];
+        const ammoType = ammoTypes[Math.floor(Math.random() * ammoTypes.length)];
+        const qty = 1 + Math.floor(Math.random() * 3);
+        setAmmo(prev => ({ ...prev, [ammoType]: (prev[ammoType] || 0) + qty }));
+        showMessage(`📦 Skrytka! +${qty}x ${ammoType}`, "#88ddff");
+        break;
+      }
+      case "ancient_rune": {
+        // Temporary buff: +20% damage for this room
+        const healAmt = Math.round(maxHp * 0.12);
+        setCaravanHp(prev => Math.min(maxHp, prev + healAmt));
+        showMessage(`🔮 Starożytna runa! +${healAmt} HP i błogosławieństwo runy`, "#cc88ff");
+        break;
+      }
+      case "mysterious_altar": {
+        const roll = Math.random();
+        if (roll < 0.5) {
+          const copper = 30 + Math.floor(Math.random() * 30);
+          addMoneyFn({ copper });
+          showMessage(`⛩️ Ołtarz przyjął ofiarę! +${copper} miedzi`, "#ffcc44");
+        } else if (roll < 0.8) {
+          const healAmt = Math.round(maxHp * 0.25);
+          setCaravanHp(prev => Math.min(maxHp, prev + healAmt));
+          if (healAmt / maxHp > 0.3) stopCaravanAlarm?.();
+          showMessage(`⛩️ Ołtarz uzdrowił karawanę! +${healAmt} HP`, "#44ff88");
+        } else {
+          addMoneyFn({ silver: 2 });
+          showMessage("⛩️ Bogowie byli łaskawi! +2 srebra", "#ffd700");
+        }
+        break;
+      }
+      case "old_bones": {
+        if (Math.random() < 0.65) {
+          const copper = 8 + Math.floor(Math.random() * 15);
+          addMoneyFn({ copper });
+          showMessage(`💀 Stare kości z monetami! +${copper} miedzi`, "#aaaaaa");
+        } else {
+          const dmg = Math.round(maxHp * 0.05);
+          setCaravanHp(prev => Math.max(1, prev - dmg));
+          showMessage(`💀 Kości były przeklęte! -${dmg} HP`, "#ff4444");
+        }
+        break;
+      }
+    }
+  }, [addMoneyFn, showMessage, stopCaravanAlarm]);
 
   // Collect a ground loot item
   const collectGroundLoot = (itemId) => {
@@ -10161,6 +10275,25 @@ export default function App() {
         return markers;
       })()}
 
+      {/* Map secrets — discovered but not yet collected */}
+      {isoModeRef.current && mapSecrets.filter(s => s.discovered && !s.collected).map(s => {
+        const left = poiLeft(s.wx, s.wy);
+        const top = poiTop(s.wx, s.wy);
+        if (left === null || top === null) return null;
+        return (
+          <div key={s.id} onClick={() => collectMapSecret(s.id)}
+               style={{ position: "absolute", left, top, transform: "translate(-50%, -100%)",
+                        zIndex: poiZIndex(s.wx, s.wy) + 3, cursor: "pointer", userSelect: "none",
+                        pointerEvents: "all", animation: "secretPulse 2s ease-in-out infinite" }}>
+            <div style={{ fontSize: 22, textAlign: "center", lineHeight: 1,
+                          filter: "drop-shadow(0 0 8px #ffd700)" }}>{s.icon}</div>
+            <div style={{ fontSize: 8, color: "#ffd700", textAlign: "center",
+                          textShadow: "0 1px 3px #000", fontWeight: "bold",
+                          whiteSpace: "nowrap" }}>{s.label}</div>
+          </div>
+        );
+      })}
+
       {/* Dungeon stairs interaction prompt */}
       <StairsPrompt
         interaction={stairsPrompt}
@@ -13462,6 +13595,7 @@ export default function App() {
           30%{opacity:1;transform:translateX(-50%) translateY(-20px) scale(1.3)}
           100%{opacity:0;transform:translateX(-50%) translateY(-60px) scale(0.8)}}
         @keyframes doorGlow{0%,100%{text-shadow:1px 1px 0 #000,0 0 6px rgba(212,160,48,0.3)}50%{text-shadow:1px 1px 0 #000,0 0 16px rgba(212,160,48,0.8)}}
+        @keyframes secretPulse{0%,100%{transform:translate(-50%,-100%) scale(1);filter:drop-shadow(0 0 6px rgba(255,215,0,0.4))}50%{transform:translate(-50%,-100%) scale(1.12);filter:drop-shadow(0 0 14px rgba(255,215,0,0.9))}}
         @keyframes mineShake{0%{transform:translate(-1px,-1px) rotate(-1deg)}100%{transform:translate(1px,1px) rotate(1deg)}}
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes meteorPulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 14px rgba(255,100,20,0.7))}50%{transform:scale(1.15);filter:drop-shadow(0 0 24px rgba(255,60,0,0.9))}}
