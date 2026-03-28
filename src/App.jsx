@@ -12102,7 +12102,7 @@ export default function App() {
           initiative={initiative}
           maxInitiative={MAX_INITIATIVE}
           caravanCost={CARAVAN_COST}
-          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !activeBoss && !walkers.some(w => !w.friendly && w.alive && !w.dying) && !riverSegment && !worldMap && !riverMapOpen}
+          canTravel={initiative >= CARAVAN_COST && (!defenseMode || defenseMode.phase === "complete") && !activeBoss && !riverSegment && !worldMap && !riverMapOpen}
           onTravel={travelCaravan}
         />
       </div>
