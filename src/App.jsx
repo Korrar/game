@@ -93,6 +93,8 @@ import WorldMap from "./components/WorldMap";
 import RiverMap from "./components/RiverMap";
 import { FORTIFICATION_TREE, TRAP_COMBOS, FORTIFICATION_PHASE } from "./data/advancedTraps";
 import FortificationMenu from "./components/FortificationMenu";
+import { BIOME_RESOURCES, getAvailableRecipes, canCraft as checkCanCraft } from "./data/biomeCrafting";
+import CraftingPanel from "./components/CraftingPanel";
 import { FACTIONS, getFactionBonus, getFactionHostility, rollFactionQuest, rollFactionEvent } from "./data/factions";
 import { ARTIFACT_SETS, DISCOVERY_MILESTONES, JOURNAL_CATEGORIES, getDiscoveryMilestone, rollSecretRoom, getCompletedSetBonuses } from "./data/discovery";
 import { SABERS, SABER_RARITY_COLOR } from "./data/sabers";
@@ -603,6 +605,16 @@ export default function App() {
   upgradeChoicesRef.current = upgradeChoices;
   const spellUpgradesRef = useRef({});
   spellUpgradesRef.current = spellUpgrades;
+
+  // ─── FEATURE: Crafting System ───
+  const [craftingResources, setCraftingResources] = useState({});
+  const craftingResourcesRef = useRef({});
+  craftingResourcesRef.current = craftingResources;
+  const [craftedConsumables, setCraftedConsumables] = useState([]);
+  const [showCraftingPanel, setShowCraftingPanel] = useState(false);
+  const [caravanReviveReady, setCaravanReviveReady] = useState(false);
+  const caravanReviveReadyRef = useRef(false);
+  caravanReviveReadyRef.current = caravanReviveReady;
 
   // ─── FEATURE: Difficulty Progression ───
   const [killStreak, setKillStreak] = useState(0);
@@ -5496,6 +5508,14 @@ export default function App() {
   // Global game over check: HP reaches 0 outside of defense mode too
   useEffect(() => {
     if (caravanHp <= 0 && screen !== "gameover" && screen !== "intro" && screen !== "hideout") {
+      // Phoenix Elixir: one-time revive
+      if (caravanReviveReadyRef.current) {
+        setCaravanReviveReady(false);
+        const maxHp = CARAVAN_LEVELS[caravanLevelRef.current].hp;
+        setCaravanHp(Math.round(maxHp * 0.30));
+        showMessage("⚗ Eliksir Feniksa! Karawana odrodziła się z 30% HP!", "#ff6020");
+        return;
+      }
       sfxEventFail();
       if (activeBossRef.current) setActiveBoss(null);
       setDefenseMode(null);
@@ -6405,6 +6425,23 @@ export default function App() {
       }
     }
 
+    // 6. Biome resource drops (only from enemy kills)
+    if (lootConfig.canDropResource && biomeRef.current) {
+      const biomeResources = BIOME_RESOURCES[biomeRef.current.id] || [];
+      const mult = lootConfig.resourceMult || 1;
+      for (const resource of biomeResources) {
+        const baseChance = resource.rarity === "common" ? 0.12 : resource.rarity === "uncommon" ? 0.07 : 0.03;
+        if (Math.random() < baseChance * mult) {
+          items.push({
+            id: mkId(), type: "resource", resource,
+            x: worldX + scatter(2.5), y: worldY + scatter(1.5),
+            icon: resource.icon, label: resource.name,
+            collected: false, spawnTime: now, rarity: resource.rarity,
+          });
+        }
+      }
+    }
+
     if (items.length > 0) {
       setGroundLoot(prev => [...prev, ...items]);
     }
@@ -6422,6 +6459,8 @@ export default function App() {
       canDropSaber: true,
       treasureChance: isBoss ? 0.40 : 0.05,
       canDropRelic: isBoss || (npcData.rarity === "rare" || npcData.rarity === "elite"),
+      canDropResource: true,
+      resourceMult: isBoss ? 2 : 1,
     });
   };
 
@@ -6543,6 +6582,9 @@ export default function App() {
         return [...prev, item.relic];
       });
       showMessage(`Znaleziono relikt: ${item.relic.name}!`, "#ffd700");
+    } else if (item.type === "resource") {
+      setCraftingResources(prev => ({ ...prev, [item.resource.id]: (prev[item.resource.id] || 0) + 1 }));
+      showMessage(`+1 ${item.resource.name}`, "#44cc88");
     } else if (item.type === "health_potion") {
       const maxHp = CARAVAN_LEVELS[caravanLevelRef.current].hp;
       const healAmt = Math.round(maxHp * 0.25);
@@ -6588,6 +6630,98 @@ export default function App() {
     }, 50);
     miningRef.current.intervalId = id;
   };
+
+  // ─── CRAFTING ───
+  const craftItem = useCallback((recipe) => {
+    if (!checkCanCraft(recipe, craftingResourcesRef.current)) return;
+    const newRes = { ...craftingResourcesRef.current };
+    for (const ing of recipe.ingredients) {
+      newRes[ing.resourceId] = (newRes[ing.resourceId] || 0) - ing.amount;
+    }
+    setCraftingResources(newRes);
+    sfxChest();
+    if (recipe.result.type === "ammo") {
+      const { ammoType, amount } = recipe.result;
+      setAmmo(prev => ({ ...prev, [ammoType]: (prev[ammoType] || 0) + amount }));
+      showMessage(`✓ ${recipe.name} — +${amount} ${ammoType}`, "#44cc88");
+    } else if (recipe.result.type === "consumable" || recipe.result.type === "trap") {
+      setCraftedConsumables(prev => [...prev, {
+        id: `crafted_${Date.now()}`,
+        recipeId: recipe.id,
+        name: recipe.name,
+        desc: recipe.desc,
+        icon: recipe.icon,
+        effect: recipe.result.type === "trap"
+          ? { type: "deploy_trap", trapConfig: recipe.result }
+          : recipe.result.effect,
+      }]);
+      showMessage(`✓ ${recipe.name} gotowy do użycia!`, "#44cc88");
+    } else if (recipe.result.type === "weapon_mod") {
+      setSecretPermDmgBuff(prev => prev + 0.05);
+      showMessage(`✓ ${recipe.name} — szabla wzmocniona na stałe!`, "#a050e0");
+    }
+  }, []);
+
+  const useCraftedConsumable = useCallback((consumableId) => {
+    const item = craftedConsumables.find(c => c.id === consumableId);
+    if (!item) return;
+    setCraftedConsumables(prev => prev.filter(c => c.id !== consumableId));
+    const eff = item.effect;
+    if (eff.type === "chain_lightning") {
+      const enemies = walkersRef.current.filter(w => w.alive && !w.friendly && !w.dying);
+      const targets = enemies.sort(() => Math.random() - 0.5).slice(0, eff.targets || 5);
+      for (const t of targets) {
+        const dmg = eff.damage || 20;
+        spawnDmgPopup(t.id, `⚡${dmg}`, "#ffee00");
+        if (physicsRef.current) physicsRef.current.applyHit(t.id, "lightning", 1);
+        setWalkers(prev => prev.map(w => {
+          if (w.id !== t.id || !w.alive || w.friendly) return w;
+          const nh = Math.max(0, w.hp - dmg);
+          if (nh <= 0) {
+            if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
+            addMoneyFn(w.npcData.loot || {});
+            setKills(k => k + 1);
+            return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
+          }
+          return { ...w, hp: nh };
+        }));
+      }
+      showMessage(`Grom Zeusa! Uderzono ${targets.length} wrogów!`, "#ffee00");
+    } else if (eff.type === "permanent_spell_boost") {
+      setSecretPermDmgBuff(prev => prev + eff.damageMult);
+      showMessage(`Ambrozja! Czary +${Math.round(eff.damageMult * 100)}% trwale!`, "#ffd700");
+    } else if (eff.type === "merc_mutation") {
+      const allies = walkersRef.current.filter(w => w.alive && w.friendly && !w.dying);
+      if (allies.length > 0) {
+        const target = allies[Math.floor(Math.random() * allies.length)];
+        const option = eff.options[Math.floor(Math.random() * eff.options.length)];
+        if (option.stat === "hp") {
+          setWalkers(prev => prev.map(w => w.id !== target.id ? w : {
+            ...w, hp: Math.round(w.hp * option.mult), maxHp: Math.round(w.maxHp * option.mult),
+          }));
+        } else if (option.stat === "damage" && walkDataRef.current[target.id]) {
+          walkDataRef.current[target.id].damage = Math.round((walkDataRef.current[target.id].damage || 10) * option.mult);
+        }
+        showMessage(`Mutacja! ${target.npcData.name} wzmocniony!`, "#c050ff");
+      } else {
+        showMessage("Brak sojuszników!", "#888");
+        setCraftedConsumables(prev => [...prev, item]);
+      }
+    } else if (eff.type === "caravan_revive") {
+      setCaravanReviveReady(true);
+      showMessage("Eliksir Feniksa gotowy — karawana odrodzi się raz!", "#ff6020");
+    } else if (eff.type === "deploy_trap") {
+      const s = eff.trapConfig.stats || eff.trapConfig;
+      setPlayerTraps(prev => [...prev, {
+        id: `ct_${Date.now()}`, type: item.recipeId, active: true,
+        currentHp: s.hp || 999,
+        config: { ...s, name: item.name, icon: item.icon },
+        x: isoModeRef.current ? ISO_CONFIG.MAP_COLS / 2 : 50,
+        y: isoModeRef.current ? ISO_CONFIG.MAP_ROWS / 2 : 50,
+      }]);
+      showMessage(`${item.name} rozstawiona!`, "#44cc88");
+    }
+  }, [craftedConsumables]);
 
   const stopMining = () => {
     if (miningRef.current.intervalId) clearInterval(miningRef.current.intervalId);
@@ -10096,6 +10230,18 @@ export default function App() {
       <RelicPicker choices={relicChoices} onSelect={selectRelic} isMobile={isMobile} />
       <SpellUpgradePicker choices={upgradeChoices} onSelect={selectUpgrade} isMobile={isMobile} />
       <LevelUpPicker choices={levelUpChoices} onSelect={selectPerk} playerLevel={playerLevel} isMobile={isMobile} />
+      {showCraftingPanel && (
+        <CraftingPanel
+          biome={biome}
+          resources={craftingResources}
+          consumables={craftedConsumables}
+          recipes={biome ? getAvailableRecipes(biome.id) : []}
+          onCraft={craftItem}
+          onUseConsumable={useCraftedConsumable}
+          onClose={() => setShowCraftingPanel(false)}
+          isMobile={isMobile}
+        />
+      )}
       <WeatherOverlay weather={weather} />
 
       {/* Iso minimap */}
@@ -12084,6 +12230,51 @@ export default function App() {
 
 
       </div>{/* end game container */}
+
+      {/* Crafting button — floating top-right, only during game */}
+      {screen === "game" && (
+        <div style={{
+          position: "fixed", top: isMobile ? 46 : 58, right: 8, zIndex: 150,
+          display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end",
+        }}>
+          <button
+            onClick={() => setShowCraftingPanel(p => !p)}
+            title="Kuźnia — crafting surowców"
+            style={{
+              background: showCraftingPanel ? "rgba(60,120,60,0.9)" : "rgba(20,12,6,0.85)",
+              border: `1px solid ${showCraftingPanel ? "#5ab05a" : "#8b6030"}`,
+              color: showCraftingPanel ? "#c0ffc0" : "#d4a030",
+              borderRadius: 7, padding: isMobile ? "4px 8px" : "5px 10px",
+              cursor: "pointer", fontSize: isMobile ? 11 : 12, fontWeight: "bold",
+              letterSpacing: 1,
+              boxShadow: Object.values(craftingResources).some(v => v > 0) ? "0 0 8px #8b603088" : "none",
+            }}
+          >
+            ⚗ {isMobile ? "" : "Kuźnia"}
+            {Object.values(craftingResources).reduce((a, b) => a + b, 0) > 0 && (
+              <span style={{ marginLeft: 4, fontSize: 9, color: "#44cc88" }}>
+                ×{Object.values(craftingResources).reduce((a, b) => a + b, 0)}
+              </span>
+            )}
+          </button>
+          {/* Crafted consumables as quick-use icons */}
+          {craftedConsumables.map(c => (
+            <button
+              key={c.id}
+              onClick={() => useCraftedConsumable(c.id)}
+              title={`${c.name}: ${c.desc}`}
+              style={{
+                background: "rgba(20,40,20,0.9)", border: "1px solid #44884488",
+                borderRadius: 6, padding: isMobile ? "3px 6px" : "4px 8px",
+                cursor: "pointer", fontSize: isMobile ? 10 : 11, color: "#80ff80",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              🧪 {c.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Bottom bar: Spell Bar with integrated HP & Travel icons – fixed to viewport bottom, OUTSIDE game container */}
       <div style={{
