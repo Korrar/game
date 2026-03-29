@@ -17,6 +17,9 @@ export const RELICS = [
   { id: "trident",         icon: "harpoon", name: "Trójząb Posejdona", desc: "Harpuny przeszywają 2 dodatkowych wrogów", rarity: "epic" },
   { id: "sea_shanty",      icon: "banjo", name: "Pieśń Marynarzy",   desc: "Najemnicy na biomach morskich mają +20% prędkości ataku", rarity: "rare" },
   { id: "ghost_lantern",   icon: "lantern", name: "Latarnia Duchów",   desc: "Widmowe wydarzenia morskie zawsze dają lepsze nagrody", rarity: "rare" },
+  { id: "serpent_scale",   icon: "shield",  name: "Łuska Węża",        desc: "Karawana otrzymuje o 20% mniej obrażeń od wrogów", rarity: "rare" },
+  { id: "phantom_coin",    icon: "coin",    name: "Upiorna Moneta",    desc: "30% szans że akcja nie zużywa amunicji", rarity: "epic" },
+  { id: "cursed_doubloon", icon: "skull",   name: "Przeklęty Dublon",  desc: "Cały łup x2, ale wrogowie zadają +20% obrażeń karawanie", rarity: "legendary" },
 ];
 
 export const RELIC_RARITY_COLOR = {
@@ -99,5 +102,21 @@ export const RELIC_SYNERGIES = [
     desc: "Statek regeneruje 5 HP na pokój + najemnicy +10% obrażeń",
     color: "#d4a030",
     icon: "pirate",
+  },
+  {
+    id: "duch_prochu",
+    relics: ["phantom_coin", "mana_spring"],
+    name: "Duch Prochu",
+    desc: "Akcje nigdy nie zużywają amunicji",
+    color: "#a050e0",
+    icon: "gunpowder",
+  },
+  {
+    id: "zelazna_kliatwa",
+    relics: ["serpent_scale", "faith_shield"],
+    name: "Żelazna Klatwa",
+    desc: "Karawana otrzymuje o 35% mniej obrażeń (zamiast 20%)",
+    color: "#888",
+    icon: "shield",
   },
 ];
