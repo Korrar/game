@@ -7114,8 +7114,8 @@ export default function App() {
               if (nhp <= 0) {
                 sfxNpcDeath();
                 if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
-                addMoneyFn(ww.npcData.loot);
-                if (hasRelic("golden_reaper")) addMoneyFn(ww.npcData.loot);
+                addMoneyFn(ww.npcData.loot || {});
+                if (hasRelic("golden_reaper")) addMoneyFn(ww.npcData.loot || {});
                 setKills(k => k + 1);
                 setTimeout(() => setWalkers(ppr => ppr.filter(www => www.id !== ww.id)), 2500);
                 return { ...ww, hp: 0, dying: true, dyingAt: Date.now() };
@@ -7984,7 +7984,7 @@ export default function App() {
               meteorWaveRef.current = null;
               setMeteorite(null);
             } else {
-              addMoneyFn(ww.npcData.loot);
+              addMoneyFn(ww.npcData.loot || {});
             }
             setKills(k => k + 1);
             handleCardDrop(ww.npcData);
@@ -8165,7 +8165,7 @@ export default function App() {
                   sfxNpcDeath();
                   if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
                   if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, blastEl, Math.sign(ddx) || 1);
-                  addMoneyFn(ww.npcData.loot);
+                  addMoneyFn(ww.npcData.loot || {});
                   setKills(k => k + 1);
                   processKillStreak();
                   showMessage(`${ww.npcData.name} pokonany eksplozją!`, "#ff6020");
@@ -8323,7 +8323,7 @@ export default function App() {
                     sfxNpcDeath();
                     if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
                     if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, blastEl, Math.sign(ddx) || 1);
-                    addMoneyFn(ww.npcData.loot);
+                    addMoneyFn(ww.npcData.loot || {});
                     setKills(k => k + 1);
                     processKillStreak();
                     showMessage(`${ww.npcData.name} pokonany!`, "#ff6020");
@@ -8711,8 +8711,8 @@ export default function App() {
             if (nhp <= 0) {
               sfxNpcDeath();
               if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
-              addMoneyFn(w.npcData.loot);
-              if (hasRelic("golden_reaper")) addMoneyFn(w.npcData.loot);
+              addMoneyFn(w.npcData.loot || {});
+              if (hasRelic("golden_reaper")) addMoneyFn(w.npcData.loot || {});
               setKills(k => k + 1);
               setTimeout(() => setWalkers(pr => pr.filter(ww => ww.id !== w.id)), 2500);
               return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
