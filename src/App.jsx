@@ -98,7 +98,6 @@ import CraftingPanel from "./components/CraftingPanel";
 import { FACTIONS, getFactionBonus, getFactionHostility, rollFactionQuest, rollFactionEvent } from "./data/factions";
 import { ARTIFACT_SETS, DISCOVERY_MILESTONES, JOURNAL_CATEGORIES, getDiscoveryMilestone, rollSecretRoom, getCompletedSetBonuses } from "./data/discovery";
 import { SABERS, SABER_RARITY_COLOR } from "./data/sabers";
-import { MORALE_CONFIG, MORALE_EVENTS, getMoraleThreshold } from "./data/morale";
 import { MUTATION_INTERVAL, MUTATIONS, selectMutationTargets, pickMutation } from "./data/mutations";
 import { GHOST_SHIP_CONFIG } from "./data/ghostShip";
 import ComboOverlay from "./components/ComboOverlay";
@@ -478,15 +477,6 @@ export default function App() {
   const moonbladeBonusRef = useRef(null);
   moonbladeBonusRef.current = moonbladeBonus;
 
-  // ─── FEATURE: Morale System ───
-  const [morale, setMorale] = useState(MORALE_CONFIG.initial);
-  const moraleRef = useRef(MORALE_CONFIG.initial);
-  moraleRef.current = morale;
-  const changeMorale = (eventId) => {
-    const ev = MORALE_EVENTS[eventId];
-    if (!ev) return;
-    setMorale(prev => Math.max(MORALE_CONFIG.min, Math.min(MORALE_CONFIG.max, prev + ev.delta)));
-  };
 
   // ─── FEATURE: Enemy Mutations ───
   const [activeMutations, setActiveMutations] = useState([]); // [{ npcName, mutation }]
@@ -1043,9 +1033,6 @@ export default function App() {
 
   // Summon auto-attack handler (called from RAF loop via ref)
   summonAttackRef.current = (friendlyId, enemyId, damage) => {
-    // Morale: mercenary damage multiplier
-    const moraleLevel = getMoraleThreshold(moraleRef.current);
-    damage = Math.round(damage * moraleLevel.mercDmgMult);
     // War Drums: bonus damage from caravan aura
     const drumsData = CARAVAN_LEVELS[caravanLevelRef.current].warDrums;
     if (drumsData) damage = Math.round(damage * (1 + drumsData.bonus / 100));
@@ -1210,7 +1197,6 @@ export default function App() {
         if (walkDataRef.current[friendlyId]) walkDataRef.current[friendlyId].alive = false;
         if (physicsRef.current) physicsRef.current.triggerRagdoll(friendlyId, "melee", meleeDirX);
         showMessage(`${w.npcData.name} poległ w walce!`, "#cc4040");
-        changeMorale("merc_death");
         setTimeout(() => setWalkers(pr => pr.map(ww => ww.id === friendlyId ? { ...ww, alive: false } : ww)), 2500);
         return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
       }
@@ -1306,7 +1292,6 @@ export default function App() {
       else stopCaravanAlarm();
       return newHp;
     });
-    changeMorale("caravan_hit");
     // Screen shake on caravan hit
     setScreenShake(true);
     setTimeout(() => setScreenShake(false), 150);
@@ -1352,7 +1337,6 @@ export default function App() {
         if (walkDataRef.current[friendlyId]) walkDataRef.current[friendlyId].alive = false;
         if (physicsRef.current) physicsRef.current.triggerRagdoll(friendlyId, element || "melee", dirX);
         showMessage(`${w.npcData.name} poległ w walce!`, "#cc4040");
-        changeMorale("merc_death");
         setTimeout(() => setWalkers(pr => pr.map(ww => ww.id === friendlyId ? { ...ww, alive: false } : ww)), 2500);
         return { ...w, hp: 0, dying: true, dyingAt: Date.now() };
       }
@@ -5405,7 +5389,6 @@ export default function App() {
           setBossesDefeated(b => b + 1);
           sfxBossKillDrama();
           setTimeout(() => sfxVictoryFanfare(), 1500); // fanfare after dramatic silence
-          changeMorale("boss_kill");
           stopCombatDrums();
           setMusicCombatIntensity(0); // calm down music after boss victory
           setDefenseMode(prev => prev ? { ...prev, phase: "complete" } : null);
@@ -5442,7 +5425,6 @@ export default function App() {
           }
           if (dm.currentWave >= dm.totalWaves) {
             sfxVictoryFanfare();
-            changeMorale("fast_victory");
             stopCombatDrums();
             setMusicCombatIntensity(0); // calm down music after all waves cleared
             setDefenseMode(prev => prev ? { ...prev, phase: "complete" } : null);
@@ -5451,18 +5433,6 @@ export default function App() {
               addMoneyFn(GHOST_SHIP_CONFIG.completionReward);
               showMessage(GHOST_SHIP_CONFIG.completionMessage, "#d4a030");
               setGhostShipActive(false);
-            }
-            // Morale: desertion check on low morale
-            const mt = getMoraleThreshold(moraleRef.current);
-            if (mt.desertionChance > 0) {
-              const friendlies = walkersRef.current.filter(w => w.alive && !w.dying && w.friendly);
-              friendlies.forEach(w => {
-                if (Math.random() < mt.desertionChance) {
-                  showMessage(`${w.npcData.name} dezerteruje! Morala zbyt niska!`, "#cc4040");
-                  if (walkDataRef.current[w.id]) walkDataRef.current[w.id].alive = false;
-                  setWalkers(prev => prev.filter(ww => ww.id !== w.id));
-                }
-              });
             }
           } else {
             sfxWaveComplete();
@@ -5695,7 +5665,7 @@ export default function App() {
     setJournal({ biomes: [], enemies: [], bosses: [], treasures: [], events: [], secrets: [], artifacts: [], factions: [] });
     setOwnedArtifacts([]); setTotalDiscoveries(0); setSecretRoom(null); setShowJournal(false);
     setOwnedSabers(["basic_saber"]); setEquippedSaber("basic_saber"); setMoonbladeBonus(null);
-    setMorale(MORALE_CONFIG.initial); setActiveMutations([]); setKillsByType({}); setGhostShipActive(false);
+    setActiveMutations([]); setKillsByType({}); setGhostShipActive(false);
     setHasWand(false); setWandActive(false); wandOrbsRef.current = { active: false, startTime: 0, cursorX: 50, cursorY: 50, hitCooldowns: {}, lastDrainTime: 0 };
     setSalvaActive(false); salvaRef.current = { active: false, cursorX: 50, cursorY: 50, lastShotTime: 0 };
     setBoughtSpecials([]); setShopStock(null); setShopDiscount(0); setBargainUsed(false); setActiveBuffs([]);
@@ -5740,7 +5710,7 @@ export default function App() {
       factionRep,
       journal, ownedArtifacts, totalDiscoveries,
       ownedSabers, equippedSaber, moonbladeBonus,
-      morale, activeMutations, killsByType,
+      activeMutations, killsByType,
       hasWand,
       savedAt: Date.now(),
     };
@@ -5810,7 +5780,6 @@ export default function App() {
       setOwnedSabers(s.ownedSabers || ["basic_saber"]);
       setEquippedSaber(s.equippedSaber || "basic_saber");
       setMoonbladeBonus(s.moonbladeBonus || null);
-      setMorale(s.morale ?? MORALE_CONFIG.initial);
       setActiveMutations(s.activeMutations || []);
       setKillsByType(s.killsByType || {});
       setHasWand(s.hasWand || false);
@@ -5851,7 +5820,7 @@ export default function App() {
         unlockedFortifications, factionRep,
         journal, ownedArtifacts, totalDiscoveries,
         ownedSabers, equippedSaber, moonbladeBonus,
-        morale, activeMutations, killsByType,
+        activeMutations, killsByType,
         savedAt: Date.now(),
       };
       try { localStorage.setItem("wrota_save", JSON.stringify(saveData)); } catch { /* auto-save silently fails */ }
@@ -6430,7 +6399,7 @@ export default function App() {
       const biomeResources = BIOME_RESOURCES[biomeRef.current.id] || [];
       const mult = lootConfig.resourceMult || 1;
       for (const resource of biomeResources) {
-        const baseChance = resource.rarity === "common" ? 0.12 : resource.rarity === "uncommon" ? 0.07 : 0.03;
+        const baseChance = resource.chance ?? (resource.rarity === "common" ? 0.20 : resource.rarity === "uncommon" ? 0.12 : 0.05);
         if (Math.random() < baseChance * mult) {
           items.push({
             id: mkId(), type: "resource", resource,
@@ -9812,23 +9781,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Morale indicator */}
-      {room > 0 && (() => {
-        const mt = getMoraleThreshold(morale);
-        return (
-          <div style={{
-            position: "absolute", top: isMobile ? 54 : 76, right: 8, zIndex: 20,
-            background: "rgba(26,14,18,0.85)", border: `1px solid ${mt.color}`,
-            padding: "2px 8px", fontSize: 9, color: mt.color,
-            textShadow: "1px 1px 0 #000", whiteSpace: "nowrap",
-          }}>
-            Morala: {mt.name} ({morale})
-            <div style={{ width: 60, height: 3, background: "rgba(0,0,0,0.5)", marginTop: 2, borderRadius: 2 }}>
-              <div style={{ width: `${morale}%`, height: "100%", background: mt.color, borderRadius: 2, transition: "width 0.3s" }} />
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Ghost Ship overlay */}
       {ghostShipActive && (
@@ -10236,6 +10188,7 @@ export default function App() {
           resources={craftingResources}
           consumables={craftedConsumables}
           recipes={biome ? getAvailableRecipes(biome.id) : []}
+          resourceNames={Object.values(BIOME_RESOURCES).flat().reduce((acc, r) => { acc[r.id] = r.name; return acc; }, {})}
           onCraft={craftItem}
           onUseConsumable={useCraftedConsumable}
           onClose={() => setShowCraftingPanel(false)}

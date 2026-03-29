@@ -12,7 +12,7 @@ function IngredientRow({ resourceId, needed, owned }) {
   );
 }
 
-export default function CraftingPanel({ biome, resources, consumables, recipes, onCraft, onUseConsumable, onClose, isMobile }) {
+export default function CraftingPanel({ biome, resources, consumables, recipes, resourceNames = {}, onCraft, onUseConsumable, onClose, isMobile }) {
   if (!biome || !recipes) return null;
 
   const sz = isMobile ? 18 : 22;
@@ -57,7 +57,7 @@ export default function CraftingPanel({ biome, resources, consumables, recipes, 
                 fontSize: 10, color: "#c0a060", background: "rgba(212,160,48,0.1)",
                 border: "1px solid #8b603040", borderRadius: 4, padding: "2px 6px",
               }}>
-                {id.replace(/_/g, " ")} ×{count}
+                {resourceNames[id] || id.replace(/_/g, " ")} ×{count}
               </div>
             ))}
           </div>
@@ -126,7 +126,7 @@ export default function CraftingPanel({ biome, resources, consumables, recipes, 
                     <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                       {recipe.ingredients.map(ing => (
                         <span key={ing.resourceId} style={{ fontSize: 10, color: "#a09878" }}>
-                          {ing.resourceId.replace(/_/g, " ")} (
+                          {resourceNames[ing.resourceId] || ing.resourceId.replace(/_/g, " ")} (
                           <IngredientRow resourceId={ing.resourceId} needed={ing.amount} owned={resources} />
                           )
                         </span>
