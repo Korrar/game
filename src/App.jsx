@@ -738,6 +738,8 @@ export default function App() {
     if (mod?.effect?.type === "loot_mult" && mod.effect.copperMult) {
       mult *= mod.effect.copperMult;
     }
+    // cursed_doubloon: x2 all loot
+    if (hasRelic("cursed_doubloon")) mult *= 2;
     const adjusted = mult > 1 ? {
       copper: Math.round((val.copper || 0) * mult),
       silver: Math.round((val.silver || 0) * mult),
@@ -1263,6 +1265,10 @@ export default function App() {
     // Artifact set bonus: extra caravan armor
     armor += artifactArmorRef.current;
     let actualDmg = Math.max(1, damage - armor);
+    // serpent_scale: 20% damage reduction (35% with zelazna_kliatwa synergy)
+    if (hasRelic("serpent_scale")) actualDmg = Math.max(1, Math.round(actualDmg * (hasSynergy("zelazna_kliatwa") ? 0.65 : 0.80)));
+    // cursed_doubloon: +20% damage taken (cost of doubled loot)
+    if (hasRelic("cursed_doubloon")) actualDmg = Math.round(actualDmg * 1.20);
     // Height advantage: enemies on high ground deal more damage to caravan
     if (isoModeRef.current && terrainDataRef.current?.heightMap) {
       const ew = walkDataRef.current[enemyId];
@@ -3377,7 +3383,7 @@ export default function App() {
                   sfxNpcDeath();
                   if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
                   if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, effects.element, 1);
-                  addMoneyFn(ww.npcData.loot);
+                  addMoneyFn(ww.npcData.loot || {});
                   setKills(k => k + 1);
                   showMessage(`${ww.npcData.name} zniszczony zagrożeniem!`, effects.element === "fire" ? "#ff6020" : "#44ff44");
                   setTimeout(() => setWalkers(pp2 => pp2.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
@@ -3409,7 +3415,7 @@ export default function App() {
                   sfxNpcDeath();
                   if (walkDataRef.current[ww.id]) walkDataRef.current[ww.id].alive = false;
                   if (physicsRef.current) physicsRef.current.triggerRagdoll(ww.id, null, 1);
-                  addMoneyFn(ww.npcData.loot);
+                  addMoneyFn(ww.npcData.loot || {});
                   setKills(k => k + 1);
                   showMessage(`${ww.npcData.name} trafiony odłamkiem!`, "#b0b0b0");
                   setTimeout(() => setWalkers(pp2 => pp2.map(www => www.id === ww.id ? { ...www, alive: false } : www)), 2500);
@@ -6509,7 +6515,7 @@ export default function App() {
     setGroundLoot(prev => prev.map(i => i.id === itemId ? { ...i, collected: true } : i));
     if (item.type === "coin") {
       addMoneyFn(item.value);
-      const text = item.value.silver ? `+${item.value.silver} Ag` : `+${item.value.copper} Cu`;
+      const text = item.value.gold ? `+${item.value.gold} Au` : item.value.silver ? `+${item.value.silver} Ag` : `+${item.value.copper || 0} Cu`;
       showMessage(text, "#d4a030");
     } else if (item.type === "ammo") {
       setAmmo(prev => {
@@ -7270,10 +7276,13 @@ export default function App() {
     const _skUps = spellUpgradesRef.current[spell.id] || [];
     const _skStats = getUpgradedSpellStats(spell, _skUps);
     if (spell.ammoCost) {
-      const ammoCost = Math.max(1, spell.ammoCost.amount - _skStats.ammoCostReduction);
-      // Immediately update ammo ref to prevent double-spend
-      ammoRef.current = { ...ammoRef.current, [spell.ammoCost.type]: (ammoRef.current[spell.ammoCost.type] || 0) - ammoCost };
-      setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
+      const freeAmmo = hasSynergy("duch_prochu") || (hasRelic("phantom_coin") && Math.random() < 0.30);
+      if (!freeAmmo) {
+        const ammoCost = Math.max(1, spell.ammoCost.amount - _skStats.ammoCostReduction);
+        // Immediately update ammo ref to prevent double-spend
+        ammoRef.current = { ...ammoRef.current, [spell.ammoCost.type]: (ammoRef.current[spell.ammoCost.type] || 0) - ammoCost };
+        setAmmo(prev => ({ ...prev, [spell.ammoCost.type]: (prev[spell.ammoCost.type] || 0) - ammoCost }));
+      }
     }
     {
       const finalCd = Math.round(_skStats.cooldown * perkCooldownMult * artifactCooldownMultRef.current);
