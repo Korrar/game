@@ -34,12 +34,20 @@ export const ENHANCED_LUNGE_OFFSET = 24;
 export const ENHANCED_LUNGE_FRAMES = 12;
 export const LUNGE_DECAY = 0.88;
 
-// Icon size per body type (in pixels)
+// Icon size per body type (in pixels) — enlarged for better visual clarity
 const ICON_SIZES = {
-  humanoid: 48, quadruped: 44, floating: 44, scorpion: 40,
-  spider: 38, frog: 36, serpent: 44, barricade: 52, tower: 56,
-  meteorBoulder: 60,
-  lizard: 44, crab: 40, bird: 44, tentacle: 42, primate: 46, fish: 38,
+  humanoid: 64, quadruped: 58, floating: 58, scorpion: 54,
+  spider: 52, frog: 50, serpent: 58, barricade: 68, tower: 72,
+  meteorBoulder: 76,
+  lizard: 58, crab: 54, bird: 58, tentacle: 56, primate: 62, fish: 52,
+};
+
+// Rarity glow configs
+const RARITY_GLOW = {
+  uncommon:  { color: 0x40c040, rings: 1, orbitCount: 0, extraScale: 1.05 },
+  rare:      { color: 0x40a8c8, rings: 2, orbitCount: 2, extraScale: 1.10 },
+  epic:      { color: 0xa050e0, rings: 2, orbitCount: 4, extraScale: 1.15 },
+  legendary: { color: 0xffd700, rings: 3, orbitCount: 6, extraScale: 1.22 },
 };
 
 // ─── LIMB VISUAL DEFINITIONS ───
@@ -487,12 +495,72 @@ export class CharacterSprite {
       this._drawLowHpEffect(tx, renderTy, halfH);
     }
 
+    // Rarity aura for rare/epic/legendary enemies
+    if (!this.friendly) {
+      const rarity = entry.npcData.rarity;
+      const rarityCfg = RARITY_GLOW[rarity];
+      if (rarityCfg) {
+        this._drawRarityAura(tx, renderTy, halfH, rarityCfg);
+      }
+    }
+
     // Draw weapon (now for both friendlies AND enemies with attackAnim)
     if (entry.npcData.weapon && this.bodyType === "humanoid") {
       this._drawWeapon(limbs, entry, dir, GY);
     } else if (!this.friendly && entry.attackAnim > 0) {
       // P3: Enemy melee slash arc (no weapon model — draw generic slash)
       this._drawMeleeSlashArc(tx, renderTy, dir, entry.attackAnim, halfH);
+    }
+  }
+
+  _drawRarityAura(tx, ty, halfH, cfg) {
+    const now = Date.now();
+    const scale = this._depthScale || 1;
+    const baseR = this.iconSize * 0.55 * scale;
+    const { color, rings, orbitCount } = cfg;
+
+    // Pulsing outer fill (soft radial glow)
+    const glowPulse = 0.06 + Math.sin(now * 0.003) * 0.02;
+    this.glowGfx.circle(tx, ty, baseR * 1.5);
+    this.glowGfx.fill({ color, alpha: glowPulse });
+
+    // Concentric rings
+    for (let r = 0; r < rings; r++) {
+      const ringR = baseR * (1.1 + r * 0.22);
+      const ringAlpha = (0.45 - r * 0.12) * (0.7 + Math.sin(now * 0.004 + r) * 0.3);
+      const ringW = rings - r; // outer rings thinner
+      this.glowGfx.setStrokeStyle({ width: ringW, color, alpha: ringAlpha });
+      this.glowGfx.circle(tx, ty, ringR);
+      this.glowGfx.stroke();
+    }
+
+    // Orbiting energy dots
+    for (let i = 0; i < orbitCount; i++) {
+      const orbitSpeed = 0.0015 + i * 0.0002;
+      const angle = now * orbitSpeed + (i / orbitCount) * Math.PI * 2;
+      const orbitR = baseR * 1.35;
+      const dx = tx + Math.cos(angle) * orbitR;
+      const dy = ty + Math.sin(angle) * (orbitR * 0.55); // squish vertically for 2.5D look
+      const dotSize = 2.5 - i * 0.1;
+      this.glowGfx.circle(dx, dy, dotSize);
+      this.glowGfx.fill({ color, alpha: 0.75 });
+      // Dot glow
+      this.glowGfx.circle(dx, dy, dotSize * 2.5);
+      this.glowGfx.fill({ color, alpha: 0.12 });
+    }
+
+    // Legendary: extra rotating tri-star
+    if (orbitCount === 6) {
+      for (let i = 0; i < 3; i++) {
+        const angle = now * 0.001 + (i / 3) * Math.PI * 2;
+        const sr = baseR * 1.6;
+        const sx = tx + Math.cos(angle) * sr;
+        const sy2 = ty + Math.sin(angle) * sr * 0.5;
+        this.glowGfx.circle(sx, sy2, 3.5);
+        this.glowGfx.fill({ color: 0xffffff, alpha: 0.45 });
+        this.glowGfx.circle(sx, sy2, 6);
+        this.glowGfx.fill({ color, alpha: 0.18 });
+      }
     }
   }
 

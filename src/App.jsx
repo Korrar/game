@@ -71,7 +71,7 @@ import IsoMinimap from "./components/IsoMinimap";
 import Chest, { CLICKS_TO_OPEN } from "./components/Chest";
 import RelicPicker from "./components/RelicPicker";
 import SlotMachine from "./components/SlotMachine";
-import { RELICS, RELIC_SYNERGIES } from "./data/relics";
+import { RELICS, RELIC_SYNERGIES, RELIC_RARITY_COLOR } from "./data/relics";
 import { getBossForRoom, getDungeonBoss } from "./data/bosses";
 import { generateDungeon, createDungeonBiome, DUNGEON_TYPES } from "./systems/DungeonGenerator.js";
 import { generateDungeonTerrain, transitionDungeonLevel, checkStairsProximity, checkDungeonCompletion, calculateDungeonRewards } from "./systems/DungeonState.js";
@@ -12216,12 +12216,31 @@ export default function App() {
 
       {/* Active Relics HUD – bottom-left, above spell bar on mobile */}
       {activeRelics.length > 0 && (
-        <div style={{ position: "absolute", bottom: isMobile ? 8 : 10, left: isMobile ? 4 : 10, zIndex: 50, display: "flex", gap: isMobile ? 3 : 6 }}>
-          {activeRelics.map(r => (
-            <div key={r.id} title={`${r.name}: ${r.desc}`} style={{ fontSize: isMobile ? 14 : 22, filter: "drop-shadow(0 0 6px rgba(160,80,220,0.5))" }}>
-              <Icon name={r.icon} size={isMobile ? 14 : 22} />
-            </div>
-          ))}
+        <div style={{ position: "absolute", bottom: isMobile ? 8 : 10, left: isMobile ? 4 : 10, zIndex: 50, display: "flex", gap: isMobile ? 3 : 5, flexWrap: "wrap", maxWidth: isMobile ? 160 : 300 }}>
+          {activeRelics.map(r => {
+            const rc = RELIC_RARITY_COLOR[r.rarity] || "#a050e0";
+            const isLeg = r.rarity === "legendary";
+            const isEpic = r.rarity === "epic";
+            return (
+              <div
+                key={r.id}
+                title={`${r.name}: ${r.desc}`}
+                style={{
+                  width: isMobile ? 22 : 30, height: isMobile ? 22 : 30,
+                  borderRadius: isLeg ? "50%" : 5,
+                  background: `radial-gradient(circle, ${rc}22 0%, rgba(0,0,0,0.7) 100%)`,
+                  border: `1px solid ${rc}${isLeg ? "cc" : "77"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  filter: `drop-shadow(0 0 ${isLeg ? 8 : isEpic ? 5 : 3}px ${rc}${isLeg ? "bb" : isEpic ? "88" : "55"})`,
+                  boxShadow: isLeg ? `0 0 10px ${rc}66` : undefined,
+                  animation: isLeg ? "legendaryRelicGlow 2s ease-in-out infinite alternate" : undefined,
+                  cursor: "default",
+                }}
+              >
+                <Icon name={r.icon} size={isMobile ? 13 : 18} />
+              </div>
+            );
+          })}
         </div>
       )}
 

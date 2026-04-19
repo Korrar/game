@@ -8,92 +8,150 @@ export const PANORAMA_WORLD_W = 3;  // multiplier of viewport width
 export function renderBiome(ctx, biome, room, W, H, isNight, panOffset = 0) {
   const GY = H * 0.25;
   const rng = seedRng(room * 137 + 42);
-  // Sky (full viewport, no pan — sky is always visible)
+
+  // ─── SKY ───
   const sky = ctx.createLinearGradient(0, 0, 0, GY);
-  sky.addColorStop(0, biome.skyTop); sky.addColorStop(1, biome.skyBot);
-  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, GY);
+  sky.addColorStop(0, biome.skyTop);
+  sky.addColorStop(0.6, biome.skyBot);
+  sky.addColorStop(1, biome.skyBot);
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, GY);
+
+  // Day: sun (not on night, volcano, underworld)
+  if (!isNight && biome.id !== "volcano" && biome.id !== "underworld" && biome.id !== "mushroom") {
+    const sx = W * (0.72 + rng() * 0.15), sy = GY * (0.12 + rng() * 0.1);
+    const sr = 18 + rng() * 8;
+    // Halo
+    const sunHalo = ctx.createRadialGradient(sx, sy, sr * 0.5, sx, sy, sr * 5);
+    sunHalo.addColorStop(0, "rgba(255,240,180,0.22)");
+    sunHalo.addColorStop(0.3, "rgba(255,220,120,0.10)");
+    sunHalo.addColorStop(1, "transparent");
+    ctx.fillStyle = sunHalo;
+    ctx.fillRect(sx - sr * 5, sy - sr * 5, sr * 10, sr * 10);
+    // Sun disk
+    const sunGrad = ctx.createRadialGradient(sx - sr * 0.2, sy - sr * 0.2, 0, sx, sy, sr);
+    sunGrad.addColorStop(0, "rgba(255,255,220,0.95)");
+    sunGrad.addColorStop(0.6, "rgba(255,220,100,0.88)");
+    sunGrad.addColorStop(1, "rgba(255,180,60,0.70)");
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+  }
 
   // Night sky overlay
   if (isNight) {
-    ctx.fillStyle = "rgba(0,0,12,0.65)";
+    ctx.fillStyle = "rgba(0,0,18,0.68)";
     ctx.fillRect(0, 0, W, GY);
-    // Stars
-    for (let i = 0; i < 80; i++) {
-      const sx = rng() * W, sy = rng() * GY * 0.92;
-      const size = 0.5 + rng() * 2;
-      ctx.fillStyle = `rgba(255,255,255,${0.3 + rng() * 0.6})`;
-      ctx.fillRect(sx, sy, size, size);
+
+    // Stars — varied sizes and brightness for depth
+    const starRng = seedRng(room * 313 + 77);
+    for (let i = 0; i < 120; i++) {
+      const sx = starRng() * W, sy = starRng() * GY * 0.92;
+      const size = starRng() * starRng() * 2.5 + 0.4; // squared rng = more small stars
+      const bright = 0.4 + starRng() * 0.6;
+      const hue = starRng() > 0.85 ? (starRng() > 0.5 ? "255,240,200" : "200,220,255") : "255,255,255";
+      ctx.fillStyle = `rgba(${hue},${bright})`;
+      if (size > 1.2) {
+        ctx.beginPath(); ctx.arc(sx, sy, size * 0.6, 0, Math.PI * 2); ctx.fill();
+        // Star cross-sparkle for bright stars
+        if (size > 1.8) {
+          ctx.strokeStyle = `rgba(${hue},${bright * 0.35})`;
+          ctx.lineWidth = size * 0.3;
+          ctx.beginPath(); ctx.moveTo(sx - size * 2, sy); ctx.lineTo(sx + size * 2, sy); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(sx, sy - size * 2); ctx.lineTo(sx, sy + size * 2); ctx.stroke();
+        }
+      } else {
+        ctx.fillRect(sx, sy, size, size);
+      }
     }
-    // Moon
-    const mx = W * 0.82, my = GY * 0.18, mr = 22;
-    ctx.fillStyle = "rgba(255,255,220,0.85)";
+
+    // Moon with detail
+    const mx = W * 0.80, my = GY * 0.20, mr = 26;
+    // Outer glow
+    const moonGlow = ctx.createRadialGradient(mx, my, mr, mx, my, mr * 5.5);
+    moonGlow.addColorStop(0, "rgba(210,230,255,0.16)");
+    moonGlow.addColorStop(0.4, "rgba(180,210,255,0.07)");
+    moonGlow.addColorStop(1, "transparent");
+    ctx.fillStyle = moonGlow;
+    ctx.fillRect(mx - mr * 6, my - mr * 6, mr * 12, mr * 12);
+    // Moon disk gradient
+    const moonGrad = ctx.createRadialGradient(mx - mr * 0.25, my - mr * 0.2, 0, mx, my, mr);
+    moonGrad.addColorStop(0, "rgba(255,255,235,0.96)");
+    moonGrad.addColorStop(0.5, "rgba(240,245,220,0.92)");
+    moonGrad.addColorStop(1, "rgba(210,220,200,0.85)");
+    ctx.fillStyle = moonGrad;
     ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill();
-    // Moon craters
-    ctx.fillStyle = "rgba(200,200,180,0.3)";
-    ctx.beginPath(); ctx.arc(mx - 5, my - 4, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(mx + 7, my + 3, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(mx - 2, my + 8, 4, 0, Math.PI * 2); ctx.fill();
-    // Moon glow
-    const glowG = ctx.createRadialGradient(mx, my, mr, mx, my, mr * 4);
-    glowG.addColorStop(0, "rgba(200,220,255,0.12)");
-    glowG.addColorStop(1, "transparent");
-    ctx.fillStyle = glowG;
-    ctx.fillRect(mx - mr * 4, my - mr * 4, mr * 8, mr * 8);
+    // Moon craters with soft shadows
+    const craters = [[mx - 6, my - 4, 5.5], [mx + 8, my + 4, 3.5], [mx - 2, my + 9, 4.5], [mx + 3, my - 8, 2.5]];
+    for (const [cx, cy, cr] of craters) {
+      ctx.fillStyle = "rgba(180,185,165,0.25)";
+      ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(150,155,135,0.15)";
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.stroke();
+    }
   }
 
-  // Ground
+  // ─── DISTANT HORIZON HILLS (parallax layer 1 — slowest) ───
+  // Shifted at half the pan rate for depth illusion
+  const hillOffset = (panOffset * 0.25) % W;
+  _drawHorizonHills(ctx, biome, W, GY, hillOffset, rng, isNight);
+
+  // ─── GROUND ───
   const gnd = ctx.createLinearGradient(0, GY, 0, H);
-  gnd.addColorStop(0, biome.groundCol); gnd.addColorStop(1, biome.groundBot);
-  ctx.fillStyle = gnd; ctx.fillRect(0, GY, W, H - GY);
+  gnd.addColorStop(0, biome.groundCol);
+  gnd.addColorStop(0.5, biome.groundBot || biome.groundCol);
+  gnd.addColorStop(1, biome.groundBot || biome.groundCol);
+  ctx.fillStyle = gnd;
+  ctx.fillRect(0, GY, W, H - GY);
 
-  // 2.5D: atmospheric depth haze on ground (horizon is hazier)
-  const haze = ctx.createLinearGradient(0, GY, 0, GY + (H - GY) * 0.5);
-  haze.addColorStop(0, "rgba(180,190,210,0.25)");
-  haze.addColorStop(1, "rgba(180,190,210,0)");
-  ctx.fillStyle = haze; ctx.fillRect(0, GY, W, (H - GY) * 0.5);
-
-  // 2.5D: color desaturation band near horizon — washes out colors at distance
-  const desat = ctx.createLinearGradient(0, GY, 0, GY + (H - GY) * 0.35);
-  desat.addColorStop(0, `rgba(200,200,210,${DEPTH_CONFIG.desatMax})`);
-  desat.addColorStop(1, "rgba(200,200,210,0)");
-  ctx.fillStyle = desat; ctx.fillRect(0, GY, W, (H - GY) * 0.35);
-
-  // 2.5D: depth lines — subtle horizontal lines that reinforce perspective
-  ctx.strokeStyle = "rgba(0,0,0,0.03)";
+  // Ground texture band — subtle noise lines
+  ctx.strokeStyle = "rgba(0,0,0,0.04)";
   ctx.lineWidth = 1;
   const groundH = H - GY;
-  for (let i = 0; i < 6; i++) {
-    const t = i / 6;
-    const ly = GY + t * groundH * 0.7;
+  for (let i = 0; i < 8; i++) {
+    const t = i / 8;
+    const ly = GY + t * groundH * 0.75;
+    ctx.globalAlpha = 1 - t * 0.5;
     ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(W, ly); ctx.stroke();
   }
+  ctx.globalAlpha = 1;
+
+  // 2.5D: atmospheric depth haze
+  const haze = ctx.createLinearGradient(0, GY, 0, GY + groundH * 0.5);
+  haze.addColorStop(0, "rgba(180,190,210,0.28)");
+  haze.addColorStop(1, "rgba(180,190,210,0)");
+  ctx.fillStyle = haze;
+  ctx.fillRect(0, GY, W, groundH * 0.5);
+
+  // Desaturation band near horizon
+  const desat = ctx.createLinearGradient(0, GY, 0, GY + groundH * 0.38);
+  desat.addColorStop(0, `rgba(200,200,210,${DEPTH_CONFIG.desatMax})`);
+  desat.addColorStop(1, "rgba(200,200,210,0)");
+  ctx.fillStyle = desat;
+  ctx.fillRect(0, GY, W, groundH * 0.38);
 
   // Night ground darkening
   if (isNight) {
-    ctx.fillStyle = "rgba(0,0,12,0.35)";
+    ctx.fillStyle = "rgba(0,0,18,0.38)";
     ctx.fillRect(0, GY, W, H - GY);
   }
 
-  // Biome-specific + scatter: render in panoramic world space with wrapping
-  // We draw the content 3x shifted to create seamless wrap, clipped to viewport
+  // ─── BIOME-SPECIFIC CONTENT (panoramic, parallax layer 2) ───
   const fns = { jungle: drawJungle, island: drawIsland, desert: drawDesert, winter: drawWinter, city: drawCity, volcano: drawVolcano, summer: drawSummer, autumn: drawAutumn, spring: drawSpring, mushroom: drawMushroom, swamp: drawSwamp, sunset_beach: drawSunsetBeach, bamboo_falls: drawBambooFalls, blue_lagoon: drawBlueLagoon, olympus: drawOlympus, underworld: drawUnderworld };
   const drawFn = fns[biome.renderFn];
   const panWorldW = W * PANORAMA_WORLD_W;
-  // Normalize panOffset into [0, panWorldW)
   const normOff = ((panOffset % panWorldW) + panWorldW) % panWorldW;
 
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, W, H);
   ctx.clip();
-  // Draw biome content at shifted positions for seamless wrapping
   for (let shift = -1; shift <= 1; shift++) {
     const tx = -normOff + shift * panWorldW;
-    // Only draw if this copy overlaps the viewport
     if (tx + panWorldW < -10 || tx > W + 10) continue;
     ctx.save();
     ctx.translate(tx, 0);
-    const shiftRng = seedRng(room * 137 + 42); // re-seed per copy so content is identical
+    const shiftRng = seedRng(room * 137 + 42);
     if (drawFn) drawFn(ctx, panWorldW, H, GY, shiftRng);
     drawScatter(ctx, panWorldW, H, GY, shiftRng, biome.scatter);
     ctx.restore();
@@ -101,12 +159,63 @@ export function renderBiome(ctx, biome, room, W, H, isNight, panOffset = 0) {
   ctx.restore();
 
   // Fog
-  ctx.fillStyle = biome.fogCol; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = biome.fogCol;
+  ctx.fillRect(0, 0, W, H);
 
-  // Night general atmosphere
+  // Night atmosphere
   if (isNight) {
-    ctx.fillStyle = "rgba(5,5,20,0.15)";
+    ctx.fillStyle = "rgba(5,5,20,0.14)";
     ctx.fillRect(0, 0, W, H);
+  }
+}
+
+// Distant horizon hills — parallax layer between sky and ground
+function _drawHorizonHills(ctx, biome, W, GY, panOffset, rng, isNight) {
+  const id = biome.id || "";
+  // Per-biome hill colors
+  let hillColor1, hillColor2;
+  if (id === "jungle")         { hillColor1 = "rgba(20,55,18,0.55)"; hillColor2 = "rgba(15,45,12,0.45)"; }
+  else if (id === "desert")    { hillColor1 = "rgba(160,120,60,0.45)"; hillColor2 = "rgba(140,100,50,0.35)"; }
+  else if (id === "winter")    { hillColor1 = "rgba(180,200,220,0.50)"; hillColor2 = "rgba(160,185,210,0.38)"; }
+  else if (id === "volcano")   { hillColor1 = "rgba(80,30,15,0.55)"; hillColor2 = "rgba(60,20,8,0.42)"; }
+  else if (id === "city")      { hillColor1 = "rgba(60,50,40,0.45)"; hillColor2 = "rgba(45,38,30,0.35)"; }
+  else if (id === "mushroom")  { hillColor1 = "rgba(40,20,60,0.55)"; hillColor2 = "rgba(30,12,50,0.42)"; }
+  else if (id === "underworld"){ hillColor1 = "rgba(30,10,10,0.65)"; hillColor2 = "rgba(20,5,5,0.50)"; }
+  else if (id === "autumn")    { hillColor1 = "rgba(90,55,20,0.45)"; hillColor2 = "rgba(70,42,15,0.35)"; }
+  else if (id === "island" || id === "blue_lagoon") { hillColor1 = "rgba(20,80,50,0.40)"; hillColor2 = "rgba(15,65,40,0.30)"; }
+  else                         { hillColor1 = "rgba(40,60,35,0.42)"; hillColor2 = "rgba(30,48,28,0.32)"; }
+
+  // Night: reduce hill opacity so they blend with dark sky
+  const nightAlphaMult = isNight ? 0.55 : 1;
+
+  // Draw 2 parallax hill layers using seeded sine waves
+  const hillRng = seedRng(42);
+  for (let layer = 0; layer < 2; layer++) {
+    const layerY = GY - (layer === 0 ? 2 : 8); // back layer slightly higher
+    const amplitude = layer === 0 ? GY * 0.12 : GY * 0.18;
+    const freq = layer === 0 ? 0.0035 : 0.0055;
+    const layerOffset = panOffset * (layer === 0 ? 0.4 : 0.65);
+    const color = layer === 0 ? hillColor2 : hillColor1;
+
+    ctx.globalAlpha = nightAlphaMult;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(-10, layerY);
+    for (let x = -10; x <= W + 10; x += 4) {
+      const wx = x + layerOffset;
+      const y = layerY - amplitude * (
+        0.5 + 0.3 * Math.sin(wx * freq + layer * 1.8) +
+        0.2 * Math.sin(wx * freq * 2.3 + layer * 0.9 + 1.2) +
+        0.15 * Math.sin(wx * freq * 0.55 + layer * 2.1 + 2.5)
+      );
+      if (x === -10) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W + 10, GY + 5);
+    ctx.lineTo(-10, GY + 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 }
 
