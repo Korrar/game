@@ -1553,24 +1553,71 @@ export class BiomeAnimator {
 
   _updateBird(p) {
     p.x += p.speedX;
-    p.y += Math.sin(p.age * 0.018 + p.phase) * 0.25;
-    p.wingPhase += 0.13;
-    if (p.x > this.W + 40 || p.x < -40) { p.alive = false; return; }
+    p.y += Math.sin(p.age * 0.018 + p.phase) * 0.3;
+    p.wingPhase += 0.14;
+    if (p.x > this.W + 60 || p.x < -60) { p.alive = false; return; }
 
     const { ctx } = this;
-    const wingY = Math.sin(p.wingPhase) * p.size * 0.7;
+    const wingBeat = Math.sin(p.wingPhase);
+    const wingY = wingBeat * p.size * 0.8;
     const dir = p.speedX > 0 ? 1 : -1;
+    const fade = Math.min(1, p.age / 20) * Math.max(0, 1 - (p.age - p.maxAge + 40) / 40);
 
-    ctx.strokeStyle = this.isNight ? "rgba(160,160,180,0.5)" : "rgba(30,25,15,0.6)";
-    ctx.lineWidth = 1.5;
+    // Biome-aware bird color
+    const bid = this.biome.id;
+    let bodyR = 30, bodyG = 25, bodyB = 15;
+    if (bid === "spring" || bid === "jungle") { bodyR = 20; bodyG = 80; bodyB = 20; }
+    else if (bid === "island" || bid === "blue_lagoon") { bodyR = 220; bodyG = 100; bodyB = 20; }
+    else if (bid === "winter") { bodyR = 200; bodyG = 200; bodyB = 210; }
+    const bodyAlpha = (this.isNight ? 0.45 : 0.65) * fade;
+    const wingAlpha = (this.isNight ? 0.35 : 0.55) * fade;
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+
+    // Left wing
+    ctx.strokeStyle = `rgba(${bodyR},${bodyG},${bodyB},${wingAlpha})`;
+    ctx.lineWidth = p.size * 0.28;
+    ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(p.x - p.size * 1.2 * dir, p.y + wingY);
-    ctx.quadraticCurveTo(p.x - p.size * 0.4 * dir, p.y + wingY * 0.3, p.x, p.y);
-    ctx.quadraticCurveTo(p.x + p.size * 0.4 * dir, p.y + wingY * 0.3, p.x + p.size * 1.2 * dir, p.y + wingY);
+    ctx.moveTo(-p.size * 0.05 * dir, 0);
+    ctx.quadraticCurveTo(-p.size * 0.6 * dir, wingY * 0.5, -p.size * 1.4 * dir, wingY);
     ctx.stroke();
-    // Body dot
-    ctx.fillStyle = this.isNight ? "rgba(140,140,160,0.6)" : "rgba(30,25,15,0.7)";
-    ctx.beginPath(); ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2); ctx.fill();
+
+    // Right wing (opposite phase — birds have slight asymmetry in motion)
+    ctx.beginPath();
+    ctx.moveTo(p.size * 0.05 * dir, 0);
+    ctx.quadraticCurveTo(p.size * 0.6 * dir, wingY * 0.45, p.size * 1.3 * dir, wingY * 0.9);
+    ctx.stroke();
+
+    // Body ellipse
+    ctx.fillStyle = `rgba(${bodyR},${bodyG},${bodyB},${bodyAlpha})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.size * 0.55, p.size * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(p.size * 0.42 * dir, -p.size * 0.08, p.size * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Beak
+    ctx.strokeStyle = `rgba(${Math.min(255,bodyR+60)},${Math.min(255,bodyG+40)},20,${bodyAlpha})`;
+    ctx.lineWidth = p.size * 0.18;
+    ctx.beginPath();
+    ctx.moveTo(p.size * 0.7 * dir, -p.size * 0.08);
+    ctx.lineTo(p.size * 1.05 * dir, -p.size * 0.04);
+    ctx.stroke();
+
+    // Tail feather
+    ctx.strokeStyle = `rgba(${bodyR},${bodyG},${bodyB},${wingAlpha * 0.8})`;
+    ctx.lineWidth = p.size * 0.22;
+    ctx.beginPath();
+    ctx.moveTo(-p.size * 0.45 * dir, p.size * 0.05);
+    ctx.lineTo(-p.size * 0.9 * dir, p.size * 0.18);
+    ctx.stroke();
+
+    ctx.restore();
   }
 
   // ─── SHOOTING STARS ───
@@ -2034,25 +2081,64 @@ export class BiomeAnimator {
 
   _updateSeagull(p) {
     p.angle += p.speed;
-    p.wingPhase += 0.08;
-    p.centerX += 0.15; // drift right
+    p.wingPhase += 0.09;
+    p.centerX += 0.18;
     p.x = p.centerX + Math.cos(p.angle) * p.radius;
-    p.y = p.centerY + Math.sin(p.angle) * p.radius * 0.4;
+    p.y = p.centerY + Math.sin(p.angle) * p.radius * 0.38;
     const fade = Math.min(1, p.age / 40) * Math.max(0, 1 - (p.age - p.maxAge + 60) / 60);
     if (p.age > p.maxAge) { p.alive = false; return; }
 
     const { ctx } = this;
-    const wing = Math.sin(p.wingPhase) * p.size * 0.6;
-    ctx.strokeStyle = `rgba(220,220,220,${0.5 * Math.min(1, fade)})`;
-    ctx.lineWidth = 1.2;
+    const wingBeat = Math.sin(p.wingPhase);
+    const wing = wingBeat * p.size * 0.7;
+    const dir = Math.cos(p.angle) >= 0 ? 1 : -1;
+    const a = 0.5 * fade;
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+
+    // Wings — classic M shape with wingtip accent
+    ctx.strokeStyle = `rgba(220,218,215,${a})`;
+    ctx.lineWidth = p.size * 0.3;
+    ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(p.x - p.size, p.y + wing);
-    ctx.quadraticCurveTo(p.x - p.size * 0.3, p.y - wing * 0.5, p.x, p.y);
-    ctx.quadraticCurveTo(p.x + p.size * 0.3, p.y - wing * 0.5, p.x + p.size, p.y + wing);
+    ctx.moveTo(-p.size * 1.25, wing);
+    ctx.quadraticCurveTo(-p.size * 0.4, wing * 0.2, 0, 0);
+    ctx.quadraticCurveTo(p.size * 0.4, wing * 0.2, p.size * 1.25, wing);
     ctx.stroke();
-    // Body dot
-    ctx.fillStyle = `rgba(240,240,240,${0.4 * Math.min(1, fade)})`;
-    ctx.beginPath(); ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2); ctx.fill();
+
+    // Dark wingtips
+    ctx.strokeStyle = `rgba(100,100,100,${a * 0.6})`;
+    ctx.lineWidth = p.size * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(-p.size * 1.0, wing * 0.9);
+    ctx.lineTo(-p.size * 1.3, wing * 1.05);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(p.size * 1.0, wing * 0.9);
+    ctx.lineTo(p.size * 1.3, wing * 1.05);
+    ctx.stroke();
+
+    // White body
+    ctx.fillStyle = `rgba(240,240,238,${a * 0.85})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.size * 0.55, p.size * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(p.size * 0.38 * dir, -p.size * 0.05, p.size * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Yellow beak
+    ctx.strokeStyle = `rgba(220,180,30,${a})`;
+    ctx.lineWidth = p.size * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(p.size * 0.62 * dir, -p.size * 0.04);
+    ctx.lineTo(p.size * 0.95 * dir, 0);
+    ctx.stroke();
+
+    ctx.restore();
   }
 
   // ─── DOLPHINS (jumping arcs) ───
@@ -2398,35 +2484,73 @@ export class BiomeAnimator {
     if (p.phase > Math.PI) { p.alive = false; return; }
     const jumpY = Math.sin(p.phase) * p.jumpHeight;
     p.y = p.waterY - jumpY;
-    p.x += p.direction * 0.5;
+    p.x += p.direction * 0.6;
     const { ctx } = this;
-    const alpha = Math.sin(p.phase) * 0.7;
-    const angle = Math.atan2(-Math.cos(p.phase) * p.jumpHeight * 0.05, p.direction);
+    const alpha = Math.sin(p.phase) * 0.75;
+    // Angle follows the jump arc
+    const angle = Math.atan2(-Math.cos(p.phase) * p.jumpHeight * 0.055, p.jumpHeight * 0.35);
+    const tailWag = Math.sin(p.phase * 8) * 0.18; // tail waggle during jump
+
     ctx.save();
     ctx.translate(p.x, p.y);
-    ctx.rotate(angle);
+    ctx.rotate(angle * p.direction);
     ctx.scale(p.direction, 1);
-    // Fish body
+
+    // Body
     ctx.fillStyle = p.color + alpha + ")";
     ctx.beginPath();
-    ctx.ellipse(0, 0, p.size * 1.3, p.size * 0.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, p.size * 1.35, p.size * 0.52, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Tail
+
+    // Shimmer highlight on body
+    const shimmer = ctx.createLinearGradient(-p.size, -p.size * 0.5, p.size * 0.5, p.size * 0.5);
+    shimmer.addColorStop(0, `rgba(255,255,255,${alpha * 0.35})`);
+    shimmer.addColorStop(0.4, `rgba(255,255,255,0)`);
+    ctx.fillStyle = shimmer;
     ctx.beginPath();
-    ctx.moveTo(-p.size * 1.1, 0);
-    ctx.lineTo(-p.size * 2, -p.size * 0.5);
-    ctx.lineTo(-p.size * 2, p.size * 0.5);
-    ctx.closePath(); ctx.fill();
-    // Eye
-    ctx.fillStyle = `rgba(20,20,20,${alpha})`;
-    ctx.beginPath(); ctx.arc(p.size * 0.6, -p.size * 0.15, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.ellipse(0, -p.size * 0.08, p.size * 1.0, p.size * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tail (wagging)
+    ctx.save();
+    ctx.translate(-p.size * 1.1, 0);
+    ctx.rotate(tailWag);
+    ctx.fillStyle = p.color + (alpha * 0.85) + ")";
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-p.size * 0.95, -p.size * 0.55);
+    ctx.lineTo(-p.size * 0.85, 0);
+    ctx.lineTo(-p.size * 0.95, p.size * 0.55);
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
-    // Splash at entry/exit
-    if (p.phase < 0.25 || p.phase > Math.PI - 0.25) {
-      ctx.fillStyle = `rgba(160,210,230,${0.2 * alpha})`;
-      for (let i = 0; i < 3; i++) {
+
+    // Dorsal fin
+    ctx.fillStyle = p.color + (alpha * 0.7) + ")";
+    ctx.beginPath();
+    ctx.moveTo(-p.size * 0.2, -p.size * 0.5);
+    ctx.lineTo(p.size * 0.5, -p.size * 0.52);
+    ctx.lineTo(p.size * 0.3, -p.size * 0.2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Eye with white
+    ctx.fillStyle = `rgba(240,240,240,${alpha})`;
+    ctx.beginPath(); ctx.arc(p.size * 0.65, -p.size * 0.12, p.size * 0.22, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(20,20,20,${alpha})`;
+    ctx.beginPath(); ctx.arc(p.size * 0.7, -p.size * 0.12, p.size * 0.12, 0, Math.PI * 2); ctx.fill();
+
+    ctx.restore();
+
+    // Water splash at entry/exit
+    if (p.phase < 0.28 || p.phase > Math.PI - 0.28) {
+      const splashAlpha = 0.3 * alpha;
+      ctx.fillStyle = `rgba(180,225,245,${splashAlpha})`;
+      for (let i = 0; i < 5; i++) {
+        const sx = p.x + (Math.random() - 0.5) * p.size * 4;
+        const sy = p.waterY - Math.random() * p.size * 2;
         ctx.beginPath();
-        ctx.arc(p.x + (Math.random() - 0.5) * p.size * 3, p.waterY + Math.random() * 3, 1 + Math.random(), 0, Math.PI * 2);
+        ctx.arc(sx, sy, 1.2 + Math.random() * 1.8, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -3649,25 +3773,77 @@ export class BiomeAnimator {
     });
   }
   _updateBat(p) {
-    p.wingPhase += 0.22;
+    p.wingPhase += 0.24;
     p.wx += p.vx;
-    p.wy += p.vy + Math.sin(p.wingPhase * 0.38) * 0.012;
-    if (Math.random() < 0.02) {
-      p.vx += (Math.random() - 0.5) * 0.05; p.vy += (Math.random() - 0.5) * 0.026;
+    p.wy += p.vy + Math.sin(p.wingPhase * 0.35) * 0.014;
+    if (Math.random() < 0.018) {
+      p.vx += (Math.random() - 0.5) * 0.055; p.vy += (Math.random() - 0.5) * 0.028;
     }
-    p.vx = Math.max(-0.1, Math.min(0.1, p.vx)); p.vy = Math.max(-0.05, Math.min(0.05, p.vy));
+    p.vx = Math.max(-0.11, Math.min(0.11, p.vx)); p.vy = Math.max(-0.055, Math.min(0.055, p.vy));
     if (!this._onScreenWide(p.wx, p.wy)) { p.alive = false; return; }
     const fade = p.age < 20 ? p.age / 20 : p.age > (p.maxAge - 60) ? (p.maxAge - p.age) / 60 : 1;
     const { x, y } = this._w2s(p.wx, p.wy);
     const { ctx } = this;
-    const wing = Math.abs(Math.sin(p.wingPhase));
+    const wingBeat = Math.sin(p.wingPhase);
+    const wing = Math.abs(wingBeat);
     const s = p.size;
-    ctx.save(); ctx.translate(x, y);
-    ctx.fillStyle = `hsla(${p.hue},22%,12%,${0.46 * fade})`;
-    ctx.beginPath(); ctx.ellipse(-s * 0.6 - s * wing * 0.65, 0, s * (0.6 + wing * 0.85), s * 0.42, -0.3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(s * 0.6 + s * wing * 0.65, 0, s * (0.6 + wing * 0.85), s * 0.42, 0.3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = `hsla(${p.hue},18%,8%,${0.56 * fade})`;
-    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.5, s * 0.82, 0, 0, Math.PI * 2); ctx.fill();
+    const dir = p.vx >= 0 ? 1 : -1;
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Wings — shaped membranes with tapered tips
+    const wingSpread = s * (0.7 + wing * 0.9);
+    const wingDip = wingBeat * s * 0.55;
+
+    ctx.fillStyle = `hsla(${p.hue},28%,10%,${0.50 * fade})`;
+    // Left wing
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-wingSpread * 0.5, wingDip * 0.5, -wingSpread, wingDip);
+    ctx.quadraticCurveTo(-wingSpread * 0.8, wingDip + s * 0.3, -wingSpread * 0.3, s * 0.2);
+    ctx.closePath();
+    ctx.fill();
+    // Right wing
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(wingSpread * 0.5, wingDip * 0.5, wingSpread, wingDip);
+    ctx.quadraticCurveTo(wingSpread * 0.8, wingDip + s * 0.3, wingSpread * 0.3, s * 0.2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Body
+    ctx.fillStyle = `hsla(${p.hue},20%,8%,${0.62 * fade})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.48, s * 0.82, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(dir * s * 0.1, -s * 0.6, s * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ears
+    ctx.fillStyle = `hsla(${p.hue},25%,15%,${0.55 * fade})`;
+    ctx.beginPath();
+    ctx.moveTo(dir * s * 0.0, -s * 0.85);
+    ctx.lineTo(dir * s * 0.25, -s * 1.22);
+    ctx.lineTo(dir * s * 0.42, -s * 0.82);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-dir * s * 0.18, -s * 0.82);
+    ctx.lineTo(-dir * s * 0.35, -s * 1.18);
+    ctx.lineTo(-dir * s * 0.1, -s * 0.75);
+    ctx.closePath();
+    ctx.fill();
+
+    // Tiny eye gleam
+    ctx.fillStyle = `rgba(255,80,80,${0.45 * fade})`;
+    ctx.beginPath();
+    ctx.arc(dir * s * 0.18, -s * 0.62, s * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
   }
 

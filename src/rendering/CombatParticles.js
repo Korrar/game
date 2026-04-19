@@ -8,6 +8,19 @@ import { worldToScreen, ISO_CONFIG } from "../utils/isometricUtils.js";
 const _isMobile = ("ontouchstart" in window || navigator.maxTouchPoints > 0) && window.innerWidth < 900;
 const MAX_PARTICLES = _isMobile ? 100 : 250;
 
+// Multi-layer bloom config per element — drives the glow intensity and spread
+const GLOW_CONFIG = {
+  fire:      { outerScale: 3.5, outerAlpha: 0.12, midScale: 1.9, midAlpha: 0.22, hotCore: true },
+  lightning: { outerScale: 4.2, outerAlpha: 0.20, midScale: 2.1, midAlpha: 0.28, hotCore: true },
+  ice:       { outerScale: 3.0, outerAlpha: 0.10, midScale: 1.7, midAlpha: 0.16, hotCore: false },
+  shadow:    { outerScale: 3.8, outerAlpha: 0.16, midScale: 2.1, midAlpha: 0.22, hotCore: false },
+  holy:      { outerScale: 4.5, outerAlpha: 0.22, midScale: 2.2, midAlpha: 0.32, hotCore: true },
+  gold:      { outerScale: 4.0, outerAlpha: 0.22, midScale: 2.0, midAlpha: 0.32, hotCore: true },
+  crystal:   { outerScale: 3.5, outerAlpha: 0.16, midScale: 1.9, midAlpha: 0.24, hotCore: false },
+  poison:    { outerScale: 3.2, outerAlpha: 0.14, midScale: 1.8, midAlpha: 0.20, hotCore: false },
+  default:   { outerScale: 2.2, outerAlpha: 0.08, midScale: 1.5, midAlpha: 0.12, hotCore: false },
+};
+
 export class CombatParticles {
   constructor(layer) {
     this.layer = layer;
@@ -37,6 +50,10 @@ export class CombatParticles {
         gravity: config.gravity || 0,
         shrink: config.shrink !== false,
         type: config.type || "circle",
+        glowType: config.glowType || "default",
+        colorHot: config.colorHot || null, // if set, lerp color from colorHot (start) to color (end)
+        rotation: config.rotation || 0,
+        rotSpeed: config.rotSpeed || 0,
       });
     }
   }
@@ -50,6 +67,7 @@ export class CombatParticles {
       size: 2 + Math.random() * 2,
       color: 0xcc2020,
       gravity: 0.25,
+      glowType: "default",
     });
   }
 
@@ -59,17 +77,21 @@ export class CombatParticles {
       vy: () => -(Math.random() * 4 + 2),
       life: 20 + Math.random() * 10,
       size: 3 + Math.random() * 2,
-      color: 0xff8c28,
+      color: 0xff6820,
+      colorHot: 0xfff0a0, // starts white-yellow, fades to orange
       gravity: -0.08,
+      glowType: "fire",
     });
-    // Inner white-hot
-    this._emit(this._c(3), x, y, {
+    // Inner white-hot core
+    this._emit(this._c(4), x, y, {
       vx: () => (Math.random() - 0.5) * 2,
       vy: () => -(Math.random() * 3 + 1),
-      life: 12,
-      size: 2,
-      color: 0xffe0a0,
+      life: 14,
+      size: 2.5,
+      color: 0xfff0d0,
       gravity: -0.05,
+      glowType: "fire",
+      colorHot: 0xffffff,
     });
   }
 
@@ -82,6 +104,8 @@ export class CombatParticles {
       color: 0x80d0ff,
       gravity: 0.12,
       type: "diamond",
+      glowType: "ice",
+      rotSpeed: (Math.random() - 0.5) * 0.15,
     });
   }
 
@@ -93,6 +117,7 @@ export class CombatParticles {
       size: 4 + Math.random() * 3,
       color: 0x6428b4,
       gravity: -0.03,
+      glowType: "shadow",
     });
   }
 
@@ -104,6 +129,7 @@ export class CombatParticles {
       size: 2 + Math.random() * 2,
       color: 0xffe080,
       gravity: -0.06,
+      glowType: "holy",
     });
     // Central flash
     this._emit(this._c(4), x, y, {
@@ -112,6 +138,7 @@ export class CombatParticles {
       life: 8,
       size: 8,
       color: 0xffffff,
+      glowType: "holy",
     });
   }
 
@@ -121,8 +148,9 @@ export class CombatParticles {
       vy: () => -(Math.random() * 4 + 1),
       life: 12 + Math.random() * 8,
       size: 1.5 + Math.random(),
-      color: 0xe0c060,
+      color: 0xffe060,
       gravity: 0.2,
+      glowType: "lightning",
     });
   }
 
@@ -133,7 +161,9 @@ export class CombatParticles {
       life: 18 + Math.random() * 8,
       size: 3 + Math.random() * 3,
       color: 0xff6428,
+      colorHot: 0xffd080,
       gravity: -0.05,
+      glowType: "fire",
     });
   }
 
@@ -145,6 +175,7 @@ export class CombatParticles {
       size: 4 + Math.random() * 3,
       color: 0x40b430,
       gravity: -0.02,
+      glowType: "poison",
     });
   }
 
@@ -157,7 +188,9 @@ export class CombatParticles {
       life: 50 + Math.random() * 20,
       size: 5 + Math.random() * 3,
       color: 0xffd700,
+      colorHot: 0xffffa0,
       gravity: 0.14,
+      glowType: "gold",
     });
     // Bright white-gold sparkles
     this._emit(this._c(Math.round(14 * intensity)), x, y, {
@@ -167,6 +200,9 @@ export class CombatParticles {
       size: 3 + Math.random() * 2,
       color: 0xfff8c0,
       gravity: 0.10,
+      glowType: "gold",
+      type: "diamond",
+      rotSpeed: (Math.random() - 0.5) * 0.2,
     });
     // Copper-colored coins
     this._emit(this._c(Math.round(10 * intensity)), x, y, {
@@ -176,6 +212,7 @@ export class CombatParticles {
       size: 4 + Math.random() * 2,
       color: 0xd4a030,
       gravity: 0.16,
+      glowType: "gold",
     });
     // Tiny glitter dust
     this._emit(this._c(Math.round(8 * intensity)), x, y, {
@@ -185,12 +222,12 @@ export class CombatParticles {
       size: 1.5 + Math.random(),
       color: 0xffffff,
       gravity: 0.05,
+      glowType: "gold",
     });
   }
 
   // Blood slash — saber cut blood spray
   spawnSlashBlood(x, y, dirX, intensity = 1) {
-    // Dark blood droplets spraying to the side
     const count = this._c(Math.round(20 * intensity));
     this._emit(count, x, y, {
       vx: () => dirX * (Math.random() * 6 + 3) + (Math.random() - 0.5) * 4,
@@ -199,6 +236,7 @@ export class CombatParticles {
       size: 2.5 + Math.random() * 2.5,
       color: 0xaa1818,
       gravity: 0.28,
+      glowType: "default",
     });
     // Bright red mist
     this._emit(this._c(Math.round(8 * intensity)), x, y, {
@@ -208,12 +246,12 @@ export class CombatParticles {
       size: 4 + Math.random() * 3,
       color: 0xff3030,
       gravity: -0.02,
+      glowType: "default",
     });
   }
 
   // Critical saber hit — massive slash spray in two halves
   spawnCritSlash(x, y, dirX) {
-    // Upward half
     this._emit(this._c(18), x, y, {
       vx: () => dirX * (Math.random() * 5 + 1) + (Math.random() - 0.5) * 6,
       vy: () => -(Math.random() * 9 + 4),
@@ -221,8 +259,8 @@ export class CombatParticles {
       size: 3 + Math.random() * 3,
       color: 0xcc1010,
       gravity: 0.22,
+      glowType: "default",
     });
-    // Downward half
     this._emit(this._c(14), x, y, {
       vx: () => dirX * (Math.random() * 4 + 1) + (Math.random() - 0.5) * 5,
       vy: () => (Math.random() * 5 + 2),
@@ -230,20 +268,31 @@ export class CombatParticles {
       size: 2.5 + Math.random() * 2.5,
       color: 0x881010,
       gravity: 0.18,
+      glowType: "default",
     });
-    // White flash at impact
+    // White flash at impact with glow
     this._emit(this._c(5), x, y, {
       vx: () => (Math.random() - 0.5) * 2,
       vy: () => (Math.random() - 0.5) * 2,
-      life: 6,
+      life: 8,
       size: 8,
       color: 0xffffff,
+      glowType: "holy",
+    });
+    // Golden sparks on crit
+    this._emit(this._c(8), x, y, {
+      vx: () => (Math.random() - 0.5) * 8,
+      vy: () => -(Math.random() * 5 + 2),
+      life: 16 + Math.random() * 8,
+      size: 2 + Math.random() * 1.5,
+      color: 0xffe040,
+      gravity: 0.18,
+      glowType: "lightning",
     });
   }
 
   // Gore explosion — spectacular body parts + blood for explosive kills
   spawnGoreExplosion(x, y) {
-    // Massive blood fountain
     this._emit(this._c(35), x, y, {
       vx: () => (Math.random() - 0.5) * 14,
       vy: () => -(Math.random() * 12 + 4),
@@ -251,8 +300,9 @@ export class CombatParticles {
       size: 3 + Math.random() * 3,
       color: 0xcc1818,
       gravity: 0.20,
+      glowType: "default",
     });
-    // Bone/body chunks (light beige diamonds)
+    // Bone/body chunks
     this._emit(this._c(12), x, y, {
       vx: () => (Math.random() - 0.5) * 12,
       vy: () => -(Math.random() * 10 + 5),
@@ -261,6 +311,7 @@ export class CombatParticles {
       color: 0xd0b088,
       gravity: 0.22,
       type: "diamond",
+      rotSpeed: (Math.random() - 0.5) * 0.1,
     });
     // Dark gore chunks
     this._emit(this._c(10), x, y, {
@@ -270,15 +321,18 @@ export class CombatParticles {
       size: 4 + Math.random() * 4,
       color: 0x661010,
       gravity: 0.25,
+      glowType: "default",
     });
-    // Hot fire flash (from explosion)
+    // Hot fire flash
     this._emit(this._c(10), x, y, {
       vx: () => (Math.random() - 0.5) * 8,
       vy: () => -(Math.random() * 6 + 2),
       life: 14 + Math.random() * 8,
       size: 5 + Math.random() * 4,
       color: 0xff8020,
+      colorHot: 0xffee80,
       gravity: -0.06,
+      glowType: "fire",
     });
     // Smoke
     this._emit(this._c(8), x, y, {
@@ -288,6 +342,7 @@ export class CombatParticles {
       size: 6 + Math.random() * 4,
       color: 0x444444,
       gravity: -0.04,
+      shrink: false,
     });
   }
 
@@ -301,7 +356,6 @@ export class CombatParticles {
       color: 0xaa2020,
       gravity: 0.20,
     });
-    // Small mist puff
     this._emit(this._c(3), x, y, {
       vx: () => dirX * (Math.random() * 1.5),
       vy: () => -(Math.random() * 2),
@@ -313,7 +367,6 @@ export class CombatParticles {
   }
 
   spawnChainLightning(x1, y1, x2, y2) {
-    // Sparks along the bolt path between source and chain target
     const segments = this.mobile ? 4 : 8;
     for (let i = 0; i <= segments; i++) {
       const t = i / segments;
@@ -325,23 +378,23 @@ export class CombatParticles {
         life: 10 + Math.random() * 6,
         size: 2 + Math.random() * 2,
         color: 0xffee00,
+        glowType: "lightning",
       });
     }
     // Flash at target
-    this._emit(this._c(6), x2, y2, {
-      vx: () => (Math.random() - 0.5) * 6,
-      vy: () => (Math.random() - 0.5) * 6,
-      life: 12 + Math.random() * 6,
-      size: 2.5 + Math.random() * 1.5,
+    this._emit(this._c(8), x2, y2, {
+      vx: () => (Math.random() - 0.5) * 8,
+      vy: () => (Math.random() - 0.5) * 8,
+      life: 14 + Math.random() * 6,
+      size: 2.5 + Math.random() * 2,
       color: 0xffff80,
+      glowType: "lightning",
     });
   }
 
   // ─── OBSTACLE DESTRUCTION PARTICLES ───
 
-  // Wood splinters — brown/tan chunks flying outward with gravity
   spawnWoodSplinters(x, y) {
-    // Large splinters
     this._emit(this._c(16), x, y, {
       vx: () => (Math.random() - 0.5) * 12,
       vy: () => -(Math.random() * 8 + 3),
@@ -350,8 +403,8 @@ export class CombatParticles {
       color: 0x8a6030,
       gravity: 0.22,
       type: "diamond",
+      rotSpeed: (Math.random() - 0.5) * 0.12,
     });
-    // Small wood dust
     this._emit(this._c(10), x, y, {
       vx: () => (Math.random() - 0.5) * 8,
       vy: () => -(Math.random() * 5 + 2),
@@ -360,7 +413,6 @@ export class CombatParticles {
       color: 0xb08850,
       gravity: 0.15,
     });
-    // Sawdust cloud
     this._emit(this._c(6), x, y, {
       vx: () => (Math.random() - 0.5) * 4,
       vy: () => -(Math.random() * 2 + 1),
@@ -368,12 +420,11 @@ export class CombatParticles {
       size: 5 + Math.random() * 3,
       color: 0xc0a870,
       gravity: -0.02,
+      shrink: false,
     });
   }
 
-  // Stone rubble — grey chunks with heavy gravity
   spawnStoneRubble(x, y) {
-    // Heavy chunks
     this._emit(this._c(12), x, y, {
       vx: () => (Math.random() - 0.5) * 10,
       vy: () => -(Math.random() * 7 + 4),
@@ -382,8 +433,8 @@ export class CombatParticles {
       color: 0x6a6a6a,
       gravity: 0.28,
       type: "diamond",
+      rotSpeed: (Math.random() - 0.5) * 0.08,
     });
-    // Smaller pebbles
     this._emit(this._c(10), x, y, {
       vx: () => (Math.random() - 0.5) * 12,
       vy: () => -(Math.random() * 6 + 2),
@@ -392,7 +443,6 @@ export class CombatParticles {
       color: 0x8a8a8a,
       gravity: 0.25,
     });
-    // Dust cloud
     this._emit(this._c(8), x, y, {
       vx: () => (Math.random() - 0.5) * 5,
       vy: () => -(Math.random() * 2 + 0.5),
@@ -400,12 +450,11 @@ export class CombatParticles {
       size: 6 + Math.random() * 4,
       color: 0x9a9080,
       gravity: -0.02,
+      shrink: false,
     });
   }
 
-  // Ice shard explosion — bright blue diamonds scattering
   spawnIceShatter(x, y) {
-    // Bright shards
     this._emit(this._c(14), x, y, {
       vx: () => (Math.random() - 0.5) * 14,
       vy: () => -(Math.random() * 9 + 3),
@@ -414,16 +463,17 @@ export class CombatParticles {
       color: 0x80d0ff,
       gravity: 0.18,
       type: "diamond",
+      glowType: "ice",
+      rotSpeed: (Math.random() - 0.5) * 0.18,
     });
-    // White core flash
     this._emit(this._c(4), x, y, {
       vx: () => (Math.random() - 0.5) * 2,
       vy: () => (Math.random() - 0.5) * 2,
-      life: 8,
-      size: 10,
+      life: 10,
+      size: 12,
       color: 0xe0f0ff,
+      glowType: "ice",
     });
-    // Frost mist
     this._emit(this._c(8), x, y, {
       vx: () => (Math.random() - 0.5) * 6,
       vy: () => -(Math.random() * 2),
@@ -431,10 +481,11 @@ export class CombatParticles {
       size: 4 + Math.random() * 3,
       color: 0xa0d8f0,
       gravity: -0.03,
+      glowType: "ice",
+      shrink: false,
     });
   }
 
-  // Crystal shatter — purple/pink glowing shards
   spawnCrystalShatter(x, y) {
     this._emit(this._c(12), x, y, {
       vx: () => (Math.random() - 0.5) * 12,
@@ -444,8 +495,9 @@ export class CombatParticles {
       color: 0xc080ff,
       gravity: 0.16,
       type: "diamond",
+      glowType: "crystal",
+      rotSpeed: (Math.random() - 0.5) * 0.15,
     });
-    // Sparkle dust
     this._emit(this._c(10), x, y, {
       vx: () => (Math.random() - 0.5) * 8,
       vy: () => -(Math.random() * 5 + 2),
@@ -453,18 +505,18 @@ export class CombatParticles {
       size: 2 + Math.random(),
       color: 0xffa0ff,
       gravity: 0.10,
+      glowType: "crystal",
     });
-    // Glow flash
     this._emit(this._c(3), x, y, {
       vx: () => 0,
       vy: () => 0,
-      life: 10,
-      size: 12,
+      life: 12,
+      size: 14,
       color: 0xe0c0ff,
+      glowType: "crystal",
     });
   }
 
-  // Leaf burst — green particles drifting
   spawnLeafBurst(x, y) {
     this._emit(this._c(14), x, y, {
       vx: () => (Math.random() - 0.5) * 10,
@@ -474,8 +526,8 @@ export class CombatParticles {
       color: 0x50a030,
       gravity: 0.08,
       type: "diamond",
+      rotSpeed: (Math.random() - 0.5) * 0.12,
     });
-    // Small green mist
     this._emit(this._c(6), x, y, {
       vx: () => (Math.random() - 0.5) * 4,
       vy: () => -(Math.random() * 2 + 0.5),
@@ -483,10 +535,10 @@ export class CombatParticles {
       size: 5 + Math.random() * 3,
       color: 0x80c060,
       gravity: -0.02,
+      shrink: false,
     });
   }
 
-  // Metal sparks — bright yellow/white with fast scatter
   spawnMetalSparks(x, y) {
     this._emit(this._c(18), x, y, {
       vx: () => (Math.random() - 0.5) * 16,
@@ -495,8 +547,8 @@ export class CombatParticles {
       size: 1.5 + Math.random() * 1.5,
       color: 0xffe060,
       gravity: 0.30,
+      glowType: "lightning",
     });
-    // Hot white sparks
     this._emit(this._c(8), x, y, {
       vx: () => (Math.random() - 0.5) * 12,
       vy: () => -(Math.random() * 8 + 3),
@@ -504,10 +556,10 @@ export class CombatParticles {
       size: 1 + Math.random(),
       color: 0xffffff,
       gravity: 0.25,
+      glowType: "lightning",
     });
   }
 
-  // Sand/dust burst — light particles rising
   spawnDustBurst(x, y) {
     this._emit(this._c(12), x, y, {
       vx: () => (Math.random() - 0.5) * 8,
@@ -516,8 +568,8 @@ export class CombatParticles {
       size: 4 + Math.random() * 3,
       color: 0xc4a860,
       gravity: 0.06,
+      shrink: false,
     });
-    // Fine dust
     this._emit(this._c(8), x, y, {
       vx: () => (Math.random() - 0.5) * 5,
       vy: () => -(Math.random() * 2 + 0.5),
@@ -525,10 +577,10 @@ export class CombatParticles {
       size: 6 + Math.random() * 4,
       color: 0xd8c090,
       gravity: -0.01,
+      shrink: false,
     });
   }
 
-  // Small hit spark on non-destruction damage to obstacle
   spawnObstacleHitSpark(x, y, materialColor) {
     this._emit(this._c(5), x, y, {
       vx: () => (Math.random() - 0.5) * 6,
@@ -540,9 +592,7 @@ export class CombatParticles {
     });
   }
 
-  // Enemy attack incoming — sparks flying toward bottom of screen (camera/player)
   spawnEnemyAttackWarn(x, y) {
-    // Bright red/orange sparks converging downward
     this._emit(this._c(10), x, y, {
       vx: () => (Math.random() - 0.5) * 6,
       vy: () => (Math.random() * 6 + 3),
@@ -550,18 +600,18 @@ export class CombatParticles {
       size: 3 + Math.random() * 2,
       color: 0xff4020,
       gravity: 0.1,
+      glowType: "fire",
     });
-    // White-hot core flash
     this._emit(this._c(3), x, y, {
       vx: () => (Math.random() - 0.5) * 2,
       vy: () => (Math.random() * 2 + 1),
       life: 8,
-      size: 5,
+      size: 6,
       color: 0xffffaa,
+      glowType: "holy",
     });
   }
 
-  // P3: Melee slash trail — arc of sparks from attacker
   spawnMeleeSlashTrail(x, y, dir = 1) {
     this._emit(this._c(8), x, y, {
       vx: () => dir * (2 + Math.random() * 4),
@@ -571,8 +621,8 @@ export class CombatParticles {
       color: 0xff8040,
       gravity: 0.08,
       shrink: true,
+      glowType: "fire",
     });
-    // White-hot center sparks
     this._emit(this._c(3), x, y, {
       vx: () => dir * (3 + Math.random() * 3),
       vy: () => (Math.random() - 0.5) * 4,
@@ -580,10 +630,10 @@ export class CombatParticles {
       size: 3,
       color: 0xffffff,
       shrink: true,
+      glowType: "holy",
     });
   }
 
-  // P5: Charge dust trail — kicked-up debris behind charging enemy
   spawnChargeTrail(x, y) {
     this._emit(this._c(4), x, y, {
       vx: () => (Math.random() - 0.5) * 3,
@@ -596,22 +646,24 @@ export class CombatParticles {
     });
   }
 
-  // P4: Ranged charge-up — converging energy particles
   spawnRangedChargeUp(x, y, element) {
-    const color = element === "fire" ? 0xff6020
-      : element === "ice" ? 0x60c0ff
-      : element === "shadow" ? 0xa050e0
-      : element === "poison" ? 0x44ff44
-      : 0xffaa00;
+    const colorMap = {
+      fire: { color: 0xff6020, glowType: "fire" },
+      ice: { color: 0x60c0ff, glowType: "ice" },
+      shadow: { color: 0xa050e0, glowType: "shadow" },
+      poison: { color: 0x44ff44, glowType: "poison" },
+    };
+    const cfg = colorMap[element] || { color: 0xffaa00, glowType: "lightning" };
     this._emit(this._c(6), x, y, {
       vx: () => (Math.random() - 0.5) * 8,
       vy: () => (Math.random() - 0.5) * 8,
       life: 12 + Math.random() * 4,
       size: 2 + Math.random() * 2,
-      color,
+      color: cfg.color,
       gravity: 0,
-      converge: true, // custom: particles converge to origin
+      converge: true,
       cx: x, cy: y,
+      glowType: cfg.glowType,
     });
   }
 
@@ -626,6 +678,74 @@ export class CombatParticles {
     });
   }
 
+  // ─── RENDER HELPERS ───
+
+  _lerpColor(c1, c2, t) {
+    const r1 = (c1 >> 16) & 0xff, g1 = (c1 >> 8) & 0xff, b1 = c1 & 0xff;
+    const r2 = (c2 >> 16) & 0xff, g2 = (c2 >> 8) & 0xff, b2 = c2 & 0xff;
+    return ((Math.round(r1 + (r2 - r1) * t) << 16) |
+            (Math.round(g1 + (g2 - g1) * t) << 8) |
+             Math.round(b1 + (b2 - b1) * t));
+  }
+
+  _drawParticle(sx, sy, p, lifeRatio) {
+    const alpha = lifeRatio > 0.7 ? 1 : lifeRatio / 0.7;
+    const size = p.shrink ? p.size * lifeRatio : p.size;
+
+    // Resolve final color (temperature shift: colorHot at start, color at end)
+    const color = (p.colorHot !== null)
+      ? this._lerpColor(p.colorHot, p.color, 1 - lifeRatio)
+      : p.color;
+
+    const glowCfg = GLOW_CONFIG[p.glowType] || GLOW_CONFIG.default;
+
+    if (p.type === "diamond") {
+      const rot = p.rotation || 0;
+      const cos = Math.cos(rot), sin = Math.sin(rot);
+      const rx = size * 0.65, ry = size;
+
+      if (!this.mobile) {
+        // Outer bloom for glowing diamonds
+        const outerR = size * glowCfg.outerScale;
+        this.gfx.circle(sx, sy, outerR);
+        this.gfx.fill({ color, alpha: alpha * glowCfg.outerAlpha });
+      }
+
+      // Draw rotated diamond
+      const pts = [
+        sx + cos * 0 - sin * (-ry), sy + sin * 0 + cos * (-ry),
+        sx + cos * rx - sin * 0,    sy + sin * rx + cos * 0,
+        sx + cos * 0 - sin * ry,    sy + sin * 0 + cos * ry,
+        sx + cos * (-rx) - sin * 0, sy + sin * (-rx) + cos * 0,
+      ];
+      this.gfx.poly(pts);
+      this.gfx.fill({ color, alpha: alpha * 0.85 });
+
+    } else {
+      if (!this.mobile) {
+        // Outer soft bloom
+        this.gfx.circle(sx, sy, size * glowCfg.outerScale);
+        this.gfx.fill({ color, alpha: alpha * glowCfg.outerAlpha });
+        // Mid bloom
+        this.gfx.circle(sx, sy, size * glowCfg.midScale);
+        this.gfx.fill({ color, alpha: alpha * glowCfg.midAlpha });
+      } else {
+        // Mobile: single light halo
+        this.gfx.circle(sx, sy, size * 2);
+        this.gfx.fill({ color, alpha: alpha * 0.10 });
+      }
+      // Core
+      this.gfx.circle(sx, sy, size);
+      this.gfx.fill({ color, alpha: alpha * 0.80 });
+
+      // Hot bright core dot for luminous particles
+      if (!this.mobile && glowCfg.hotCore && lifeRatio > 0.4) {
+        this.gfx.circle(sx, sy, size * 0.4);
+        this.gfx.fill({ color: 0xffffff, alpha: alpha * 0.55 * lifeRatio });
+      }
+    }
+  }
+
   update(panOffset, gameW) {
     if (panOffset !== undefined) this._panOffset = panOffset;
     if (gameW !== undefined) this._gameW = gameW;
@@ -634,13 +754,13 @@ export class CombatParticles {
     const po = this._panOffset;
     const gw = this._gameW;
 
-    // Swap-and-pop removal to avoid O(n^2) splice
     let len = this.particles.length;
     for (let i = len - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.x += p.vx;
       p.y += p.vy;
       p.vy += p.gravity;
+      if (p.rotSpeed) p.rotation += p.rotSpeed;
       p.life--;
 
       if (p.life <= 0) {
@@ -649,36 +769,15 @@ export class CombatParticles {
         continue;
       }
 
-      // Convert world X to screen X for panoramic wrapping
       const sx = po ? wrapPxToScreen(p.x, po, gw) : p.x;
-      if (sx === null) continue; // off-screen, skip drawing
+      if (sx === null) continue;
 
       const lifeRatio = p.life / p.maxLife;
-      const alpha = lifeRatio > 0.7 ? 1 : lifeRatio / 0.7;
-      const size = p.shrink ? p.size * lifeRatio : p.size;
-
-      if (p.type === "diamond") {
-        this.gfx.moveTo(sx, p.y - size);
-        this.gfx.lineTo(sx + size * 0.6, p.y);
-        this.gfx.lineTo(sx, p.y + size);
-        this.gfx.lineTo(sx - size * 0.6, p.y);
-        this.gfx.closePath();
-        this.gfx.fill({ color: p.color, alpha: alpha * 0.8 });
-      } else {
-        // On mobile: skip glow halo to reduce draw calls
-        if (!this.mobile) {
-          this.gfx.circle(sx, p.y, size * 2);
-          this.gfx.fill({ color: p.color, alpha: alpha * 0.1 });
-        }
-        // Core
-        this.gfx.circle(sx, p.y, size);
-        this.gfx.fill({ color: p.color, alpha: alpha * 0.7 });
-      }
+      this._drawParticle(sx, p.y, p, lifeRatio);
     }
     this.particles.length = len;
   }
 
-  // Isometric mode update — particles positioned via iso projection
   updateIso(cameraX, cameraY, gameW) {
     this._gameW = gameW || 1280;
     this.gfx.clear();
@@ -689,6 +788,7 @@ export class CombatParticles {
       p.x += p.vx;
       p.y += p.vy;
       p.vy += p.gravity;
+      if (p.rotSpeed) p.rotation += p.rotSpeed;
       p.life--;
 
       if (p.life <= 0) {
@@ -697,8 +797,6 @@ export class CombatParticles {
         continue;
       }
 
-      // Convert physics pixel coords to iso world coords for projection
-      // Particles move in physics pixel space; convert to tile coords for iso
       const gw = this._gameW || 1280;
       const wx = p.wx ?? (p.x / gw) * ISO_CONFIG.MAP_COLS;
       const wy = p.wy ?? (p.y / ISO_CONFIG.GAME_H) * ISO_CONFIG.MAP_ROWS;
@@ -708,24 +806,7 @@ export class CombatParticles {
       if (sx < -50 || sx > gw + 50 || sy < -50 || sy > ISO_CONFIG.GAME_H + 50) continue;
 
       const lifeRatio = p.life / p.maxLife;
-      const alpha = lifeRatio > 0.7 ? 1 : lifeRatio / 0.7;
-      const size = p.shrink ? p.size * lifeRatio : p.size;
-
-      if (p.type === "diamond") {
-        this.gfx.moveTo(sx, sy - size);
-        this.gfx.lineTo(sx + size * 0.6, sy);
-        this.gfx.lineTo(sx, sy + size);
-        this.gfx.lineTo(sx - size * 0.6, sy);
-        this.gfx.closePath();
-        this.gfx.fill({ color: p.color, alpha: alpha * 0.8 });
-      } else {
-        if (!this.mobile) {
-          this.gfx.circle(sx, sy, size * 2);
-          this.gfx.fill({ color: p.color, alpha: alpha * 0.1 });
-        }
-        this.gfx.circle(sx, sy, size);
-        this.gfx.fill({ color: p.color, alpha: alpha * 0.7 });
-      }
+      this._drawParticle(sx, sy, p, lifeRatio);
     }
     this.particles.length = len;
   }
