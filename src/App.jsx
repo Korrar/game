@@ -56,6 +56,7 @@ import {
   sfxBossKillDrama, sfxCriticalHit, sfxHeadshotConfirm,
   startCaravanAlarm, stopCaravanAlarm, sfxWaveIncoming,
   sfxStructureCollapse, sfxStructureFullDestroy,
+  sfxCollectibleSpotted, sfxCollectiblePickup, sfxSetCompleted,
 } from "./audio/soundEngine";
 import TopBar from "./components/TopBar";
 import SidePanel from "./components/SidePanel";
@@ -71,6 +72,13 @@ import IsoMinimap from "./components/IsoMinimap";
 import Chest, { CLICKS_TO_OPEN } from "./components/Chest";
 import RelicPicker from "./components/RelicPicker";
 import SlotMachine from "./components/SlotMachine";
+import CuriosityCabinet from "./components/CuriosityCabinet";
+import {
+  COLLECTIBLES, COLLECTIBLE_BY_ID, COLLECTIBLE_RARITY_C, COLLECTIBLE_RARITY_L, COLLECTIBLE_RARITY_TIER,
+  COLLECTIBLE_PITY_ROOMS, FIRST_FIND_REWARD,
+  rollCollectibleTier, pickCollectibleDrop, pickAntiqueDrop,
+  getCompletedSets,
+} from "./data/collectibles";
 import { RELICS, RELIC_SYNERGIES, RELIC_RARITY_COLOR } from "./data/relics";
 import { getBossForRoom, getDungeonBoss } from "./data/bosses";
 import { generateDungeon, createDungeonBiome, DUNGEON_TYPES } from "./systems/DungeonGenerator.js";
@@ -430,6 +438,23 @@ export default function App() {
   meteoriteRef.current = meteorite;
   // Ground loot dropped by destroyed meteor — clickable items
   const [groundLoot, setGroundLoot] = useState([]);
+
+  // ─── FEATURE: Collectible Drops (persistent meta-progression) ───
+  // collectedItems: { [collectibleId]: { count, firstFoundRoom, firstFoundBiome, firstFoundAt } }
+  const [collectedItems, setCollectedItems] = useState({});
+  const collectedItemsRef = useRef({});
+  collectedItemsRef.current = collectedItems;
+  const [collectorShards, setCollectorShards] = useState(0);
+  const collectorShardsRef = useRef(0);
+  collectorShardsRef.current = collectorShards;
+  // Rooms since last collectible drop — used for pity system
+  const collectiblePityRef = useRef(0);
+  // Sets we already celebrated (so we don't fire fanfare repeatedly)
+  const completedSetsAwardedRef = useRef([]);
+  // Toast / popup for first-find moments
+  const [firstFindPopup, setFirstFindPopup] = useState(null);
+  // Toggle for the gallery overlay
+  const [showCabinet, setShowCabinet] = useState(false);
   // Map secrets: hidden ISO world-space POIs revealed by proximity
   const [mapSecrets, setMapSecrets] = useState([]);
   const mapSecretsRef = useRef([]);
@@ -5881,6 +5906,28 @@ export default function App() {
     return () => clearInterval(iv);
   }, [screen, room, money, mana, ammo, kills, doors, initiative, inventory, hideoutItems, ownedTools, hideoutLevel, knightLevel, caravanLevel, caravanHp, bestiary, knowledge, learnedSpells, activeRelics, knowledgeUpgrades, activeSynergies, playerXp, playerLevel, levelPerks, spellUpgrades, killStreak, enemyBuffRooms, playerDoubleDmgRooms, crew, activeStory, completedStories, shipUpgrades, discoveredIslands, unlockedFortifications, factionRep, journal, ownedArtifacts, totalDiscoveries, ownedSabers, equippedSaber]);
 
+  // ─── COLLECTIBLES: load on mount, save on change (separate key, persists across runs) ───
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("wrota_collectibles");
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data.collectedItems) setCollectedItems(data.collectedItems);
+        if (typeof data.collectorShards === "number") setCollectorShards(data.collectorShards);
+        if (Array.isArray(data.completedSetsAwarded)) completedSetsAwardedRef.current = data.completedSetsAwarded;
+      }
+    } catch { /* collectible load silently fails */ }
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("wrota_collectibles", JSON.stringify({
+        collectedItems,
+        collectorShards,
+        completedSetsAwarded: completedSetsAwardedRef.current,
+      }));
+    } catch { /* collectible save silently fails */ }
+  }, [collectedItems, collectorShards]);
+
   const travelCaravan = () => {
     if (defenseMode && defenseMode.phase !== "complete") {
       showMessage("Nie możesz podróżować podczas obrony!", "#cc4040"); return;
@@ -6484,6 +6531,47 @@ export default function App() {
       canDropResource: true,
       resourceMult: isBoss ? 2 : 1,
     });
+    // Collectible roll — biome-tagged, with pity system
+    rollCollectibleDrop(wx, wy, npcData, isBoss);
+  };
+
+  // Roll for a collectible drop after an enemy dies.
+  // Collectibles are biome-tagged; antiques are boss-only.
+  const rollCollectibleDrop = (wx, wy, npcData, isBoss) => {
+    const biomeId = biomeRef.current?.id;
+    if (!biomeId) return;
+    const isElite = npcData.rarity === "elite";
+    const rarityHint = npcData.rarity || "common";
+    // Pity: increment counter, force after threshold
+    collectiblePityRef.current += 1;
+    const pityForced = collectiblePityRef.current >= COLLECTIBLE_PITY_ROOMS && isBoss === false;
+    const tier = rollCollectibleTier(rarityHint, isBoss, isElite, pityForced);
+    let drop = null;
+    if (tier) {
+      drop = pickCollectibleDrop(biomeId, tier, collectedItemsRef.current);
+    }
+    // Mythic special: 8% chance from bosses if biome has a mythic available
+    if (!drop && isBoss && Math.random() < 0.08) {
+      drop = pickCollectibleDrop(biomeId, "mythic", collectedItemsRef.current);
+    }
+    // Antique: boss-only, very rare (3%) cross-biome
+    if (!drop && isBoss && Math.random() < 0.03) {
+      drop = pickAntiqueDrop(collectedItemsRef.current);
+    }
+    if (!drop) return;
+    // Reset pity on successful drop
+    collectiblePityRef.current = 0;
+    const tierIdx = COLLECTIBLE_RARITY_TIER[drop.rarity] || 0;
+    // Spawn ground item
+    const id = `gl_col_${Date.now()}_${++_glId.current}`;
+    setGroundLoot(prev => [...prev, {
+      id, type: "collectible", collectible: drop,
+      x: wx, y: wy,
+      icon: drop.icon, label: drop.name,
+      collected: false, spawnTime: Date.now(),
+      rarity: drop.rarity,
+    }]);
+    sfxCollectibleSpotted(tierIdx);
   };
 
   // Helper: spawn loot from destroyed obstacle
@@ -6630,6 +6718,60 @@ export default function App() {
     }
   }, [addMoneyFn, showMessage, stopCaravanAlarm]);
 
+  // Handle the gameplay effects of picking up a collectible:
+  // - First find: award copper/silver/gold from FIRST_FIND_REWARD + flashy popup
+  // - Duplicate: +1 collector shard
+  // - Set completion: bonus reward + fanfare
+  const handleCollectiblePickup = (col) => {
+    if (!col) return;
+    const tierIdx = COLLECTIBLE_RARITY_TIER[col.rarity] || 0;
+    sfxCollectiblePickup(tierIdx);
+    const existing = collectedItemsRef.current[col.id];
+    const isFirstFind = !existing;
+    if (isFirstFind) {
+      const reward = FIRST_FIND_REWARD[col.rarity] || { copper: 5 };
+      addMoneyFn(reward);
+      // Persist with discovery metadata
+      setCollectedItems(prev => ({
+        ...prev,
+        [col.id]: {
+          count: 1,
+          firstFoundRoom: roomRef.current,
+          firstFoundBiome: biomeRef.current?.id || null,
+          firstFoundAt: Date.now(),
+        },
+      }));
+      setFirstFindPopup({ collectible: col, reward, id: Date.now() });
+      // Auto-dismiss after a few seconds for non-mythic; mythic+ stays longer
+      const dismissMs = tierIdx >= 5 ? 4500 : 2800;
+      setTimeout(() => setFirstFindPopup(p => p && p.collectible.id === col.id ? null : p), dismissMs);
+      // Screen shake / particles for mythic+
+      if (tierIdx >= 5) {
+        setScreenShake(true);
+        setTimeout(() => setScreenShake(false), 250);
+      }
+      // Check set completion AFTER state update (use next-tick)
+      setTimeout(() => {
+        const completed = getCompletedSets(collectedItemsRef.current);
+        for (const set of completed) {
+          if (completedSetsAwardedRef.current.includes(set.id)) continue;
+          completedSetsAwardedRef.current = [...completedSetsAwardedRef.current, set.id];
+          if (set.reward) addMoneyFn(set.reward);
+          sfxSetCompleted();
+          showMessage(`★ ZESTAW UKOŃCZONY: ${set.name}! ★`, "#a050e0");
+        }
+      }, 50);
+    } else {
+      // Duplicate → collector shard + bump count
+      setCollectorShards(s => s + 1);
+      setCollectedItems(prev => ({
+        ...prev,
+        [col.id]: { ...prev[col.id], count: (prev[col.id].count || 1) + 1 },
+      }));
+      showMessage(`Duplikat: ${col.name} → +1 Odłamek Kolekcjonera`, COLLECTIBLE_RARITY_C[col.rarity]);
+    }
+  };
+
   // Collect a ground loot item
   const collectGroundLoot = (itemId) => {
     const item = groundLoot.find(i => i.id === itemId && !i.collected);
@@ -6668,6 +6810,8 @@ export default function App() {
     } else if (item.type === "resource") {
       setCraftingResources(prev => ({ ...prev, [item.resource.id]: (prev[item.resource.id] || 0) + 1 }));
       showMessage(`+1 ${item.resource.name}`, "#44cc88");
+    } else if (item.type === "collectible") {
+      handleCollectiblePickup(item.collectible);
     } else if (item.type === "health_potion") {
       const maxHp = CARAVAN_LEVELS[caravanLevelRef.current].hp;
       const healAmt = Math.round(maxHp * 0.25);
@@ -10692,6 +10836,107 @@ export default function App() {
 
       {/* Ground loot — clickable coins and items dropped by meteor */}
       {groundLoot.filter(i => !i.collected).map(item => {
+        // ─── COLLECTIBLE: special precious rendering with beam, shimmer, orbiting sparks ───
+        if (item.type === "collectible") {
+          const col = item.collectible;
+          const rc = COLLECTIBLE_RARITY_C[col.rarity] || "#ffd450";
+          const tier = COLLECTIBLE_RARITY_TIER[col.rarity] || 0;
+          const isMythicPlus = col.rarity === "mythic" || col.rarity === "antique";
+          const isLegendaryPlus = tier >= 4;
+          const sparkleCount = isMythicPlus ? 8 : tier >= 3 ? 6 : tier >= 2 ? 4 : 2;
+          const beamHeight = 80 + tier * 30; // 80..260px
+          const iconSize = 28 + tier * 2;
+          return (
+            <div key={item.id} ref={el => { if (el) groundLootElsRef.current[item.id] = el; }}
+              data-wx={item.x} data-wy={item.y}
+              onClick={() => collectGroundLoot(item.id)}
+              style={{
+                position: "absolute", left: `${wrapPctToScreen(item.x) ?? item.x}%`, top: `${item.y}%`, zIndex: 16,
+                cursor: "pointer", userSelect: "none",
+                transform: "translate(-50%, -50%)",
+                pointerEvents: "auto",
+              }}>
+              {/* Light beam shooting upward — additive blend */}
+              <div style={{
+                position: "absolute", left: "50%", bottom: 14,
+                transform: "translateX(-50%)",
+                width: 18 + tier * 4, height: beamHeight,
+                background: `linear-gradient(to top, ${rc}aa, ${rc}55 50%, transparent)`,
+                filter: `blur(${6 + tier}px)`,
+                mixBlendMode: "screen",
+                pointerEvents: "none",
+                animation: `colBeamPulse ${2.4 - tier * 0.15}s ease-in-out infinite`,
+                borderRadius: "50% 50% 10% 10%",
+                opacity: 0.85,
+              }} />
+              {/* Ground glow ellipse */}
+              <div style={{
+                position: "absolute", left: "50%", top: "50%",
+                transform: "translate(-50%, 16px)",
+                width: 50 + tier * 8, height: 16 + tier * 2,
+                background: `radial-gradient(ellipse, ${rc}99, ${rc}22 50%, transparent)`,
+                filter: "blur(2px)",
+                pointerEvents: "none",
+                animation: `colGroundGlow ${2.0 - tier * 0.1}s ease-in-out infinite`,
+              }} />
+              {/* Orbiting sparkles */}
+              {Array.from({ length: sparkleCount }).map((_, i) => {
+                const angle = (i / sparkleCount) * 360;
+                const delay = (i / sparkleCount) * 2;
+                return (
+                  <div key={`sp_${i}`} style={{
+                    position: "absolute", top: 0, left: "50%",
+                    width: isMythicPlus ? 4 : 3, height: isMythicPlus ? 4 : 3,
+                    borderRadius: "50%",
+                    background: rc, boxShadow: `0 0 8px ${rc}`,
+                    animation: `colOrbit ${3 - tier * 0.2}s ${delay}s linear infinite`,
+                    transformOrigin: "0 0",
+                    marginLeft: -1.5, marginTop: -1.5,
+                    pointerEvents: "none",
+                    "--col-angle": `${angle}deg`,
+                    "--col-radius": `${22 + tier * 3}px`,
+                  }} />
+                );
+              })}
+              {/* Floating, rotating item — drop shadow scales with rarity */}
+              <div style={{
+                width: iconSize + 8, height: iconSize + 8,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                position: "relative",
+                filter: `drop-shadow(0 0 ${8 + tier * 3}px ${rc})`,
+                animation: `colFloat 2.6s ease-in-out infinite, colSpin ${8 - tier * 0.5}s linear infinite`,
+              }}>
+                <Icon name={col.icon} size={iconSize} />
+                {/* Shimmer overlay for epic+ */}
+                {tier >= 3 && (
+                  <div style={{
+                    position: "absolute", inset: -4, pointerEvents: "none",
+                    background: `linear-gradient(135deg, transparent 35%, ${rc}88 50%, transparent 65%)`,
+                    backgroundSize: "200% 200%", animation: "colShimmer 2.2s ease-in-out infinite",
+                    mixBlendMode: "screen", borderRadius: "50%",
+                  }} />
+                )}
+              </div>
+              {/* Name label with rarity badge */}
+              <div style={{
+                textAlign: "center", marginTop: 2,
+                fontSize: 10, fontWeight: "bold", color: rc,
+                textShadow: `0 0 8px ${rc}, 0 1px 3px #000`,
+                whiteSpace: "nowrap",
+                letterSpacing: isLegendaryPlus ? 1 : 0,
+              }}>
+                {isLegendaryPlus && "★ "}{col.name}{isLegendaryPlus && " ★"}
+              </div>
+              <div style={{
+                textAlign: "center", fontSize: 8, color: rc, opacity: 0.85,
+                letterSpacing: 1, textShadow: "0 1px 2px #000",
+              }}>
+                {COLLECTIBLE_RARITY_L[col.rarity]?.toUpperCase()}
+              </div>
+            </div>
+          );
+        }
+        // ─── Default ground loot rendering ───
         const isRare = item.type === "treasure" || item.type === "moonblade_saber" || item.type === "saber_drop" || item.type === "relic_drop";
         const isPotion = item.type === "health_potion";
         const rarityColors = { common: "#888", uncommon: "#40a060", rare: "#40a8b8", epic: "#a050e0", legendary: "#ffd700" };
@@ -12464,6 +12709,98 @@ export default function App() {
 
       <LootPopup loot={loot} onClose={() => setLoot(null)} />
 
+      {/* ─── First-find collectible popup ─── */}
+      {firstFindPopup && (() => {
+        const col = firstFindPopup.collectible;
+        const rc = COLLECTIBLE_RARITY_C[col.rarity];
+        const tier = COLLECTIBLE_RARITY_TIER[col.rarity] || 0;
+        const isMythicPlus = col.rarity === "mythic" || col.rarity === "antique";
+        return (
+          <div onClick={() => setFirstFindPopup(null)} style={{
+            position: "fixed", inset: 0, zIndex: 230,
+            background: isMythicPlus ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)",
+            pointerEvents: isMythicPlus ? "auto" : "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {/* Radial burst */}
+            <div style={{
+              position: "absolute", left: "50%", top: "50%",
+              width: 200, height: 200,
+              background: `radial-gradient(circle, ${rc}66, transparent 70%)`,
+              transform: "translate(-50%, -50%)",
+              animation: "firstFindBurst 1.4s ease-out",
+              pointerEvents: "none",
+            }} />
+            <div style={{
+              position: "absolute", left: "50%", top: "50%",
+              transform: "translate(-50%, -50%)",
+              padding: "20px 28px",
+              background: "linear-gradient(180deg, rgba(20,12,8,0.97), rgba(8,4,6,0.97))",
+              border: `2px solid ${rc}`,
+              borderRadius: 8,
+              boxShadow: `0 0 40px ${rc}99, inset 0 0 20px ${rc}22`,
+              textAlign: "center",
+              minWidth: 280,
+              animation: "firstFindPop 0.5s ease-out forwards",
+              pointerEvents: "auto",
+            }}>
+              <div style={{
+                fontSize: 11, letterSpacing: 4, color: rc, fontWeight: "bold", marginBottom: 6,
+                textShadow: `0 0 10px ${rc}`,
+              }}>
+                ✦ NOWE ODKRYCIE ✦
+              </div>
+              <div style={{
+                width: 80, height: 80, margin: "0 auto 8px",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                filter: `drop-shadow(0 0 16px ${rc})`,
+                animation: "colSpin 4s linear infinite",
+              }}>
+                <Icon name={col.icon} size={64} />
+              </div>
+              <div style={{
+                fontSize: 18, fontWeight: "bold", color: rc, marginBottom: 4,
+                textShadow: `0 0 10px ${rc}`,
+                ...(isMythicPlus ? {
+                  background: `linear-gradient(90deg, ${rc}, #ffffff, ${rc})`,
+                  WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+                  backgroundSize: "200% 100%", animation: "shimmer 2s ease-in-out infinite",
+                } : {}),
+              }}>
+                {col.name}
+              </div>
+              <div style={{ fontSize: 11, color: rc, letterSpacing: 3, marginBottom: 6 }}>
+                ◆ {COLLECTIBLE_RARITY_L[col.rarity]} ◆
+              </div>
+              <div style={{ fontSize: 12, color: "#c8b898", fontStyle: "italic", marginBottom: 8 }}>
+                "{col.desc}"
+              </div>
+              <div style={{
+                fontSize: 13, color: "#ffd450", marginTop: 6, fontWeight: "bold",
+                borderTop: "1px solid #3a2818", paddingTop: 6,
+              }}>
+                Nagroda za odkrycie: {formatLootText(firstFindPopup.reward)}
+              </div>
+              {isMythicPlus && (
+                <div style={{ fontSize: 10, color: "#998877", marginTop: 6 }}>
+                  Sprawdź w Gabinecie Osobliwości
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Curiosity Cabinet overlay ─── */}
+      {showCabinet && (
+        <CuriosityCabinet
+          collectedItems={collectedItems}
+          collectorShards={collectorShards}
+          onClose={() => setShowCabinet(false)}
+          isMobile={isMobile}
+        />
+      )}
+
       {/* Card Drop Popup */}
       {/* Card drop side log */}
       {cardLog.length > 0 && (
@@ -12748,6 +13085,38 @@ export default function App() {
 
       {/* HIDEOUT PANEL */}
       <SidePanel open={panel === "hideout"} side="right" width={460} onClose={() => setPanel(null)} title="Moja Baza" isMobile={isMobile}>
+        {/* Gabinet Osobliwości — entry button */}
+        {(() => {
+          const totalCol = COLLECTIBLES.length;
+          const foundCol = Object.keys(collectedItems).length;
+          const pct = totalCol ? Math.round((foundCol / totalCol) * 100) : 0;
+          return (
+            <button onClick={() => { setPanel(null); setShowCabinet(true); }} style={{
+              display: "flex", alignItems: "center", gap: 10,
+              width: "100%", padding: "10px 12px", marginBottom: 12,
+              background: "linear-gradient(180deg, rgba(160,80,224,0.18), rgba(60,30,100,0.18))",
+              border: "2px solid #a050e0",
+              borderRadius: 6, cursor: "pointer",
+              boxShadow: "0 0 14px rgba(160,80,224,0.35), inset 0 0 10px rgba(160,80,224,0.15)",
+              color: "#e0c0ff", textAlign: "left", position: "relative", overflow: "hidden",
+            }}>
+              <div style={{
+                position: "absolute", inset: 0,
+                background: "linear-gradient(135deg, transparent 30%, rgba(255,255,255,0.06) 50%, transparent 70%)",
+                backgroundSize: "200% 200%", animation: "shimmer 3.5s ease-in-out infinite",
+                pointerEvents: "none",
+              }} />
+              <Icon name="treasure" size={28} />
+              <div style={{ flex: 1, position: "relative" }}>
+                <div style={{ fontWeight: "bold", fontSize: 14, color: "#d090ff" }}>✦ Gabinet Osobliwości</div>
+                <div style={{ fontSize: 11, color: "#a080c0", marginTop: 1 }}>
+                  Kolekcja: {foundCol}/{totalCol} ({pct}%) {collectorShards > 0 && <> · Odłamki: {collectorShards}</>}
+                </div>
+              </div>
+              <div style={{ fontSize: 18, color: "#d090ff" }}>▸</div>
+            </button>
+          );
+        })()}
         <h3 style={{ fontWeight: "bold", fontSize: 16, color: "#d4a030", marginBottom: 8, borderBottom: "1px solid #2a2018", paddingBottom: 4 }}><Icon name="coin" size={16} /> Skarbiec</h3>
         <canvas ref={vaultRef} width={420} height={200} style={{ width: "100%", height: 200, border: "2px solid #3a2818", background: "#0a0604", marginBottom: 12, display: "block" }} />
 
@@ -13790,6 +14159,15 @@ export default function App() {
         @keyframes streakPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
         @keyframes bossWarningPulse{0%,100%{opacity:0.6;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.05)}}
         @keyframes slowMoFlash{0%{filter:saturate(1.5) brightness(1.2)}50%{filter:saturate(0.7) brightness(0.9)}100%{filter:saturate(1) brightness(1)}}
+        @keyframes colFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+        @keyframes colSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes colBeamPulse{0%,100%{opacity:0.55;transform:translateX(-50%) scaleY(0.92)}50%{opacity:0.95;transform:translateX(-50%) scaleY(1.08)}}
+        @keyframes colGroundGlow{0%,100%{opacity:0.55;transform:translate(-50%,16px) scale(0.92)}50%{opacity:1;transform:translate(-50%,16px) scale(1.1)}}
+        @keyframes colOrbit{from{transform:rotate(calc(var(--col-angle) + 0deg)) translateX(var(--col-radius)) rotate(0deg)}to{transform:rotate(calc(var(--col-angle) + 360deg)) translateX(var(--col-radius)) rotate(-360deg)}}
+        @keyframes colShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+        @keyframes shimmer{0%{background-position:200% 50%}100%{background-position:-200% 50%}}
+        @keyframes firstFindPop{0%{opacity:0;transform:translate(-50%,-50%) scale(0.3)}30%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}60%{transform:translate(-50%,-50%) scale(1)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+        @keyframes firstFindBurst{0%{opacity:1;transform:scale(0)}100%{opacity:0;transform:scale(4)}}
       `}</style>
     </div>
   );
