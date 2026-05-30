@@ -3937,3 +3937,103 @@ export function sfxWeather(weatherId) {
     }
   });
 }
+
+// ─── COLLECTIBLES ─────────────────────────────────────────────────────
+// Plays when a collectible item spawns on the ground (subtle ambient chime)
+export function sfxCollectibleSpotted(rarityTier = 0) {
+  playSfx((c, now, dest) => {
+    const root = 523.3 + rarityTier * 80;
+    [root, root * 1.5].forEach((freq, i) => {
+      const osc = c.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0, now + i * 0.04);
+      g.gain.linearRampToValueAtTime(0.18, now + i * 0.04 + 0.08);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.7);
+      osc.connect(g); g.connect(dest);
+      osc.start(now + i * 0.04);
+      osc.stop(now + i * 0.04 + 0.8);
+    });
+  });
+}
+
+// Plays on pickup — chord size scales with rarity
+export function sfxCollectiblePickup(rarityTier = 0) {
+  playSfx((c, now, dest) => {
+    // Base chord (major triad)
+    const base = 392 + rarityTier * 60;
+    const intervals = [1, 1.25, 1.5, 1.875]; // root, M3, P5, M6 — feels triumphant
+    const noteCount = Math.min(4, 2 + Math.floor(rarityTier / 2));
+    for (let i = 0; i < noteCount; i++) {
+      const f = base * intervals[i];
+      const osc = c.createOscillator();
+      osc.type = i === 0 ? "triangle" : "sine";
+      osc.frequency.value = f;
+      const g = c.createGain();
+      const t = now + i * 0.05;
+      g.gain.setValueAtTime(0.0, t);
+      g.gain.linearRampToValueAtTime(0.22 - i * 0.03, t + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.9 + rarityTier * 0.1);
+      osc.connect(g); g.connect(dest);
+      osc.start(t); osc.stop(t + 1.0 + rarityTier * 0.1);
+    }
+    // Sparkle for rare+
+    if (rarityTier >= 2) {
+      const buf = c.createBuffer(1, c.sampleRate * 0.5, c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+      const n = c.createBufferSource(); n.buffer = buf;
+      const f = c.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 5000 + rarityTier * 800;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0, now);
+      g.gain.linearRampToValueAtTime(0.10 + rarityTier * 0.03, now + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      n.connect(f); f.connect(g); g.connect(dest);
+      n.start(now);
+    }
+    // Sub-bass thud for mythic+
+    if (rarityTier >= 5) {
+      const sub = c.createOscillator(); sub.type = "sine";
+      sub.frequency.setValueAtTime(80, now);
+      sub.frequency.exponentialRampToValueAtTime(30, now + 0.6);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0, now);
+      g.gain.linearRampToValueAtTime(0.35, now + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+      sub.connect(g); g.connect(dest);
+      sub.start(now); sub.stop(now + 0.9);
+    }
+  });
+}
+
+// Special fanfare for set completion
+export function sfxSetCompleted() {
+  playSfx((c, now, dest) => {
+    const notes = [523.3, 659.3, 784.0, 1046.5, 1318.5]; // C major arpeggio + octave
+    notes.forEach((f, i) => {
+      const osc = c.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.value = f;
+      const g = c.createGain();
+      const t = now + i * 0.10;
+      g.gain.setValueAtTime(0.0, t);
+      g.gain.linearRampToValueAtTime(0.25, t + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+      osc.connect(g); g.connect(dest);
+      osc.start(t); osc.stop(t + 1.0);
+    });
+    // Final shimmer
+    const buf = c.createBuffer(1, c.sampleRate * 0.9, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.6);
+    const n = c.createBufferSource(); n.buffer = buf;
+    const f = c.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 4500;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0, now);
+    g.gain.linearRampToValueAtTime(0.18, now + 0.3);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+    n.connect(f); f.connect(g); g.connect(dest);
+    n.start(now);
+  });
+}
